@@ -1,4 +1,9 @@
-INHERIT: mkdocs-base.yml
-
 nav:
-  - Home: index.md
+  - About: index.md
+  - Installation: install/install.md
+  - Best Practices:
+    - Basic Practices: best-practices/basic.md
+    - Advanced Features: best-practices/advanced.md
+  - Development Guide:
+    - Database: develop/database.md
+    - RESTful API: develop/restful-api.md

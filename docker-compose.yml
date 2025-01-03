@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: labtasker-mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${DB_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${DB_PASSWORD}
+      - MONGO_INITDB_DATABASE=${DB_NAME:-labtasker_db}
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker/mongodb/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+    # Expose MongoDB port only if EXPOSE_DB=true
+    ports:
+      - ${EXPOSE_DB:+${DB_PORT:-27017}:27017}
+    networks:
+      - labtasker-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: labtasker-api
+    environment:
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-labtasker_db}
+      - DB_HOST=mongodb
+      - DB_PORT=27017
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-labtasker}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - API_HOST=${API_HOST:-0.0.0.0}
+      - API_PORT=${API_PORT:-8080}
+      - SECURITY_PEPPER=${SECURITY_PEPPER}
+    ports:
+      - "${API_PORT:-8080}:${API_PORT:-8080}"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - labtasker-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mongodb_data:
+    name: labtasker-mongodb-data
+
+networks:
+  labtasker-network:
+    name: labtasker-network

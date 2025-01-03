@@ -1,1 +1,101 @@
-INHERIT: mkdocs-nav.yml  # mkdocs-base -> mkdocs-nav -> mkdocs
+INHERIT: mkdocs-nav.yml  # mkdocs-nav -> mkdocs
+
+site_name: Labtasker Documentation
+
+repo_name: fkcptlst/labtasker
+repo_url: https://github.com/fkcptlst/labtasker
+
+theme:
+  name: material
+  custom_dir: overrides
+  # favicon: assets/favicon.png
+  # logo: assets/favicon.png
+  features:
+    - announce.dismiss
+    # - content.action.edit
+    # - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    # - header.autohide
+    # - navigation.expand
+    # - navigation.footer
+    - navigation.indexes
+    # - navigation.instant
+    - navigation.prune  # insider
+    - navigation.sections
+    - navigation.tabs
+    - navigation.path  # insider
+    # - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.followja
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: 'white'
+      accent: 'indigo'
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: 'black'
+      accent: 'cyan'
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+plugins:
+- search
+
+extra:
+  version:
+    provider: mike
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.snippets
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: underscore
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
