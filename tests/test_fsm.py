@@ -1,23 +1,12 @@
-from datetime import datetime
-
 import pytest
 from fastapi import HTTPException
 
 from labtasker.fsm import TaskFSM, TaskState
 
 
-def test_initial_state():
-    """Test FSM initialization."""
-    fsm = TaskFSM()
-    assert fsm.state == TaskState.CREATED
-    assert fsm.retry_count == 0
-    assert fsm.max_retries == 3
-    assert isinstance(fsm.last_transition, datetime)
-
-
 def test_valid_transitions():
     """Test all valid state transitions."""
-    fsm = TaskFSM()
+    fsm = TaskFSM(current_state=TaskState.CREATED, retry_count=0, max_retries=2)
 
     # CREATED -> PENDING
     assert fsm.state == TaskState.CREATED
@@ -39,7 +28,7 @@ def test_valid_transitions():
 
 def test_invalid_transitions():
     """Test invalid state transitions."""
-    fsm = TaskFSM()
+    fsm = TaskFSM(current_state=TaskState.CREATED, retry_count=0, max_retries=2)
 
     # Can't go directly from CREATED to RUNNING
     with pytest.raises(HTTPException) as exc:
@@ -54,7 +43,7 @@ def test_invalid_transitions():
 
 def test_reset_behavior():
     """Test reset functionality from different states."""
-    fsm = TaskFSM()
+    fsm = TaskFSM(current_state=TaskState.CREATED, retry_count=0, max_retries=2)
 
     # Set some initial conditions
     fsm.retry_count = 2
@@ -90,7 +79,7 @@ def test_reset_behavior():
 
 def test_fail_retry_behavior():
     """Test failure and retry behavior."""
-    fsm = TaskFSM(max_retries=2)
+    fsm = TaskFSM(TaskState.CREATED, retry_count=0, max_retries=3)
     fsm.state = TaskState.RUNNING
 
     # First failure should go to PENDING
@@ -113,7 +102,7 @@ def test_fail_retry_behavior():
 
 def test_serialization():
     """Test FSM serialization and deserialization."""
-    fsm = TaskFSM(current_state=TaskState.RUNNING, max_retries=5, retry_count=2)
+    fsm = TaskFSM(TaskState.RUNNING, retry_count=2, max_retries=5)
 
     # Convert to dict
     data = fsm.to_dict()

@@ -166,9 +166,7 @@ PASSWORD=test_password
                 "test_task",
             ],
         )
-        if result.exit_code != 0:
-            print(f"Error output: {result.output}")
-        assert result.exit_code == 0
+        assert result.exit_code == 0, f"Error output: {result.output}"
         output = json.loads(result.output)
         assert len(output) == 1
         assert output[0] == expected_task

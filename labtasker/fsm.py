@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional, Set
 
 from fastapi import HTTPException
+
+from .utils import get_current_time
 
 
 class TaskState(str, Enum):
@@ -25,14 +26,14 @@ class TaskFSM:
 
     def __init__(
         self,
-        current_state: str = TaskState.CREATED,
-        max_retries: int = 3,
-        retry_count: int = 0,
+        current_state: TaskState,
+        retry_count: int,
+        max_retries: int,
     ):
-        self.state = TaskState(current_state)
-        self.max_retries = max_retries
+        self.state = current_state
         self.retry_count = retry_count
-        self.last_transition = datetime.now(timezone.utc)
+        self.max_retries = max_retries
+        self.last_transition = get_current_time()
 
     def validate_transition(self, new_state: TaskState) -> bool:
         """Validate if a state transition is allowed."""
@@ -59,7 +60,7 @@ class TaskFSM:
         """
         # Reset task settings
         self.retry_count = 0
-        self.last_transition = datetime.now(timezone.utc)
+        self.last_transition = get_current_time()
 
         # Validate and perform transition to PENDING
         self.validate_transition(TaskState.PENDING)
@@ -105,8 +106,8 @@ class TaskFSM:
         """Mark task as failed with optional retry.
 
         Transitions:
-        - RUNNING -> PENDING (if retry_count <= max_retries)
-        - RUNNING -> FAILED (if retry_count > max_retries)
+        - RUNNING -> PENDING (if retry_count < max_retries)
+        - RUNNING -> FAILED (if retry_count >= max_retries)
         - Others -> HTTPException (invalid)
 
         Args:
@@ -121,7 +122,7 @@ class TaskFSM:
             )
 
         self.retry_count += 1
-        if self.retry_count <= self.max_retries:
+        if self.retry_count < self.max_retries:
             self.validate_transition(TaskState.PENDING)
             self.state = TaskState.PENDING
         else:

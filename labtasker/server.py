@@ -1,4 +1,6 @@
-from datetime import datetime, timezone
+import asyncio
+from asyncio import create_task
+from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -8,9 +10,36 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from .database import DatabaseClient, Priority, TaskState
-from .dependencies import get_db, verify_queue_auth
+from .dependencies import get_db
+from .utils import get_current_time
 
-app = FastAPI()
+
+async def periodic_task(interval_seconds: int):
+    """Run a periodic task at specified intervals."""
+    while True:
+        try:
+            db = next(get_db())
+            transitioned_tasks = db.handle_timeouts()
+            if transitioned_tasks:
+                print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
+        except Exception as e:
+            print(f"Error checking timeouts: {e}")
+        await asyncio.sleep(interval_seconds)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan and background tasks."""
+    task = create_task(periodic_task(30))
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/health")
@@ -35,7 +64,8 @@ class TaskSubmit(BaseModel):
     task_name: Optional[str] = None
     args: Dict[str, Any]
     metadata: Optional[Dict[str, Any]] = {}
-    heartbeat_interval: Optional[int] = 60
+    heartbeat_timeout: Optional[int] = 60
+    task_timeout: Optional[int] = None
 
 
 @app.post("/api/v1/queues")
@@ -126,7 +156,8 @@ async def submit_task(
         task_name=task.task_name,
         args=task.args,
         metadata=task.metadata,
-        heartbeat_interval=task.heartbeat_interval,
+        heartbeat_timeout=task.heartbeat_timeout,
+        task_timeout=task.task_timeout,
     )
     return {"status": "success", "task_id": task_id}
 
@@ -246,7 +277,7 @@ async def update_task_status(
             "$set": {
                 "status": status,
                 "summary": summary or {},
-                "last_modified": datetime.now(timezone.utc),
+                "last_modified": get_current_time(),
             }
         },
         return_document=True,
@@ -272,7 +303,7 @@ async def task_heartbeat(
 
     task = db.tasks.find_one_and_update(
         query,
-        {"$set": {"last_heartbeat": datetime.now(timezone.utc)}},
+        {"$set": {"last_heartbeat": get_current_time()}},
         return_document=True,
     )
     if not task:

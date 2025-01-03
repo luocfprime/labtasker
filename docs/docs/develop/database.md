@@ -17,7 +17,7 @@ Each queue indentified by a unique queue_name, is responsible for managing:
     "start_time": "2025-01-01T00:00:00Z",
     "last_heartbeat": "2025-01-01T00:00:00Z",
     "last_modified": "2025-01-01T00:00:00Z",
-    "heartbeat_interval": 60,
+    "heartbeat_timeout": 60,
     "timeout": 3600,
     "max_retries": 3,
     "retries": 0,
@@ -86,7 +86,7 @@ states:
     "start_time": "2025-01-01T00:00:00Z",
     "last_heartbeat": "2025-01-01T00:00:00Z",
     "last_modified": "2025-01-01T00:00:00Z",
-    "heartbeat_interval": 60,
+    "heartbeat_timeout": 60,
     "timeout": 3600,
     "max_retries": 3,
     "retries": 0,
@@ -115,7 +115,7 @@ states:
     "queue_id": "uuid-string",
     "worker_name": "optional_worker_name",
     "status": "active",
-    "heartbeat_interval": 60,
+    "heartbeat_timeout": 60,
     "crash_count": 0,
     "max_crash_count": 3
 }

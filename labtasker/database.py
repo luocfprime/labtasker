@@ -17,6 +17,7 @@ from starlette.status import (
 
 from .fsm import TaskFSM, TaskState
 from .security import SecurityManager
+from .utils import get_current_time, get_timeout_delta, parse_timeout
 
 if TYPE_CHECKING:
     from .security import SecurityManager
@@ -122,7 +123,7 @@ class DatabaseClient:
                 "_id": str(uuid4()),
                 "queue_name": queue_name,
                 "password": self.security.hash_password(password),
-                "created_at": datetime.now(timezone.utc),
+                "created_at": get_current_time(),
             }
             result = self.queues.insert_one(queue)
             return str(result.inserted_id)
@@ -148,7 +149,11 @@ class DatabaseClient:
         task_name: Optional[str] = None,
         args: Dict[str, Any] = None,
         metadata: Dict[str, Any] = None,
-        heartbeat_interval: int = 60,
+        heartbeat_timeout: int = 60,
+        task_timeout: Optional[
+            int
+        ] = None,  # Maximum time in seconds for task execution
+        max_retries: int = 3,  # Maximum number of retries
     ) -> str:
         """Submit a task to a queue."""
         # Verify queue exists
@@ -164,19 +169,27 @@ class DatabaseClient:
                 status_code=400, detail="Task args must be a dictionary"
             )
 
-        fsm = TaskFSM()
+        now = get_current_time()
+
+        fsm = TaskFSM(
+            current_state=TaskState.CREATED, retry_count=0, max_retries=max_retries
+        )
         task = {
             "_id": str(uuid4()),
             "queue_id": str(queue["_id"]),
             "queue_name": queue_name,
-            "status": TaskState.CREATED,  # Store current state directly
+            "status": TaskState.CREATED,
             "retry_count": fsm.retry_count,
             "max_retries": fsm.max_retries,
             "task_name": task_name,
             "args": args or {},
             "metadata": metadata or {},
-            "created_at": datetime.now(timezone.utc),
-            "last_modified": datetime.now(timezone.utc),
+            "created_at": now,
+            "last_modified": now,
+            "heartbeat_timeout": heartbeat_timeout,
+            "task_timeout": task_timeout,
+            "last_heartbeat": None,
+            "start_time": None,
         }
         result = self.tasks.insert_one(task)
         return str(result.inserted_id)
@@ -189,14 +202,14 @@ class DatabaseClient:
         eta_max: str = "2h",
     ) -> Optional[Dict[str, Any]]:
         """Fetch next available task from queue."""
-        # Convert eta_max string to seconds
-        timeout = self._parse_timeout(eta_max)
+        timeout = parse_timeout(eta_max)
 
         # Get queue ID
         queue = self.queues.find_one({"queue_name": queue_name})
         if not queue:
             raise ValueError(f"Queue '{queue_name}' not found")
 
+        now = get_current_time()
         # Find and update an available task
         result = self.tasks.find_one_and_update(
             {
@@ -213,9 +226,9 @@ class DatabaseClient:
             {
                 "$set": {
                     "status": TaskState.RUNNING,
-                    "start_time": datetime.now(timezone.utc),
-                    "last_heartbeat": datetime.now(timezone.utc),
-                    "last_modified": datetime.now(timezone.utc),
+                    "start_time": now,
+                    "last_heartbeat": now,
+                    "last_modified": now,
                     "worker_metadata": {
                         "worker_id": worker_id,
                         "worker_name": worker_name,
@@ -247,8 +260,8 @@ class DatabaseClient:
             # Create FSM with current state
             fsm = TaskFSM(
                 current_state=task["status"],
-                retry_count=task.get("retry_count", 0),
-                max_retries=task.get("max_retries", 3),
+                retry_count=task.get("retry_count"),
+                max_retries=task.get("max_retries"),
             )
 
             # Validate state transition
@@ -260,7 +273,7 @@ class DatabaseClient:
                     "$set": {
                         "status": status,
                         "retry_count": fsm.retry_count,
-                        "last_modified": datetime.now(timezone.utc),
+                        "last_modified": get_current_time(),
                         "summary": summary or {},
                     }
                 },
@@ -272,17 +285,79 @@ class DatabaseClient:
                 detail=e.detail,
             )
 
-    def _parse_timeout(self, timeout_str: str) -> int:
-        """
-        Convert timeout string (e.g., '2h', '30m') to seconds.
-        Supported units: h, m, s
-        """
-        value = int(timeout_str.strip()[:-1])
-        unit = timeout_str[-1].lower()
-        if unit == "h":
-            return value * 3600
-        elif unit == "m":
-            return value * 60
-        elif unit == "s":
-            return value
-        raise ValueError(f"Invalid timeout format: {timeout_str}")
+    def handle_timeouts(self) -> List[str]:
+        """Check and handle task timeouts."""
+        now = get_current_time()
+        transitioned_tasks = []
+
+        # Build query
+        query = {
+            "status": TaskState.RUNNING,
+            "$or": [
+                # Heartbeat timeout
+                {
+                    "last_heartbeat": {"$ne": None},
+                    "heartbeat_timeout": {"$ne": None},
+                    "$expr": {
+                        "$gt": [
+                            {
+                                "$divide": [
+                                    {"$subtract": [now, "$last_heartbeat"]},
+                                    1000,
+                                ]
+                            },
+                            "$heartbeat_timeout",
+                        ]
+                    },
+                },
+                # Task execution timeout
+                {
+                    "task_timeout": {"$ne": None},
+                    "start_time": {"$ne": None},
+                    "$expr": {
+                        "$gt": [
+                            {"$divide": [{"$subtract": [now, "$start_time"]}, 1000]},
+                            "$task_timeout",
+                        ]
+                    },
+                },
+            ],
+        }
+
+        # Find tasks that might have timed out
+        tasks = self.tasks.find(query)
+
+        tasks = list(tasks)  # Convert cursor to list
+
+        for task in tasks:
+            try:
+                # Create FSM with current state
+                fsm = TaskFSM(
+                    current_state=task["status"],
+                    retry_count=task.get("retry_count"),
+                    max_retries=task.get("max_retries"),
+                )
+
+                # Transition to FAILED state through FSM
+                fsm.fail(reason="Task timed out")
+
+                # Update task in database
+                result = self.tasks.update_one(
+                    {"_id": task["_id"]},
+                    {
+                        "$set": {
+                            "status": fsm.state,
+                            "retry_count": fsm.retry_count,
+                            "last_modified": get_current_time(),
+                            "error": "Task timed out",
+                            "worker_metadata": None,  # TODO: check. Clear worker metadata
+                        }
+                    },
+                )
+                if result.modified_count > 0:
+                    transitioned_tasks.append(task["_id"])
+            except Exception as e:
+                # Log error but continue processing other tasks
+                print(f"Error handling timeout for task {task['_id']}: {e}")
+
+        return transitioned_tasks

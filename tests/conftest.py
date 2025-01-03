@@ -6,6 +6,31 @@ from mongomock import MongoClient
 
 from labtasker.config import ServerConfig
 from labtasker.database import DatabaseClient
+from labtasker.utils import TimeControl, get_current_time
+
+
+@pytest.fixture
+def mock_datetime(monkeypatch):
+    """Fixture to mock datetime with controllable current time."""
+    from datetime import datetime, timezone
+
+    from labtasker import utils
+
+    # Start with a fixed time to make tests deterministic
+    time_control = TimeControl(
+        current_time=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    )
+
+    # Patch get_current_time in all modules that use it
+    def mock_get_current_time():
+        return time_control.current_time
+
+    monkeypatch.setattr("labtasker.utils.get_current_time", mock_get_current_time)
+    monkeypatch.setattr("labtasker.fsm.get_current_time", mock_get_current_time)
+    monkeypatch.setattr("labtasker.database.get_current_time", mock_get_current_time)
+    monkeypatch.setattr("labtasker.server.get_current_time", mock_get_current_time)
+
+    return time_control
 
 
 @pytest.fixture
@@ -61,13 +86,13 @@ def test_config(monkeypatch):
 
 
 @pytest.fixture
-def queue_data():
+def queue_data(mock_datetime):
     """Sample queue data for testing."""
     return {"queue_name": "test_queue", "password": "test_password"}
 
 
 @pytest.fixture
-def task_data():
+def task_data(mock_datetime):
     """Sample task data for testing."""
     return {
         "queue_name": "test_queue",
