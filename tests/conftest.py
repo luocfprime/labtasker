@@ -40,7 +40,6 @@ def mock_datetime(monkeypatch):
         return time_control.current_time
 
     monkeypatch.setattr("labtasker.utils.get_current_time", mock_get_current_time)
-    monkeypatch.setattr("labtasker.fsm.get_current_time", mock_get_current_time)
     monkeypatch.setattr("labtasker.database.get_current_time", mock_get_current_time)
     monkeypatch.setattr("labtasker.server.get_current_time", mock_get_current_time)
 
@@ -51,63 +50,37 @@ def mock_datetime(monkeypatch):
 def mock_db(monkeypatch):
     """Create a mock database for testing."""
     client = MongoClient()
-    db = DatabaseClient(client=client, db_name="test_db")
-
     # Clear any existing data
     client.drop_database("test_db")
 
-    # Create indexes
-    db.queues.create_index("queue_name", unique=True)
-    db.tasks.create_index([("queue_name", 1), ("status", 1)])
-
-    # Only pre-populate for specific tests that need it
-    if os.environ.get("PREPOPULATE_TEST_DATA"):
-        # Pre-populate test data
-        db.queues.insert_one(
-            {
-                "_id": "test_queue_id",
-                "queue_name": "test_queue",
-                "password": db.security.hash_password("test_password"),
-                "created_at": datetime.now(timezone.utc),
-            }
-        )
-
-        db.tasks.insert_one(
-            {
-                "_id": "test_task_id",
-                "queue_id": "test_queue_id",
-                "queue_name": "test_queue",
-                "task_name": "test_task",
-                "status": "created",
-                "args": {"param1": 1},
-                "metadata": {"tags": ["test_tag"]},
-                "created_at": datetime.now(timezone.utc),
-            }
-        )
+    db = DatabaseClient(client=client, db_name="test_db")
 
     yield db
 
 
-@pytest.fixture
-def test_config(monkeypatch):
-    """Set test environment variables."""
-    monkeypatch.setenv("DB_NAME", "test_db")
-    monkeypatch.setenv("DB_HOST", "localhost")
-    monkeypatch.setenv("DB_PORT", "27017")
-    monkeypatch.setenv("ADMIN_USERNAME", "test_admin")
-    monkeypatch.setenv("ADMIN_PASSWORD", "test_password")
-    return ServerConfig()
+# @pytest.fixture
+# def test_server_config(monkeypatch):
+#     """Set test environment variables."""
+#     monkeypatch.setenv("DB_NAME", "test_db")
+#     monkeypatch.setenv("DB_HOST", "localhost")
+#     monkeypatch.setenv("DB_PORT", "27017")
+#     monkeypatch.setenv("ADMIN_USERNAME", "test_admin")
+#     monkeypatch.setenv("ADMIN_PASSWORD", "test_password")
+#     return ServerConfig()
 
 
 @pytest.fixture
-def queue_data(mock_datetime):
-    """Sample queue data for testing."""
-    return {"queue_name": "test_queue", "password": "test_password"}
+def queue_args(mock_datetime):
+    """Minimum queue args for db create_queue for testing."""
+    return {
+        "queue_name": "test_queue",
+        "password": "test_password",
+    }
 
 
 @pytest.fixture
-def task_data(mock_datetime):
-    """Sample task data for testing."""
+def task_args(mock_datetime):
+    """Minimum task args for db create_task for testing."""
     return {
         "queue_name": "test_queue",
         "task_name": "test_task",

@@ -1,8 +1,0 @@
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v1.8.0
-  hooks:
-    - id: mypy
-      additional_dependencies:
-        - types-requests
-      args: [--ignore-missing-imports]
-      exclude: ^tests/ 

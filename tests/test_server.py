@@ -228,7 +228,6 @@ def test_list_tasks(authenticated_app, queue_data):
     """Test listing tasks with filters."""
     # Create queue and tasks
     response = authenticated_app.post("/api/v1/queues", json=queue_data)
-    queue_id = response.json()["queue_id"]
 
     task_data = {
         "queue_name": queue_data["queue_name"],

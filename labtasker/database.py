@@ -13,50 +13,17 @@ from starlette.status import (
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
-from .fsm import TaskFSM, TaskState
+from .fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 from .utils import get_current_time, parse_timeout
 
 if TYPE_CHECKING:
     from .security import SecurityManager
 
 
-class InvalidStateTransition(Exception):
-    """Raised when attempting an invalid state transition."""
-
-    pass
-
-
-class WorkerStatus(str, Enum):
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
-    CRASHED = "crashed"
-
-
 class Priority(int, Enum):
     LOW = 0
     MEDIUM = 10  # default
     HIGH = 20
-
-
-class WorkerFSM:
-    """Worker state machine."""
-
-    VALID_TRANSITIONS: Dict[WorkerStatus, Set[WorkerStatus]] = {
-        WorkerStatus.ACTIVE: {WorkerStatus.SUSPENDED, WorkerStatus.CRASHED},
-        WorkerStatus.SUSPENDED: {WorkerStatus.ACTIVE},
-        WorkerStatus.CRASHED: {WorkerStatus.ACTIVE},
-    }
-
-    @classmethod
-    def validate_transition(
-        cls, current_state: WorkerStatus, new_state: WorkerStatus
-    ) -> bool:
-        """Validate if a state transition is allowed."""
-        if new_state not in cls.VALID_TRANSITIONS[current_state]:
-            raise InvalidStateTransition(
-                f"Cannot transition from {current_state} to {new_state}"
-            )
-        return True
 
 
 class DatabaseClient:
@@ -152,8 +119,9 @@ class DatabaseClient:
             int
         ] = None,  # Maximum time in seconds for task execution
         max_retries: int = 3,  # Maximum number of retries
+        priority: int = Priority.MEDIUM,
     ) -> str:
-        """Submit a task to a queue."""
+        """Create a task related to a queue."""
         # Verify queue exists
         queue = self.queues.find_one({"queue_name": queue_name})
         if not queue:
@@ -170,84 +138,113 @@ class DatabaseClient:
         now = get_current_time()
 
         fsm = TaskFSM(
-            current_state=TaskState.CREATED, retry_count=0, max_retries=max_retries
+            current_state=TaskState.PENDING, retries=0, max_retries=max_retries
         )
+
         task = {
             "_id": str(uuid4()),
             "queue_id": str(queue["_id"]),
-            "queue_name": queue_name,
-            "status": TaskState.CREATED,
-            "retry_count": fsm.retry_count,
-            "max_retries": fsm.max_retries,
+            "status": TaskState.PENDING,
             "task_name": task_name,
-            "args": args or {},
-            "metadata": metadata or {},
             "created_at": now,
+            "start_time": None,
+            "last_heartbeat": None,
             "last_modified": now,
             "heartbeat_timeout": heartbeat_timeout,
             "task_timeout": task_timeout,
-            "last_heartbeat": None,
-            "start_time": None,
+            "max_retries": max_retries,
+            "retries": 0,
+            "priority": priority,
+            "metadata": metadata or {},
+            "args": args or {},
+            "summary": {},
+            "worker_id": None,
         }
         result = self.tasks.insert_one(task)
+        return str(result.inserted_id)
+
+    def create_worker(
+        self,
+        queue_name: str,
+        worker_name: Optional[str] = None,
+        worker_metadata: Optional[Dict[str, Any]] = None,
+        max_retries: int = 3,
+    ) -> str:
+        """Create a worker."""
+        queue = self.queues.find_one({"queue_name": queue_name})
+        if not queue:
+            raise ValueError(f"Queue '{queue_name}' not found")
+
+        worker = {
+            "_id": str(uuid4()),
+            "queue_id": str(queue["_id"]),
+            "status": WorkerState.ACTIVE,
+            "worker_name": worker_name,
+            "worker_metadata": worker_metadata or {},
+            "retries": 0,
+            "max_retries": max_retries,
+            "created_at": get_current_time(),
+        }
+        result = self.workers.insert_one(worker)
         return str(result.inserted_id)
 
     def fetch_task(
         self,
         queue_name: str,
         worker_id: Optional[str] = None,
-        worker_name: Optional[str] = None,
-        eta_max: str = "2h",
+        eta_max: Optional[str] = None,
+        extra_filter: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Fetch next available task from queue."""
-        timeout = parse_timeout(eta_max)
+        task_timeout = parse_timeout(eta_max) if eta_max else None
 
         # Get queue ID
         queue = self.queues.find_one({"queue_name": queue_name})
         if not queue:
             raise ValueError(f"Queue '{queue_name}' not found")
 
+        # Verify worker exists and is active
+        if worker_id:
+            worker_info = self.workers.find_one(
+                {"_id": worker_id, "queue_id": queue["_id"]}
+            )
+            if not worker_info:
+                raise ValueError(
+                    f"Worker '{worker_id}' not found in queue '{queue_name}'"
+                )
+            worker_status = worker_info["status"]
+            if worker_status != WorkerState.ACTIVE:
+                raise ValueError(
+                    f"Worker '{worker_id}' is {worker_status} in queue '{queue_name}'"
+                )
+
+        # Fetch task
         now = get_current_time()
 
-        if not worker_id and not worker_name:
-            worker_metadata = None
-        else:
-            worker_metadata = {
+        query = {
+            "queue_id": queue["_id"],
+            "status": TaskState.PENDING,
+            **(extra_filter or {}),
+        }
+
+        update = {
+            "$set": {
+                "status": TaskState.RUNNING,
+                "start_time": now,
+                "last_heartbeat": now,
+                "last_modified": now,
                 "worker_id": worker_id,
-                "worker_name": worker_name,
-                "queue_id": queue["_id"],
-                "status": WorkerStatus.ACTIVE,
             }
+        }
+
+        if task_timeout:
+            update["$set"]["task_timeout"] = task_timeout
 
         # Find and update an available task
+        # PENDING -> RUNNING
         result = self.tasks.find_one_and_update(
-            {
-                "queue_id": queue["_id"],
-                "status": {"$in": [TaskState.CREATED, TaskState.PENDING]},
-                "$or": [
-                    {"worker_metadata": None},
-                    {
-                        "worker_metadata.status": WorkerStatus.CRASHED,
-                        "retries": {"$lt": "$max_retries"},
-                    },
-                ],
-            },
-            {
-                "$set": {
-                    "status": TaskState.RUNNING,
-                    "start_time": now,
-                    "last_heartbeat": now,
-                    "last_modified": now,
-                    "worker_metadata": {
-                        "worker_id": worker_id,
-                        "worker_name": worker_name,
-                        "queue_id": queue["_id"],
-                        "status": WorkerStatus.ACTIVE,
-                        "max_crash_count": 3,
-                        "crash_count": 0,
-                    },
-                }
-            },
+            query,
+            update,
             sort=[("priority", -1), ("created_at", 1)],
             return_document=True,
         )
@@ -269,7 +266,7 @@ class DatabaseClient:
             # Create FSM with current state
             fsm = TaskFSM(
                 current_state=task["status"],
-                retry_count=task.get("retry_count"),
+                retries=task.get("retries"),
                 max_retries=task.get("max_retries"),
             )
 
@@ -281,7 +278,7 @@ class DatabaseClient:
                 {
                     "$set": {
                         "status": status,
-                        "retry_count": fsm.retry_count,
+                        "retries": fsm.retries,
                         "last_modified": get_current_time(),
                         "summary": summary or {},
                     }
@@ -343,7 +340,7 @@ class DatabaseClient:
                 # Create FSM with current state
                 fsm = TaskFSM(
                     current_state=task["status"],
-                    retry_count=task.get("retry_count"),
+                    retries=task.get("retries"),
                     max_retries=task.get("max_retries"),
                 )
 
@@ -356,10 +353,11 @@ class DatabaseClient:
                     {
                         "$set": {
                             "status": fsm.state,
-                            "retry_count": fsm.retry_count,
+                            "retries": fsm.retries,
                             "last_modified": now,
-                            "error": "Task timed out",
-                            "worker_metadata": None,  # TODO: check.
+                            "summary": {
+                                "labtasker_error": "Either heartbeat or task execution timed out",
+                            },
                         }
                     },
                 )
