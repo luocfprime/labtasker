@@ -4,7 +4,7 @@ import unittest
 
 import responses
 
-from labtasker.client import Tasker
+from labtasker import LabtaskerClient
 
 
 class TestTasker(unittest.TestCase):
@@ -87,23 +87,23 @@ PASSWORD=test_password
         os.rmdir(self.temp_dir)
 
     def test_init_with_valid_config(self):
-        tasker = Tasker(self.config_path)
+        tasker = LabtaskerClient(self.config_path)
         self.assertEqual(tasker.server_address, "http://localhost:8080")
         self.assertEqual(tasker.queue_name, "test_queue")
         self.assertEqual(tasker.password, "test_password")
 
     def test_init_with_invalid_config(self):
         with self.assertRaises(FileNotFoundError):
-            Tasker("nonexistent_config.env")
+            LabtaskerClient("nonexistent_config.env")
 
     def test_create_queue(self):
-        tasker = Tasker(self.config_path)
+        tasker = LabtaskerClient(self.config_path)
         status, queue_id = tasker.create_queue()
         self.assertEqual(status, "success")
         self.assertEqual(queue_id, "test_id")
 
     def test_submit_task(self):
-        tasker = Tasker(self.config_path)
+        tasker = LabtaskerClient(self.config_path)
         status, task_id = tasker.submit(
             task_name="test_task",
             args={"param1": 1, "param2": 2},
@@ -113,7 +113,7 @@ PASSWORD=test_password
         self.assertEqual(task_id, "test_task_id")
 
     def test_fetch_task(self):
-        tasker = Tasker(self.config_path)
+        tasker = LabtaskerClient(self.config_path)
         task = tasker.fetch(eta_max="2h")
         self.assertIsNotNone(task)
         self.assertEqual(task.task_id, "test_task_id")
@@ -128,7 +128,7 @@ PASSWORD=test_password
             status=409,
         )
 
-        tasker = Tasker(self.config_path)
+        tasker = LabtaskerClient(self.config_path)
         status, message = tasker.create_queue()
         self.assertEqual(status, "error")
         self.assertIn("Queue already exists", message)
@@ -136,7 +136,7 @@ PASSWORD=test_password
         # Restore success responses for other tests
         self.setUpClass()
 
-    def test_get_tasks(self):
+    def test_ls_tasks(self):
         """Test getting task list."""
         # Setup mock response
         self.responses.add(
@@ -158,10 +158,8 @@ PASSWORD=test_password
         )
 
         # Test getting tasks with different filters
-        tasker = Tasker(self.config_path)
-        tasks = tasker.get_tasks(
-            queue_id="test_queue", task_name="test_task", status="created"
-        )
+        tasker = LabtaskerClient(self.config_path)
+        tasks = tasker.ls_tasks(task_name="test_task", status="created")
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0]["_id"], "task1")
         self.assertEqual(tasks[0]["task_name"], "test_task")

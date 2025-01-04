@@ -90,23 +90,3 @@ check_untyped_defs = true
 ignore_missing_imports = true
 show_error_codes = true
 strict = true
-
-[tool.flake8]
-max-line-length = 88
-extend-ignore = "E203,E501"
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    "*.egg-info",
-    ".venv",
-    ".tox",
-    ".mypy_cache",
-    ".pytest_cache"
-]
-per-file-ignores = [
-    "__init__.py:F401,F403",
-    "tests/*:S101"
-]
-max-complexity = 10

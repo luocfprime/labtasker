@@ -1,12 +1,26 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from mongomock import MongoClient
 
 from labtasker.config import ServerConfig
 from labtasker.database import DatabaseClient
-from labtasker.utils import TimeControl, get_current_time
+
+
+class TimeControl:
+    """Helper class for controlling time in tests."""
+
+    def __init__(self, current_time: datetime):
+        self._current_time = current_time
+
+    @property
+    def current_time(self) -> datetime:
+        return self._current_time
+
+    def time_travel(self, seconds: int) -> datetime:
+        self._current_time += timedelta(seconds=seconds)
+        return self._current_time
 
 
 @pytest.fixture

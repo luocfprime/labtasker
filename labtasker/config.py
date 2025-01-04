@@ -47,5 +47,5 @@ class ServerConfig:
     def mongodb_uri(self) -> str:
         """Get MongoDB URI from config."""
         if self.db_user and self.db_password:
-            return f"mongodb://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}"
+            return f"mongodb://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}"  # noqa: E501
         return f"mongodb://{self.db_host}:{self.db_port}"

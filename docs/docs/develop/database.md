@@ -92,14 +92,7 @@ states:
     "retries": 0,
     "priority": 10,
     "metadata": {},
-    "worker_metadata": {
-        "worker_id": "xxxxxx",
-        "queue_id": "uuid-string",
-        "status": "active",
-        "worker_name": "optional_worker_name",
-        "max_crash_count": 3,
-        "crash_count": 0
-    },
+    "worker_id": "xxxxxx",
     "args": {
         "my_param_1": 1,
         "my_param_2": 2

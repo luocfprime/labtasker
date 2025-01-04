@@ -9,7 +9,7 @@ from bson import ObjectId
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .database import DatabaseClient, Priority, TaskState
+from .database import DatabaseClient
 from .dependencies import get_db
 from .utils import get_current_time
 
@@ -18,7 +18,7 @@ async def periodic_task(interval_seconds: int):
     """Run a periodic task at specified intervals."""
     while True:
         try:
-            db = next(get_db())
+            db = next(get_db())  # FIXME
             transitioned_tasks = db.handle_timeouts()
             if transitioned_tasks:
                 print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
@@ -28,7 +28,7 @@ async def periodic_task(interval_seconds: int):
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     """Manage application lifespan and background tasks."""
     task = create_task(periodic_task(30))
     yield
@@ -151,7 +151,7 @@ async def submit_task(
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
 
-    task_id = db.submit_task(
+    task_id = db.create_task(
         queue_name=task.queue_name,
         task_name=task.task_name,
         args=task.args,
@@ -189,7 +189,9 @@ async def get_next_task(
 
     task = db.fetch_task(
         queue_name=queue["queue_name"],
-        worker_id=str(uuid4()),
+        worker_id=str(
+            uuid4()
+        ),  # FIXME: worker_id should be optional, definitely not like this
         worker_name=worker_name,
         eta_max=eta_max,
     )
@@ -206,7 +208,7 @@ async def get_next_task(
 
 
 @app.get("/api/v1/tasks")
-async def get_task(
+async def ls_tasks(
     password: str,
     queue_id: Optional[str] = None,
     queue_name: Optional[str] = None,
@@ -234,15 +236,18 @@ async def get_task(
         raise HTTPException(status_code=401, detail="Invalid password")
 
     # Build task query
-    task_query = {}
-    if task_id:
-        task_query["_id"] = task_id
-    if task_name:
-        task_query["task_name"] = task_name
-    if queue_id:
-        task_query["queue_id"] = queue_id
-    if queue_name:
-        task_query["queue_name"] = queue_name
+    task_query = {
+        **{
+            k: v
+            for k, v in {
+                "_id": task_id,
+                "task_name": task_name,
+                "queue_id": queue_id,
+                "queue_name": queue_name,
+            }.items()
+            if v is not None
+        }
+    }
 
     tasks = list(db.tasks.find(task_query))
     for task in tasks:

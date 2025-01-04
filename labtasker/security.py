@@ -51,7 +51,7 @@ class SecurityManager:
         config = ServerConfig()
         if len(password) < config.security_min_password_length:
             raise ValueError(
-                f"Password must be at least {config.security_min_password_length} characters long"
+                f"Password must be at least {config.security_min_password_length} characters long"  # noqa: E501
             )
 
         if self.pepper:

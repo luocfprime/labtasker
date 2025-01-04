@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Dict, Optional, Set
 
 from fastapi import HTTPException
 
@@ -102,16 +101,13 @@ class TaskFSM:
             )
         return self.state
 
-    def fail(self, reason: Optional[str] = None) -> TaskState:
+    def fail(self) -> TaskState:
         """Mark task as failed with optional retry.
 
         Transitions:
         - RUNNING -> PENDING (if retry_count < max_retries)
         - RUNNING -> FAILED (if retry_count >= max_retries)
         - Others -> HTTPException (invalid)
-
-        Args:
-            reason: Optional reason for failure
 
         Note: FAILED state can transition back to PENDING for retries
         until max_retries is reached.

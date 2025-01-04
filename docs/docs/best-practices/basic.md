@@ -46,7 +46,7 @@ The following command loads the client configuration from `my_client_config.env`
     ```python
     import labtasker
 
-    tasker = labtasker.Tasker(client_config="./my_client_config.env")
+    tasker = labtasker.LabtaskerClient(client_config="./my_client_config.env")
     status, queue_id = tasker.create_queue()
     ```
 
@@ -70,7 +70,7 @@ The following command loads the client configuration from `my_client_config.env`
     # submit_tasks.py
     import labtasker
 
-    tasker = labtasker.Tasker(client_config="./my_client_config.env")
+    tasker = labtasker.LabtaskerClient(client_config="./my_client_config.env")
 
     for my_param_1 in range(10):
         for my_param_2 in range(10):
@@ -109,7 +109,7 @@ The following command loads the client configuration from `my_client_config.env`
     import labtasker
     from subprocess import run
 
-    tasker = labtasker.Tasker(client_config="./my_client_config.env")
+    tasker = labtasker.LabtaskerClient(client_config="./my_client_config.env")
 
     while True:
         task = tasker.fetch(eta_max="2h", start_heartbeat=True)

@@ -4,7 +4,6 @@ import pytest
 from fastapi import HTTPException
 
 from labtasker.database import TaskState
-from labtasker.utils import TimeControl
 
 
 def test_create_queue(mock_db, queue_data):
@@ -20,12 +19,12 @@ def test_create_queue(mock_db, queue_data):
     assert isinstance(queue["created_at"], datetime)
 
 
-def test_submit_task(mock_db, queue_data, task_data):
+def test_create_task(mock_db, queue_data, task_data):
     # Create queue first
     queue_id = mock_db.create_queue(**queue_data)
 
     # Submit task
-    task_id = mock_db.submit_task(**task_data)
+    task_id = mock_db.create_task(**task_data)
     assert task_id is not None
 
     # Verify task was created
@@ -42,7 +41,7 @@ def test_submit_task(mock_db, queue_data, task_data):
 def test_fetch_task(mock_db, queue_data, task_data):
     # Setup
     queue_id = mock_db.create_queue(**queue_data)
-    mock_db.submit_task(**task_data)
+    mock_db.create_task(**task_data)
 
     # Fetch task
     worker_id = "test_worker"
@@ -77,15 +76,15 @@ def test_create_queue_invalid_name(mock_db):
     assert "Invalid queue name" in exc.value.detail
 
 
-def test_submit_task_nonexistent_queue(mock_db, task_data):
+def test_create_task_nonexistent_queue(mock_db, task_data):
     """Test submitting task to non-existent queue."""
     with pytest.raises(HTTPException) as exc:
-        mock_db.submit_task(**task_data)
+        mock_db.create_task(**task_data)
     assert exc.value.status_code == 404
     assert "not found" in exc.value.detail
 
 
-def test_submit_task_invalid_args(mock_db, queue_data):
+def test_create_task_invalid_args(mock_db, queue_data):
     """Test submitting task with invalid arguments."""
     # Create queue first
     mock_db.create_queue(**queue_data)
@@ -97,7 +96,7 @@ def test_submit_task_invalid_args(mock_db, queue_data):
         "args": "not a dict",  # Invalid args
     }
     with pytest.raises(HTTPException) as exc:
-        mock_db.submit_task(**task_data)
+        mock_db.create_task(**task_data)
     assert exc.value.status_code == 400
     assert "must be a dictionary" in exc.value.detail
 
@@ -106,7 +105,7 @@ def test_task_state_transitions(mock_db, queue_data, task_data):
     """Test task state transitions."""
     # Create queue and task
     mock_db.create_queue(**queue_data)
-    task_id = mock_db.submit_task(**task_data)
+    task_id = mock_db.create_task(**task_data)
 
     # Get initial state
     task = mock_db.tasks.find_one({"_id": task_id})
@@ -132,7 +131,7 @@ def test_task_retry_flow(mock_db, queue_data, task_data):
     """Test task retry flow."""
     # Create queue and task
     mock_db.create_queue(**queue_data)
-    task_id = mock_db.submit_task(**task_data)
+    task_id = mock_db.create_task(**task_data)
 
     # Task fails and is retried
     assert mock_db.update_task_status(task_id, TaskState.PENDING)
@@ -143,7 +142,7 @@ def test_task_retry_flow(mock_db, queue_data, task_data):
     )  # Can retry after failure
 
 
-def test_task_timeouts(mock_db, queue_data, task_data, mock_datetime: TimeControl):
+def test_task_timeouts(mock_db, queue_data, task_data, mock_datetime):
     """Test task timeout handling."""
     # Create queue and task
     mock_db.create_queue(**queue_data)
@@ -153,7 +152,7 @@ def test_task_timeouts(mock_db, queue_data, task_data, mock_datetime: TimeContro
             "task_timeout": 3600,  # 1 hour timeout
         }
     )
-    task_id = mock_db.submit_task(**task_data)
+    task_id = mock_db.create_task(**task_data)
 
     # Set task to RUNNING state
     mock_db.update_task_status(task_id, TaskState.PENDING)
@@ -173,26 +172,7 @@ def test_task_timeouts(mock_db, queue_data, task_data, mock_datetime: TimeContro
 
     # Test heartbeat timeout
     mock_datetime.time_travel(120)  # 2 minutes later
-
-    # Debug: Print task state before timeout check
-    task_before = mock_db.tasks.find_one({"_id": task_id})
-    print(f"\n=== Task State Before Timeout ===")
-    print(f"Task ID: {task_id}")
-    print(f"Status: {task_before['status']}")
-    print(f"Last heartbeat: {task_before.get('last_heartbeat')}")
-    print(f"Start time: {task_before.get('start_time')}")
-    print(f"Heartbeat timeout: {task_before.get('heartbeat_timeout')}s")
-    print(f"Task timeout: {task_before.get('task_timeout')}s")
-
     transitioned = mock_db.handle_timeouts()
-
-    # Debug: Print task state after timeout check
-    task_after = mock_db.tasks.find_one({"_id": task_id})
-    print(f"\n=== Task State After Timeout ===")
-    print(f"Task ID: {task_id}")
-    print(f"Status: {task_after['status']}")
-    print(f"Retry count: {task_after.get('retry_count')}")
-    print(f"Error: {task_after.get('error')}")
 
     assert task_id in transitioned
 
@@ -207,9 +187,7 @@ def test_task_timeouts(mock_db, queue_data, task_data, mock_datetime: TimeContro
     assert task["worker_metadata"] is None
 
 
-def test_task_execution_timeout(
-    mock_db, queue_data, task_data, mock_datetime: TimeControl
-):
+def test_task_execution_timeout(mock_db, queue_data, task_data, mock_datetime):
     """Test task execution timeout."""
     # Create queue and task with execution timeout
     mock_db.create_queue(**queue_data)
@@ -218,7 +196,7 @@ def test_task_execution_timeout(
             "task_timeout": 1800,  # 30 minute timeout
         }
     )
-    task_id = mock_db.submit_task(**task_data)
+    task_id = mock_db.create_task(**task_data)
 
     # Fetch task to set it to RUNNING with proper metadata
     task = mock_db.fetch_task(
@@ -239,9 +217,7 @@ def test_task_execution_timeout(
     assert "Task timed out" in task["error"]
 
 
-def test_task_retry_on_timeout(
-    mock_db, queue_data, task_data, mock_datetime: TimeControl
-):
+def test_task_retry_on_timeout(mock_db, queue_data, task_data, mock_datetime):
     """Test task retry behavior on timeout."""
     mock_db.create_queue(**queue_data)
     task_data.update(
@@ -250,7 +226,7 @@ def test_task_retry_on_timeout(
             "max_retries": 3,
         }
     )
-    task_id = mock_db.submit_task(**task_data)
+    task_id = mock_db.create_task(**task_data)
 
     # 1. First timeout
     # 1.1 Fetch and start task

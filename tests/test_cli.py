@@ -96,16 +96,10 @@ PASSWORD=test_password
             status=200,
         )
 
-        # Test basic ls-tasks command
+        # Test basic ls-tasks with queue id
         result = self.runner.invoke(
             cli,
-            [
-                "ls-tasks",
-                "--client-config",
-                self.config_path,
-                "--queue-id",
-                "test_queue",
-            ],
+            ["ls-tasks", "--client-config", self.config_path],
         )
         assert result.exit_code == 0
         assert "test_task_id" in result.output
@@ -118,8 +112,6 @@ PASSWORD=test_password
                 "ls-tasks",
                 "--client-config",
                 self.config_path,
-                "--queue-id",
-                "test_queue",
                 "--status",
                 "created",
             ],
@@ -127,8 +119,7 @@ PASSWORD=test_password
         assert result.exit_code == 0
         assert "created" in result.output
 
-    def test_get_task(self):
-        """Test get-task command with various filters."""
+        # Test ls-tasks command with various filters.
         # Reset responses
         self.responses.reset()
 
@@ -159,7 +150,7 @@ PASSWORD=test_password
         result = self.runner.invoke(
             cli,
             [
-                "get-task",
+                "ls-tasks",
                 "--client-config",
                 self.config_path,
                 "--task-name",

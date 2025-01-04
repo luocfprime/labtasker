@@ -6,27 +6,28 @@ The backend uses MongoDB to store task data. The server itself does not preserve
 
 ## Queue management
 
-### Query single task
+### Create queue
 
 ```bash
-labtasker get-task --client-config ./my_client_config.env --task-id my_task_id
-
-# or
-
-labtasker get-task --client-config ./my_client_config.env --task-name my_task_name
+labtasker create-queue --client-config ./my_client_config.env --queue-name my_queue_name
 ```
 
-### Getting task list
+## Task management
+
+### Getting task list (no pop)
 
 ```bash
-labtasker ls-tasks --client-config ./my_client_config.env --queue-id my_queue_id
+# get a single task
+labtasker ls-tasks --client-config ./my_client_config.env --task-id my_task_id
 
-# or
+# get tasks by name
+labtasker ls-tasks --client-config ./my_client_config.env --task-name my_task_name
 
-labtasker ls-tasks --client-config ./my_client_config.env --queue-name my_queue_name
+# get all tasks in a queue, specified in my_client_config.env
+labtasker ls-tasks --client-config ./my_client_config.env
 ```
 
-## Adding metadata to tasks
+### Adding metadata to tasks
 
 When submitting tasks, you can add metadata to the task. Metadata is a separate field from `args`. This allows for flexible task management and reporting.
 
@@ -39,7 +40,7 @@ When submitting tasks, you can add metadata to the task. Metadata is a separate 
         ```python
         import labtasker
 
-        tasker = labtasker.Tasker(client_config="./my_client_config.env")
+        tasker = labtasker.LabtaskerClient(client_config="./my_client_config.env")
 
         tasker.submit(
             task_name="optional_task_name",
@@ -67,7 +68,9 @@ When submitting tasks, you can add metadata to the task. Metadata is a separate 
 
 ## Task filtering
 
-## Suspend worker
+## Worker management
+
+### Suspend worker
 
 ## Daemon in bash API
 

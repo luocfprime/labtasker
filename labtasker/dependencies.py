@@ -1,4 +1,4 @@
-"""Shared dependencies for FastAPI."""
+"""Shared dependencies."""
 
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPBasic, HTTPBasicCredentials

@@ -93,18 +93,3 @@ def get_timeout_delta(timeout: Union[int, str]) -> timedelta:
 def get_current_time() -> datetime:
     """Get current UTC time. Centralized to make testing easier."""
     return datetime.now(timezone.utc)
-
-
-class TimeControl:
-    """Helper class for controlling time in tests."""
-
-    def __init__(self, current_time: datetime):
-        self._current_time = current_time
-
-    @property
-    def current_time(self) -> datetime:
-        return self._current_time
-
-    def time_travel(self, seconds: int) -> datetime:
-        self._current_time += timedelta(seconds=seconds)
-        return self._current_time

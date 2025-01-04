@@ -1,6 +1,6 @@
+import json
 import os
 import threading
-import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -10,16 +10,18 @@ from dotenv import load_dotenv
 class Task:
     """Represents a task with status tracking and reporting capabilities."""
 
-    def __init__(self, client: "Tasker", task_data: Dict[str, Any]):
+    def __init__(self, client: "LabtaskerClient", task_data: Dict[str, Any]):
         self.client = client
         self.task_id = task_data.get("task_id")
         self.args = task_data.get("args", {})
         self.metadata = task_data.get("metadata", {})
         self.status = task_data.get("status")
+        self._heartbeat_thread = None
+        self._stop_heartbeat = threading.Event()
 
     def report(self, status: str, summary: Optional[Dict[str, Any]] = None) -> None:
         """Report task status and summary."""
-        url = f"{self.client.server_address}/api/v1/queues/{self.client.queue_name}/tasks/{self.task_id}"
+        url = f"{self.client.server_address}/api/v1/queues/{self.client.queue_name}/tasks/{self.task_id}"  # noqa: E501
         data = {
             "status": status,
             "summary": summary or {},
@@ -27,13 +29,42 @@ class Task:
         try:
             response = requests.patch(url, json=data)
             response.raise_for_status()
+            if status in ["completed", "failed"]:
+                self.stop_heartbeat()
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to report task status: {str(e)}")
 
+    def start_heartbeat(self, interval: int = 30):
+        """Start the heartbeat thread."""
 
-class Tasker:
-    def __init__(self, client_config: str):
-        """Initialize Tasker client with configuration file."""
+        def heartbeat():
+            url = f"{self.client.server_address}/api/v1/queues/{self.client.queue_name}/tasks/{self.task_id}/heartbeat"  # noqa: E501
+            while not self._stop_heartbeat.is_set():
+                try:
+                    response = requests.post(url)
+                    response.raise_for_status()
+                    self._stop_heartbeat.wait(interval)
+                except Exception as e:
+                    print(f"Heartbeat failed: {e}")
+                    continue
+
+        self._heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+        self._heartbeat_thread.start()
+
+    def stop_heartbeat(self):
+        """Stop the heartbeat thread."""
+        if self._heartbeat_thread:
+            self._stop_heartbeat.set()
+            self._heartbeat_thread.join(timeout=1)
+            self._heartbeat_thread = None
+
+
+class LabtaskerClient:
+    def __init__(
+        self,
+        client_config: str = os.path.join(os.getcwd(), ".labtasker", "client.env"),
+    ):
+        """Initialize LabtaskerClient client with configuration file."""
         if not os.path.exists(client_config):
             raise FileNotFoundError(f"Config file not found: {client_config}")
 
@@ -42,6 +73,7 @@ class Tasker:
         self.server_address = os.getenv("HTTP_SERVER_ADDRESS")
         self.queue_name = os.getenv("QUEUE_NAME")
         self.password = os.getenv("PASSWORD")
+        self.heartbeat_interval = int(os.getenv("HEARTBEAT_INTERVAL", 10))
 
         if not all([self.server_address, self.queue_name, self.password]):
             raise ValueError("Missing required configuration values")
@@ -86,26 +118,9 @@ class Tasker:
         except requests.exceptions.RequestException as e:
             return "error", str(e)
 
-    def _start_heartbeat(self, task_id: str) -> threading.Thread:
-        """Start heartbeat thread for a task."""
-
-        def heartbeat():
-            url = f"{self.server_address}/api/v1/queues/{self.queue_name}/tasks/{task_id}/heartbeat"
-            while True:
-                try:
-                    response = requests.post(url)
-                    response.raise_for_status()
-                    time.sleep(30)  # Send heartbeat every 30 seconds
-                except:
-                    break
-
-        thread = threading.Thread(target=heartbeat, daemon=True)
-        thread.start()
-        return thread
-
     def fetch(
         self, eta_max: str = "2h", start_heartbeat: bool = False
-    ) -> Dict[str, Any]:
+    ) -> Optional[Task]:
         """Fetch a task from the queue."""
         url = f"{self.server_address}/api/v1/tasks/next"
         params = {
@@ -125,7 +140,7 @@ class Tasker:
 
             task = Task(self, result)
             if start_heartbeat:
-                self._start_heartbeat(task.task_id)
+                task.start_heartbeat(interval=self.heartbeat_interval)
             return task
 
         except requests.exceptions.RequestException as e:
@@ -143,29 +158,34 @@ class Tasker:
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Request failed: {str(e)}")
 
-    def get_tasks(
+    def ls_tasks(
         self,
-        queue_id: Optional[str] = None,
-        queue_name: Optional[str] = None,
         task_id: Optional[str] = None,
         task_name: Optional[str] = None,
         status: Optional[str] = None,
-        tag: Optional[str] = None,
+        extra_filter: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get list of tasks from a queue."""
-        params = {"password": self.password}
-        if queue_id:
-            params["queue_id"] = queue_id
-        if queue_name:
-            params["queue_name"] = queue_name
-        if task_id:
-            params["task_id"] = task_id
-        if task_name:
-            params["task_name"] = task_name
-        if status:
-            params["status"] = status
-        if tag:
-            params["tag"] = tag
+        if extra_filter:
+            try:
+                extra_filter = json.loads(extra_filter)
+            except json.JSONDecodeError:
+                raise ValueError("Invalid extra_filter format")
+
+        params = {
+            "password": self.password,
+            **{
+                k: v
+                for k, v in {
+                    "queue_name": self.queue_name,
+                    "task_id": task_id,
+                    "task_name": task_name,
+                    "status": status,
+                    "extra_filter": extra_filter,
+                }.items()
+                if v is not None
+            },
+        }
 
         response = self._get("/api/v1/tasks", params=params)
         return response.json()["tasks"]

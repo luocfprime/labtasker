@@ -151,7 +151,7 @@ def test_get_next_task(authenticated_app, queue_data):
         assert "metadata" in data
 
 
-def test_get_task(authenticated_app, queue_data):
+def test_ls_tasks(authenticated_app, queue_data):
     # Create queue and task first
     response = authenticated_app.post("/api/v1/queues", json=queue_data)
     assert response.status_code == 200

@@ -1,23 +1,20 @@
-from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 from uuid import uuid4
 
 from fastapi import HTTPException
-from pymongo import ASCENDING, MongoClient
+from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
-from pymongo.errors import DuplicateKeyError, OperationFailure
+from pymongo.errors import DuplicateKeyError
 from starlette.status import (
     HTTP_400_BAD_REQUEST,
-    HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
 from .fsm import TaskFSM, TaskState
-from .security import SecurityManager
-from .utils import get_current_time, get_timeout_delta, parse_timeout
+from .utils import get_current_time, parse_timeout
 
 if TYPE_CHECKING:
     from .security import SecurityManager
@@ -102,7 +99,8 @@ class DatabaseClient:
         # _id is automatically indexed by MongoDB
         self.tasks.create_index([("queue_id", ASCENDING)])  # Reference to queue._id
         self.tasks.create_index([("status", ASCENDING)])
-        self.tasks.create_index([("priority", ASCENDING)])
+        self.tasks.create_index([("priority", DESCENDING)])  # Higher priority first
+        self.tasks.create_index([("created_at", ASCENDING)])  # Older tasks first
 
         # Workers collection
         self.workers: Collection = self.db.workers
@@ -143,7 +141,7 @@ class DatabaseClient:
                 detail=f"Failed to create queue: {str(e)}",
             )
 
-    def submit_task(
+    def create_task(
         self,
         queue_name: str,
         task_name: Optional[str] = None,
@@ -197,7 +195,7 @@ class DatabaseClient:
     def fetch_task(
         self,
         queue_name: str,
-        worker_id: str,
+        worker_id: Optional[str] = None,
         worker_name: Optional[str] = None,
         eta_max: str = "2h",
     ) -> Optional[Dict[str, Any]]:
@@ -210,6 +208,17 @@ class DatabaseClient:
             raise ValueError(f"Queue '{queue_name}' not found")
 
         now = get_current_time()
+
+        if not worker_id and not worker_name:
+            worker_metadata = None
+        else:
+            worker_metadata = {
+                "worker_id": worker_id,
+                "worker_name": worker_name,
+                "queue_id": queue["_id"],
+                "status": WorkerStatus.ACTIVE,
+            }
+
         # Find and update an available task
         result = self.tasks.find_one_and_update(
             {
@@ -339,7 +348,7 @@ class DatabaseClient:
                 )
 
                 # Transition to FAILED state through FSM
-                fsm.fail(reason="Task timed out")
+                fsm.fail()
 
                 # Update task in database
                 result = self.tasks.update_one(
@@ -348,9 +357,9 @@ class DatabaseClient:
                         "$set": {
                             "status": fsm.state,
                             "retry_count": fsm.retry_count,
-                            "last_modified": get_current_time(),
+                            "last_modified": now,
                             "error": "Task timed out",
-                            "worker_metadata": None,  # TODO: check. Clear worker metadata
+                            "worker_metadata": None,  # TODO: check.
                         }
                     },
                 )
