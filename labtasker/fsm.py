@@ -197,7 +197,11 @@ class WorkerFSM(FSMValidatorMixin):
     @classmethod
     def from_db_entry(cls, db_entry: Dict[str, Any]) -> "WorkerFSM":
         """Instantiate FSM from database entry."""
-        return cls(db_entry["status"], db_entry["retries"], db_entry["max_retries"])
+        return cls(
+            current_state=db_entry["status"],
+            retries=db_entry["retries"],
+            max_retries=db_entry["max_retries"],
+        )
 
     @event
     def activate(self) -> WorkerState:

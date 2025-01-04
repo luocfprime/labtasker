@@ -9,16 +9,41 @@ from bson import ObjectId
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
+from .config import ServerConfig
 from .database import DatabaseClient
 from .dependencies import get_db
 from .utils import get_current_time
 
+app = FastAPI()
+config = ServerConfig()
 
-async def periodic_task(interval_seconds: int):
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan and background tasks."""
+    # Setup
+    app.state.db = DatabaseClient(config.mongodb_uri, config.db_name)
+    task = create_task(periodic_task(app.state.db, interval_seconds=30))
+
+    yield
+
+    # Cleanup
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    if app.state.db:
+        app.state.db.close()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+async def periodic_task(db: DatabaseClient, interval_seconds: int):
     """Run a periodic task at specified intervals."""
     while True:
         try:
-            db = next(get_db())  # FIXME
             transitioned_tasks = db.handle_timeouts()
             if transitioned_tasks:
                 print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
@@ -27,19 +52,10 @@ async def periodic_task(interval_seconds: int):
         await asyncio.sleep(interval_seconds)
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    """Manage application lifespan and background tasks."""
-    task = create_task(periodic_task(30))
-    yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
-
-
-app = FastAPI(lifespan=lifespan)
+@app.on_event("startup")
+async def start_periodic_task():
+    db = app.state.db
+    asyncio.create_task(periodic_task(db, interval_seconds=30))
 
 
 @app.get("/health")

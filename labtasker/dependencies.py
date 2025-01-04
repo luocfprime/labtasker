@@ -1,6 +1,8 @@
 """Shared dependencies."""
 
-from fastapi import Depends, HTTPException, Request, Security
+from typing import Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.status import HTTP_401_UNAUTHORIZED
 
@@ -16,7 +18,9 @@ http_basic = HTTPBasic()
 def get_db(request: Request) -> DatabaseClient:
     """Database dependency."""
     if not hasattr(request.app.state, "db"):
-        request.app.state.db = DatabaseClient(config.mongodb_uri, config.db_name)
+        raise RuntimeError(
+            "Database not initialized. Application must be started with proper lifespan context."
+        )
     return request.app.state.db
 
 

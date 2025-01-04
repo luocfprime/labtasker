@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 from pymongo.collection import ReturnDocument
 
-from labtasker.database import TaskFSM, TaskState
+from labtasker.database import TaskFSM, TaskState, WorkerState
 
 
 def test_create_queue(mock_db, queue_args):
@@ -386,7 +386,6 @@ def test_task_fsm_consistency(mock_db, queue_args, task_args):
         TaskState.CANCELLED: get_cancelled,
     }
 
-
     # 3. Test each event, match the after state of each event
     for event_name, (init_state, db_func, fsm_func) in event_mapping.items():
         # Fetch task
@@ -407,3 +406,102 @@ def test_task_fsm_consistency(mock_db, queue_args, task_args):
 
         # Clear tasks
         clear_tasks()
+
+
+def test_worker_crash_no_dispatch(mock_db, queue_args, task_args):
+    """Test that crashed workers don't receive new tasks."""
+    # Setup
+    mock_db.create_queue(**queue_args)
+
+    # Create worker
+    worker_id = mock_db.create_worker(
+        queue_name=queue_args["queue_name"],
+        max_retries=3,
+    )
+
+    # Create multiple tasks
+    task_ids = []
+    for i in range(3):
+        task_args["task_name"] = f"task_{i}"
+        task_ids.append(mock_db.create_task(**task_args))
+
+    # Simulate task failures until worker crashes
+    for _ in range(3):  # Worker max_retries is 3 by default
+        # Verify worker is still active
+        worker = mock_db.workers.find_one({"_id": worker_id})
+        assert worker["status"] == WorkerState.ACTIVE
+
+        # Fetch task
+        task = mock_db.fetch_task(
+            queue_name=queue_args["queue_name"], worker_id=worker_id
+        )
+        assert task is not None
+
+        # Fail task
+        mock_db.update_task_status(
+            queue_name=queue_args["queue_name"],
+            task_id=task["_id"],
+            report_status="failed",
+        )
+
+    # Verify worker is now crashed
+    worker = mock_db.workers.find_one({"_id": worker_id})
+    assert worker["status"] == WorkerState.CRASHED
+
+    # Try to fetch another task
+    with pytest.raises(HTTPException) as exc:
+        mock_db.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+    assert exc.value.status_code == 400
+    assert "crashed" in exc.value.detail
+
+    # Re-activate worker
+    mock_db.update_worker_status(
+        queue_name=queue_args["queue_name"], worker_id=worker_id, report_status="active"
+    )
+
+    # Verify worker is active
+    worker = mock_db.workers.find_one({"_id": worker_id})
+    assert worker["status"] == WorkerState.ACTIVE
+
+    # Try to fetch another task
+    task = mock_db.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+    assert task is not None
+    assert task["worker_id"] == worker_id
+
+
+def test_worker_suspended_no_dispatch(mock_db, queue_args, task_args):
+    """Test that suspended workers don't receive new tasks."""
+    # Setup
+    mock_db.create_queue(**queue_args)
+
+    # Create worker
+    worker_id = mock_db.create_worker(queue_name=queue_args["queue_name"])
+
+    # Create task
+    task_id = mock_db.create_task(**task_args)
+
+    # Suspend worker
+    mock_db.update_worker_status(
+        queue_name=queue_args["queue_name"],
+        worker_id=worker_id,
+        report_status="suspended",
+    )
+
+    # Verify worker is suspended
+    worker = mock_db.workers.find_one({"_id": worker_id})
+    assert worker["status"] == WorkerState.SUSPENDED
+
+    # Try to fetch task
+    with pytest.raises(HTTPException) as exc:
+        mock_db.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+    assert exc.value.status_code == 400
+    assert "suspended" in exc.value.detail
+
+    # Re-activate worker
+    mock_db.update_worker_status(
+        queue_name=queue_args["queue_name"], worker_id=worker_id, report_status="active"
+    )
+
+    # Verify worker is active
+    worker = mock_db.workers.find_one({"_id": worker_id})
+    assert worker["status"] == WorkerState.ACTIVE

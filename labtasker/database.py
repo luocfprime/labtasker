@@ -13,7 +13,7 @@ from starlette.status import (
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
-from .fsm import TaskFSM, TaskState, WorkerState
+from .fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 from .utils import flatten_dict, get_current_time, parse_timeout
 
 if TYPE_CHECKING:
@@ -82,21 +82,36 @@ class DatabaseClient:
             [("worker_name", ASCENDING)]
         )  # Optional index for searching
 
-    def query(
-        self,
-        queue_name: str,
-        query: Dict[str, Any],  # MongoDB query
-    ) -> bool:
+    def close(self):
+        """Close the database client."""
+        self.client.close()
+
+    def _get_queue_by_name(self, queue_name: str) -> Dict[str, Any]:
+        """Get queue by name with error handling.
+
+        Args:
+            queue_name: Name of queue to find
+
+        Returns:
+            Queue document
+
+        Raises:
+            HTTPException: If queue not found
         """
-        Query a collection.
-        Note: This function is too versatile and should be used with caution.
-        """
-        # Verify queue exists
         queue = self.queues.find_one({"queue_name": queue_name})
         if not queue:
             raise HTTPException(
                 status_code=404, detail=f"Queue '{queue_name}' not found"
             )
+        return queue
+
+    def query(
+        self,
+        queue_name: str,
+        query: Dict[str, Any],  # MongoDB query
+    ) -> List[Dict[str, Any]]:
+        """Query a collection."""
+        queue = self._get_queue_by_name(queue_name)
 
         # Make sure no trespassing
         if query["queue_id"] != queue["_id"]:
@@ -113,16 +128,8 @@ class DatabaseClient:
         query: Dict[str, Any],  # MongoDB query
         update: Dict[str, Any],  # MongoDB update
     ) -> bool:
-        """
-        Update a collection in general.
-        Note: This function is too versatile and should be used with caution.
-        """
-        # Verify queue exists
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        """Update a collection."""
+        queue = self._get_queue_by_name(queue_name)
 
         # Update collection
         if query["queue_id"] != queue["_id"]:
@@ -191,12 +198,7 @@ class DatabaseClient:
         priority: int = Priority.MEDIUM,
     ) -> str:
         """Create a task related to a queue."""
-        # Verify queue exists
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         # Validate args
         if args is not None and not isinstance(args, dict):
@@ -241,11 +243,7 @@ class DatabaseClient:
         max_retries: int = 3,
     ) -> str:
         """Create a worker."""
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         now = get_current_time()
 
@@ -276,11 +274,7 @@ class DatabaseClient:
             cascade_delete (bool): Whether to delete all tasks and workers in the queue.
         """
         # Make sure queue exists
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         # Delete queue
         self.queues.delete_one({"_id": queue["_id"]})
@@ -300,11 +294,7 @@ class DatabaseClient:
     ) -> bool:
         """Delete a task."""
         # Verify queue exists
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         # Delete task
         result = self.tasks.delete_one({"_id": task_id, "queue_id": queue["_id"]})
@@ -324,11 +314,7 @@ class DatabaseClient:
             cascade_update (bool): Whether to set worker_id to None for associated tasks.
         """
         # Verify queue exists
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         # Delete worker
         worker_result = self.workers.delete_one(
@@ -356,11 +342,7 @@ class DatabaseClient:
     ) -> bool:
         """Update queue settings."""
         # Verify queue exists
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         queue_name = new_queue_name or queue["queue_name"]
         password = (
@@ -410,23 +392,17 @@ class DatabaseClient:
         task_timeout = parse_timeout(eta_max) if eta_max else None
 
         # Get queue ID
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         # Verify worker exists and is active
         if worker_id:
-            worker_info = self.workers.find_one(
-                {"_id": worker_id, "queue_id": queue["_id"]}
-            )
-            if not worker_info:
+            worker = self.workers.find_one({"_id": worker_id, "queue_id": queue["_id"]})
+            if not worker:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Worker '{worker_id}' not found in queue '{queue_name}'",
                 )
-            worker_status = worker_info["status"]
+            worker_status = worker["status"]
             if worker_status != WorkerState.ACTIVE:
                 raise HTTPException(
                     status_code=400,
@@ -477,11 +453,7 @@ class DatabaseClient:
         """
 
         # Get queue ID
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         task = self.tasks.find_one({"_id": task_id, "queue_id": queue["_id"]})
         if not task:
@@ -521,6 +493,18 @@ class DatabaseClient:
         }
 
         result = self.tasks.update_one({"_id": task_id}, update)
+
+        # Update worker status if worker is specified
+        if report_status == "failed" and task["worker_id"]:
+            return (
+                self._update_worker_status(
+                    queue_id=queue["_id"],
+                    worker_id=task["worker_id"],
+                    report_status="failed",
+                )
+                and result.modified_count > 0
+            )
+
         return result.modified_count > 0
 
     def update_task_and_reset_pending(
@@ -539,11 +523,7 @@ class DatabaseClient:
             task_setting_update (Dict[str, Any], optional): A dictionary of task settings to update.
         """
         # Get queue ID
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         now = get_current_time()
 
@@ -573,11 +553,7 @@ class DatabaseClient:
     ) -> bool:
         """Cancel a task."""
         # Verify queue exists
-        queue = self.queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+        queue = self._get_queue_by_name(queue_name)
 
         # Cancel task
         result = self.tasks.update_one(
@@ -585,6 +561,68 @@ class DatabaseClient:
             {"$set": {"status": TaskState.CANCELLED}},
         )
         return result.modified_count > 0
+
+    def _update_worker_status(
+        self, queue_id: str, worker_id: str, report_status: str
+    ) -> bool:
+        worker = self.workers.find_one({"_id": worker_id, "queue_id": queue_id})
+        if not worker:
+            raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
+
+        try:
+            fsm = WorkerFSM.from_db_entry(worker)
+
+            if report_status == "active":
+                fsm.activate()
+            elif report_status == "suspended":
+                fsm.suspend()
+            elif report_status == "failed":
+                fsm.fail()
+            else:
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid report_status: {report_status}",
+                )
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+
+        update = {
+            "$set": {
+                "status": fsm.state,
+                "retries": fsm.retries,
+                "last_modified": get_current_time(),
+            }
+        }
+
+        result = self.workers.update_one({"_id": worker_id}, update)
+        return result.modified_count > 0
+
+    def update_worker_status(
+        self,
+        queue_name: str,
+        worker_id: str,
+        report_status: str,
+    ) -> bool:
+        """Update worker status.
+
+        Args:
+            queue_name: Name of the queue
+            worker_id: ID of worker to update
+            report_status: One of: 'active', 'suspended', 'failed'
+
+        Returns:
+            bool: True if worker was updated
+
+        Raises:
+            HTTPException: If queue/worker not found or invalid transition
+        """
+        # Verify queue exists
+        queue = self._get_queue_by_name(queue_name)
+        return self._update_worker_status(queue["_id"], worker_id, report_status)
 
     def handle_timeouts(self) -> List[str]:
         """Check and handle task timeouts."""
@@ -641,6 +679,14 @@ class DatabaseClient:
 
                 # Transition to FAILED state through FSM
                 fsm.fail()
+
+                # Update worker status if worker is specified
+                if task["worker_id"]:
+                    self._update_worker_status(
+                        queue_id=task["queue_id"],
+                        worker_id=task["worker_id"],
+                        report_status="failed",
+                    )
 
                 # Update task in database
                 result = self.tasks.update_one(
