@@ -147,9 +147,9 @@ async def submit_task(
     db: DatabaseClient = Depends(get_db),
 ):
     """Submit a task to the queue"""
-    queue = db.queues.find_one({"queue_name": task.queue_name})
-    if not queue:
-        raise HTTPException(status_code=404, detail="Queue not found")
+    # queue = db.queues.find_one({"queue_name": task.queue_name})
+    # if not queue:
+    #     raise HTTPException(status_code=404, detail="Queue not found")
 
     task_id = db.create_task(
         queue_name=task.queue_name,
@@ -269,6 +269,7 @@ async def update_task_status(
     summary: Optional[Dict[str, Any]] = None,
     db: DatabaseClient = Depends(get_db),
 ):
+    # TODO: need to use db api
     """Update task status (complete, failed, etc)"""
     query = {"_id": task_id}
     if queue_id:

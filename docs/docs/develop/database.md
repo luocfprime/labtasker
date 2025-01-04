@@ -39,9 +39,15 @@ states:
     "_id": "uuid-string",
     "queue_name": "my_queue",
     "password": "hashed_password",
-    "created_at": "2025-01-01T00:00:00Z"
+    "created_at": "2025-01-01T00:00:00Z",
+    "last_modified": "2025-01-01T00:00:00Z",
+    "metadata": {}
 }
 ```
+
+- Create: ✅
+- Delete: ✅
+- Update: ✅
 
 ### Tasks Collection
 ```json
@@ -69,17 +75,26 @@ states:
 }
 ```
 
+- Create: ✅
+- Update: ✅
+- Delete: ✅
+
 ### Workers Collection
 
 ```json
 {
-        "_id": "xxxxxx",
-        "queue_id": "uuid-string",
-        "status": "active",
-        "worker_name": "optional_worker_name",
-        "worker_metadata": {},
-        "max_retries": 3,
-        "retries": 0,
-        "created_at": "2025-01-01T00:00:00Z"
+    "_id": "xxxxxx",
+    "queue_id": "uuid-string",
+    "status": "active",
+    "worker_name": "optional_worker_name",
+    "metadata": {},
+    "max_retries": 3,
+    "retries": 0,
+    "created_at": "2025-01-01T00:00:00Z",
+    "last_modified": "2025-01-01T00:00:00Z"
 }
 ```
+
+- Create: ✅
+- Delete: ✅
+- Update: ✅

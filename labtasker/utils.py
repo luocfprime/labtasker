@@ -93,3 +93,49 @@ def get_timeout_delta(timeout: Union[int, str]) -> timedelta:
 def get_current_time() -> datetime:
     """Get current UTC time. Centralized to make testing easier."""
     return datetime.now(timezone.utc)
+
+
+def flatten_dict(d, parent_key="", sep="."):
+    """
+    Flattens a nested dictionary into a single-level dictionary.
+
+    Keys in the resulting dictionary use dot-notation to represent the nesting levels.
+
+    Args:
+        d (dict): The nested dictionary to flatten.
+        parent_key (str, optional): The prefix for the keys (used during recursion). Defaults to ''.
+        sep (str, optional): The separator to use for flattening keys. Defaults to '.'.
+
+    Returns:
+        dict: A flattened dictionary where nested keys are represented in dot-notation.
+
+    Example:
+        >>> nested_dict = {
+        ...     "status": "completed",
+        ...     "summary": {
+        ...         "field1": "value1",
+        ...         "nested": {
+        ...             "subfield1": "subvalue1"
+        ...         }
+        ...     },
+        ...     "retries": 3
+        ... }
+        >>> flatten_dict(nested_dict)
+        {
+            "status": "completed",
+            "summary.field1": "value1",
+            "summary.nested.subfield1": "subvalue1",
+            "retries": 3
+        }
+    """
+    items = []
+    for k, v in d.items():
+        # Combine parent key with current key using the separator
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            # Recur for nested dictionaries
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            # Add non-dictionary values to the result
+            items.append((new_key, v))
+    return dict(items)

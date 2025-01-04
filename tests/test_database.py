@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
+from functools import partial
 
 import pytest
 from fastapi import HTTPException
+from pymongo.collection import ReturnDocument
 
-from labtasker.database import TaskState
+from labtasker.database import TaskFSM, TaskState
 
 
 def test_create_queue(mock_db, queue_args):
@@ -96,31 +98,6 @@ def test_create_task_invalid_args(mock_db, queue_args):
         mock_db.create_task(**task_data)
     assert exc.value.status_code == 400
     assert "must be a dictionary" in exc.value.detail
-
-
-def test_task_state_transitions(mock_db, queue_args, task_args):
-    """Test task state transitions."""
-    # Create queue and task
-    mock_db.create_queue(**queue_args)
-    task_id = mock_db.create_task(**task_args)
-
-    # Get initial state
-    task = mock_db.tasks.find_one({"_id": task_id})
-    assert task["status"] == TaskState.PENDING
-
-    # Valid transitions
-    assert mock_db.update_task_status(task_id, TaskState.RUNNING)
-    assert mock_db.update_task_status(task_id, TaskState.COMPLETED)
-
-    # Invalid transition (from COMPLETED to RUNNING)
-    with pytest.raises(HTTPException) as exc:
-        mock_db.update_task_status(task_id, TaskState.RUNNING)
-    assert exc.value.status_code == 400
-    assert "Cannot transition from completed to running" == exc.value.detail
-
-    # Test that task state is unchanged after invalid transition
-    task = mock_db.tasks.find_one({"_id": task_id})
-    assert task["status"] == TaskState.COMPLETED
 
 
 def test_heartbeat_timeout(mock_db, queue_args, task_args, mock_datetime):
@@ -217,3 +194,216 @@ def test_task_retry_on_timeout(mock_db, queue_args, task_args, mock_datetime):
     task = mock_db.tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.FAILED
     assert task["retries"] == 3, f"Retry count should be 3, but is {task['retries']}"
+
+
+def test_update_task_status(mock_db, queue_args, task_args):
+    """Test task status updates."""
+    # Setup: Create queue and task
+    mock_db.create_queue(**queue_args)
+
+    # Test case 1: Success path
+    task_id = mock_db.create_task(**task_args)
+    task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+    assert task["status"] == TaskState.RUNNING
+    assert task["_id"] == task_id
+    assert mock_db.update_task_status(
+        queue_args["queue_name"], task_id, "success", {"result": "test passed"}
+    )
+    task = mock_db.tasks.find_one({"_id": task_id})
+    assert task["status"] == TaskState.COMPLETED
+    assert task["summary"]["result"] == "test passed"
+
+    # Test case 2: Failed with retry
+    task_id = mock_db.create_task(**task_args)  # Create new task
+    task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+    assert task["_id"] == task_id
+    assert mock_db.update_task_status(queue_args["queue_name"], task_id, "failed")
+    task = mock_db.tasks.find_one({"_id": task_id})
+    assert task["status"] == TaskState.PENDING  # First failure goes to PENDING
+    assert task["retries"] == 1
+
+    # Test case 3: Failed after max retries
+    for _ in range(2):  # Already has 1 retry, need 2 more to reach max
+        task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+        assert task["_id"] == task_id
+        assert mock_db.update_task_status(queue_args["queue_name"], task_id, "failed")
+    task = mock_db.tasks.find_one({"_id": task_id})
+    assert task["status"] == TaskState.FAILED
+    assert task["retries"] == 3
+
+    # Test case 4: Cancel task from PENDING
+    task_id = mock_db.create_task(**task_args)
+    assert mock_db.update_task_status(queue_args["queue_name"], task_id, "cancelled")
+    task = mock_db.tasks.find_one({"_id": task_id})
+    assert task["status"] == TaskState.CANCELLED
+
+    # Test case 5: Cancel task from RUNNING
+    task_id = mock_db.create_task(**task_args)
+    task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+    assert task["_id"] == task_id
+    assert mock_db.update_task_status(queue_args["queue_name"], task_id, "cancelled")
+    task = mock_db.tasks.find_one({"_id": task_id})
+    assert task["status"] == TaskState.CANCELLED
+
+    # Test case 6: Invalid status
+    with pytest.raises(HTTPException) as exc:
+        mock_db.update_task_status(queue_args["queue_name"], task_id, "invalid_status")
+    assert exc.value.status_code == 400
+    assert "Invalid report_status" in exc.value.detail
+
+    # Test case 7: Non-existent queue
+    with pytest.raises(HTTPException) as exc:
+        mock_db.update_task_status("non_existent_queue", task_id, "success")
+    assert exc.value.status_code == 404
+    assert "Queue 'non_existent_queue' not found" in exc.value.detail
+
+    # Test case 8: Non-existent task
+    with pytest.raises(HTTPException) as exc:
+        mock_db.update_task_status(
+            queue_args["queue_name"], "non_existent_task", "success"
+        )
+    assert exc.value.status_code == 404
+    assert "Task non_existent_task not found" in exc.value.detail
+
+
+def test_task_fsm_consistency(mock_db, queue_args, task_args):
+    """Test if DB FSM logic is consistent with defined FSM logic."""
+    mock_db.create_queue(**queue_args)
+
+    # 1. Prepare pairs, so we can check if the FSM logic is consistent between
+    #    DB and FSM.
+    # event name: (initial_state, db_func, fsm_func)
+    event_mapping = {
+        "fetch": (
+            TaskState.PENDING,
+            lambda queue_name, task_id: mock_db.fetch_task(queue_name=queue_name),
+            TaskFSM.fetch,
+        ),
+        "report_success": (
+            TaskState.RUNNING,
+            partial(mock_db.update_task_status, report_status="success"),
+            TaskFSM.complete,
+        ),
+        "report_failed": (
+            TaskState.RUNNING,
+            partial(mock_db.update_task_status, report_status="failed"),
+            TaskFSM.fail,
+        ),
+        "report_pending_cancelled": (
+            TaskState.PENDING,
+            partial(mock_db.update_task_status, report_status="cancelled"),
+            TaskFSM.cancel,
+        ),
+        "report_running_cancelled": (
+            TaskState.RUNNING,
+            partial(mock_db.update_task_status, report_status="cancelled"),
+            TaskFSM.cancel,
+        ),
+        "report_failed_cancelled": (
+            TaskState.FAILED,
+            partial(mock_db.update_task_status, report_status="cancelled"),
+            TaskFSM.cancel,
+        ),
+        "reset_pending": (
+            TaskState.PENDING,
+            mock_db.update_task_and_reset_pending,
+            TaskFSM.reset,
+        ),
+        "reset_running": (
+            TaskState.RUNNING,
+            mock_db.update_task_and_reset_pending,
+            TaskFSM.reset,
+        ),
+        "reset_failed": (
+            TaskState.FAILED,
+            mock_db.update_task_and_reset_pending,
+            TaskFSM.reset,
+        ),
+        "reset_completed": (
+            TaskState.COMPLETED,
+            mock_db.update_task_and_reset_pending,
+            TaskFSM.reset,
+        ),
+        "reset_cancelled": (
+            TaskState.CANCELLED,
+            mock_db.update_task_and_reset_pending,
+            TaskFSM.reset,
+        ),
+    }
+
+    # 2. Prepare functions to get task and mock_db in different initial states for testing
+
+    def clear_tasks():
+        mock_db.tasks.delete_many({})
+
+    def get_pending():
+        task_id = mock_db.create_task(**task_args)
+        task = mock_db.tasks.find_one({"_id": task_id})
+        assert task["status"] == TaskState.PENDING
+        return task, mock_db
+
+    def get_running():
+        task, mock_db = get_pending()
+        task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+        assert task["status"] == TaskState.RUNNING
+        return task, mock_db
+
+    def get_failed():
+        task_id = mock_db.create_task(**task_args)
+        task = mock_db.tasks.find_one_and_update(
+            {"_id": task_id},
+            {"$set": {"status": TaskState.FAILED}},
+            return_document=ReturnDocument.AFTER,
+        )
+        assert task is not None
+        return task, mock_db
+
+    def get_cancelled():
+        task_id = mock_db.create_task(**task_args)
+        task = mock_db.tasks.find_one_and_update(
+            {"_id": task_id},
+            {"$set": {"status": TaskState.CANCELLED}},
+            return_document=ReturnDocument.AFTER,
+        )
+        assert task is not None
+        return task, mock_db
+
+    def get_completed():
+        task_id = mock_db.create_task(**task_args)
+        task = mock_db.tasks.find_one_and_update(
+            {"_id": task_id},
+            {"$set": {"status": TaskState.COMPLETED}},
+            return_document=ReturnDocument.AFTER,
+        )
+        assert task is not None
+        return task, mock_db
+
+    get_initial_state_func = {
+        TaskState.PENDING: get_pending,
+        TaskState.RUNNING: get_running,
+        TaskState.FAILED: get_failed,
+        TaskState.COMPLETED: get_completed,
+        TaskState.CANCELLED: get_cancelled,
+    }
+
+
+    # 3. Test each event, match the after state of each event
+    for event_name, (init_state, db_func, fsm_func) in event_mapping.items():
+        # Fetch task
+        task, mock_db = get_initial_state_func[init_state]()
+        task_id = task["_id"]
+
+        fsm = TaskFSM.from_db_entry(task)
+
+        # FSM transition
+        fsm_func(fsm)
+
+        # Verify state after DB update
+        db_func(queue_name=queue_args["queue_name"], task_id=task_id)
+        task = mock_db.tasks.find_one({"_id": task_id})
+        assert (
+            task["status"] == fsm.state
+        ), f"FSM state {fsm.state} does not match DB state {task['status']} during {event_name} event"
+
+        # Clear tasks
+        clear_tasks()

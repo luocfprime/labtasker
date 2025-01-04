@@ -2,7 +2,7 @@ from datetime import timedelta
 
 import pytest
 
-from labtasker.utils import get_timeout_delta, parse_timeout
+from labtasker.utils import flatten_dict, get_timeout_delta, parse_timeout
 
 
 def test_parse_timeout_single_unit():
@@ -111,3 +111,63 @@ def test_get_timeout_delta():
 
     with pytest.raises(TypeError):
         get_timeout_delta(None)
+
+
+def test_flatten_dict():
+    """Test dictionary flattening with dot notation."""
+    # Test case 1: Simple nested dictionary
+    nested_dict = {
+        "status": "completed",
+        "summary": {"field1": "value1", "nested": {"subfield1": "subvalue1"}},
+        "retries": 3,
+    }
+
+    expected = {
+        "status": "completed",
+        "summary.field1": "value1",
+        "summary.nested.subfield1": "subvalue1",
+        "retries": 3,
+    }
+
+    assert flatten_dict(nested_dict) == expected
+
+    # Test case 2: Empty dictionary
+    assert flatten_dict({}) == {}
+
+    # Test case 3: Dictionary with no nesting
+    flat_dict = {"a": 1, "b": 2, "c": 3}
+    assert flatten_dict(flat_dict) == flat_dict
+
+    # Test case 4: Dictionary with empty nested dictionaries
+    nested_empty = {"a": {}, "b": {"c": {}}, "d": 1}
+    assert flatten_dict(nested_empty) == {"d": 1}
+
+    # Test case 5: Dictionary with custom separator
+    nested_dict = {"a": {"b": {"c": 1}}}
+    expected = {"a/b/c": 1}
+    assert flatten_dict(nested_dict, sep="/") == expected
+
+    # Test case 6: Dictionary with mixed value types
+    mixed_dict = {
+        "str": "string",
+        "num": 42,
+        "bool": True,
+        "none": None,
+        "nested": {"list": [1, 2, 3], "tuple": (4, 5, 6)},
+    }
+    expected = {
+        "str": "string",
+        "num": 42,
+        "bool": True,
+        "none": None,
+        "nested.list": [1, 2, 3],
+        "nested.tuple": (4, 5, 6),
+    }
+    assert flatten_dict(mixed_dict) == expected
+
+    # Test case 7: Dictionary with prefix
+    nested_dict = {"a": {"b": {"c": 1}}}
+
+    prefix = "summary"
+    expected = {"summary.a.b.c": 1}
+    assert flatten_dict(nested_dict, parent_key=prefix) == expected
