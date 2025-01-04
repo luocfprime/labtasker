@@ -1,5 +1,6 @@
+import re
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -14,7 +15,7 @@ from starlette.status import (
 )
 
 from .fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
-from .utils import flatten_dict, get_current_time, parse_timeout
+from .utils import flatten_dict, get_current_time, parse_timeout, risky
 
 if TYPE_CHECKING:
     from .security import SecurityManager
@@ -24,6 +25,57 @@ class Priority(int, Enum):
     LOW = 0
     MEDIUM = 10  # default
     HIGH = 20
+
+
+def _sanitize_query(queue_id: str, query: Dict[str, Any]) -> Dict[str, Any]:
+    """Enforce only query on queue_id specified in query"""
+    return {
+        "$and": [
+            {"queue_id": queue_id},  # Enforce queue_id
+            query,  # Existing user query
+        ]
+    }
+
+
+def _sanitize_update(
+    update: Dict[str, Any],
+    banned_fields: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Ban update on certain fields."""
+
+    if banned_fields is None:
+        banned_fields = ["_id", "queue_id", "created_at", "last_modified"]
+
+    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
+        for k, v in d.items():
+            if k in banned_fields:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Field {k} is not allowed to be updated",
+                )
+            elif isinstance(v, dict):
+                d[k] = _recr_sanitize(v)
+        return d
+
+    return _recr_sanitize(update)
+
+
+def _sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize a dictionary so that it does not contain any MongoDB operators."""
+
+    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
+        for k, v in d.items():
+            if isinstance(k, str):
+                if re.match(r"^\$", k):  # Match those starting with $
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"MongoDB operators are not allowed in field names: {k}",
+                    )
+            if isinstance(v, dict):
+                d[k] = _recr_sanitize(v)
+        return d
+
+    return _recr_sanitize(dic)
 
 
 class DatabaseClient:
@@ -36,8 +88,8 @@ class DatabaseClient:
         self.security = SecurityManager()
         if client:
             # Use provided client (for testing)
-            self.client = client
-            self.db = self.client[db_name]
+            self._client = client
+            self._db = self._client[db_name]
             self._setup_collections()
             return
 
@@ -48,45 +100,48 @@ class DatabaseClient:
             )
 
         try:
-            self.client = MongoClient(uri)
-            if not isinstance(self.client, MongoClient):
+            self._client = MongoClient(uri)
+            if not isinstance(self._client, MongoClient):
                 # Test connection only for real MongoDB (not mock)
-                self.client.admin.command("ping")
-            self.db: Database = self.client[db_name]
+                self._client.admin.command("ping")
+            self._db: Database = self._client[db_name]
             self._setup_collections()
         except Exception as e:
             raise HTTPException(
                 status_code=500, detail=f"Failed to connect to MongoDB: {str(e)}"
             )
 
+    def ping(self):
+        self._client.admin.command("ping")
+
     def _setup_collections(self):
         """Setup collections and indexes."""
         # Queues collection
-        self.queues: Collection = self.db.queues
+        self._queues: Collection = self._db.queues
         # _id is automatically indexed by MongoDB
-        self.queues.create_index([("queue_name", ASCENDING)], unique=True)
+        self._queues.create_index([("queue_name", ASCENDING)], unique=True)
 
         # Tasks collection
-        self.tasks: Collection = self.db.tasks
+        self._tasks: Collection = self._db.tasks
         # _id is automatically indexed by MongoDB
-        self.tasks.create_index([("queue_id", ASCENDING)])  # Reference to queue._id
-        self.tasks.create_index([("status", ASCENDING)])
-        self.tasks.create_index([("priority", DESCENDING)])  # Higher priority first
-        self.tasks.create_index([("created_at", ASCENDING)])  # Older tasks first
+        self._tasks.create_index([("queue_id", ASCENDING)])  # Reference to queue._id
+        self._tasks.create_index([("status", ASCENDING)])
+        self._tasks.create_index([("priority", DESCENDING)])  # Higher priority first
+        self._tasks.create_index([("created_at", ASCENDING)])  # Older tasks first
 
         # Workers collection
-        self.workers: Collection = self.db.workers
+        self._workers: Collection = self._db.workers
         # _id is automatically indexed by MongoDB
-        self.workers.create_index([("queue_id", ASCENDING)])  # Reference to queue._id
-        self.workers.create_index(
+        self._workers.create_index([("queue_id", ASCENDING)])  # Reference to queue._id
+        self._workers.create_index(
             [("worker_name", ASCENDING)]
         )  # Optional index for searching
 
     def close(self):
         """Close the database client."""
-        self.client.close()
+        self._client.close()
 
-    def _get_queue_by_name(self, queue_name: str) -> Dict[str, Any]:
+    def _get_queue_by_name(self, queue_name: str) -> Mapping[str, Any]:
         """Get queue by name with error handling.
 
         Args:
@@ -98,58 +153,90 @@ class DatabaseClient:
         Raises:
             HTTPException: If queue not found
         """
-        queue = self.queues.find_one({"queue_name": queue_name})
+        queue = self._queues.find_one({"queue_name": queue_name})
         if not queue:
             raise HTTPException(
                 status_code=404, detail=f"Queue '{queue_name}' not found"
             )
         return queue
 
-    def query(
+    @property
+    def projection(self):
+        return {"password": "masked"}
+
+    @risky("Potential query injection")
+    def query_collection(
         self,
         queue_name: str,
+        collection_name: str,
         query: Dict[str, Any],  # MongoDB query
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Query a collection."""
+        if collection_name not in ["queues", "tasks", "workers"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid collection name. Must be one of: queues, tasks, workers",
+            )
+
         queue = self._get_queue_by_name(queue_name)
 
-        # Make sure no trespassing
-        if query["queue_id"] != queue["_id"]:
+        if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
             raise HTTPException(
                 status_code=400,
                 detail="Query queue_id does not match the matching queue_id given by queue_name",
             )
-        result = self.tasks.find(query)
+
+        # Prevent query injection
+        query = _sanitize_query(queue["_id"], query)
+
+        result = self._db[collection_name].find(query, self.projection).limit(limit)
         return list(result)
 
-    def update(
+    @risky("Potential query injection")
+    def update_collection(
         self,
         queue_name: str,
+        collection_name: str,
         query: Dict[str, Any],  # MongoDB query
         update: Dict[str, Any],  # MongoDB update
     ) -> bool:
         """Update a collection."""
+        if collection_name not in ["queues", "tasks", "workers"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid collection name. Must be one of: queues, tasks, workers",
+            )
         queue = self._get_queue_by_name(queue_name)
 
-        # Update collection
-        if query["queue_id"] != queue["_id"]:
+        if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
             raise HTTPException(
                 status_code=400,
                 detail="Query queue_id does not match the matching queue_id given by queue_name",
             )
 
+        # Prevent query injection
+        query = _sanitize_query(queue["_id"], query)
+
         now = get_current_time()
+
+        update = _sanitize_update(
+            update
+        )  # make sure important fields are not tempered with
 
         if update.get("$set"):
             update["$set"]["last_modified"] = now
         else:
             update["$set"] = {"last_modified": now}
 
-        result = self.tasks.update_many(query, update)
+        result = self._db[collection_name].update_many(query, update)
         return result.modified_count > 0
 
     def create_queue(
-        self, queue_name: str, password: str, metadata: Optional[Dict[str, Any]] = None
+        self,
+        queue_name: str,
+        password: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create a new queue."""
         # Validate queue name
@@ -166,7 +253,7 @@ class DatabaseClient:
                 "last_modified": now,
                 "metadata": metadata or {},
             }
-            result = self.queues.insert_one(queue)
+            result = self._queues.insert_one(queue)
             return str(result.inserted_id)
         except DuplicateKeyError:
             raise HTTPException(
@@ -189,7 +276,7 @@ class DatabaseClient:
         queue_name: str,
         task_name: Optional[str] = None,
         args: Dict[str, Any] = None,
-        metadata: Dict[str, Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         heartbeat_timeout: int = 60,
         task_timeout: Optional[
             int
@@ -232,7 +319,7 @@ class DatabaseClient:
             "summary": {},
             "worker_id": None,
         }
-        result = self.tasks.insert_one(task)
+        result = self._tasks.insert_one(task)
         return str(result.inserted_id)
 
     def create_worker(
@@ -258,7 +345,7 @@ class DatabaseClient:
             "created_at": now,
             "last_modified": now,
         }
-        result = self.workers.insert_one(worker)
+        result = self._workers.insert_one(worker)
         return str(result.inserted_id)
 
     def delete_queue(
@@ -277,13 +364,13 @@ class DatabaseClient:
         queue = self._get_queue_by_name(queue_name)
 
         # Delete queue
-        self.queues.delete_one({"_id": queue["_id"]})
+        self._queues.delete_one({"_id": queue["_id"]})
 
         if cascade_delete:
             # Delete all tasks in the queue
-            self.tasks.delete_many({"queue_id": queue["_id"]})
+            self._tasks.delete_many({"queue_id": queue["_id"]})
             # Delete all workers in the queue
-            self.workers.delete_many({"queue_id": queue["_id"]})
+            self._workers.delete_many({"queue_id": queue["_id"]})
 
         return True
 
@@ -297,13 +384,16 @@ class DatabaseClient:
         queue = self._get_queue_by_name(queue_name)
 
         # Delete task
-        result = self.tasks.delete_one({"_id": task_id, "queue_id": queue["_id"]})
+        result = self._tasks.delete_one({"_id": task_id, "queue_id": queue["_id"]})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Task not found")
         return result.deleted_count > 0
 
     def delete_worker(
-        self, queue_name: str, worker_id: str, cascade_update: bool = True
+        self,
+        queue_name: str,
+        worker_id: str,
+        cascade_update: bool = True,
     ) -> bool:
         """
         Delete a worker.
@@ -317,7 +407,7 @@ class DatabaseClient:
         queue = self._get_queue_by_name(queue_name)
 
         # Delete worker
-        worker_result = self.workers.delete_one(
+        worker_result = self._workers.delete_one(
             {"_id": worker_id, "queue_id": queue["_id"]}
         )
         if worker_result.deleted_count == 0:
@@ -326,7 +416,7 @@ class DatabaseClient:
         now = get_current_time()
         if cascade_update:
             # Update all tasks associated with the worker
-            self.tasks.update_many(
+            self._tasks.update_many(
                 {"queue_id": queue["_id"], "worker_id": worker_id},
                 {"$set": {"worker_id": None, "last_modified": now}},
             )
@@ -344,30 +434,39 @@ class DatabaseClient:
         # Verify queue exists
         queue = self._get_queue_by_name(queue_name)
 
+        # Make sure name does not already exist
+        if new_queue_name and self._get_queue_by_name(new_queue_name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Queue name '{new_queue_name}' already exists",
+            )
+
         queue_name = new_queue_name or queue["queue_name"]
         password = (
             self.security.hash_password(new_password)
             if new_password
             else queue["password"]
         )
-        metadata = (
-            queue["metadata"].update(metadata_update)
-            if metadata_update
-            else queue["metadata"]
-        )
+
+        if metadata_update:
+            metadata_update = _sanitize_dict(metadata_update)
+            metadata_update = flatten_dict(metadata_update, parent_key="metadata")
+        else:
+            metadata_update = {}
 
         # Update queue settings
         update = {
             "$set": {
                 "queue_name": queue_name,
                 "password": password,
-                "metadata": metadata,
                 "last_modified": get_current_time(),
+                **metadata_update,
             }
         }
-        result = self.queues.update_one({"_id": queue["_id"]}, update)
+        result = self._queues.update_one({"_id": queue["_id"]}, update)
         return result.modified_count > 0
 
+    # @risky("Potential query injection")
     def fetch_task(
         self,
         queue_name: str,
@@ -396,7 +495,9 @@ class DatabaseClient:
 
         # Verify worker exists and is active
         if worker_id:
-            worker = self.workers.find_one({"_id": worker_id, "queue_id": queue["_id"]})
+            worker = self._workers.find_one(
+                {"_id": worker_id, "queue_id": queue["_id"]}
+            )
             if not worker:
                 raise HTTPException(
                     status_code=404,
@@ -412,10 +513,15 @@ class DatabaseClient:
         # Fetch task
         now = get_current_time()
 
+        if extra_filter:
+            extra_filter = _sanitize_query(queue["_id"], extra_filter)
+        else:
+            extra_filter = {}
+
         query = {
             "queue_id": queue["_id"],
             "status": TaskState.PENDING,
-            **(extra_filter or {}),
+            **extra_filter,
         }
 
         update = {
@@ -433,7 +539,7 @@ class DatabaseClient:
 
         # Find and update an available task
         # PENDING -> RUNNING
-        result = self.tasks.find_one_and_update(
+        result = self._tasks.find_one_and_update(
             query,
             update,
             sort=[("priority", -1), ("created_at", 1)],
@@ -455,7 +561,7 @@ class DatabaseClient:
         # Get queue ID
         queue = self._get_queue_by_name(queue_name)
 
-        task = self.tasks.find_one({"_id": task_id, "queue_id": queue["_id"]})
+        task = self._tasks.find_one({"_id": task_id, "queue_id": queue["_id"]})
         if not task:
             raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
@@ -480,8 +586,11 @@ class DatabaseClient:
                 detail=str(e),
             )
 
-        summary_update = summary_update or {}
-        summary_update = flatten_dict(summary_update, parent_key="summary")
+        if summary_update:
+            summary_update = _sanitize_dict(summary_update)
+            summary_update = flatten_dict(summary_update, parent_key="summary")
+        else:
+            summary_update = {}
 
         update = {
             "$set": {
@@ -492,7 +601,7 @@ class DatabaseClient:
             }
         }
 
-        result = self.tasks.update_one({"_id": task_id}, update)
+        result = self._tasks.update_one({"_id": task_id}, update)
 
         # Update worker status if worker is specified
         if report_status == "failed" and task["worker_id"]:
@@ -528,8 +637,13 @@ class DatabaseClient:
         now = get_current_time()
 
         # Update task settings
-        task_setting_update = task_setting_update or {}
-        task_setting_update = flatten_dict(task_setting_update)
+        if task_setting_update:
+            task_setting_update = _sanitize_update(
+                task_setting_update
+            )  # make sure important fields are not tempered with
+            task_setting_update = flatten_dict(task_setting_update)
+        else:
+            task_setting_update = {}
 
         task_setting_update["last_modified"] = now
         task_setting_update["status"] = TaskState.PENDING
@@ -541,7 +655,7 @@ class DatabaseClient:
             }
         }
 
-        result = self.tasks.update_one(
+        result = self._tasks.update_one(
             {"_id": task_id, "queue_id": queue["_id"]}, update
         )
         return result.modified_count > 0
@@ -556,7 +670,7 @@ class DatabaseClient:
         queue = self._get_queue_by_name(queue_name)
 
         # Cancel task
-        result = self.tasks.update_one(
+        result = self._tasks.update_one(
             {"_id": task_id, "queue_id": queue["_id"]},
             {"$set": {"status": TaskState.CANCELLED}},
         )
@@ -565,7 +679,7 @@ class DatabaseClient:
     def _update_worker_status(
         self, queue_id: str, worker_id: str, report_status: str
     ) -> bool:
-        worker = self.workers.find_one({"_id": worker_id, "queue_id": queue_id})
+        worker = self._workers.find_one({"_id": worker_id, "queue_id": queue_id})
         if not worker:
             raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
 
@@ -598,7 +712,7 @@ class DatabaseClient:
             }
         }
 
-        result = self.workers.update_one({"_id": worker_id}, update)
+        result = self._workers.update_one({"_id": worker_id}, update)
         return result.modified_count > 0
 
     def update_worker_status(
@@ -664,7 +778,7 @@ class DatabaseClient:
         }
 
         # Find tasks that might have timed out
-        tasks = self.tasks.find(query)
+        tasks = self._tasks.find(query)
 
         tasks = list(tasks)  # Convert cursor to list
 
@@ -689,7 +803,7 @@ class DatabaseClient:
                     )
 
                 # Update task in database
-                result = self.tasks.update_one(
+                result = self._tasks.update_one(
                     {"_id": task["_id"]},
                     {
                         "$set": {

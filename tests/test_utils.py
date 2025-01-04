@@ -1,8 +1,9 @@
+import os
 from datetime import timedelta
 
 import pytest
 
-from labtasker.utils import flatten_dict, get_timeout_delta, parse_timeout
+from labtasker.utils import flatten_dict, get_timeout_delta, parse_timeout, risky
 
 
 def test_parse_timeout_single_unit():
@@ -171,3 +172,79 @@ def test_flatten_dict():
     prefix = "summary"
     expected = {"summary.a.b.c": 1}
     assert flatten_dict(nested_dict, parent_key=prefix) == expected
+
+
+@risky("Test risky operation")
+def risky_function():
+    """Test function."""
+    return "executed"
+
+
+def test_risky_decorator_blocked():
+    """Test that risky operations are blocked by default."""
+    # Ensure env var is not set
+    if "ALLOW_UNSAFE_BEHAVIOR" in os.environ:
+        del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
+
+    with pytest.raises(RuntimeError) as exc:
+        risky_function()
+    assert "Test risky operation" in str(exc.value)
+    assert "ALLOW_UNSAFE_BEHAVIOR" in str(exc.value)
+
+
+def test_risky_decorator_allowed():
+    """Test that risky operations are allowed when enabled."""
+    os.environ["ALLOW_UNSAFE_BEHAVIOR"] = "true"
+    try:
+        result = risky_function()
+        assert result == "executed"
+    finally:
+        del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
+
+
+def test_risky_decorator_docstring():
+    """Test that risky decorator adds description to docstring."""
+    assert "Test function" in risky_function.__doc__
+    assert "[RISKY BEHAVIOR]" in risky_function.__doc__
+    assert "Test risky operation" in risky_function.__doc__
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("true", True),
+        ("True", True),
+        ("yes", True),
+        ("1", True),
+        ("on", True),
+        ("false", False),
+        ("False", False),
+        ("no", False),
+        ("0", False),
+        ("off", False),
+        (" true ", True),  # Test stripping
+        (" false ", False),  # Test stripping
+    ],
+)
+def test_risky_decorator_env_values(value, expected):
+    """Test different environment variable values."""
+    os.environ["ALLOW_UNSAFE_BEHAVIOR"] = value
+    try:
+        if expected:
+            assert risky_function() == "executed"
+        else:
+            with pytest.raises(RuntimeError):
+                risky_function()
+    finally:
+        del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
+
+
+def test_risky_decorator_invalid_value():
+    """Test invalid environment variable value."""
+    os.environ["ALLOW_UNSAFE_BEHAVIOR"] = "invalid"
+    try:
+        with pytest.raises(ValueError) as exc:
+            risky_function()
+        assert "invalid truth value" in str(exc.value)
+    finally:
+        del os.environ["ALLOW_UNSAFE_BEHAVIOR"]

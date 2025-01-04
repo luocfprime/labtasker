@@ -76,7 +76,7 @@ class SecurityManager:
         self, queue_name: str, password: str, db: "DatabaseClient"
     ) -> bool:
         """Authenticate queue access."""
-        queue = db.queues.find_one({"queue_name": queue_name})
+        queue = db._queues.find_one({"queue_name": queue_name})
         if not queue:
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED,

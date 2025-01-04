@@ -1,5 +1,7 @@
+import os
 import re
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 from typing import Union
 
 
@@ -139,3 +141,51 @@ def flatten_dict(d, parent_key="", sep="."):
             # Add non-dictionary values to the result
             items.append((new_key, v))
     return dict(items)
+
+
+def strtobool(val):
+    """Convert a string representation of truth to true (1) or false (0).
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+    """
+    val = val.lower()
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return 1
+    elif val in ("n", "no", "f", "false", "off", "0"):
+        return 0
+    else:
+        raise ValueError("invalid truth value %r" % (val,))
+
+
+def risky(description: str):
+    """Decorator to allow risky operations based on configuration.
+
+    Args:
+        description: Description of why this operation is risky
+
+    Example:
+        @risky("Direct database access bypassing FSM validation")
+        def force_update_status():
+            pass
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Check if unsafe behavior is allowed
+            allow_unsafe = strtobool(
+                os.getenv("ALLOW_UNSAFE_BEHAVIOR", "false").strip()
+            )
+            if not allow_unsafe:
+                raise RuntimeError(
+                    f"Unsafe behavior is not allowed: {description}\n"
+                    "Set ALLOW_UNSAFE_BEHAVIOR=true to enable this operation."
+                )
+            return func(*args, **kwargs)
+
+        # Extend docstring with description
+        wrapper.__doc__ = f"{func.__doc__}\n\n[RISKY BEHAVIOR] {description}"
+        return wrapper
+
+    return decorator

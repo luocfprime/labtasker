@@ -14,8 +14,19 @@ from .database import DatabaseClient
 from .dependencies import get_db
 from .utils import get_current_time
 
-app = FastAPI()
 config = ServerConfig()
+
+
+async def periodic_task(db: DatabaseClient, interval_seconds: int):
+    """Run a periodic task at specified intervals."""
+    while True:
+        try:
+            transitioned_tasks = db.handle_timeouts()
+            if transitioned_tasks:
+                print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
+        except Exception as e:
+            print(f"Error checking timeouts: {e}")
+        await asyncio.sleep(interval_seconds)
 
 
 @asynccontextmanager
@@ -40,30 +51,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-async def periodic_task(db: DatabaseClient, interval_seconds: int):
-    """Run a periodic task at specified intervals."""
-    while True:
-        try:
-            transitioned_tasks = db.handle_timeouts()
-            if transitioned_tasks:
-                print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
-        except Exception as e:
-            print(f"Error checking timeouts: {e}")
-        await asyncio.sleep(interval_seconds)
-
-
-@app.on_event("startup")
-async def start_periodic_task():
-    db = app.state.db
-    asyncio.create_task(periodic_task(db, interval_seconds=30))
-
-
 @app.get("/health")
 async def health_check(db: DatabaseClient = Depends(get_db)):
     """Health check endpoint."""
     try:
         # Check database connection
-        db.client.admin.command("ping")
+        db.ping()
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "database": str(e)}
@@ -72,6 +65,7 @@ async def health_check(db: DatabaseClient = Depends(get_db)):
 class QueueCreate(BaseModel):
     queue_name: str
     password: str
+    metadata: Optional[Dict[str, Any]] = {}
 
 
 class TaskSubmit(BaseModel):
@@ -87,7 +81,11 @@ class TaskSubmit(BaseModel):
 @app.post("/api/v1/queues")
 async def create_queue(queue: QueueCreate, db: DatabaseClient = Depends(get_db)):
     """Create a new queue"""
-    _id = db.create_queue(queue.queue_name, queue.password)
+    _id = db.create_queue(
+        queue_name=queue.queue_name,
+        password=queue.password,
+        metadata=queue.metadata,
+    )
     return {"status": "success", "queue_id": _id}
 
 
@@ -110,7 +108,7 @@ async def get_queue(
     if queue_name:
         query["queue_name"] = queue_name
 
-    queue = db.queues.find_one(query)
+    queue = db._queues.find_one(query)
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
 
@@ -146,7 +144,7 @@ async def delete_queue(
     if queue_name:
         query["queue_name"] = queue_name
 
-    queue = db.queues.find_one(query)
+    queue = db._queues.find_one(query)
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
 
@@ -163,7 +161,7 @@ async def submit_task(
     db: DatabaseClient = Depends(get_db),
 ):
     """Submit a task to the queue"""
-    # queue = db.queues.find_one({"queue_name": task.queue_name})
+    # queue = _db.queues.find_one({"queue_name": task.queue_name})
     # if not queue:
     #     raise HTTPException(status_code=404, detail="Queue not found")
 
@@ -183,7 +181,7 @@ async def get_next_task(
     db: DatabaseClient = Depends(get_db),
     queue_id: Optional[str] = None,
     queue_name: Optional[str] = None,
-    worker_name: Optional[str] = None,
+    worker_id: Optional[str] = None,
     eta_max: str = "2h",
     start_heartbeat: bool = False,
 ):
@@ -199,7 +197,7 @@ async def get_next_task(
     if queue_name:
         query["queue_name"] = queue_name
 
-    queue = db.queues.find_one(query)
+    queue = db._queues.find_one(query)
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
 
@@ -208,7 +206,6 @@ async def get_next_task(
         worker_id=str(
             uuid4()
         ),  # FIXME: worker_id should be optional, definitely not like this
-        worker_name=worker_name,
         eta_max=eta_max,
     )
     if not task:
@@ -245,7 +242,7 @@ async def ls_tasks(
     if queue_name:
         queue_query["queue_name"] = queue_name
 
-    queue = db.queues.find_one(queue_query)
+    queue = db._queues.find_one(queue_query)
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
     if not db.security.verify_password(password, queue["password"]):
@@ -265,7 +262,7 @@ async def ls_tasks(
         }
     }
 
-    tasks = list(db.tasks.find(task_query))
+    tasks = list(db._tasks.find(task_query))
     for task in tasks:
         task_id = str(task.pop("_id"))
         task["task_id"] = task_id
@@ -285,7 +282,7 @@ async def update_task_status(
     summary: Optional[Dict[str, Any]] = None,
     db: DatabaseClient = Depends(get_db),
 ):
-    # TODO: need to use db api
+    # TODO: need to use _db api
     """Update task status (complete, failed, etc)"""
     query = {"_id": task_id}
     if queue_id:
@@ -293,7 +290,7 @@ async def update_task_status(
     if queue_name:
         query["queue_name"] = queue_name
 
-    task = db.tasks.find_one_and_update(
+    task = db._tasks.find_one_and_update(
         query,
         {
             "$set": {
@@ -323,7 +320,7 @@ async def task_heartbeat(
     if queue_name:
         query["queue_name"] = queue_name
 
-    task = db.tasks.find_one_and_update(
+    task = db._tasks.find_one_and_update(
         query,
         {"$set": {"last_heartbeat": get_current_time()}},
         return_document=True,
@@ -331,6 +328,69 @@ async def task_heartbeat(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"status": "success"}
+
+
+class WorkerCreate(BaseModel):
+    """Worker creation request."""
+
+    queue_name: str
+    worker_name: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = {}
+    max_retries: Optional[int] = 3
+
+
+class WorkerStatus(BaseModel):
+    """Worker status update request."""
+
+    queue_name: str
+    status: str  # One of: 'active', 'suspended'
+
+
+@app.post("/api/v1/workers")
+async def create_worker(worker: WorkerCreate, db: DatabaseClient = Depends(get_db)):
+    """Create a new worker."""
+    worker_id = db.create_worker(
+        queue_name=worker.queue_name,
+        worker_name=worker.worker_name,
+        metadata=worker.metadata,
+        max_retries=worker.max_retries,
+    )
+    return {"status": "success", "worker_id": worker_id}
+
+
+@app.patch("/api/v1/workers/{worker_id}/status")
+async def update_worker_status(
+    worker_id: str, status: WorkerStatus, db: DatabaseClient = Depends(get_db)
+):
+    """Update worker status."""
+    db.update_worker_status(
+        queue_name=status.queue_name,
+        worker_id=worker_id,
+        report_status=status.status,
+    )
+    return {"status": "success"}
+
+
+@app.get("/api/v1/workers/{worker_id}")
+async def get_worker(
+    worker_id: str, queue_name: str, db: DatabaseClient = Depends(get_db)
+):
+    """Get worker information."""
+    queue = db._get_queue_by_name(queue_name)
+    worker = db._workers.find_one({"_id": worker_id, "queue_id": queue["_id"]})
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+
+    return {
+        "worker_id": worker_id,
+        "queue_name": queue_name,
+        "status": worker["status"],
+        "worker_name": worker.get("worker_name"),
+        "metadata": worker.get("metadata", {}),
+        "retries": worker["retries"],
+        "created_at": worker["created_at"],
+        "last_modified": worker["last_modified"],
+    }
 
 
 if __name__ == "__main__":

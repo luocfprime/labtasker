@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import wraps
-from typing import Any, Dict, Set
+from typing import Any, Dict, Mapping, Set
 
 from fastapi import HTTPException
 
@@ -97,7 +97,7 @@ class TaskFSM(FSMValidatorMixin):
         self.max_retries = max_retries
 
     @classmethod
-    def from_db_entry(cls, db_entry: Dict[str, Any]) -> "TaskFSM":
+    def from_db_entry(cls, db_entry: Mapping[str, Any]) -> "TaskFSM":
         """Instantiate FSM from database entry."""
         return cls(db_entry["status"], db_entry["retries"], db_entry["max_retries"])
 
@@ -195,7 +195,7 @@ class WorkerFSM(FSMValidatorMixin):
         self.max_retries = max_retries
 
     @classmethod
-    def from_db_entry(cls, db_entry: Dict[str, Any]) -> "WorkerFSM":
+    def from_db_entry(cls, db_entry: Mapping[str, Any]) -> "WorkerFSM":
         """Instantiate FSM from database entry."""
         return cls(
             current_state=db_entry["status"],

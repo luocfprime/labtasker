@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from httpx import AsyncClient
 
 from labtasker.dependencies import get_db, verify_queue_auth
 from labtasker.server import app
@@ -11,7 +12,7 @@ client = TestClient(app)
 @pytest.fixture
 def test_app(mock_db):
     """Create test app with mock database."""
-    # Store mock db in app state
+    # Store mock _db in app state
     app.state.db = mock_db
     # Override database dependency
     app.dependency_overrides[get_db] = lambda: mock_db
@@ -282,3 +283,87 @@ def test_list_tasks(authenticated_app, queue_data):
     assert response.status_code == 200
     data = response.json()
     assert all("test_tag" in task["metadata"]["tags"] for task in data["tasks"])
+
+
+@pytest.fixture
+async def async_client():
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client
+
+
+def test_create_worker(authenticated_app, queue_args):
+    """Test worker creation endpoint."""
+    # First create a queue
+    response = authenticated_app.post(
+        "/api/v1/queues",
+        json={
+            "queue_name": queue_args["queue_name"],
+            "password": queue_args["password"],
+        },
+    )
+    assert response.status_code == 200
+
+    # Create worker
+    worker_data = {
+        "queue_name": queue_args["queue_name"],
+        "worker_name": "test_worker",
+        "metadata": {"test": "data"},
+        "max_retries": 5,
+    }
+    response = authenticated_app.post("/api/v1/workers", json=worker_data)
+    assert response.status_code == 200
+    worker_id = response.json()["worker_id"]
+
+    # Verify worker was created
+    response = authenticated_app.get(
+        f"/api/v1/workers/{worker_id}", params={"queue_name": queue_args["queue_name"]}
+    )
+    assert response.status_code == 200
+    worker = response.json()
+    assert worker["worker_name"] == "test_worker"
+    assert worker["status"] == "active"
+    assert worker["metadata"] == {"test": "data"}
+
+
+def test_worker_status_update(authenticated_app, queue_args):
+    """Test worker status update endpoint."""
+    # Setup: Create queue and worker
+    authenticated_app.post(
+        "/api/v1/queues",
+        json={
+            "queue_name": queue_args["queue_name"],
+            "password": queue_args["password"],
+        },
+    )
+    response = authenticated_app.post(
+        "/api/v1/workers", json={"queue_name": queue_args["queue_name"]}
+    )
+    worker_id = response.json()["worker_id"]
+
+    # Test suspending worker
+    response = authenticated_app.patch(
+        f"/api/v1/workers/{worker_id}/status",
+        json={"queue_name": queue_args["queue_name"], "status": "suspended"},
+    )
+    assert response.status_code == 200
+
+    # Verify worker is suspended
+    response = authenticated_app.get(
+        f"/api/v1/workers/{worker_id}", params={"queue_name": queue_args["queue_name"]}
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "suspended"
+
+    # Test reactivating worker
+    response = authenticated_app.patch(
+        f"/api/v1/workers/{worker_id}/status",
+        json={"queue_name": queue_args["queue_name"], "status": "active"},
+    )
+    assert response.status_code == 200
+
+    # Verify worker is active
+    response = authenticated_app.get(
+        f"/api/v1/workers/{worker_id}", params={"queue_name": queue_args["queue_name"]}
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "active"
