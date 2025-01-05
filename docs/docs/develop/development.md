@@ -1,6 +1,4 @@
-# Labtasker [WIP]
-
-A easy-to-use task management tool for lab environments.
+# Development Guide
 
 ## Development Setup
 
