@@ -196,6 +196,9 @@ def test_task_retry_on_timeout(mock_db, queue_args, task_args, mock_datetime):
     assert task["retries"] == 3, f"Retry count should be 3, but is {task['retries']}"
 
 
+# TODO: test start_heartbeat=False
+
+
 def test_update_task_status(mock_db, queue_args, task_args):
     """Test task status updates."""
     # Setup: Create queue and task

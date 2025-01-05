@@ -1,6 +1,6 @@
 """Shared dependencies."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -24,17 +24,26 @@ def get_db(request: Request) -> DatabaseClient:
     return request.app.state.db
 
 
-async def verify_queue_auth(
+async def get_verified_queue_dependency(
     credentials: HTTPBasicCredentials = Security(http_basic),
     db: DatabaseClient = Depends(get_db),
-) -> str:
-    """Verify queue authentication."""
+) -> Dict[str, Any]:
+    """Verify queue authentication using HTTP Basic Auth.
+
+    Uses queue_name as username and password for authentication.
+    """
     try:
-        security.authenticate_queue(credentials.username, credentials.password, db)
-        return credentials.username
-    except HTTPException:
+        queue = db.get_queue(queue_name=credentials.username)
+        if not db.security.verify_password(credentials.password, queue["password"]):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid credentials",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+        return queue
+    except Exception as e:
         raise HTTPException(
-            status_code=HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Basic"},
         )

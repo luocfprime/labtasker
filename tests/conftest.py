@@ -46,6 +46,15 @@ def mock_datetime(monkeypatch):
     return time_control
 
 
+@pytest.fixture(scope="session", autouse=True)
+def allow_unsafe():
+    """Enable unsafe operations for testing."""
+    os.environ["ALLOW_UNSAFE_BEHAVIOR"] = "true"
+    yield
+    if "ALLOW_UNSAFE_BEHAVIOR" in os.environ:
+        del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
+
+
 @pytest.fixture
 def mock_db(monkeypatch):
     """Create a mock database for testing."""

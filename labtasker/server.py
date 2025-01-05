@@ -10,8 +10,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from .config import ServerConfig
-from .database import DatabaseClient
-from .dependencies import get_db
+from .database import DatabaseClient, Priority
+from .dependencies import get_db, get_verified_queue_dependency
 from .utils import get_current_time
 
 config = ServerConfig()
@@ -69,13 +69,15 @@ class QueueCreate(BaseModel):
 
 
 class TaskSubmit(BaseModel):
-    queue_name: str
-    password: str
+    """Task submission request."""
+
     task_name: Optional[str] = None
     args: Dict[str, Any]
     metadata: Optional[Dict[str, Any]] = {}
     heartbeat_timeout: Optional[int] = 60
     task_timeout: Optional[int] = None
+    max_retries: Optional[int] = 3
+    priority: Optional[int] = Priority.MEDIUM
 
 
 @app.post("/api/v1/queues")
@@ -89,33 +91,10 @@ async def create_queue(queue: QueueCreate, db: DatabaseClient = Depends(get_db))
     return {"status": "success", "queue_id": _id}
 
 
-@app.get("/api/v1/queues")
-async def get_queue(
-    password: str,
-    queue_id: Optional[str] = None,
-    queue_name: Optional[str] = None,
-    db: DatabaseClient = Depends(get_db),
-):
-    """Get queue information"""
-    if not queue_id and not queue_name:
-        raise HTTPException(
-            status_code=422, detail="Either queue_id or queue_name must be provided"
-        )
-
-    query = {}
-    if queue_id:
-        query["_id"] = ObjectId(queue_id)
-    if queue_name:
-        query["queue_name"] = queue_name
-
-    queue = db._queues.find_one(query)
-    if not queue:
-        raise HTTPException(status_code=404, detail="Queue not found")
-
-    # Verify password
-    if not db.security.verify_password(password, queue["password"]):
-        raise HTTPException(status_code=401, detail="Invalid password")
-
+@app.get("/api/v1/queues/{queue_id}")
+async def get_queue(queue_id: str, db: DatabaseClient = Depends(get_db)):
+    """Get queue information. (No authentication required)"""
+    queue = db.get_queue(queue_id=queue_id)
     return {
         "queue_id": str(queue["_id"]),
         "queue_name": queue["queue_name"],
@@ -124,89 +103,66 @@ async def get_queue(
     }
 
 
+@app.get("/api/v1/queues")
+async def get_queue(queue: Dict[str, Any] = Depends(get_verified_queue_dependency)):
+    """Get queue information"""
+    return {
+        "queue_id": str(queue["_id"]),
+        "queue_name": queue["queue_name"],
+        "status": "active",
+        "created_at": queue["created_at"],
+        "last_modified": queue["last_modified"],
+        "metadata": queue["metadata"],
+    }
+
+
 @app.delete("/api/v1/queues")
 async def delete_queue(
-    password: str,
-    queue_id: Optional[str] = None,
-    queue_name: Optional[str] = None,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    cascade_delete: bool = False,
     db: DatabaseClient = Depends(get_db),
 ):
     """Delete a queue"""
-    if not queue_id and not queue_name:
-        raise HTTPException(
-            status_code=422, detail="Either queue_id or queue_name must be provided"
-        )
-
-    # Find and verify queue
-    query = {}
-    if queue_id:
-        query["_id"] = queue_id
-    if queue_name:
-        query["queue_name"] = queue_name
-
-    queue = db._queues.find_one(query)
-    if not queue:
-        raise HTTPException(status_code=404, detail="Queue not found")
-
-    # Verify password
-    if not db.security.verify_password(password, queue["password"]):
-        raise HTTPException(status_code=401, detail="Invalid password")
-
+    db.delete_queue(queue_name=queue["queue_name"], cascade_delete=cascade_delete)
     return {"status": "success"}
 
 
 @app.post("/api/v1/tasks")
 async def submit_task(
     task: TaskSubmit,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DatabaseClient = Depends(get_db),
 ):
     """Submit a task to the queue"""
-    # queue = _db.queues.find_one({"queue_name": task.queue_name})
-    # if not queue:
-    #     raise HTTPException(status_code=404, detail="Queue not found")
-
     task_id = db.create_task(
-        queue_name=task.queue_name,
+        queue_name=queue["queue_name"],
         task_name=task.task_name,
         args=task.args,
         metadata=task.metadata,
         heartbeat_timeout=task.heartbeat_timeout,
         task_timeout=task.task_timeout,
+        max_retries=task.max_retries,
+        priority=task.priority,
     )
     return {"status": "success", "task_id": task_id}
 
 
 @app.get("/api/v1/tasks/next")
 async def get_next_task(
-    db: DatabaseClient = Depends(get_db),
-    queue_id: Optional[str] = None,
-    queue_name: Optional[str] = None,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     worker_id: Optional[str] = None,
-    eta_max: str = "2h",
-    start_heartbeat: bool = False,
+    eta_max: Optional[str] = None,
+    start_heartbeat: bool = True,
+    extra_filter: Optional[Dict[str, Any]] = None,
+    db: DatabaseClient = Depends(get_db),
 ):
     """Get next available task from queue"""
-    if not queue_id and not queue_name:
-        raise HTTPException(
-            status_code=422, detail="Either queue_id or queue_name must be provided"
-        )
-
-    query = {}
-    if queue_id:
-        query["_id"] = queue_id
-    if queue_name:
-        query["queue_name"] = queue_name
-
-    queue = db._queues.find_one(query)
-    if not queue:
-        raise HTTPException(status_code=404, detail="Queue not found")
-
     task = db.fetch_task(
         queue_name=queue["queue_name"],
-        worker_id=str(
-            uuid4()
-        ),  # FIXME: worker_id should be optional, definitely not like this
+        worker_id=worker_id,
         eta_max=eta_max,
+        start_heartbeat=start_heartbeat,
+        extra_filter=extra_filter,
     )
     if not task:
         return {"status": "no_task"}
@@ -222,108 +178,64 @@ async def get_next_task(
 
 @app.get("/api/v1/tasks")
 async def ls_tasks(
-    password: str,
-    queue_id: Optional[str] = None,
-    queue_name: Optional[str] = None,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     task_id: Optional[str] = None,
     task_name: Optional[str] = None,
+    extra_filter: Optional[Dict[str, Any]] = None,
+    limit: Optional[int] = 100,
     db: DatabaseClient = Depends(get_db),
 ):
     """Get tasks matching the criteria"""
-    if not queue_id and not queue_name:
-        raise HTTPException(
-            status_code=422, detail="Either queue_id or queue_name must be provided"
-        )
-
-    # Verify queue access first
-    queue_query = {}
-    if queue_id:
-        queue_query["_id"] = ObjectId(queue_id)
-    if queue_name:
-        queue_query["queue_name"] = queue_name
-
-    queue = db._queues.find_one(queue_query)
-    if not queue:
-        raise HTTPException(status_code=404, detail="Queue not found")
-    if not db.security.verify_password(password, queue["password"]):
-        raise HTTPException(status_code=401, detail="Invalid password")
-
     # Build task query
-    task_query = {
-        **{
-            k: v
-            for k, v in {
-                "_id": task_id,
-                "task_name": task_name,
-                "queue_id": queue_id,
-                "queue_name": queue_name,
-            }.items()
-            if v is not None
-        }
-    }
+    task_query = extra_filter or {}
+    task_query["queue_id"] = queue["_id"]
 
-    tasks = list(db._tasks.find(task_query))
+    if task_id:
+        task_query["_id"] = task_id
+    if task_name:
+        task_query["task_name"] = task_name
+
+    tasks = db.query_collection(
+        queue_name=queue["queue_name"],
+        collection_name="tasks",
+        query=task_query,
+        limit=limit,
+    )
+
     for task in tasks:
         task_id = str(task.pop("_id"))
         task["task_id"] = task_id
-        # Ensure queue_id is a string
-        if "queue_id" in task:
-            task["queue_id"] = str(task["queue_id"])
-
     return {"status": "success", "tasks": tasks}
 
 
-@app.patch("/api/v1/tasks/{task_id}")
+@app.patch("/api/v1/tasks/{task_id}/status")
 async def update_task_status(
     task_id: str,
     status: str,
-    queue_id: Optional[str] = None,
-    queue_name: Optional[str] = None,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     summary: Optional[Dict[str, Any]] = None,
     db: DatabaseClient = Depends(get_db),
 ):
-    # TODO: need to use _db api
-    """Update task status (complete, failed, etc)"""
-    query = {"_id": task_id}
-    if queue_id:
-        query["queue_id"] = queue_id
-    if queue_name:
-        query["queue_name"] = queue_name
-
-    task = db._tasks.find_one_and_update(
-        query,
-        {
-            "$set": {
-                "status": status,
-                "summary": summary or {},
-                "last_modified": get_current_time(),
-            }
-        },
-        return_document=True,
+    """Report task status (success, failed, cancelled)"""
+    done = db.update_task_status(
+        queue_name=queue["queue_name"],
+        task_id=task_id,
+        report_status=status,
+        summary_update=summary,
     )
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"status": "success"}
+    return {"status": "success" if done else "error"}
 
 
 @app.post("/api/v1/tasks/{task_id}/heartbeat")
 async def task_heartbeat(
     task_id: str,
-    queue_id: Optional[str] = None,
-    queue_name: Optional[str] = None,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DatabaseClient = Depends(get_db),
 ):
     """Update task heartbeat timestamp."""
-    query = {"_id": task_id}
-    if queue_id:
-        query["queue_id"] = queue_id
-    if queue_name:
-        query["queue_name"] = queue_name
-
-    task = db._tasks.find_one_and_update(
-        query,
-        {"$set": {"last_heartbeat": get_current_time()}},
-        return_document=True,
+    task = db.update_task_heartbeat(
+        queue_name=queue["queue_name"],
+        task_id=task_id,
     )
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -333,7 +245,6 @@ async def task_heartbeat(
 class WorkerCreate(BaseModel):
     """Worker creation request."""
 
-    queue_name: str
     worker_name: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = {}
     max_retries: Optional[int] = 3
@@ -342,15 +253,18 @@ class WorkerCreate(BaseModel):
 class WorkerStatus(BaseModel):
     """Worker status update request."""
 
-    queue_name: str
     status: str  # One of: 'active', 'suspended'
 
 
 @app.post("/api/v1/workers")
-async def create_worker(worker: WorkerCreate, db: DatabaseClient = Depends(get_db)):
+async def create_worker(
+    worker: WorkerCreate,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DatabaseClient = Depends(get_db),
+):
     """Create a new worker."""
     worker_id = db.create_worker(
-        queue_name=worker.queue_name,
+        queue_name=queue["queue_name"],
         worker_name=worker.worker_name,
         metadata=worker.metadata,
         max_retries=worker.max_retries,
@@ -360,11 +274,14 @@ async def create_worker(worker: WorkerCreate, db: DatabaseClient = Depends(get_d
 
 @app.patch("/api/v1/workers/{worker_id}/status")
 async def update_worker_status(
-    worker_id: str, status: WorkerStatus, db: DatabaseClient = Depends(get_db)
+    worker_id: str,
+    status: WorkerStatus,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DatabaseClient = Depends(get_db),
 ):
     """Update worker status."""
     db.update_worker_status(
-        queue_name=status.queue_name,
+        queue_name=queue["queue_name"],
         worker_id=worker_id,
         report_status=status.status,
     )
@@ -373,17 +290,18 @@ async def update_worker_status(
 
 @app.get("/api/v1/workers/{worker_id}")
 async def get_worker(
-    worker_id: str, queue_name: str, db: DatabaseClient = Depends(get_db)
+    worker_id: str,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DatabaseClient = Depends(get_db),
 ):
     """Get worker information."""
-    queue = db._get_queue_by_name(queue_name)
-    worker = db._workers.find_one({"_id": worker_id, "queue_id": queue["_id"]})
+    worker = db.get_worker(queue_name=queue["queue_name"], worker_id=worker_id)
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
     return {
         "worker_id": worker_id,
-        "queue_name": queue_name,
+        "queue_name": queue["queue_name"],
         "status": worker["status"],
         "worker_name": worker.get("worker_name"),
         "metadata": worker.get("metadata", {}),

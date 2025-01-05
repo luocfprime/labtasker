@@ -1,5 +1,6 @@
+import base64
 import secrets
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 from fastapi import HTTPException
 from passlib.context import CryptContext
@@ -72,19 +73,8 @@ class SecurityManager:
             plain_password = f"{self.pepper}${plain_password}"
         return self.pwd_context.verify(plain_password, hashed_password)
 
-    def authenticate_queue(
-        self, queue_name: str, password: str, db: "DatabaseClient"
-    ) -> bool:
-        """Authenticate queue access."""
-        queue = db._queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=HTTP_401_UNAUTHORIZED,
-                detail="Queue not found",
-            )
-        if not self.verify_password(password, queue["password"]):
-            raise HTTPException(
-                status_code=HTTP_401_UNAUTHORIZED,
-                detail="Invalid password",
-            )
-        return True
+
+def get_auth_headers(queue_name: str, password: str) -> Dict[str, str]:
+    """Get Basic Auth headers for a queue."""
+    credentials = base64.b64encode(f"{queue_name}:{password}".encode()).decode()
+    return {"Authorization": f"Basic {credentials}"}

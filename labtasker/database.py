@@ -141,28 +141,9 @@ class DatabaseClient:
         """Close the database client."""
         self._client.close()
 
-    def _get_queue_by_name(self, queue_name: str) -> Mapping[str, Any]:
-        """Get queue by name with error handling.
-
-        Args:
-            queue_name: Name of queue to find
-
-        Returns:
-            Queue document
-
-        Raises:
-            HTTPException: If queue not found
-        """
-        queue = self._queues.find_one({"queue_name": queue_name})
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
-        return queue
-
     @property
     def projection(self):
-        return {"password": "masked"}
+        return {"password": 0}
 
     @risky("Potential query injection")
     def query_collection(
@@ -350,7 +331,7 @@ class DatabaseClient:
 
     def delete_queue(
         self,
-        queue_name: str,
+        queue_name: Optional[str] = None,
         cascade_delete: bool = False,  # TODO: need consideration
     ) -> bool:
         """
@@ -360,8 +341,10 @@ class DatabaseClient:
             queue_name (str): The name of the queue to delete.
             cascade_delete (bool): Whether to delete all tasks and workers in the queue.
         """
-        # Make sure queue exists
         queue = self._get_queue_by_name(queue_name)
+
+        if not queue:
+            raise HTTPException(status_code=404, detail="Queue not found")
 
         # Delete queue
         self._queues.delete_one({"_id": queue["_id"]})
@@ -472,6 +455,7 @@ class DatabaseClient:
         queue_name: str,
         worker_id: Optional[str] = None,
         eta_max: Optional[str] = None,
+        start_heartbeat: bool = True,
         extra_filter: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
@@ -528,7 +512,7 @@ class DatabaseClient:
             "$set": {
                 "status": TaskState.RUNNING,
                 "start_time": now,
-                "last_heartbeat": now,
+                "last_heartbeat": now if start_heartbeat else None,
                 "last_modified": now,
                 "worker_id": worker_id,
             }
@@ -546,6 +530,21 @@ class DatabaseClient:
             return_document=ReturnDocument.AFTER,
         )
         return result
+
+    def update_task_heartbeat(
+        self,
+        queue_name: str,
+        task_id: str,
+    ) -> bool:
+        """Update task heartbeat timestamp."""
+        queue = self._get_queue_by_name(queue_name)
+        return (
+            self._tasks.update_one(
+                {"_id": task_id, "queue_id": queue["_id"]},
+                {"$set": {"last_heartbeat": get_current_time()}},
+            ).modified_count
+            > 0
+        )
 
     def update_task_status(
         self,
@@ -737,6 +736,56 @@ class DatabaseClient:
         # Verify queue exists
         queue = self._get_queue_by_name(queue_name)
         return self._update_worker_status(queue["_id"], worker_id, report_status)
+
+    def _get_queue_by_name(self, queue_name: str) -> Mapping[str, Any]:
+        """Get queue by name with error handling.
+
+        Args:
+            queue_name: Name of queue to find
+
+        Returns:
+            Queue document
+
+        Raises:
+            HTTPException: If queue not found
+        """
+        queue = self._queues.find_one({"queue_name": queue_name})
+        if not queue:
+            raise HTTPException(
+                status_code=404, detail=f"Queue '{queue_name}' not found"
+            )
+        return queue
+
+    def get_queue(
+        self,
+        queue_id: Optional[str] = None,
+        queue_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get queue by id or name. Name and id must match."""
+        if queue_id:
+            queue = self._queues.find_one({"_id": queue_id})
+        else:
+            queue = self._get_queue_by_name(queue_name)
+
+        if not queue:
+            raise HTTPException(
+                status_code=404, detail=f"Queue '{queue_name}' not found"
+            )
+
+        # Make sure the provided queue_name and queue_id match
+        if queue_id and queue["_id"] != queue_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
+            )
+
+        if queue_name and queue["queue_name"] != queue_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
+            )
+
+        return queue
 
     def handle_timeouts(self) -> List[str]:
         """Check and handle task timeouts."""
