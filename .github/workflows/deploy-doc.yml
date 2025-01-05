@@ -13,22 +13,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout main
-        uses: actions/checkout@v3
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: config git
-        run: git config user.name github-actions && git config user.email github-actions@github.com
+      - uses: actions/checkout@v4
+      - name: configure git credentials
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
 
       - name: setup python environment
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11
-        
+
+      - run: pwd
+      - run: ls -la
       - run: pip install -e ".[dev]"
-      
+
       - name: build dev doc
         run: |
           cd docs
