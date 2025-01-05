@@ -1,0 +1,76 @@
+Metadata-Version: 2.1
+Name: labtasker
+Version: 0.1.0
+Summary: A task queue system for lab experiments
+Author-email: Your Name <your.email@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/labtasker
+Project-URL: Documentation, https://labtasker.readthedocs.io
+Project-URL: Repository, https://github.com/yourusername/labtasker.git
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: <4.0,>=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: requests>=2.28.0
+Requires-Dist: python-dotenv>=0.19.0
+Requires-Dist: pymongo>=4.0.0
+Requires-Dist: fastapi>=0.68.0
+Requires-Dist: uvicorn>=0.15.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: passlib>=1.7.4
+Requires-Dist: bcrypt>=4.0.1
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: responses>=0.23.0; extra == "dev"
+Requires-Dist: httpx>=0.24.0; extra == "dev"
+Requires-Dist: mongomock>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mkdocs-material>=9.0.0; extra == "dev"
+Requires-Dist: mike>=1.1.2; extra == "dev"
+Requires-Dist: pre-commit>=3.0.0; extra == "dev"
+
+# Labtasker
+
+## Development Setup
+
+### Pre-commit hooks
+
+```bash
+# Install pre-commit hooks
+pip install pre-commit
+pre-commit install
+```
+
+### Install development dependencies
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Format code
+
+```bash
+make format
+```
+
+### Run linters
+
+```bash
+make lint
+```
+
+### Run tests
+
+```bash
+make test
+```

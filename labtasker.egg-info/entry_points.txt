@@ -1,0 +1,8 @@
+[console_scripts]
+labtasker = labtasker.cli.commands:cli
+
+[labtasker.commands]
+config = labtasker.cli.commands:config
+create-queue = labtasker.cli.commands:create_queue
+fetch = labtasker.cli.commands:fetch
+submit = labtasker.cli.commands:submit
