@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import uvicorn
 from bson import ObjectId
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Body
 from pydantic import BaseModel
 
 from .config import ServerConfig
@@ -208,20 +208,24 @@ async def ls_tasks(
     return {"status": "success", "tasks": tasks}
 
 
+class TaskStatusUpdate(BaseModel):
+    status: str
+    summary: Optional[Dict[str, Any]] = {}
+
+
 @app.patch("/api/v1/tasks/{task_id}/status")
 async def update_task_status(
     task_id: str,
-    status: str,
+    update: TaskStatusUpdate,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    summary: Optional[Dict[str, Any]] = None,
     db: DatabaseClient = Depends(get_db),
 ):
     """Report task status (success, failed, cancelled)"""
     done = db.update_task_status(
         queue_name=queue["queue_name"],
         task_id=task_id,
-        report_status=status,
-        summary_update=summary,
+        report_status=update.status,
+        summary_update=update.summary,
     )
     return {"status": "success" if done else "error"}
 
@@ -265,11 +269,14 @@ async def create_worker(
     )
     return {"status": "success", "worker_id": worker_id}
 
+class WorkerStatusUpdate(BaseModel):
+    status: str
+
 
 @app.patch("/api/v1/workers/{worker_id}/status")
 async def update_worker_status(
     worker_id: str,
-    status: str,
+    update: WorkerStatusUpdate,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DatabaseClient = Depends(get_db),
 ):
@@ -277,7 +284,7 @@ async def update_worker_status(
     db.update_worker_status(
         queue_name=queue["queue_name"],
         worker_id=worker_id,
-        report_status=status.status,
+        report_status=update.status,
     )
     return {"status": "success"}
 
@@ -289,13 +296,18 @@ async def get_worker(
     db: DatabaseClient = Depends(get_db),
 ):
     """Get worker information."""
-    worker = db.get_worker(queue_name=queue["queue_name"], worker_id=worker_id)
-    if not worker:
+    workers = db.query_collection(
+        queue_name=queue["queue_name"],
+        collection_name="workers",
+        query={"_id": worker_id},
+    )
+    
+    if not workers or len(workers) == 0:
         raise HTTPException(status_code=404, detail="Worker not found")
-
+    
+    worker = workers[0]
     return {
         "worker_id": worker_id,
-        "queue_name": queue["queue_name"],  # FIXME: Remove this
         "status": worker["status"],
         "worker_name": worker.get("worker_name"),
         "metadata": worker.get("metadata", {}),

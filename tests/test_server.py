@@ -130,17 +130,39 @@ class TestWorkerEndpoints:
         # Create worker with correct format
         response = test_app.post(
             "/api/v1/workers",
-            headers=auth_headers,  # Use Basic Auth
-            json={"worker_name": "test_worker", "metadata": {"test": "data"}},
+            headers=auth_headers,
+            json={
+                "worker_name": "test_worker",
+                "metadata": {"test": "data"}
+            }
         )
         assert response.status_code == 200
-        worker_id = response.json()["worker_id"]
+        data = response.json()
+        assert "worker_id" in data
+        worker_id = data["worker_id"]
 
         # Test status updates
         for status in ["suspended", "active"]:
+            # Update status
             response = test_app.patch(
                 f"/api/v1/workers/{worker_id}/status",
-                headers=auth_headers,  # Use Basic Auth
-                json={"status": status},
+                headers=auth_headers,
+                json={"status": status}
             )
             assert response.status_code == 200
+            assert response.json()["status"] == "success"
+
+            # Verify worker status was updated
+            response = test_app.get(
+                f"/api/v1/workers/{worker_id}",
+                headers=auth_headers
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["worker_id"] == worker_id
+            assert data["status"] == status
+            assert data["worker_name"] == "test_worker"
+            assert data["metadata"] == {"test": "data"}
+            assert "retries" in data
+            assert "created_at" in data
+            assert "last_modified" in data
