@@ -1,9 +1,9 @@
 import os
 import re
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Union
-from collections import defaultdict
 
 
 def parse_timeout(timeout_str: str) -> int:

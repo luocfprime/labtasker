@@ -131,10 +131,7 @@ class TestWorkerEndpoints:
         response = test_app.post(
             "/api/v1/workers",
             headers=auth_headers,
-            json={
-                "worker_name": "test_worker",
-                "metadata": {"test": "data"}
-            }
+            json={"worker_name": "test_worker", "metadata": {"test": "data"}},
         )
         assert response.status_code == 200
         data = response.json()
@@ -147,15 +144,14 @@ class TestWorkerEndpoints:
             response = test_app.patch(
                 f"/api/v1/workers/{worker_id}/status",
                 headers=auth_headers,
-                json={"status": status}
+                json={"status": status},
             )
             assert response.status_code == 200
             assert response.json()["status"] == "success"
 
             # Verify worker status was updated
             response = test_app.get(
-                f"/api/v1/workers/{worker_id}",
-                headers=auth_headers
+                f"/api/v1/workers/{worker_id}", headers=auth_headers
             )
             assert response.status_code == 200
             data = response.json()

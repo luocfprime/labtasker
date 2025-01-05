@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import uvicorn
 from bson import ObjectId
-from fastapi import Depends, FastAPI, HTTPException, Body
+from fastapi import Body, Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from .config import ServerConfig
@@ -269,6 +269,7 @@ async def create_worker(
     )
     return {"status": "success", "worker_id": worker_id}
 
+
 class WorkerStatusUpdate(BaseModel):
     status: str
 
@@ -301,10 +302,10 @@ async def get_worker(
         collection_name="workers",
         query={"_id": worker_id},
     )
-    
+
     if not workers or len(workers) == 0:
         raise HTTPException(status_code=404, detail="Worker not found")
-    
+
     worker = workers[0]
     return {
         "worker_id": worker_id,

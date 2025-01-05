@@ -85,13 +85,13 @@ It offers a versatile task queue system that can be used by anyone (not just sys
 
 Here's are key conceptual differences between Labtasker and SLURM:
 
-| Aspects          | SLURM                                                                 | Labtasker                                                                                      |
-|------------------|------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| Purpose          | HPC resource management system                                         | Task queue system for lab experiments                                                          |
-| Who is it for    | Designed for system administrators                                     | Designed for users                                                                             |
-| Configuration    | Requires extensive configuration                                       | Minimal configuration needed                                                                   |
-| Task Submission  | Jobs submitted as scripts with resource requirements                   | Tasks submitted as argument groups (JSON dictionaries)                                         |
-| Resource Handling| Allocates resources and runs the job                                   | Does not explicitly handle resource allocation                                                 |
-| Flexibility      | Assumes specific resource and task types                               | No assumptions about task nature, experiment type, or computation resources                    |
-| Execution        | Runs jobs on allocated resources                                       | User-defined worker scripts run on various machines/GPUs/CPUs and decide how to handle the arguments        |
-| Reporting        | Handled by the framework                                               | Reports results back to the server via API                                                     |
+| Aspects           | SLURM                                                | Labtasker                                                                                            |
+| ----------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Purpose           | HPC resource management system                       | Task queue system for lab experiments                                                                |
+| Who is it for     | Designed for system administrators                   | Designed for users                                                                                   |
+| Configuration     | Requires extensive configuration                     | Minimal configuration needed                                                                         |
+| Task Submission   | Jobs submitted as scripts with resource requirements | Tasks submitted as argument groups (JSON dictionaries)                                               |
+| Resource Handling | Allocates resources and runs the job                 | Does not explicitly handle resource allocation                                                       |
+| Flexibility       | Assumes specific resource and task types             | No assumptions about task nature, experiment type, or computation resources                          |
+| Execution         | Runs jobs on allocated resources                     | User-defined worker scripts run on various machines/GPUs/CPUs and decide how to handle the arguments |
+| Reporting         | Handled by the framework                             | Reports results back to the server via API                                                           |

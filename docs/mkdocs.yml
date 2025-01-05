@@ -7,7 +7,7 @@ repo_url: https://github.com/fkcptlst/labtasker
 
 theme:
   name: material
-  custom_dir: overrides
+  # custom_dir: overrides
   # favicon: assets/favicon.png
   # logo: assets/favicon.png
   features:
@@ -65,6 +65,8 @@ plugins:
 extra:
   version:
     provider: mike
+    alias: true
+    default: dev
 
 markdown_extensions:
   - abbr
