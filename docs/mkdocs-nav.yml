@@ -6,6 +6,6 @@ nav:
     - Advanced Features: best-practices/advanced.md
   - Development Guide:
     - Development: develop/development.md
-    - Deployment Guide: develop/deployment.md
+    - Deployment: develop/deployment.md
     - Database: develop/database.md
     - RESTful API: develop/restful-api.md

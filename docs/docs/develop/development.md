@@ -33,3 +33,21 @@ make lint
 ```bash
 make test
 ```
+
+
+## Documentation
+
+```bash
+cd docs
+mike serve
+# or use mkdocs to live-reload
+mkdocs serve
+```
+
+Check list of versions:
+
+```bash
+make list
+```
+
+Check other utilities in `Makefile`.
