@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Union
+from collections import defaultdict
 
 
 def parse_timeout(timeout_str: str) -> int:
@@ -189,3 +190,17 @@ def risky(description: str):
         return wrapper
 
     return decorator
+
+
+# _api_usage_log = defaultdict(int)
+
+# TODO: implement with logging for developers
+# def log_api_usage(description: str):
+#     """Decorator to log API usage."""
+#     def decorator(func):
+#         @wraps(func)
+#         def wrapper(*args, **kwargs):
+#             _api_usage_log[description] += 1
+#             return func(*args, **kwargs)
+#         return wrapper
+#     return decorator

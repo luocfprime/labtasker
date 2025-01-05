@@ -1,18 +1,35 @@
+# Labtasker
+
 ## Development Setup
+
+### Pre-commit hooks
 
 ```bash
 # Install pre-commit hooks
 pip install pre-commit
 pre-commit install
+```
 
-# Install development dependencies
-pip install -r requirements-dev.txt
+### Install development dependencies
 
-# Format code
+```bash
+pip install -e ".[dev]"
+```
+
+### Format code
+
+```bash
 make format
+```
 
-# Run linters
+### Run linters
+
+```bash
 make lint
+```
 
-# Run tests
+### Run tests
+
+```bash
 make test
+```

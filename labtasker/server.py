@@ -250,12 +250,6 @@ class WorkerCreate(BaseModel):
     max_retries: Optional[int] = 3
 
 
-class WorkerStatus(BaseModel):
-    """Worker status update request."""
-
-    status: str  # One of: 'active', 'suspended'
-
-
 @app.post("/api/v1/workers")
 async def create_worker(
     worker: WorkerCreate,
@@ -275,7 +269,7 @@ async def create_worker(
 @app.patch("/api/v1/workers/{worker_id}/status")
 async def update_worker_status(
     worker_id: str,
-    status: WorkerStatus,
+    status: str,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DatabaseClient = Depends(get_db),
 ):
@@ -301,7 +295,7 @@ async def get_worker(
 
     return {
         "worker_id": worker_id,
-        "queue_name": queue["queue_name"],
+        "queue_name": queue["queue_name"],  # FIXME: Remove this
         "status": worker["status"],
         "worker_name": worker.get("worker_name"),
         "metadata": worker.get("metadata", {}),

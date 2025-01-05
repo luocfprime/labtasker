@@ -1,4 +1,4 @@
-version: '3.8'
+name: labtasker
 
 services:
   mongodb:
@@ -11,7 +11,6 @@ services:
     volumes:
       - mongodb_data:/data/db
       - ./docker/mongodb/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
-    # Expose MongoDB port only if EXPOSE_DB=true
     ports:
       - ${EXPOSE_DB:+${DB_PORT:-27017}:27017}
     networks:
@@ -21,11 +20,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
     container_name: labtasker-api
     environment:
       - DB_USER=${DB_USER}
@@ -45,11 +46,7 @@ services:
         condition: service_healthy
     networks:
       - labtasker-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    restart: unless-stopped
 
 volumes:
   mongodb_data:
@@ -58,3 +55,4 @@ volumes:
 networks:
   labtasker-network:
     name: labtasker-network
+    driver: bridge
