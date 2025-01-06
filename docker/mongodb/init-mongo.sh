@@ -23,7 +23,7 @@ db.createCollection('tasks')
 // Task indexes
 db.tasks.createIndex({ "queue_id": 1 })
 db.tasks.createIndex({ "status": 1 })
-db.tasks.createIndex({ "priority": 1 })
+db.tasks.createIndex({ "priority": -1 })
 
 db.createCollection('workers')
 // Worker indexes

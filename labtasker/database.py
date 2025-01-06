@@ -1,3 +1,5 @@
+import contextlib
+import contextvars
 import re
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
@@ -19,6 +21,8 @@ from .utils import flatten_dict, get_current_time, parse_timeout, risky
 
 if TYPE_CHECKING:
     from .security import SecurityManager
+
+_in_transaction = contextvars.ContextVar('in_transaction', default=False)
 
 
 class Priority(int, Enum):
@@ -86,6 +90,7 @@ class DatabaseClient:
         from .security import SecurityManager  # Import here to avoid circular import
 
         self.security = SecurityManager()
+
         if client:
             # Use provided client (for testing)
             self._client = client
@@ -100,7 +105,7 @@ class DatabaseClient:
             )
 
         try:
-            self._client = MongoClient(uri)
+            self._client = MongoClient(uri, w="majority", retryWrites=True)
             if not isinstance(self._client, MongoClient):
                 # Test connection only for real MongoDB (not mock)
                 self._client.admin.command("ping")
@@ -110,6 +115,41 @@ class DatabaseClient:
             raise HTTPException(
                 status_code=500, detail=f"Failed to connect to MongoDB: {str(e)}"
             )
+
+    @contextlib.contextmanager
+    def transaction(self, allow_nesting: bool = False):
+        """Context manager for database transactions.
+        
+        Args:
+            allow_nesting (bool): Whether to detect and ban nested transactions
+        """
+        # Check if already in transaction
+        if _in_transaction.get() and not allow_nesting:
+            # raise error
+            raise HTTPException(
+                status_code=500,
+                detail="Nested transactions are not allowed",
+            )
+
+        # Set transaction flag and get token for resetting
+        token = _in_transaction.set(True)
+        try:
+            with self._client.start_session() as session:
+                with session.start_transaction():
+                    try:
+                        yield session
+                        session.commit_transaction()
+                    except Exception as e:
+                        session.abort_transaction()
+                        if isinstance(e, HTTPException):
+                            raise e
+                        raise HTTPException(
+                            status_code=500, 
+                            detail=f"Transaction failed: {str(e)}"
+                        )
+        finally:
+            # Reset transaction flag using token
+            _in_transaction.reset(token)
 
     def ping(self):
         self._client.admin.command("ping")
@@ -154,25 +194,31 @@ class DatabaseClient:
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Query a collection."""
-        if collection_name not in ["queues", "tasks", "workers"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid collection name. Must be one of: queues, tasks, workers",
+        with self.transaction() as session:
+            if collection_name not in ["queues", "tasks", "workers"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid collection name. Must be one of: queues, tasks, workers",
+                )
+
+            queue = self._get_queue_by_name(queue_name, session=session)
+
+            if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Query queue_id does not match the matching queue_id given by queue_name",
+                )
+
+            # Prevent query injection
+            query = _sanitize_query(queue["_id"], query)
+
+            result = (
+                self._db[collection_name]
+                .find(query, self.projection, session=session)
+                .limit(limit)
             )
 
-        queue = self._get_queue_by_name(queue_name)
-
-        if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Query queue_id does not match the matching queue_id given by queue_name",
-            )
-
-        # Prevent query injection
-        query = _sanitize_query(queue["_id"], query)
-
-        result = self._db[collection_name].find(query, self.projection).limit(limit)
-        return list(result)
+            return list(result)
 
     @risky("Potential query injection")
     def update_collection(
@@ -183,35 +229,36 @@ class DatabaseClient:
         update: Dict[str, Any],  # MongoDB update
     ) -> bool:
         """Update a collection."""
-        if collection_name not in ["queues", "tasks", "workers"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid collection name. Must be one of: queues, tasks, workers",
-            )
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            if collection_name not in ["queues", "tasks", "workers"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid collection name. Must be one of: queues, tasks, workers",
+                )
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Query queue_id does not match the matching queue_id given by queue_name",
-            )
+            if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Query queue_id does not match the matching queue_id given by queue_name",
+                )
 
-        # Prevent query injection
-        query = _sanitize_query(queue["_id"], query)
+            # Prevent query injection
+            query = _sanitize_query(queue["_id"], query)
 
-        now = get_current_time()
+            now = get_current_time()
 
-        update = _sanitize_update(
-            update
-        )  # make sure important fields are not tempered with
+            update = _sanitize_update(
+                update
+            )  # make sure important fields are not tempered with
 
-        if update.get("$set"):
-            update["$set"]["last_modified"] = now
-        else:
-            update["$set"] = {"last_modified": now}
+            if update.get("$set"):
+                update["$set"]["last_modified"] = now
+            else:
+                update["$set"] = {"last_modified": now}
 
-        result = self._db[collection_name].update_many(query, update)
-        return result.modified_count > 0
+            result = self._db[collection_name].update_many(query, update, session=session)
+            return result.modified_count > 0
 
     def create_queue(
         self,
@@ -224,33 +271,30 @@ class DatabaseClient:
         if not queue_name or not isinstance(queue_name, str):
             raise HTTPException(status_code=400, detail="Invalid queue name")
 
-        try:
-            now = get_current_time()
-            queue = {
-                "_id": str(uuid4()),
-                "queue_name": queue_name,
-                "password": self.security.hash_password(password),
-                "created_at": now,
-                "last_modified": now,
-                "metadata": metadata or {},
-            }
-            result = self._queues.insert_one(queue)
-            return str(result.inserted_id)
-        except DuplicateKeyError:
-            raise HTTPException(
-                status_code=HTTP_409_CONFLICT,
-                detail=f"Queue '{queue_name}' already exists",
-            )
-        except ValueError as e:
-            raise HTTPException(
-                status_code=HTTP_400_BAD_REQUEST,
-                detail=str(e),
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create queue: {str(e)}",
-            )
+        with self.transaction() as session:
+            try:
+                now = get_current_time()
+                queue = {
+                    "_id": str(uuid4()),
+                    "queue_name": queue_name,
+                    "password": self.security.hash_password(password),
+                    "created_at": now,
+                    "last_modified": now,
+                    "metadata": metadata or {},
+                }
+                result = self._queues.insert_one(queue, session=session)
+                return str(result.inserted_id)
+            except DuplicateKeyError:
+                raise HTTPException(
+                    status_code=HTTP_409_CONFLICT,
+                    detail=f"Queue '{queue_name}' already exists",
+                )
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail=str(e),
+                )
+
 
     def create_task(
         self,
@@ -266,42 +310,43 @@ class DatabaseClient:
         priority: int = Priority.MEDIUM,
     ) -> str:
         """Create a task related to a queue."""
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        # Validate args
-        if args is not None and not isinstance(args, dict):
-            raise HTTPException(
-                status_code=400, detail="Task args must be a dictionary"
-            )
+            # Validate args
+            if args is not None and not isinstance(args, dict):
+                raise HTTPException(
+                    status_code=400, detail="Task args must be a dictionary"
+                )
 
-        now = get_current_time()
+            now = get_current_time()
 
-        # fsm = TaskFSM(
-        #     current_state=TaskState.PENDING, retries=0, max_retries=max_retries
-        # )
-        # fsm.reset()
+            # fsm = TaskFSM(
+            #     current_state=TaskState.PENDING, retries=0, max_retries=max_retries
+            # )
+            # fsm.reset()
 
-        task = {
-            "_id": str(uuid4()),
-            "queue_id": str(queue["_id"]),
-            "status": TaskState.PENDING,
-            "task_name": task_name,
-            "created_at": now,
-            "start_time": None,
-            "last_heartbeat": None,
-            "last_modified": now,
-            "heartbeat_timeout": heartbeat_timeout,
-            "task_timeout": task_timeout,
-            "max_retries": max_retries,
-            "retries": 0,
-            "priority": priority,
-            "metadata": metadata or {},
-            "args": args or {},
-            "summary": {},
-            "worker_id": None,
-        }
-        result = self._tasks.insert_one(task)
-        return str(result.inserted_id)
+            task = {
+                "_id": str(uuid4()),
+                "queue_id": str(queue["_id"]),
+                "status": TaskState.PENDING,
+                "task_name": task_name,
+                "created_at": now,
+                "start_time": None,
+                "last_heartbeat": None,
+                "last_modified": now,
+                "heartbeat_timeout": heartbeat_timeout,
+                "task_timeout": task_timeout,
+                "max_retries": max_retries,
+                "retries": 0,
+                "priority": priority,
+                "metadata": metadata or {},
+                "args": args or {},
+                "summary": {},
+                "worker_id": None,
+            }
+            result = self._tasks.insert_one(task, session=session)
+            return str(result.inserted_id)
 
     def create_worker(
         self,
@@ -311,23 +356,24 @@ class DatabaseClient:
         max_retries: int = 3,
     ) -> str:
         """Create a worker."""
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        now = get_current_time()
+            now = get_current_time()
 
-        worker = {
-            "_id": str(uuid4()),
-            "queue_id": str(queue["_id"]),
-            "status": WorkerState.ACTIVE,
-            "worker_name": worker_name,
-            "metadata": metadata or {},
-            "retries": 0,
-            "max_retries": max_retries,
-            "created_at": now,
-            "last_modified": now,
-        }
-        result = self._workers.insert_one(worker)
-        return str(result.inserted_id)
+            worker = {
+                "_id": str(uuid4()),
+                "queue_id": str(queue["_id"]),
+                "status": WorkerState.ACTIVE,
+                "worker_name": worker_name,
+                "metadata": metadata or {},
+                "retries": 0,
+                "max_retries": max_retries,
+                "created_at": now,
+                "last_modified": now,
+                }
+            result = self._workers.insert_one(worker, session=session)
+            return str(result.inserted_id)
 
     def delete_queue(
         self,
@@ -341,21 +387,22 @@ class DatabaseClient:
             queue_name (str): The name of the queue to delete.
             cascade_delete (bool): Whether to delete all tasks and workers in the queue.
         """
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        if not queue:
-            raise HTTPException(status_code=404, detail="Queue not found")
+            if not queue:
+                raise HTTPException(status_code=404, detail="Queue not found")
 
-        # Delete queue
-        self._queues.delete_one({"_id": queue["_id"]})
+            # Delete queue
+            self._queues.delete_one({"_id": queue["_id"]}, session=session)
 
-        if cascade_delete:
-            # Delete all tasks in the queue
-            self._tasks.delete_many({"queue_id": queue["_id"]})
-            # Delete all workers in the queue
-            self._workers.delete_many({"queue_id": queue["_id"]})
+            if cascade_delete:
+                # Delete all tasks in the queue
+                self._tasks.delete_many({"queue_id": queue["_id"]}, session=session)
+                # Delete all workers in the queue
+                self._workers.delete_many({"queue_id": queue["_id"]}, session=session)
 
-        return True
+            return True
 
     def delete_task(
         self,
@@ -363,14 +410,16 @@ class DatabaseClient:
         task_id: str,
     ) -> bool:
         """Delete a task."""
-        # Verify queue exists
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        # Delete task
-        result = self._tasks.delete_one({"_id": task_id, "queue_id": queue["_id"]})
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Task not found")
-        return result.deleted_count > 0
+            # Delete task
+            result = self._tasks.delete_one(
+                {"_id": task_id, "queue_id": queue["_id"]}, session=session
+            )
+            if result.deleted_count == 0:
+                raise HTTPException(status_code=404, detail="Task not found")
+            return result.deleted_count > 0
 
     def delete_worker(
         self,
@@ -386,25 +435,26 @@ class DatabaseClient:
             worker_id (str): The ID of the worker to delete.
             cascade_update (bool): Whether to set worker_id to None for associated tasks.
         """
-        # Verify queue exists
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        # Delete worker
-        worker_result = self._workers.delete_one(
-            {"_id": worker_id, "queue_id": queue["_id"]}
-        )
-        if worker_result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Worker not found")
-
-        now = get_current_time()
-        if cascade_update:
-            # Update all tasks associated with the worker
-            self._tasks.update_many(
-                {"queue_id": queue["_id"], "worker_id": worker_id},
-                {"$set": {"worker_id": None, "last_modified": now}},
+            # Delete worker
+            worker_result = self._workers.delete_one(
+                {"_id": worker_id, "queue_id": queue["_id"]}, session=session
             )
+            if worker_result.deleted_count == 0:
+                raise HTTPException(status_code=404, detail="Worker not found")
 
-        return True
+            now = get_current_time()
+            if cascade_update:
+                # Update all tasks associated with the worker
+                self._tasks.update_many(
+                    {"queue_id": queue["_id"], "worker_id": worker_id},
+                    {"$set": {"worker_id": None, "last_modified": now}},
+                    session=session,
+                )
+
+            return True
 
     def update_queue(
         self,
@@ -414,40 +464,40 @@ class DatabaseClient:
         metadata_update: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Update queue settings."""
-        # Verify queue exists
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        # Make sure name does not already exist
-        if new_queue_name and self._get_queue_by_name(new_queue_name):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Queue name '{new_queue_name}' already exists",
+            # Make sure name does not already exist
+            if new_queue_name and self._get_queue_by_name(new_queue_name, session=session):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Queue name '{new_queue_name}' already exists",
+                )
+
+            queue_name = new_queue_name or queue["queue_name"]
+            password = (
+                self.security.hash_password(new_password)
+                if new_password
+                else queue["password"]
             )
 
-        queue_name = new_queue_name or queue["queue_name"]
-        password = (
-            self.security.hash_password(new_password)
-            if new_password
-            else queue["password"]
-        )
+            if metadata_update:
+                metadata_update = _sanitize_dict(metadata_update)
+                metadata_update = flatten_dict(metadata_update, parent_key="metadata")
+            else:
+                metadata_update = {}
 
-        if metadata_update:
-            metadata_update = _sanitize_dict(metadata_update)
-            metadata_update = flatten_dict(metadata_update, parent_key="metadata")
-        else:
-            metadata_update = {}
-
-        # Update queue settings
-        update = {
-            "$set": {
-                "queue_name": queue_name,
-                "password": password,
-                "last_modified": get_current_time(),
-                **metadata_update,
+            # Update queue settings
+            update = {
+                "$set": {
+                    "queue_name": queue_name,
+                    "password": password,
+                    "last_modified": get_current_time(),
+                    **metadata_update,
+                }
             }
-        }
-        result = self._queues.update_one({"_id": queue["_id"]}, update)
-        return result.modified_count > 0
+            result = self._queues.update_one({"_id": queue["_id"]}, update, session=session)
+            return result.modified_count > 0
 
     # @risky("Potential query injection")
     def fetch_task(
@@ -474,62 +524,63 @@ class DatabaseClient:
         """
         task_timeout = parse_timeout(eta_max) if eta_max else None
 
-        # Get queue ID
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        # Verify worker exists and is active
-        if worker_id:
-            worker = self._workers.find_one(
-                {"_id": worker_id, "queue_id": queue["_id"]}
-            )
-            if not worker:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Worker '{worker_id}' not found in queue '{queue_name}'",
+            # Verify worker status if specified
+            if worker_id:
+                worker = self._workers.find_one(
+                    {"_id": worker_id, "queue_id": queue["_id"]}, session=session
                 )
-            worker_status = worker["status"]
-            if worker_status != WorkerState.ACTIVE:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_name}'",
-                )
+                if not worker:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Worker '{worker_id}' not found in queue '{queue_name}'",
+                    )
+                worker_status = worker["status"]
+                if worker_status != WorkerState.ACTIVE:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_name}'",
+                    )
 
-        # Fetch task
-        now = get_current_time()
+            # Fetch task
+            now = get_current_time()
 
-        if extra_filter:
-            extra_filter = _sanitize_query(queue["_id"], extra_filter)
-        else:
-            extra_filter = {}
+            if extra_filter:
+                extra_filter = _sanitize_query(queue["_id"], extra_filter)
+            else:
+                extra_filter = {}
 
-        query = {
-            "queue_id": queue["_id"],
-            "status": TaskState.PENDING,
-            **extra_filter,
-        }
-
-        update = {
-            "$set": {
-                "status": TaskState.RUNNING,
-                "start_time": now,
-                "last_heartbeat": now if start_heartbeat else None,
-                "last_modified": now,
-                "worker_id": worker_id,
+            query = {
+                "queue_id": queue["_id"],
+                "status": TaskState.PENDING,
+                **extra_filter,
             }
-        }
 
-        if task_timeout:
-            update["$set"]["task_timeout"] = task_timeout
+            update = {
+                "$set": {
+                    "status": TaskState.RUNNING,
+                    "start_time": now,
+                    "last_heartbeat": now if start_heartbeat else None,
+                    "last_modified": now,
+                    "worker_id": worker_id,
+                }
+            }
 
-        # Find and update an available task
-        # PENDING -> RUNNING
-        result = self._tasks.find_one_and_update(
-            query,
-            update,
-            sort=[("priority", -1), ("created_at", 1)],
-            return_document=ReturnDocument.AFTER,
-        )
-        return result
+            if task_timeout:
+                update["$set"]["task_timeout"] = task_timeout
+
+            # Find and update an available task
+            # PENDING -> RUNNING
+            result = self._tasks.find_one_and_update(
+                query,
+                update,
+                sort=[("priority", -1), ("created_at", 1)],
+                return_document=ReturnDocument.AFTER,
+                session=session,
+            )
+            return result
 
     def update_task_heartbeat(
         self,
@@ -537,14 +588,16 @@ class DatabaseClient:
         task_id: str,
     ) -> bool:
         """Update task heartbeat timestamp."""
-        queue = self._get_queue_by_name(queue_name)
-        return (
-            self._tasks.update_one(
-                {"_id": task_id, "queue_id": queue["_id"]},
-                {"$set": {"last_heartbeat": get_current_time()}},
-            ).modified_count
-            > 0
-        )
+        with self.transaction() as session:
+            queue = self._get_queue_by_name(queue_name)
+            return (
+                self._tasks.update_one(
+                    {"_id": task_id, "queue_id": queue["_id"]},
+                    {"$set": {"last_heartbeat": get_current_time()}},
+                    session=session,
+                ).modified_count
+                > 0
+            )
 
     def update_task_status(
         self,
@@ -556,64 +609,65 @@ class DatabaseClient:
         """
         Update task status. Used for reporting task execution results.
         """
+        with self.transaction() as session:
+            # Get queue ID
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        # Get queue ID
-        queue = self._get_queue_by_name(queue_name)
+            task = self._tasks.find_one(
+                {"_id": task_id, "queue_id": queue["_id"]}, session=session
+            )
+            if not task:
+                raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
-        task = self._tasks.find_one({"_id": task_id, "queue_id": queue["_id"]})
-        if not task:
-            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+            try:
+                fsm = TaskFSM.from_db_entry(task)
 
-        try:
-            fsm = TaskFSM.from_db_entry(task)
+                if report_status == "success":
+                    fsm.complete()
+                elif report_status == "failed":
+                    fsm.fail()
+                elif report_status == "cancelled":
+                    fsm.cancel()
+                else:
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid report_status: {report_status}",
+                    )
 
-            if report_status == "success":
-                fsm.complete()
-            elif report_status == "failed":
-                fsm.fail()
-            elif report_status == "cancelled":
-                fsm.cancel()
-            else:
+            except Exception as e:
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid report_status: {report_status}",
+                    detail=str(e),
                 )
 
-        except Exception as e:
-            raise HTTPException(
-                status_code=HTTP_400_BAD_REQUEST,
-                detail=str(e),
-            )
+            if summary_update:
+                summary_update = _sanitize_dict(summary_update)
+                summary_update = flatten_dict(summary_update, parent_key="summary")
+            else:
+                summary_update = {}
 
-        if summary_update:
-            summary_update = _sanitize_dict(summary_update)
-            summary_update = flatten_dict(summary_update, parent_key="summary")
-        else:
-            summary_update = {}
-
-        update = {
-            "$set": {
-                "status": fsm.state,
-                "retries": fsm.retries,
-                "last_modified": get_current_time(),
-                **summary_update,
+            update = {
+                "$set": {
+                    "status": fsm.state,
+                    "retries": fsm.retries,
+                    "last_modified": get_current_time(),
+                    **summary_update,
+                }
             }
-        }
 
-        result = self._tasks.update_one({"_id": task_id}, update)
+            result = self._tasks.update_one({"_id": task_id}, update, session=session)
 
-        # Update worker status if worker is specified
-        if report_status == "failed" and task["worker_id"]:
-            return (
-                self._update_worker_status(
+            # Update worker status if worker is specified
+            if report_status == "failed" and task["worker_id"]:
+                worker_updated = self._update_worker_status(
                     queue_id=queue["_id"],
                     worker_id=task["worker_id"],
                     report_status="failed",
+                    session=session,
                 )
-                and result.modified_count > 0
-            )
+                return worker_updated and result.modified_count > 0
 
-        return result.modified_count > 0
+            return result.modified_count > 0
 
     def update_task_and_reset_pending(
         self,
@@ -630,34 +684,31 @@ class DatabaseClient:
             task_id (str): The ID of the task to update.
             task_setting_update (Dict[str, Any], optional): A dictionary of task settings to update.
         """
-        # Get queue ID
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            # Get queue ID
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        now = get_current_time()
+            # Update task settings
+            if task_setting_update:
+                task_setting_update = _sanitize_update(task_setting_update)
+                task_setting_update = flatten_dict(task_setting_update)
+            else:
+                task_setting_update = {}
 
-        # Update task settings
-        if task_setting_update:
-            task_setting_update = _sanitize_update(
-                task_setting_update
-            )  # make sure important fields are not tempered with
-            task_setting_update = flatten_dict(task_setting_update)
-        else:
-            task_setting_update = {}
+            task_setting_update["last_modified"] = get_current_time()
+            task_setting_update["status"] = TaskState.PENDING
+            task_setting_update["retries"] = 0
 
-        task_setting_update["last_modified"] = now
-        task_setting_update["status"] = TaskState.PENDING
-        task_setting_update["retries"] = 0
-
-        update = {
-            "$set": {
-                **task_setting_update,
+            update = {
+                "$set": {
+                    **task_setting_update,
+                }
             }
-        }
 
-        result = self._tasks.update_one(
-            {"_id": task_id, "queue_id": queue["_id"]}, update
-        )
-        return result.modified_count > 0
+            result = self._tasks.update_one(
+                {"_id": task_id, "queue_id": queue["_id"]}, update, session=session
+            )
+            return result.modified_count > 0
 
     def cancel_task(
         self,
@@ -665,20 +716,30 @@ class DatabaseClient:
         task_id: str,
     ) -> bool:
         """Cancel a task."""
-        # Verify queue exists
-        queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            # Verify queue exists
+            queue = self._get_queue_by_name(queue_name, session=session)
 
-        # Cancel task
-        result = self._tasks.update_one(
-            {"_id": task_id, "queue_id": queue["_id"]},
-            {"$set": {"status": TaskState.CANCELLED}},
-        )
-        return result.modified_count > 0
+            # Cancel task
+            result = self._tasks.update_one(
+                {"_id": task_id, "queue_id": queue["_id"]},
+                {
+                    "$set": {
+                        "status": TaskState.CANCELLED,
+                        "last_modified": get_current_time(),
+                    }
+                },
+                session=session,
+            )
+            return result.modified_count > 0
 
     def _update_worker_status(
-        self, queue_id: str, worker_id: str, report_status: str
+        self, queue_id: str, worker_id: str, report_status: str, session=None
     ) -> bool:
-        worker = self._workers.find_one({"_id": worker_id, "queue_id": queue_id})
+        """Internal method to update worker status."""
+        worker = self._workers.find_one(
+            {"_id": worker_id, "queue_id": queue_id}, session=session
+        )
         if not worker:
             raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
 
@@ -711,7 +772,7 @@ class DatabaseClient:
             }
         }
 
-        result = self._workers.update_one({"_id": worker_id}, update)
+        result = self._workers.update_one({"_id": worker_id}, update, session=session)
         return result.modified_count > 0
 
     def update_worker_status(
@@ -720,28 +781,23 @@ class DatabaseClient:
         worker_id: str,
         report_status: str,
     ) -> bool:
-        """Update worker status.
+        """Update worker status."""
+        with self.transaction() as session:
+            # Verify queue exists
+            queue = self._get_queue_by_name(queue_name, session=session)
+            return self._update_worker_status(
+                queue_id=queue["_id"],
+                worker_id=worker_id,
+                report_status=report_status,
+                session=session,
+            )
 
-        Args:
-            queue_name: Name of the queue
-            worker_id: ID of worker to update
-            report_status: One of: 'active', 'suspended', 'failed'
-
-        Returns:
-            bool: True if worker was updated
-
-        Raises:
-            HTTPException: If queue/worker not found or invalid transition
-        """
-        # Verify queue exists
-        queue = self._get_queue_by_name(queue_name)
-        return self._update_worker_status(queue["_id"], worker_id, report_status)
-
-    def _get_queue_by_name(self, queue_name: str) -> Mapping[str, Any]:
+    def _get_queue_by_name(self, queue_name: str, session=None) -> Mapping[str, Any]:
         """Get queue by name with error handling.
 
         Args:
             queue_name: Name of queue to find
+            session: Optional MongoDB session for transactions
 
         Returns:
             Queue document
@@ -749,7 +805,7 @@ class DatabaseClient:
         Raises:
             HTTPException: If queue not found
         """
-        queue = self._queues.find_one({"queue_name": queue_name})
+        queue = self._queues.find_one({"queue_name": queue_name}, session=session)
         if not queue:
             raise HTTPException(
                 status_code=404, detail=f"Queue '{queue_name}' not found"
@@ -762,30 +818,31 @@ class DatabaseClient:
         queue_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get queue by id or name. Name and id must match."""
-        if queue_id:
-            queue = self._queues.find_one({"_id": queue_id})
-        else:
-            queue = self._get_queue_by_name(queue_name)
+        with self.transaction() as session:
+            if queue_id:
+                queue = self._queues.find_one({"_id": queue_id}, session=session)
+            else:
+                queue = self._get_queue_by_name(queue_name, session=session)
 
-        if not queue:
-            raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
-            )
+            if not queue:
+                raise HTTPException(
+                    status_code=404, detail=f"Queue '{queue_name}' not found"
+                )
 
-        # Make sure the provided queue_name and queue_id match
-        if queue_id and queue["_id"] != queue_id:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
-            )
+            # Make sure the provided queue_name and queue_id match
+            if queue_id and queue["_id"] != queue_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
+                )
 
-        if queue_name and queue["queue_name"] != queue_name:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
-            )
+            if queue_name and queue["queue_name"] != queue_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
+                )
 
-        return queue
+            return queue
 
     def handle_timeouts(self) -> List[str]:
         """Check and handle task timeouts."""
@@ -826,49 +883,52 @@ class DatabaseClient:
             ],
         }
 
-        # Find tasks that might have timed out
-        tasks = self._tasks.find(query)
+        with self.transaction() as session:
+            # Find tasks that might have timed out
+            tasks = self._tasks.find(query, session=session)
 
-        tasks = list(tasks)  # Convert cursor to list
+            tasks = list(tasks)  # Convert cursor to list
 
-        for task in tasks:
-            try:
-                # Create FSM with current state
-                fsm = TaskFSM(
-                    current_state=task["status"],
-                    retries=task.get("retries"),
-                    max_retries=task.get("max_retries"),
-                )
-
-                # Transition to FAILED state through FSM
-                fsm.fail()
-
-                # Update worker status if worker is specified
-                if task["worker_id"]:
-                    self._update_worker_status(
-                        queue_id=task["queue_id"],
-                        worker_id=task["worker_id"],
-                        report_status="failed",
+            for task in tasks:
+                try:
+                    # Create FSM with current state
+                    fsm = TaskFSM(
+                        current_state=task["status"],
+                        retries=task.get("retries"),
+                        max_retries=task.get("max_retries"),
                     )
 
-                # Update task in database
-                result = self._tasks.update_one(
-                    {"_id": task["_id"]},
-                    {
-                        "$set": {
-                            "status": fsm.state,
-                            "retries": fsm.retries,
-                            "last_modified": now,
-                            "summary.labtasker_error": "Either heartbeat or task execution timed out",
-                        }
-                    },
-                )
-                if result.modified_count > 0:
-                    transitioned_tasks.append(task["_id"])
-            except Exception as e:
-                # Log error but continue processing other tasks
-                print(
-                    f"Error handling timeout for task {task['_id']}: {e}"
-                )  # TODO: log
+                    # Transition to FAILED state through FSM
+                    fsm.fail()
 
-        return transitioned_tasks
+                    # Update worker status if worker is specified
+                    if task["worker_id"]:
+                        self._update_worker_status(
+                            queue_id=task["queue_id"],
+                            worker_id=task["worker_id"],
+                            report_status="failed",
+                            session=session,
+                        )
+
+                    # Update task in database
+                    result = self._tasks.update_one(
+                        {"_id": task["_id"]},
+                        {
+                            "$set": {
+                                "status": fsm.state,
+                                "retries": fsm.retries,
+                                "last_modified": now,
+                                "summary.labtasker_error": "Either heartbeat or task execution timed out",
+                            }
+                        },
+                        session=session,
+                    )
+                    if result.modified_count > 0:
+                        transitioned_tasks.append(task["_id"])
+                except Exception as e:
+                    # Log error but continue processing other tasks
+                    print(
+                        f"Error handling timeout for task {task['_id']}: {e}"
+                    )  # TODO: log
+
+            return transitioned_tasks
