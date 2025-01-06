@@ -58,25 +58,26 @@ def allow_unsafe():
 @pytest.fixture
 def mock_session():
     """Mock MongoDB session for testing."""
+
     class MockSession:
         def __init__(self):
             pass
-            
+
         def __enter__(self):
             return self
-            
+
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
-            
+
         def start_transaction(self):
             return self
-            
+
         def commit_transaction(self):
             pass
-            
+
         def abort_transaction(self):
             pass
-    
+
     return MockSession()
 
 
@@ -86,12 +87,13 @@ def mock_db(monkeypatch, mock_session):
     client = MongoClient()
     client.drop_database("test_db")
     db = DatabaseClient(client=client, db_name="test_db")
-    
+
     # Patch MongoDB operations to ignore session parameter
     def ignore_session(original_method):
         def wrapper(*args, session=None, **kwargs):
             # Remove session parameter
             return original_method(*args, **kwargs)
+
         return wrapper
 
     # Patch collection methods to ignore session

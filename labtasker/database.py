@@ -22,7 +22,7 @@ from .utils import flatten_dict, get_current_time, parse_timeout, risky
 if TYPE_CHECKING:
     from .security import SecurityManager
 
-_in_transaction = contextvars.ContextVar('in_transaction', default=False)
+_in_transaction = contextvars.ContextVar("in_transaction", default=False)
 
 
 class Priority(int, Enum):
@@ -119,7 +119,7 @@ class DatabaseClient:
     @contextlib.contextmanager
     def transaction(self, allow_nesting: bool = False):
         """Context manager for database transactions.
-        
+
         Args:
             allow_nesting (bool): Whether to detect and ban nested transactions
         """
@@ -144,8 +144,7 @@ class DatabaseClient:
                         if isinstance(e, HTTPException):
                             raise e
                         raise HTTPException(
-                            status_code=500, 
-                            detail=f"Transaction failed: {str(e)}"
+                            status_code=500, detail=f"Transaction failed: {str(e)}"
                         )
         finally:
             # Reset transaction flag using token
@@ -257,7 +256,9 @@ class DatabaseClient:
             else:
                 update["$set"] = {"last_modified": now}
 
-            result = self._db[collection_name].update_many(query, update, session=session)
+            result = self._db[collection_name].update_many(
+                query, update, session=session
+            )
             return result.modified_count > 0
 
     def create_queue(
@@ -294,7 +295,6 @@ class DatabaseClient:
                     status_code=HTTP_400_BAD_REQUEST,
                     detail=str(e),
                 )
-
 
     def create_task(
         self,
@@ -371,7 +371,7 @@ class DatabaseClient:
                 "max_retries": max_retries,
                 "created_at": now,
                 "last_modified": now,
-                }
+            }
             result = self._workers.insert_one(worker, session=session)
             return str(result.inserted_id)
 
@@ -468,7 +468,9 @@ class DatabaseClient:
             queue = self._get_queue_by_name(queue_name, session=session)
 
             # Make sure name does not already exist
-            if new_queue_name and self._get_queue_by_name(new_queue_name, session=session):
+            if new_queue_name and self._get_queue_by_name(
+                new_queue_name, session=session
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Queue name '{new_queue_name}' already exists",
@@ -496,7 +498,9 @@ class DatabaseClient:
                     **metadata_update,
                 }
             }
-            result = self._queues.update_one({"_id": queue["_id"]}, update, session=session)
+            result = self._queues.update_one(
+                {"_id": queue["_id"]}, update, session=session
+            )
             return result.modified_count > 0
 
     # @risky("Potential query injection")
