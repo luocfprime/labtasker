@@ -8,9 +8,13 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${DB_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${DB_PASSWORD}
       - MONGO_INITDB_DATABASE=${DB_NAME:-labtasker_db}
+    command: ["--replSet", "rs0", "--keyFile", "/data/configdb/mongo-keyfile"]
     volumes:
-      - mongodb_data:/data/db
-      - ./docker/mongodb/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+      - mongo-data:/data/db
+      - mongo-keyfile:/data/configdb:rw
+      - ./docker/mongodb/docker-entrypoint-wrapped.sh:/usr/local/bin/docker-entrypoint-wrapped.sh:ro
+      - ./docker/mongodb/init.d:/docker-entrypoint-initdb.d/
+      - ./docker/mongodb/post-init.d:/docker-entrypoint-post-initdb.d/
     ports:
       - ${EXPOSE_DB:+${DB_PORT:-27017}:27017}
     networks:
@@ -49,8 +53,10 @@ services:
     restart: unless-stopped
 
 volumes:
-  mongodb_data:
-    name: labtasker-mongodb-data
+  mongo-data:
+    name: labtasker-mongo-data
+  mongo-keyfile:
+    name: labtasker-mongo-keyfile
 
 networks:
   labtasker-network:
