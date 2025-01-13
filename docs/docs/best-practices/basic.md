@@ -136,6 +136,11 @@ The following command loads the client configuration from `my_client_config.env`
 
     ```bash
     # work.sh
+
+    #perhaps?
+
+    labtasker run -c 'python run_my_experiment.py --param1 ${ltc.my_param_1} --param2 ${ltc.my_param_2}'
+
     CONFIG_PATH="./my_client_config.env"
 
     while true
