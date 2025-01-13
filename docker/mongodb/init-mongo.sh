@@ -14,19 +14,8 @@ db.createUser({
   }]
 })
 
-// Create required collections and indexes
+// Create required collections
 db.createCollection('queues')
-// Queue indexes
-db.queues.createIndex({ "queue_name": 1 }, { unique: true })
-
 db.createCollection('tasks')
-// Task indexes
-db.tasks.createIndex({ "queue_id": 1 })
-db.tasks.createIndex({ "status": 1 })
-db.tasks.createIndex({ "priority": -1 })
-
 db.createCollection('workers')
-// Worker indexes
-db.workers.createIndex({ "queue_id": 1 })
-db.workers.createIndex({ "worker_name": 1 })
 EOF
