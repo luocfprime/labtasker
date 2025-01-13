@@ -1,5 +1,4 @@
-# Use Python 3.12 slim Debian image
-FROM python:3.12-slim-bullseye
+FROM python:3.13.1-slim-bullseye
 
 WORKDIR /app
 
@@ -20,4 +19,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${API_PORT:-8080}/health || exit 1
 
 # Run the application
-CMD ["python", "-m", "labtasker.server"]
+CMD ["python", "-m", "labtasker.server.server"]
