@@ -1,6 +1,5 @@
 import os
 import re
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Union
@@ -94,7 +93,7 @@ def get_timeout_delta(timeout: Union[int, str]) -> timedelta:
 
 
 def get_current_time() -> datetime:
-    """Get current UTC time. Centralized to make testing easier."""
+    """Get current UTC time."""
     return datetime.now(timezone.utc)
 
 

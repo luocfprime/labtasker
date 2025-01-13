@@ -34,6 +34,7 @@ states:
 ## Collections
 
 ### Queues Collection
+
 ```json
 {
     "_id": "uuid-string",
@@ -50,6 +51,7 @@ states:
 - Update: ✅
 
 ### Tasks Collection
+
 ```json
 {
     "_id": "xxxxxx",

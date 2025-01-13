@@ -1,8 +1,7 @@
 import contextlib
 import contextvars
 import re
-from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -12,23 +11,17 @@ from pymongo.database import Database
 from pymongo.errors import DuplicateKeyError
 from starlette.status import (
     HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
-from .fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
-from .utils import flatten_dict, get_current_time, parse_timeout, risky
-
-if TYPE_CHECKING:
-    from .security import SecurityManager
+from labtasker.constants import Priority
+from labtasker.security import hash_password
+from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
+from labtasker.utils import flatten_dict, get_current_time, parse_timeout, risky
 
 _in_transaction = contextvars.ContextVar("in_transaction", default=False)
-
-
-class Priority(int, Enum):
-    LOW = 0
-    MEDIUM = 10  # default
-    HIGH = 20
 
 
 def _sanitize_query(queue_id: str, query: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,7 +47,7 @@ def _sanitize_update(
         for k, v in d.items():
             if k in banned_fields:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail=f"Field {k} is not allowed to be updated",
                 )
             elif isinstance(v, dict):
@@ -72,7 +65,7 @@ def _sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(k, str):
                 if re.match(r"^\$", k):  # Match those starting with $
                     raise HTTPException(
-                        status_code=400,
+                        status_code=HTTP_400_BAD_REQUEST,
                         detail=f"MongoDB operators are not allowed in field names: {k}",
                     )
             if isinstance(v, dict):
@@ -84,36 +77,26 @@ def _sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
 
 class DatabaseClient:
     def __init__(
-        self, uri: str = None, db_name: str = None, client: Optional[MongoClient] = None
+        self, db_name: str, uri: str = None, client: Optional[MongoClient] = None
     ):
-        """Initialize database client."""
-        from .security import SecurityManager  # Import here to avoid circular import
-
-        self.security = SecurityManager()
-
+        """Initialize database client. If client is provided, it will be used instead of connecting to MongoDB."""
         if client:
-            # Use provided client (for testing)
             self._client = client
             self._db = self._client[db_name]
             self._setup_collections()
             return
 
-        if not uri or not db_name:
-            raise HTTPException(
-                status_code=422,
-                detail="Either provide uri and db_name or a client instance",
-            )
-
         try:
             self._client = MongoClient(uri, w="majority", retryWrites=True)
-            if not isinstance(self._client, MongoClient):
+            if isinstance(self._client, MongoClient):
                 # Test connection only for real MongoDB (not mock)
                 self._client.admin.command("ping")
             self._db: Database = self._client[db_name]
             self._setup_collections()
         except Exception as e:
             raise HTTPException(
-                status_code=500, detail=f"Failed to connect to MongoDB: {str(e)}"
+                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to connect to MongoDB: {str(e)}",
             )
 
     @contextlib.contextmanager
@@ -127,7 +110,7 @@ class DatabaseClient:
         if _in_transaction.get() and not allow_nesting:
             # raise error
             raise HTTPException(
-                status_code=500,
+                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Nested transactions are not allowed",
             )
 
@@ -144,7 +127,8 @@ class DatabaseClient:
                         if isinstance(e, HTTPException):
                             raise e
                         raise HTTPException(
-                            status_code=500, detail=f"Transaction failed: {str(e)}"
+                            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Transaction failed: {str(e)}",
                         )
         finally:
             # Reset transaction flag using token
@@ -196,7 +180,7 @@ class DatabaseClient:
         with self.transaction() as session:
             if collection_name not in ["queues", "tasks", "workers"]:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail="Invalid collection name. Must be one of: queues, tasks, workers",
                 )
 
@@ -204,7 +188,7 @@ class DatabaseClient:
 
             if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail="Query queue_id does not match the matching queue_id given by queue_name",
                 )
 
@@ -231,14 +215,14 @@ class DatabaseClient:
         with self.transaction() as session:
             if collection_name not in ["queues", "tasks", "workers"]:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail="Invalid collection name. Must be one of: queues, tasks, workers",
                 )
             queue = self._get_queue_by_name(queue_name, session=session)
 
             if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail="Query queue_id does not match the matching queue_id given by queue_name",
                 )
 
@@ -268,17 +252,17 @@ class DatabaseClient:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create a new queue."""
-        # Validate queue name
-        if not queue_name or not isinstance(queue_name, str):
-            raise HTTPException(status_code=400, detail="Invalid queue name")
-
+        if not queue_name:
+            raise HTTPException(
+                status_code=HTTP_400_BAD_REQUEST, detail="Queue name is required"
+            )
         with self.transaction() as session:
             try:
                 now = get_current_time()
                 queue = {
                     "_id": str(uuid4()),
                     "queue_name": queue_name,
-                    "password": self.security.hash_password(password),
+                    "password": hash_password(password),
                     "created_at": now,
                     "last_modified": now,
                     "metadata": metadata or {},
@@ -289,11 +273,6 @@ class DatabaseClient:
                 raise HTTPException(
                     status_code=HTTP_409_CONFLICT,
                     detail=f"Queue '{queue_name}' already exists",
-                )
-            except ValueError as e:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail=str(e),
                 )
 
     def create_task(
@@ -316,7 +295,8 @@ class DatabaseClient:
             # Validate args
             if args is not None and not isinstance(args, dict):
                 raise HTTPException(
-                    status_code=400, detail="Task args must be a dictionary"
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail="Task args must be a dictionary",
                 )
 
             now = get_current_time()
@@ -391,7 +371,9 @@ class DatabaseClient:
             queue = self._get_queue_by_name(queue_name, session=session)
 
             if not queue:
-                raise HTTPException(status_code=404, detail="Queue not found")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND, detail="Queue not found"
+                )
 
             # Delete queue
             self._queues.delete_one({"_id": queue["_id"]}, session=session)
@@ -418,7 +400,9 @@ class DatabaseClient:
                 {"_id": task_id, "queue_id": queue["_id"]}, session=session
             )
             if result.deleted_count == 0:
-                raise HTTPException(status_code=404, detail="Task not found")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND, detail="Task not found"
+                )
             return result.deleted_count > 0
 
     def delete_worker(
@@ -443,7 +427,9 @@ class DatabaseClient:
                 {"_id": worker_id, "queue_id": queue["_id"]}, session=session
             )
             if worker_result.deleted_count == 0:
-                raise HTTPException(status_code=404, detail="Worker not found")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND, detail="Worker not found"
+                )
 
             now = get_current_time()
             if cascade_update:
@@ -472,15 +458,13 @@ class DatabaseClient:
                 new_queue_name, session=session
             ):
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail=f"Queue name '{new_queue_name}' already exists",
                 )
 
             queue_name = new_queue_name or queue["queue_name"]
             password = (
-                self.security.hash_password(new_password)
-                if new_password
-                else queue["password"]
+                hash_password(new_password) if new_password else queue["password"]
             )
 
             if metadata_update:
@@ -538,13 +522,13 @@ class DatabaseClient:
                 )
                 if not worker:
                     raise HTTPException(
-                        status_code=404,
+                        status_code=HTTP_404_NOT_FOUND,
                         detail=f"Worker '{worker_id}' not found in queue '{queue_name}'",
                     )
                 worker_status = worker["status"]
                 if worker_status != WorkerState.ACTIVE:
                     raise HTTPException(
-                        status_code=400,
+                        status_code=HTTP_400_BAD_REQUEST,
                         detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_name}'",
                     )
 
@@ -621,7 +605,9 @@ class DatabaseClient:
                 {"_id": task_id, "queue_id": queue["_id"]}, session=session
             )
             if not task:
-                raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND, detail=f"Task {task_id} not found"
+                )
 
             try:
                 fsm = TaskFSM.from_db_entry(task)
@@ -745,7 +731,9 @@ class DatabaseClient:
             {"_id": worker_id, "queue_id": queue_id}, session=session
         )
         if not worker:
-            raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND, detail=f"Worker {worker_id} not found"
+            )
 
         try:
             fsm = WorkerFSM.from_db_entry(worker)
@@ -812,7 +800,7 @@ class DatabaseClient:
         queue = self._queues.find_one({"queue_name": queue_name}, session=session)
         if not queue:
             raise HTTPException(
-                status_code=404, detail=f"Queue '{queue_name}' not found"
+                status_code=HTTP_404_NOT_FOUND, detail=f"Queue '{queue_name}' not found"
             )
         return queue
 
@@ -820,7 +808,7 @@ class DatabaseClient:
         self,
         queue_id: Optional[str] = None,
         queue_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Mapping[str, Any]:
         """Get queue by id or name. Name and id must match."""
         with self.transaction() as session:
             if queue_id:
@@ -830,19 +818,20 @@ class DatabaseClient:
 
             if not queue:
                 raise HTTPException(
-                    status_code=404, detail=f"Queue '{queue_name}' not found"
+                    status_code=HTTP_404_NOT_FOUND,
+                    detail=f"Queue '{queue_name}' not found",
                 )
 
             # Make sure the provided queue_name and queue_id match
             if queue_id and queue["_id"] != queue_id:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
                 )
 
             if queue_name and queue["queue_name"] != queue_name:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=HTTP_400_BAD_REQUEST,
                     detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
                 )
 

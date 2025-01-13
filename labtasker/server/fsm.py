@@ -3,6 +3,7 @@ from functools import wraps
 from typing import Any, Dict, Mapping, Set
 
 from fastapi import HTTPException
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
 
 def event(func):
@@ -18,7 +19,7 @@ class InvalidStateTransition(HTTPException):
     """Raised when attempting an invalid state transition."""
 
     def __init__(self, message: str):
-        super().__init__(status_code=500, detail=message)
+        super().__init__(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=message)
 
 
 class TaskState(str, Enum):
@@ -41,15 +42,15 @@ class FSMValidatorMixin:
     VALID_TRANSITIONS: Dict[Enum, Set[Enum]] = {}
 
     @property
-    def state(self) -> Enum:
+    def state(self):
         return self._state
 
     @state.setter
-    def state(self, new_state: Enum) -> None:
+    def state(self, new_state) -> None:
         self.validate_transition(new_state)
         self._state = new_state
 
-    def validate_transition(self, new_state: Enum) -> bool:
+    def validate_transition(self, new_state) -> bool:
         """Validate if a state transition is allowed."""
         if new_state not in self.VALID_TRANSITIONS[self.state]:
             raise InvalidStateTransition(

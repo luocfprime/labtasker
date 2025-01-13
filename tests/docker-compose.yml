@@ -1,0 +1,54 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: test-labtasker-mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=test_user
+      - MONGO_INITDB_ROOT_PASSWORD=test_password
+      - MONGO_INITDB_DATABASE=test_labtasker_db
+    volumes:
+      - mongodb_test_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - test-labtasker-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: test-labtasker-api
+    environment:
+      - DB_USER=test_user
+      - DB_PASSWORD=test_password
+      - DB_NAME=test_labtasker_db
+      - DB_HOST=mongodb
+      - DB_PORT=27017
+      - ADMIN_USERNAME=test_admin
+      - ADMIN_PASSWORD=test_admin_password
+      - API_HOST=0.0.0.0
+      - API_PORT=8080
+      - SECURITY_PEPPER=test_pepper
+    ports:
+      - "8080:8080"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - test-labtasker-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_test_data:
+    name: test-labtasker-mongodb-data
+
+networks:
+  test-labtasker-network:
+    name: test-labtasker-network
+    driver: bridge
