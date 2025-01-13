@@ -1,12 +1,9 @@
-import base64
-from typing import Any, Dict
-
 import pytest
 from fastapi.testclient import TestClient
 
-from labtasker.dependencies import get_db
 from labtasker.security import get_auth_headers
-from labtasker.server import app
+from labtasker.server.dependencies import get_db
+from labtasker.server.server import app
 
 
 @pytest.fixture

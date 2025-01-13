@@ -1,3 +1,3 @@
-from .client import LabtaskerClient  # noqa: F401
+from labtasker.client.client import LabtaskerClient  # noqa: F401
 
 __version__ = "0.1.0"

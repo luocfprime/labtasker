@@ -1,13 +1,16 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 
 import pytest
 from fastapi import HTTPException
+from freezegun import freeze_time
 from pymongo.collection import ReturnDocument
 
-from labtasker.database import TaskFSM, TaskState, WorkerState
+from labtasker.security import verify_password
+from labtasker.server.database import TaskFSM, TaskState, WorkerState
 
 
+# @pytest.mark.parametrize("db_fixture", ["mock", "real"], indirect=True)
 def test_create_queue(mock_db, queue_args):
     queue_id = mock_db.create_queue(**queue_args)
     assert queue_id is not None
@@ -17,7 +20,7 @@ def test_create_queue(mock_db, queue_args):
     assert queue is not None
     assert queue["queue_name"] == queue_args["queue_name"]
     # Verify password is hashed and can be verified
-    assert mock_db.security.verify_password(queue_args["password"], queue["password"])
+    assert verify_password(queue_args["password"], queue["password"])
     assert isinstance(queue["created_at"], datetime)
 
 
@@ -72,7 +75,7 @@ def test_create_queue_invalid_name(mock_db):
     with pytest.raises(HTTPException) as exc:
         mock_db.create_queue(queue_name="", password="test")
     assert exc.value.status_code == 400
-    assert "Invalid queue name" in exc.value.detail
+    assert "Queue name is required" in exc.value.detail
 
 
 def test_create_task_nonexistent_queue(mock_db, task_args):
@@ -100,103 +103,120 @@ def test_create_task_invalid_args(mock_db, queue_args):
     assert "must be a dictionary" in exc.value.detail
 
 
-def test_heartbeat_timeout(mock_db, queue_args, task_args, mock_datetime):
-    """Test task execution timeout."""
-    # Create queue and task with execution timeout
+def test_heartbeat_timeout(mock_db, queue_args, task_args):
+    """Test task execution timeout using freezegun."""
+    # Create queue and task with a heartbeat timeout
     mock_db.create_queue(**queue_args)
     task_args.update(
         {
-            "heartbeat_timeout": 120,  # 2 minute timeout
+            "heartbeat_timeout": 120,  # 2-minute timeout
             "max_retries": 1,
         }
     )
     task_id = mock_db.create_task(**task_args)
 
-    # Fetch task to set it to RUNNING with proper metadata
-    task = mock_db.fetch_task(
-        queue_name=queue_args["queue_name"],
-    )
-    assert task["_id"] == task_id
+    # Freeze time
+    with freeze_time("2025-01-01 12:00:00") as frozen_time:
+        # Fetch the task to set it to RUNNING and initialize metadata
+        task = mock_db.fetch_task(
+            queue_name=queue_args["queue_name"],
+        )
+        assert task["_id"] == task_id
 
-    # Fast-forward past execution timeout
-    mock_datetime.time_travel(121)  # 2min 1sec
-    transitioned = mock_db.handle_timeouts()
-    assert task_id in transitioned, f"Task {task_id} should be in {transitioned}"
+        # Fast-forward time beyond the heartbeat timeout
+        frozen_time.tick(timedelta(seconds=121))  # Move forward 2 minutes and 1 second
+        transitioned = mock_db.handle_timeouts()
+        assert task_id in transitioned, f"Task {task_id} should be in {transitioned}"
 
-    # Verify task was failed
-    task = mock_db._tasks.find_one({"_id": task_id})
-    assert task["status"] == TaskState.FAILED
-    assert task["retries"] == 1, f"Retry count should be 1, but is {task['retries']}"
-    assert "timed out" in task["summary"]["labtasker_error"]
+        # Verify the task was marked as FAILED
+        task = mock_db._tasks.find_one({"_id": task_id})
+        assert task["status"] == TaskState.FAILED
+        assert (
+            task["retries"] == 1
+        ), f"Retry count should be 1, but is {task['retries']}"
+        assert "timed out" in task["summary"]["labtasker_error"]
 
 
-def test_task_retry_on_timeout(mock_db, queue_args, task_args, mock_datetime):
-    """Test task retry behavior on timeout."""
+def test_task_retry_on_timeout(mock_db, queue_args, task_args):
+    """Test task retry behavior on timeout using freezegun."""
+    # Create queue and task with a timeout and max retries
     mock_db.create_queue(**queue_args)
     task_args.update(
         {
-            "task_timeout": 60,
+            "task_timeout": 60,  # 1-minute timeout
             "max_retries": 3,
         }
     )
     task_id = mock_db.create_task(**task_args)
 
-    # 1. First timeout
-    # 1.1 Fetch and start task
-    task = mock_db.fetch_task(
-        queue_name=queue_args["queue_name"],
-    )
-    assert task["_id"] == task_id
-    assert task["status"] == TaskState.RUNNING
+    # Freeze time at a specific starting point
+    with freeze_time("2025-01-01 12:00:00") as frozen_time:
+        # 1. First timeout
+        # 1.1 Fetch and start the task
+        task = mock_db.fetch_task(
+            queue_name=queue_args["queue_name"],
+        )
+        assert task["_id"] == task_id
+        assert task["status"] == TaskState.RUNNING
 
-    # 1.2 Fast forward past execution timeout
-    mock_datetime.time_travel(61)
-    mock_db.handle_timeouts()
+        # 1.2 Fast forward past the task timeout
+        frozen_time.tick(timedelta(seconds=61))  # Move forward 61 seconds
+        mock_db.handle_timeouts()
 
-    task = mock_db._tasks.find_one({"_id": task_id})
-    assert task["status"] == TaskState.PENDING
-    assert task["retries"] == 1, f"Retry count should be 1, but is {task['retries']}"
+        # Verify the task is set to PENDING and retry count is updated
+        task = mock_db._tasks.find_one({"_id": task_id})
+        assert task["status"] == TaskState.PENDING
+        assert (
+            task["retries"] == 1
+        ), f"Retry count should be 1, but is {task['retries']}"
 
-    # 2. Second timeout
-    # 2.1 Fetch and start task
-    task = mock_db.fetch_task(
-        queue_name=queue_args["queue_name"],
-    )
-    assert task["_id"] == task_id
-    assert task["status"] == TaskState.RUNNING
+        # 2. Second timeout
+        # 2.1 Fetch and start the task again
+        task = mock_db.fetch_task(
+            queue_name=queue_args["queue_name"],
+        )
+        assert task["_id"] == task_id
+        assert task["status"] == TaskState.RUNNING
 
-    # 2.2 Fast forward half of the timeout
-    mock_datetime.time_travel(30)
-    mock_db.handle_timeouts()
-    task = mock_db._tasks.find_one({"_id": task_id})
-    assert (
-        task["status"] == TaskState.RUNNING
-    ), f"Task status should be RUNNING, since it's only half of the timeout"
+        # 2.2 Fast forward by half of the timeout duration
+        frozen_time.tick(timedelta(seconds=30))  # Move forward 30 seconds
+        mock_db.handle_timeouts()
 
-    # 2.3 Fast forward past execution timeout
-    mock_datetime.time_travel(31)
-    mock_db.handle_timeouts()
-    task = mock_db._tasks.find_one({"_id": task_id})
-    assert task["status"] == TaskState.PENDING
-    assert task["retries"] == 2, f"Retry count should be 2, but is {task['retries']}"
+        # Verify the task is still RUNNING, as the timeout has not yet elapsed
+        task = mock_db._tasks.find_one({"_id": task_id})
+        assert (
+            task["status"] == TaskState.RUNNING
+        ), f"Task status should be RUNNING, since it's only half of the timeout"
 
-    # 3. Third timeout (Crash after 3 retries)
-    # 3.1 Fetch and start task
-    task = mock_db.fetch_task(
-        queue_name=queue_args["queue_name"],
-    )
-    assert task["_id"] == task_id
-    assert task["status"] == TaskState.RUNNING
+        # 2.3 Fast forward past the remaining timeout duration
+        frozen_time.tick(timedelta(seconds=31))  # Move forward 31 seconds
+        mock_db.handle_timeouts()
 
-    # 3.2 Fast forward past execution timeout
-    mock_datetime.time_travel(61)
-    mock_db.handle_timeouts()
-    task = mock_db._tasks.find_one({"_id": task_id})
-    assert task["status"] == TaskState.FAILED
-    assert task["retries"] == 3, f"Retry count should be 3, but is {task['retries']}"
+        # Verify the task is set to PENDING again and retry count is updated
+        task = mock_db._tasks.find_one({"_id": task_id})
+        assert task["status"] == TaskState.PENDING
+        assert (
+            task["retries"] == 2
+        ), f"Retry count should be 2, but is {task['retries']}"
 
+        # 3. Third timeout (Task fails after reaching max retries)
+        # 3.1 Fetch and start the task again
+        task = mock_db.fetch_task(
+            queue_name=queue_args["queue_name"],
+        )
+        assert task["_id"] == task_id
+        assert task["status"] == TaskState.RUNNING
 
-# TODO: test start_heartbeat=False
+        # 3.2 Fast forward past the task timeout
+        frozen_time.tick(timedelta(seconds=61))  # Move forward 61 seconds
+        mock_db.handle_timeouts()
+
+        # Verify the task is set to FAILED after exceeding max retries
+        task = mock_db._tasks.find_one({"_id": task_id})
+        assert task["status"] == TaskState.FAILED
+        assert (
+            task["retries"] == 3
+        ), f"Retry count should be 3, but is {task['retries']}"
 
 
 def test_update_task_status(mock_db, queue_args, task_args):

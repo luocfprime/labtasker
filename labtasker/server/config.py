@@ -5,7 +5,17 @@ from dotenv import load_dotenv
 
 
 class ServerConfig:
-    def __init__(self, env_file: Optional[str] = None):
+    """Server configuration singleton."""
+
+    _instance = None
+
+    def __new__(cls, env_file: Optional[str] = None):
+        if cls._instance is None:
+            cls._instance = super(ServerConfig, cls).__new__(cls)
+            cls._instance._initialize(env_file)
+        return cls._instance
+
+    def _initialize(self, env_file: Optional[str] = None):
         if env_file:
             load_dotenv(env_file)
 
@@ -25,7 +35,6 @@ class ServerConfig:
         self.api_port = int(os.getenv("API_PORT", "8080"))
 
         # Security settings
-        self.security_pepper = os.getenv("SECURITY_PEPPER")
         self.security_bcrypt_rounds = int(os.getenv("SECURITY_BCRYPT_ROUNDS", "12"))
         self.security_min_password_length = int(
             os.getenv("SECURITY_MIN_PASSWORD_LENGTH", "12")

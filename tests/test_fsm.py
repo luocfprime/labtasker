@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 
-from labtasker.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
+from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 
 
 @pytest.fixture

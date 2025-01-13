@@ -1,20 +1,21 @@
+import argparse
 import asyncio
 from asyncio import create_task
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
-from uuid import uuid4
 
 import uvicorn
-from bson import ObjectId
-from fastapi import Body, Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .config import ServerConfig
-from .database import DatabaseClient, Priority
-from .dependencies import get_db, get_verified_queue_dependency
-from .utils import get_current_time
-
-config = ServerConfig()
+from labtasker.constants import Priority
+from labtasker.server.config import ServerConfig
+from labtasker.server.database import DatabaseClient
+from labtasker.server.dependencies import (
+    get_db,
+    get_server_config,
+    get_verified_queue_dependency,
+)
 
 
 async def periodic_task(db: DatabaseClient, interval_seconds: int):
@@ -33,6 +34,7 @@ async def periodic_task(db: DatabaseClient, interval_seconds: int):
 async def lifespan(app: FastAPI):
     """Manage application lifespan and background tasks."""
     # Setup
+    config = get_server_config()
     app.state.db = DatabaseClient(config.mongodb_uri, config.db_name)
     task = create_task(periodic_task(app.state.db, interval_seconds=30))
 
@@ -318,8 +320,15 @@ async def get_worker(
     }
 
 
-if __name__ == "__main__":
-    from .config import ServerConfig
+def parse_args():
+    parser = argparse.ArgumentParser(description="Start the LabTasker server.")
+    parser.add_argument("--env-file", type=str, help="Path to the environment file")
+    return parser.parse_args()
 
-    config = ServerConfig()
+
+if __name__ == "__main__":
+    args = parse_args()
+    config = ServerConfig(
+        args.env_file
+    )  # this is where config initialized when deploying
     uvicorn.run(app, host=config.api_host, port=config.api_port)
