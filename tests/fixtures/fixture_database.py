@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from mongomock import MongoClient as MockMongoClient
 from pymongo import MongoClient as RealMongoClient
@@ -67,23 +69,13 @@ def mock_db(monkeypatch, mock_session):
     return db
 
 
-# @pytest.fixture
-# def real_db():
-#     client = RealMongoClient(
-#         # TODO
-#     )
-#     db = DatabaseClient(client=client, db_name="test_db")
-#     return db
-
-
-def is_mongo_ready(host, port):
+def is_mongo_ready(uri):
     """
     Check if the MongoDB service is ready by running a 'ping' command.
     """
     try:
-        client = RealMongoClient(host=host, port=port, serverSelectionTimeoutMS=1000)
-        client.admin.command("ping")
-        return True
+        client = RealMongoClient(uri, serverSelectionTimeoutMS=1000)
+        return client.admin.command("ping")["ok"] != 0.0
     except Exception:
         return False
 
@@ -95,30 +87,30 @@ def real_db(docker_services, docker_ip):
 
     This fixture starts a MongoDB container using pytest-docker, waits for the service
     to be ready, and provides a `DatabaseClient` object for interacting with the database.
+    docker_services and docker_ip are provided by pytest-docker.
     """
-    # Start the MongoDB service
-    docker_services.start("mongo")
-
     # Get the MongoDB service's host and port
-    port = docker_services.port_for("mongo", 27017)
+    port = docker_services.port_for("mongodb", 27017)
     host = docker_ip
+    username = "test_user"
+    password = "test_password"
+
+    uri = f"mongodb://{username}:{password}@{host}:{port}/?authSource=admin&directConnection=true&replicaSet=rs0"
 
     # Wait for MongoDB to be ready
-    docker_services.wait_for_service(
-        "mongo",
+    docker_services.wait_until_responsive(
+        check=lambda: is_mongo_ready(uri),
         timeout=30.0,  # Wait up to 30 seconds
-        interval=1.0,  # Check every second
-        check=lambda: is_mongo_ready(host, port),
+        pause=1.0,  # Check every 1 seconds
     )
 
     # Connect to MongoDB using the connection details
     client = RealMongoClient(
-        host=host,
-        port=port,
-        username="root",
-        password="example",  # Credentials from docker-compose.yml
+        uri,
         serverSelectionTimeoutMS=5000,  # 5-second timeout for server selection
     )
+
+    time.sleep(5)  # wait for the post-init script to be executed
 
     # Create a DatabaseClient object
     db = DatabaseClient(client=client, db_name="test_db")
@@ -154,9 +146,11 @@ def db_fixture(request, mock_db, real_db):
     """
     Dynamic database fixture that supports both mock and real databases.
     """
-    if request.param == "mock":
+    if "unit" in request.node.keywords:
         return mock_db
-    elif request.param == "real":
+    elif "integration" in request.node.keywords:
         return real_db
     else:
-        raise ValueError(f"Unknown database type: {request.param}")
+        raise ValueError(
+            "Database testcases must be tagged with either 'unit' or 'integration'"
+        )

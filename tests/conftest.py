@@ -1,9 +1,11 @@
 import os
+import subprocess
 
 import pytest
 
 from labtasker.server.config import ServerConfig
-from tests.fixtures.fixture_database import (
+
+from .fixtures.fixture_database import (
     db_fixture,
     mock_db,
     mock_session,
@@ -39,9 +41,24 @@ def allow_unsafe():
 #     return ServerConfig()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def reset_singletons():
     """Reset all singletons before each test."""
     # Reset singleton instances directly for testing
     ServerConfig._instance = None  # Direct reset
     yield  # Allow test to run
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_docker(request):
+    """Clean up Docker containers and networks after tests."""
+    yield
+
+    if "integration" in request.node.keywords:
+        try:
+            subprocess.run(
+                ["docker-compose", "-f", "tests/docker-compose.yml", "down", "-v"],
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to clean up Docker resources: {e}")

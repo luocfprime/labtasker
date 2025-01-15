@@ -10,13 +10,14 @@ from labtasker.security import verify_password
 from labtasker.server.database import TaskFSM, TaskState, WorkerState
 
 
-# @pytest.mark.parametrize("db_fixture", ["mock", "real"], indirect=True)
-def test_create_queue(mock_db, queue_args):
-    queue_id = mock_db.create_queue(**queue_args)
+@pytest.mark.integration
+@pytest.mark.unit
+def test_create_queue(db_fixture, queue_args):
+    queue_id = db_fixture.create_queue(**queue_args)
     assert queue_id is not None
 
     # Verify queue was created
-    queue = mock_db._queues.find_one({"_id": queue_id})
+    queue = db_fixture._queues.find_one({"_id": queue_id})
     assert queue is not None
     assert queue["queue_name"] == queue_args["queue_name"]
     # Verify password is hashed and can be verified
@@ -24,16 +25,18 @@ def test_create_queue(mock_db, queue_args):
     assert isinstance(queue["created_at"], datetime)
 
 
-def test_create_task(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_create_task(db_fixture, queue_args, task_args):
     # Create queue first
-    queue_id = mock_db.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # Submit task
-    task_id = mock_db.create_task(**task_args)
+    task_id = db_fixture.create_task(**task_args)
     assert task_id is not None
 
     # Verify task was created
-    task = mock_db._tasks.find_one({"_id": task_id})
+    task = db_fixture._tasks.find_one({"_id": task_id})
     assert task is not None
     assert task["queue_id"] == queue_id
     assert task["task_name"] == task_args["task_name"]
@@ -44,52 +47,62 @@ def test_create_task(mock_db, queue_args, task_args):
     # TODO: test setting heartbeat_timeout, task_timeout, max_retries, priority
 
 
-def test_fetch_task(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_fetch_task(db_fixture, queue_args, task_args):
     # Setup
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
 
     # 1. Basic fetch
-    mock_db.create_task(**task_args)
+    db_fixture.create_task(**task_args)
 
     # Fetch task
-    task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
 
     assert task is not None
     assert task["status"] == TaskState.RUNNING
 
 
-def test_create_duplicate_queue(mock_db, queue_args, monkeypatch):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_create_duplicate_queue(db_fixture, queue_args, monkeypatch):
     """Test creating a queue with duplicate name."""
     # Create first queue
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
 
     # Try to create duplicate queue
     with pytest.raises(HTTPException) as exc_info:
-        mock_db.create_queue(**queue_args)
+        db_fixture.create_queue(**queue_args)
     assert exc_info.value.status_code == 409
     assert "already exists" in exc_info.value.detail
 
 
-def test_create_queue_invalid_name(mock_db):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_create_queue_invalid_name(db_fixture):
     """Test creating a queue with invalid name."""
     with pytest.raises(HTTPException) as exc:
-        mock_db.create_queue(queue_name="", password="test")
+        db_fixture.create_queue(queue_name="", password="test")
     assert exc.value.status_code == 400
     assert "Queue name is required" in exc.value.detail
 
 
-def test_create_task_nonexistent_queue(mock_db, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_create_task_nonexistent_queue(db_fixture, task_args):
     """Test submitting task to non-existent queue."""
     with pytest.raises(HTTPException) as exc:
-        mock_db.create_task(**task_args)
+        db_fixture.create_task(**task_args)
     assert exc.value.status_code == 404
     assert "not found" in exc.value.detail
 
 
-def test_create_task_invalid_args(mock_db, queue_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_create_task_invalid_args(db_fixture, queue_args):
     """Test submitting task with invalid arguments."""
     # Create queue first
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
 
     # Try to submit task with invalid args
     task_data = {
@@ -98,38 +111,40 @@ def test_create_task_invalid_args(mock_db, queue_args):
         "args": "not a dict",  # Invalid args
     }
     with pytest.raises(HTTPException) as exc:
-        mock_db.create_task(**task_data)
+        db_fixture.create_task(**task_data)
     assert exc.value.status_code == 400
     assert "must be a dictionary" in exc.value.detail
 
 
-def test_heartbeat_timeout(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_heartbeat_timeout(db_fixture, queue_args, task_args):
     """Test task execution timeout using freezegun."""
     # Create queue and task with a heartbeat timeout
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
     task_args.update(
         {
             "heartbeat_timeout": 120,  # 2-minute timeout
             "max_retries": 1,
         }
     )
-    task_id = mock_db.create_task(**task_args)
+    task_id = db_fixture.create_task(**task_args)
 
     # Freeze time
     with freeze_time("2025-01-01 12:00:00") as frozen_time:
         # Fetch the task to set it to RUNNING and initialize metadata
-        task = mock_db.fetch_task(
+        task = db_fixture.fetch_task(
             queue_name=queue_args["queue_name"],
         )
         assert task["_id"] == task_id
 
         # Fast-forward time beyond the heartbeat timeout
         frozen_time.tick(timedelta(seconds=121))  # Move forward 2 minutes and 1 second
-        transitioned = mock_db.handle_timeouts()
+        transitioned = db_fixture.handle_timeouts()
         assert task_id in transitioned, f"Task {task_id} should be in {transitioned}"
 
         # Verify the task was marked as FAILED
-        task = mock_db._tasks.find_one({"_id": task_id})
+        task = db_fixture._tasks.find_one({"_id": task_id})
         assert task["status"] == TaskState.FAILED
         assert (
             task["retries"] == 1
@@ -137,23 +152,25 @@ def test_heartbeat_timeout(mock_db, queue_args, task_args):
         assert "timed out" in task["summary"]["labtasker_error"]
 
 
-def test_task_retry_on_timeout(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_task_retry_on_timeout(db_fixture, queue_args, task_args):
     """Test task retry behavior on timeout using freezegun."""
     # Create queue and task with a timeout and max retries
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
     task_args.update(
         {
             "task_timeout": 60,  # 1-minute timeout
             "max_retries": 3,
         }
     )
-    task_id = mock_db.create_task(**task_args)
+    task_id = db_fixture.create_task(**task_args)
 
     # Freeze time at a specific starting point
     with freeze_time("2025-01-01 12:00:00") as frozen_time:
         # 1. First timeout
         # 1.1 Fetch and start the task
-        task = mock_db.fetch_task(
+        task = db_fixture.fetch_task(
             queue_name=queue_args["queue_name"],
         )
         assert task["_id"] == task_id
@@ -161,10 +178,10 @@ def test_task_retry_on_timeout(mock_db, queue_args, task_args):
 
         # 1.2 Fast forward past the task timeout
         frozen_time.tick(timedelta(seconds=61))  # Move forward 61 seconds
-        mock_db.handle_timeouts()
+        db_fixture.handle_timeouts()
 
         # Verify the task is set to PENDING and retry count is updated
-        task = mock_db._tasks.find_one({"_id": task_id})
+        task = db_fixture._tasks.find_one({"_id": task_id})
         assert task["status"] == TaskState.PENDING
         assert (
             task["retries"] == 1
@@ -172,7 +189,7 @@ def test_task_retry_on_timeout(mock_db, queue_args, task_args):
 
         # 2. Second timeout
         # 2.1 Fetch and start the task again
-        task = mock_db.fetch_task(
+        task = db_fixture.fetch_task(
             queue_name=queue_args["queue_name"],
         )
         assert task["_id"] == task_id
@@ -180,20 +197,20 @@ def test_task_retry_on_timeout(mock_db, queue_args, task_args):
 
         # 2.2 Fast forward by half of the timeout duration
         frozen_time.tick(timedelta(seconds=30))  # Move forward 30 seconds
-        mock_db.handle_timeouts()
+        db_fixture.handle_timeouts()
 
         # Verify the task is still RUNNING, as the timeout has not yet elapsed
-        task = mock_db._tasks.find_one({"_id": task_id})
+        task = db_fixture._tasks.find_one({"_id": task_id})
         assert (
             task["status"] == TaskState.RUNNING
         ), f"Task status should be RUNNING, since it's only half of the timeout"
 
         # 2.3 Fast forward past the remaining timeout duration
         frozen_time.tick(timedelta(seconds=31))  # Move forward 31 seconds
-        mock_db.handle_timeouts()
+        db_fixture.handle_timeouts()
 
         # Verify the task is set to PENDING again and retry count is updated
-        task = mock_db._tasks.find_one({"_id": task_id})
+        task = db_fixture._tasks.find_one({"_id": task_id})
         assert task["status"] == TaskState.PENDING
         assert (
             task["retries"] == 2
@@ -201,7 +218,7 @@ def test_task_retry_on_timeout(mock_db, queue_args, task_args):
 
         # 3. Third timeout (Task fails after reaching max retries)
         # 3.1 Fetch and start the task again
-        task = mock_db.fetch_task(
+        task = db_fixture.fetch_task(
             queue_name=queue_args["queue_name"],
         )
         assert task["_id"] == task_id
@@ -209,89 +226,97 @@ def test_task_retry_on_timeout(mock_db, queue_args, task_args):
 
         # 3.2 Fast forward past the task timeout
         frozen_time.tick(timedelta(seconds=61))  # Move forward 61 seconds
-        mock_db.handle_timeouts()
+        db_fixture.handle_timeouts()
 
         # Verify the task is set to FAILED after exceeding max retries
-        task = mock_db._tasks.find_one({"_id": task_id})
+        task = db_fixture._tasks.find_one({"_id": task_id})
         assert task["status"] == TaskState.FAILED
         assert (
             task["retries"] == 3
         ), f"Retry count should be 3, but is {task['retries']}"
 
 
-def test_update_task_status(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_update_task_status(db_fixture, queue_args, task_args):
     """Test task status updates."""
     # Setup: Create queue and task
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
 
     # Test case 1: Success path
-    task_id = mock_db.create_task(**task_args)
-    task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+    task_id = db_fixture.create_task(**task_args)
+    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
     assert task["status"] == TaskState.RUNNING
     assert task["_id"] == task_id
-    assert mock_db.update_task_status(
+    assert db_fixture.update_task_status(
         queue_args["queue_name"], task_id, "success", {"result": "test passed"}
     )
-    task = mock_db._tasks.find_one({"_id": task_id})
+    task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.COMPLETED
     assert task["summary"]["result"] == "test passed"
 
     # Test case 2: Failed with retry
-    task_id = mock_db.create_task(**task_args)  # Create new task
-    task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+    task_id = db_fixture.create_task(**task_args)  # Create new task
+    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
     assert task["_id"] == task_id
-    assert mock_db.update_task_status(queue_args["queue_name"], task_id, "failed")
-    task = mock_db._tasks.find_one({"_id": task_id})
+    assert db_fixture.update_task_status(queue_args["queue_name"], task_id, "failed")
+    task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.PENDING  # First failure goes to PENDING
     assert task["retries"] == 1
 
     # Test case 3: Failed after max retries
     for _ in range(2):  # Already has 1 retry, need 2 more to reach max
-        task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+        task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
         assert task["_id"] == task_id
-        assert mock_db.update_task_status(queue_args["queue_name"], task_id, "failed")
-    task = mock_db._tasks.find_one({"_id": task_id})
+        assert db_fixture.update_task_status(
+            queue_args["queue_name"], task_id, "failed"
+        )
+    task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.FAILED
     assert task["retries"] == 3
 
     # Test case 4: Cancel task from PENDING
-    task_id = mock_db.create_task(**task_args)
-    assert mock_db.update_task_status(queue_args["queue_name"], task_id, "cancelled")
-    task = mock_db._tasks.find_one({"_id": task_id})
+    task_id = db_fixture.create_task(**task_args)
+    assert db_fixture.update_task_status(queue_args["queue_name"], task_id, "cancelled")
+    task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.CANCELLED
 
     # Test case 5: Cancel task from RUNNING
-    task_id = mock_db.create_task(**task_args)
-    task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+    task_id = db_fixture.create_task(**task_args)
+    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
     assert task["_id"] == task_id
-    assert mock_db.update_task_status(queue_args["queue_name"], task_id, "cancelled")
-    task = mock_db._tasks.find_one({"_id": task_id})
+    assert db_fixture.update_task_status(queue_args["queue_name"], task_id, "cancelled")
+    task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.CANCELLED
 
     # Test case 6: Invalid status
     with pytest.raises(HTTPException) as exc:
-        mock_db.update_task_status(queue_args["queue_name"], task_id, "invalid_status")
+        db_fixture.update_task_status(
+            queue_args["queue_name"], task_id, "invalid_status"
+        )
     assert exc.value.status_code == 400
     assert "Invalid report_status" in exc.value.detail
 
     # Test case 7: Non-existent queue
     with pytest.raises(HTTPException) as exc:
-        mock_db.update_task_status("non_existent_queue", task_id, "success")
+        db_fixture.update_task_status("non_existent_queue", task_id, "success")
     assert exc.value.status_code == 404
     assert "Queue 'non_existent_queue' not found" in exc.value.detail
 
     # Test case 8: Non-existent task
     with pytest.raises(HTTPException) as exc:
-        mock_db.update_task_status(
+        db_fixture.update_task_status(
             queue_args["queue_name"], "non_existent_task", "success"
         )
     assert exc.value.status_code == 404
     assert "Task non_existent_task not found" in exc.value.detail
 
 
-def test_task_fsm_consistency(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_task_fsm_consistency(db_fixture, queue_args, task_args):
     """Test if DB FSM logic is consistent with defined FSM logic."""
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
 
     # 1. Prepare pairs, so we can check if the FSM logic is consistent between
     #    DB and FSM.
@@ -299,107 +324,107 @@ def test_task_fsm_consistency(mock_db, queue_args, task_args):
     event_mapping = {
         "fetch": (
             TaskState.PENDING,
-            lambda queue_name, task_id: mock_db.fetch_task(queue_name=queue_name),
+            lambda queue_name, task_id: db_fixture.fetch_task(queue_name=queue_name),
             TaskFSM.fetch,
         ),
         "report_success": (
             TaskState.RUNNING,
-            partial(mock_db.update_task_status, report_status="success"),
+            partial(db_fixture.update_task_status, report_status="success"),
             TaskFSM.complete,
         ),
         "report_failed": (
             TaskState.RUNNING,
-            partial(mock_db.update_task_status, report_status="failed"),
+            partial(db_fixture.update_task_status, report_status="failed"),
             TaskFSM.fail,
         ),
         "report_pending_cancelled": (
             TaskState.PENDING,
-            partial(mock_db.update_task_status, report_status="cancelled"),
+            partial(db_fixture.update_task_status, report_status="cancelled"),
             TaskFSM.cancel,
         ),
         "report_running_cancelled": (
             TaskState.RUNNING,
-            partial(mock_db.update_task_status, report_status="cancelled"),
+            partial(db_fixture.update_task_status, report_status="cancelled"),
             TaskFSM.cancel,
         ),
         "report_failed_cancelled": (
             TaskState.FAILED,
-            partial(mock_db.update_task_status, report_status="cancelled"),
+            partial(db_fixture.update_task_status, report_status="cancelled"),
             TaskFSM.cancel,
         ),
         "reset_pending": (
             TaskState.PENDING,
-            mock_db.update_task_and_reset_pending,
+            db_fixture.update_task_and_reset_pending,
             TaskFSM.reset,
         ),
         "reset_running": (
             TaskState.RUNNING,
-            mock_db.update_task_and_reset_pending,
+            db_fixture.update_task_and_reset_pending,
             TaskFSM.reset,
         ),
         "reset_failed": (
             TaskState.FAILED,
-            mock_db.update_task_and_reset_pending,
+            db_fixture.update_task_and_reset_pending,
             TaskFSM.reset,
         ),
         "reset_completed": (
             TaskState.COMPLETED,
-            mock_db.update_task_and_reset_pending,
+            db_fixture.update_task_and_reset_pending,
             TaskFSM.reset,
         ),
         "reset_cancelled": (
             TaskState.CANCELLED,
-            mock_db.update_task_and_reset_pending,
+            db_fixture.update_task_and_reset_pending,
             TaskFSM.reset,
         ),
     }
 
-    # 2. Prepare functions to get task and mock_db in different initial states for testing
+    # 2. Prepare functions to get task and db_fixture in different initial states for testing
 
     def clear_tasks():
-        mock_db._tasks.delete_many({})
+        db_fixture._tasks.delete_many({})
 
     def get_pending():
-        task_id = mock_db.create_task(**task_args)
-        task = mock_db._tasks.find_one({"_id": task_id})
+        task_id = db_fixture.create_task(**task_args)
+        task = db_fixture._tasks.find_one({"_id": task_id})
         assert task["status"] == TaskState.PENDING
-        return task, mock_db
+        return task, db_fixture
 
     def get_running():
-        task, mock_db = get_pending()
-        task = mock_db.fetch_task(queue_name=queue_args["queue_name"])
+        task, db_fixture = get_pending()
+        task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
         assert task["status"] == TaskState.RUNNING
-        return task, mock_db
+        return task, db_fixture
 
     def get_failed():
-        task_id = mock_db.create_task(**task_args)
-        task = mock_db._tasks.find_one_and_update(
+        task_id = db_fixture.create_task(**task_args)
+        task = db_fixture._tasks.find_one_and_update(
             {"_id": task_id},
             {"$set": {"status": TaskState.FAILED}},
             return_document=ReturnDocument.AFTER,
         )
         assert task is not None
-        return task, mock_db
+        return task, db_fixture
 
     def get_cancelled():
-        task_id = mock_db.create_task(**task_args)
-        task = mock_db._tasks.find_one_and_update(
+        task_id = db_fixture.create_task(**task_args)
+        task = db_fixture._tasks.find_one_and_update(
             {"_id": task_id},
             {"$set": {"status": TaskState.CANCELLED}},
             return_document=ReturnDocument.AFTER,
         )
         assert task is not None
-        return task, mock_db
+        return task, db_fixture
 
     def get_completed():
-        task_id = mock_db.create_task(**task_args)
-        task = mock_db._tasks.find_one_and_update(
+        task_id = db_fixture.create_task(**task_args)
+        task = db_fixture._tasks.find_one_and_update(
             {"_id": task_id},
             {"$set": {"status": TaskState.COMPLETED}},
             return_document=ReturnDocument.AFTER,
         )
         assert task is not None
-        return task, mock_db
+        return task, db_fixture
 
     get_initial_state_func = {
         TaskState.PENDING: get_pending,
@@ -412,7 +437,7 @@ def test_task_fsm_consistency(mock_db, queue_args, task_args):
     # 3. Test each event, match the after state of each event
     for event_name, (init_state, db_func, fsm_func) in event_mapping.items():
         # Fetch task
-        task, mock_db = get_initial_state_func[init_state]()
+        task, db_fixture = get_initial_state_func[init_state]()
         task_id = task["_id"]
 
         fsm = TaskFSM.from_db_entry(task)
@@ -422,7 +447,7 @@ def test_task_fsm_consistency(mock_db, queue_args, task_args):
 
         # Verify state after DB update
         db_func(queue_name=queue_args["queue_name"], task_id=task_id)
-        task = mock_db._tasks.find_one({"_id": task_id})
+        task = db_fixture._tasks.find_one({"_id": task_id})
         assert (
             task["status"] == fsm.state
         ), f"FSM state {fsm.state} does not match DB state {task['status']} during {event_name} event"
@@ -431,13 +456,15 @@ def test_task_fsm_consistency(mock_db, queue_args, task_args):
         clear_tasks()
 
 
-def test_worker_crash_no_dispatch(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_worker_crash_no_dispatch(db_fixture, queue_args, task_args):
     """Test that crashed workers don't receive new tasks."""
     # Setup
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
 
     # Create worker
-    worker_id = mock_db.create_worker(
+    worker_id = db_fixture.create_worker(
         queue_name=queue_args["queue_name"],
         max_retries=3,
     )
@@ -446,85 +473,89 @@ def test_worker_crash_no_dispatch(mock_db, queue_args, task_args):
     task_ids = []
     for i in range(3):
         task_args["task_name"] = f"task_{i}"
-        task_ids.append(mock_db.create_task(**task_args))
+        task_ids.append(db_fixture.create_task(**task_args))
 
     # Simulate task failures until worker crashes
     for _ in range(3):  # Worker max_retries is 3 by default
         # Verify worker is still active
-        worker = mock_db._workers.find_one({"_id": worker_id})
+        worker = db_fixture._workers.find_one({"_id": worker_id})
         assert worker["status"] == WorkerState.ACTIVE
 
         # Fetch task
-        task = mock_db.fetch_task(
+        task = db_fixture.fetch_task(
             queue_name=queue_args["queue_name"], worker_id=worker_id
         )
         assert task is not None
 
         # Fail task
-        mock_db.update_task_status(
+        db_fixture.update_task_status(
             queue_name=queue_args["queue_name"],
             task_id=task["_id"],
             report_status="failed",
         )
 
     # Verify worker is now crashed
-    worker = mock_db._workers.find_one({"_id": worker_id})
+    worker = db_fixture._workers.find_one({"_id": worker_id})
     assert worker["status"] == WorkerState.CRASHED
 
     # Try to fetch another task
     with pytest.raises(HTTPException) as exc:
-        mock_db.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+        db_fixture.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
     assert exc.value.status_code == 400
     assert "crashed" in exc.value.detail
 
     # Re-activate worker
-    mock_db.update_worker_status(
+    db_fixture.update_worker_status(
         queue_name=queue_args["queue_name"], worker_id=worker_id, report_status="active"
     )
 
     # Verify worker is active
-    worker = mock_db._workers.find_one({"_id": worker_id})
+    worker = db_fixture._workers.find_one({"_id": worker_id})
     assert worker["status"] == WorkerState.ACTIVE
 
     # Try to fetch another task
-    task = mock_db.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+    task = db_fixture.fetch_task(
+        queue_name=queue_args["queue_name"], worker_id=worker_id
+    )
     assert task is not None
     assert task["worker_id"] == worker_id
 
 
-def test_worker_suspended_no_dispatch(mock_db, queue_args, task_args):
+@pytest.mark.integration
+@pytest.mark.unit
+def test_worker_suspended_no_dispatch(db_fixture, queue_args, task_args):
     """Test that suspended workers don't receive new tasks."""
     # Setup
-    mock_db.create_queue(**queue_args)
+    db_fixture.create_queue(**queue_args)
 
     # Create worker
-    worker_id = mock_db.create_worker(queue_name=queue_args["queue_name"])
+    worker_id = db_fixture.create_worker(queue_name=queue_args["queue_name"])
 
     # Create task
-    task_id = mock_db.create_task(**task_args)
+    task_id = db_fixture.create_task(**task_args)
 
     # Suspend worker
-    mock_db.update_worker_status(
+    db_fixture.update_worker_status(
         queue_name=queue_args["queue_name"],
         worker_id=worker_id,
         report_status="suspended",
     )
 
     # Verify worker is suspended
-    worker = mock_db._workers.find_one({"_id": worker_id})
+    worker = db_fixture._workers.find_one({"_id": worker_id})
     assert worker["status"] == WorkerState.SUSPENDED
 
     # Try to fetch task
     with pytest.raises(HTTPException) as exc:
-        mock_db.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+        db_fixture.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
     assert exc.value.status_code == 400
     assert "suspended" in exc.value.detail
 
     # Re-activate worker
-    mock_db.update_worker_status(
+    db_fixture.update_worker_status(
         queue_name=queue_args["queue_name"], worker_id=worker_id, report_status="active"
     )
 
     # Verify worker is active
-    worker = mock_db._workers.find_one({"_id": worker_id})
+    worker = db_fixture._workers.find_one({"_id": worker_id})
     assert worker["status"] == WorkerState.ACTIVE

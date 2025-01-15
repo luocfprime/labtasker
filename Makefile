@@ -8,8 +8,11 @@ lint:
 	flake8 .
 	mypy .
 
-test:
-	pytest --cov=labtasker --cov-report=term-missing --cov-report=xml:cov.xml
+unit-test:
+	pytest -m "unit" --cov=labtasker --cov-report=term-missing --cov-report=xml:cov.xml
+
+integration-test:
+	pytest -m "integration" --cov=labtasker --cov-report=term-missing --cov-report=xml:cov.xml
 
 clean:
 	# Python cache files
