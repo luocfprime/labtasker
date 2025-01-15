@@ -26,6 +26,8 @@ class ServerConfig:
         self.db_host = os.getenv("DB_HOST", "localhost")
         self.db_port = int(os.getenv("DB_PORT", "27017"))
 
+        assert self.db_user and self.db_password, "DB_USER and DB_PASSWORD must be set"
+
         # Admin settings
         self.admin_username = os.getenv("ADMIN_USERNAME", "labtasker")
         self.admin_password = os.getenv("ADMIN_PASSWORD")
@@ -55,6 +57,4 @@ class ServerConfig:
     @property
     def mongodb_uri(self) -> str:
         """Get MongoDB URI from config."""
-        if self.db_user and self.db_password:
-            return f"mongodb://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}"  # noqa: E501
-        return f"mongodb://{self.db_host}:{self.db_port}"
+        return f"mongodb://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/?authSource=admin&directConnection=true&replicaSet=rs0"
