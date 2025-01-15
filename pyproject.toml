@@ -66,11 +66,6 @@ labtasker = "labtasker.cli.commands:cli"
 [tool.setuptools]
 packages = ["labtasker"]
 
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra -q --cov=labtasker"
-testpaths = ["tests"]
-
 [tool.black]
 line-length = 88
 target-version = ['py38']
