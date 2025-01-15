@@ -203,3 +203,65 @@ def risky(description: str):
 #             return func(*args, **kwargs)
 #         return wrapper
 #     return decorator
+
+
+def arg_match(required, provided):
+    """
+    Check if all required arguments are provided in the provided arguments.
+    Principle: No more, no less.
+    """
+    if required is None:  # Base case for recursion
+        return True
+    if provided is None:
+        return False
+
+    try:
+        # Check if any required key is missing in provided (vice versa)
+        if set(required.keys()) != set(provided.keys()):  # "No more, no less"
+            return False
+    except AttributeError:  # one of them is not dict
+        return False
+
+    # Recursively check each key and value pair
+    for key, value in required.items():
+        if not arg_match(value, provided[key]):
+            return False
+
+    return True
+
+
+def keys_to_query_dict(keys):
+    """
+    Converts a list of dot-separated keys into a nested dictionary.
+    Leaf node values are set to None.
+
+    Args:
+        keys (list): List of strings, where each string is a dot-separated key path.
+
+    Returns:
+        dict: Nested dictionary representation of the keys.
+    """
+    if not isinstance(keys, list):
+        raise TypeError("Input must be a list of strings.")
+
+    query_dict = {}
+
+    for key in keys:
+        if not isinstance(key, str):
+            raise TypeError(f"Invalid key '{key}': Keys must be strings.")
+
+        parts = key.split(".")  # Split the key into its parts
+        current = query_dict
+
+        for part in parts[:-1]:  # Traverse or create intermediate levels
+            if (
+                part not in current
+                or current[part] is None  # leaf node exists: extend depth
+            ):
+                current[part] = {}
+            current = current[part]
+
+        if parts[-1] not in current:
+            current[parts[-1]] = None  # Set the leaf node to None
+
+    return query_dict
