@@ -6,6 +6,7 @@ import pytest
 from labtasker.utils import flatten_dict, get_timeout_delta, parse_timeout, risky
 
 
+@pytest.mark.unit
 def test_parse_timeout_single_unit():
     """Test parsing single unit timeouts."""
     # Test hours
@@ -32,6 +33,7 @@ def test_parse_timeout_single_unit():
     assert parse_timeout("30 sec") == 30
 
 
+@pytest.mark.unit
 def test_parse_timeout_compound():
     """Test parsing compound timeouts."""
     assert parse_timeout("1h30m") == 5400
@@ -48,6 +50,7 @@ def test_parse_timeout_compound():
     assert parse_timeout("1 hour, 30 minutes, 45 seconds") == 5445
 
 
+@pytest.mark.unit
 def test_parse_timeout_formatting():
     """Test timeout string formatting."""
     # Test whitespace handling
@@ -67,6 +70,7 @@ def test_parse_timeout_formatting():
     assert parse_timeout("1 hour,30 minutes") == 5400
 
 
+@pytest.mark.unit
 def test_parse_timeout_errors():
     """Test error handling in timeout parsing."""
     with pytest.raises(ValueError):
@@ -88,6 +92,7 @@ def test_parse_timeout_errors():
         parse_timeout("h1")  # Invalid unit
 
 
+@pytest.mark.unit
 def test_get_timeout_delta():
     """Test converting timeouts to timedelta."""
     # Test with string timeouts
@@ -114,6 +119,7 @@ def test_get_timeout_delta():
         get_timeout_delta(None)
 
 
+@pytest.mark.unit
 def test_flatten_dict():
     """Test dictionary flattening with dot notation."""
     # Test case 1: Simple nested dictionary
@@ -180,6 +186,7 @@ def risky_function():
     return "executed"
 
 
+@pytest.mark.unit
 def test_risky_decorator_blocked():
     """Test that risky operations are blocked by default."""
     # Ensure env var is not set
@@ -192,6 +199,7 @@ def test_risky_decorator_blocked():
     assert "ALLOW_UNSAFE_BEHAVIOR" in str(exc.value)
 
 
+@pytest.mark.unit
 def test_risky_decorator_allowed():
     """Test that risky operations are allowed when enabled."""
     os.environ["ALLOW_UNSAFE_BEHAVIOR"] = "true"
@@ -202,6 +210,7 @@ def test_risky_decorator_allowed():
         del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
 
 
+@pytest.mark.unit
 def test_risky_decorator_docstring():
     """Test that risky decorator adds description to docstring."""
     assert "Test function" in risky_function.__doc__
@@ -209,6 +218,7 @@ def test_risky_decorator_docstring():
     assert "Test risky operation" in risky_function.__doc__
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "value,expected",
     [
@@ -239,6 +249,7 @@ def test_risky_decorator_env_values(value, expected):
         del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
 
 
+@pytest.mark.unit
 def test_risky_decorator_invalid_value():
     """Test invalid environment variable value."""
     os.environ["ALLOW_UNSAFE_BEHAVIOR"] = "invalid"

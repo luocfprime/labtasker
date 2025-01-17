@@ -19,9 +19,62 @@ from starlette.status import (
 from labtasker.constants import Priority
 from labtasker.security import hash_password
 from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
-from labtasker.utils import flatten_dict, get_current_time, parse_timeout, risky
+from labtasker.utils import (
+    arg_match,
+    flatten_dict,
+    get_current_time,
+    parse_timeout,
+    risky,
+)
 
 _in_transaction = contextvars.ContextVar("in_transaction", default=False)
+
+
+def query_dict_to_mongo_filter(query_dict, parent_key=""):
+    mongo_filter = {}
+
+    flattened_query = flatten_dict(query_dict, parent_key=parent_key)
+    for full_key in flattened_query.keys():
+        mongo_filter[full_key] = {"$exists": True}
+
+    return mongo_filter
+
+
+def merge_filter(*filters, logical_op="and"):
+    """
+    Merge multiple MongoDB filters using a specified logical operator, while ignoring empty filters.
+
+    Args:
+        *filters: Arbitrary number of filter dictionaries to merge.
+        logical_op (str): The logical operator to use for merging filters.
+                          Must be one of "and", "or", or "nor".
+
+    Returns:
+        dict: A MongoDB query filter with the specified logical operator applied.
+
+    Raises:
+        HTTPException: If the logical_op is not valid.
+    """
+    if logical_op not in ["and", "or", "nor"]:
+        raise HTTPException(
+            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Invalid logical operator: {logical_op}. Must be 'and', 'or', or 'nor'.",
+        )
+
+    valid_filters = [
+        f for f in filters if f
+    ]  # Filters out None, {}, or other falsy values
+
+    # If no valid filters remain, return an empty filter
+    if not valid_filters:
+        return {}
+
+    if len(valid_filters) == 1:
+        return valid_filters[0]
+
+    mongo_logical_op = f"${logical_op}"  # "$and", "$or", "$nor"
+
+    return {mongo_logical_op: valid_filters}
 
 
 def _sanitize_query(queue_id: str, query: Dict[str, Any]) -> Dict[str, Any]:
@@ -494,6 +547,7 @@ class DatabaseClient:
         worker_id: Optional[str] = None,
         eta_max: Optional[str] = None,
         start_heartbeat: bool = True,
+        required_fields: Optional[Dict[str, Any]] = None,
         extra_filter: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
@@ -535,15 +589,23 @@ class DatabaseClient:
             # Fetch task
             now = get_current_time()
 
-            if extra_filter:
-                extra_filter = _sanitize_query(queue["_id"], extra_filter)
-            else:
-                extra_filter = {}
+            required_fields_filter = (
+                query_dict_to_mongo_filter(required_fields, parent_key="args")
+                if required_fields
+                else None
+            )
 
+            combined_filter = merge_filter(
+                required_fields_filter, extra_filter, logical_op="and"
+            )
+
+            sanitized_filter = _sanitize_query(queue["_id"], combined_filter)
+
+            # Construct the query
             query = {
                 "queue_id": queue["_id"],
                 "status": TaskState.PENDING,
-                **extra_filter,
+                **sanitized_filter,
             }
 
             update = {
@@ -559,16 +621,26 @@ class DatabaseClient:
             if task_timeout:
                 update["$set"]["task_timeout"] = task_timeout
 
-            # Find and update an available task
-            # PENDING -> RUNNING
-            result = self._tasks.find_one_and_update(
-                query,
-                update,
-                sort=[("priority", -1), ("created_at", 1)],
-                return_document=ReturnDocument.AFTER,
-                session=session,
+            tasks = self._tasks.find(
+                query, session=session, sort=[("priority", -1), ("created_at", 1)]
             )
-            return result
+
+            for task in tasks:
+                if task:
+                    if required_fields and not arg_match(required_fields, task):
+                        continue  # Skip to the next task if it doesn't match
+
+                    updated_task = self._tasks.find_one_and_update(
+                        {"_id": task["_id"]},
+                        update,
+                        session=session,
+                        return_document=ReturnDocument.AFTER,
+                    )
+
+                    if updated_task:
+                        return updated_task
+
+            return None  # Return None if no tasks matched
 
     def update_task_heartbeat(
         self,

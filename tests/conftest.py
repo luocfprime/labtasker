@@ -5,14 +5,38 @@ import pytest
 
 from labtasker.server.config import ServerConfig
 
-from .fixtures.fixture_database import (
-    db_fixture,
-    mock_db,
-    mock_session,
-    queue_args,
-    real_db,
-    task_args,
-)
+from .fixtures.fixture_database import db_fixture, mock_session, queue_args, task_args
+
+
+@pytest.fixture
+def test_type(request):
+    """
+    Fixture to determine the current test type (e.g., 'unit', 'integration').
+    Priority: CLI marker (-m) > Test-specific marker > Environment variable > Default.
+    """
+    # 1. Check the CLI marker (-m option)
+    cli_marker = request.config.option.markexpr
+    if cli_marker in ["unit", "integration"]:  # Add more types if needed
+        print(f"Test type determined from CLI marker: {cli_marker}")
+        return cli_marker
+
+    # 2. Check test-specific markers
+    if "integration" in request.node.keywords:
+        print("Test type determined from test-specific marker: integration")
+        return "integration"
+    elif "unit" in request.node.keywords:
+        print("Test type determined from test-specific marker: unit")
+        return "unit"
+
+    # 3. Fallback to environment variable
+    env_test_type = os.getenv("TEST_TYPE")
+    if env_test_type in ["unit", "integration"]:  # Add more types if needed
+        print(f"Test type determined from environment variable: {env_test_type}")
+        return env_test_type
+
+    # 4. Default to 'unit' if nothing else is specified
+    print("Test type defaulting to: unit")
+    return "unit"
 
 
 @pytest.fixture(scope="session")
