@@ -33,12 +33,12 @@ def test_create_queue(db_fixture, queue_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_create_task(db_fixture, queue_args, task_args, full_task_args):
+def test_create_task(db_fixture, queue_args, get_task_args, get_full_task_args):
     # Create queue first
     queue_id = db_fixture.create_queue(**queue_args)
 
     # Test 1. Create task with minimal args
-    task_id = db_fixture.create_task(**task_args)
+    task_id = db_fixture.create_task(**get_task_args(queue_id))
     assert task_id is not None
 
     # Verify task was created
@@ -48,7 +48,7 @@ def test_create_task(db_fixture, queue_args, task_args, full_task_args):
     assert task["status"] == TaskState.PENDING
 
     # Test 2. Create task with all args
-    task_id = db_fixture.create_task(**full_task_args)
+    task_id = db_fixture.create_task(**get_full_task_args(queue_id))
     assert task_id is not None
 
     task = db_fixture._tasks.find_one({"_id": task_id})
@@ -56,9 +56,7 @@ def test_create_task(db_fixture, queue_args, task_args, full_task_args):
     assert task["queue_id"] == queue_id
     assert task["status"] == TaskState.PENDING
 
-    for k, v in full_task_args.items():
-        if k == "queue_name":
-            continue  # since it is related by queue_id
+    for k, v in get_full_task_args(queue_id).items():
         assert task[k] == v, f"{k} mismatch!"
 
     # TODO: test setting heartbeat_timeout, task_timeout, max_retries, priority
@@ -66,15 +64,15 @@ def test_create_task(db_fixture, queue_args, task_args, full_task_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_fetch_task(db_fixture, queue_args, task_args):
+def test_fetch_task(db_fixture, queue_args, get_task_args):
     # Setup
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # 1. Basic fetch
-    db_fixture.create_task(**task_args)
+    db_fixture.create_task(**get_task_args(queue_id))
 
     # Fetch task
-    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+    task = db_fixture.fetch_task(queue_id=queue_id)
 
     assert task is not None
     assert task["status"] == TaskState.RUNNING
@@ -106,24 +104,14 @@ def test_create_queue_invalid_name(db_fixture):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_create_task_nonexistent_queue(db_fixture, task_args):
-    """Test submitting task to non-existent queue."""
-    with pytest.raises(HTTPException) as exc:
-        db_fixture.create_task(**task_args)
-    assert exc.value.status_code == 404
-    assert "not found" in exc.value.detail
-
-
-@pytest.mark.integration
-@pytest.mark.unit
 def test_create_task_invalid_args(db_fixture, queue_args):
     """Test submitting task with invalid arguments."""
     # Create queue first
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # Try to submit task with invalid args
     task_data = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "test_task",
         "args": "not a dict",  # Invalid args
     }
@@ -135,23 +123,25 @@ def test_create_task_invalid_args(db_fixture, queue_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_heartbeat_timeout(db_fixture, queue_args, task_args):
+def test_heartbeat_timeout(db_fixture, queue_args, get_task_args):
     """Test task execution timeout using freezegun."""
     # Create queue and task with a heartbeat timeout
-    db_fixture.create_queue(**queue_args)
-    task_args.update(
-        {
-            "heartbeat_timeout": 120,  # 2-minute timeout
-            "max_retries": 1,
-        }
+    queue_id = db_fixture.create_queue(**queue_args)
+    task_id = db_fixture.create_task(
+        **get_task_args(
+            queue_id,
+            override_fields={
+                "heartbeat_timeout": 120,  # 2-minute timeout
+                "max_retries": 1,
+            },
+        )
     )
-    task_id = db_fixture.create_task(**task_args)
 
     # Freeze time
     with freeze_time("2025-01-01 12:00:00") as frozen_time:
         # Fetch the task to set it to RUNNING and initialize metadata
         task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"],
+            queue_id=queue_id,
         )
         assert task["_id"] == task_id
 
@@ -171,24 +161,27 @@ def test_heartbeat_timeout(db_fixture, queue_args, task_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_task_retry_on_timeout(db_fixture, queue_args, task_args):
+def test_task_retry_on_timeout(db_fixture, queue_args, get_task_args):
     """Test task retry behavior on timeout using freezegun."""
     # Create queue and task with a timeout and max retries
-    db_fixture.create_queue(**queue_args)
-    task_args.update(
-        {
-            "task_timeout": 60,  # 1-minute timeout
-            "max_retries": 3,
-        }
+    queue_id = db_fixture.create_queue(**queue_args)
+
+    task_id = db_fixture.create_task(
+        **get_task_args(
+            queue_id,
+            override_fields={
+                "task_timeout": 60,  # 1-minute timeout
+                "max_retries": 3,
+            },
+        )
     )
-    task_id = db_fixture.create_task(**task_args)
 
     # Freeze time at a specific starting point
     with freeze_time("2025-01-01 12:00:00") as frozen_time:
         # 1. First timeout
         # 1.1 Fetch and start the task
         task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"],
+            queue_id=queue_id,
         )
         assert task["_id"] == task_id
         assert task["status"] == TaskState.RUNNING
@@ -207,7 +200,7 @@ def test_task_retry_on_timeout(db_fixture, queue_args, task_args):
         # 2. Second timeout
         # 2.1 Fetch and start the task again
         task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"],
+            queue_id=queue_id,
         )
         assert task["_id"] == task_id
         assert task["status"] == TaskState.RUNNING
@@ -236,7 +229,7 @@ def test_task_retry_on_timeout(db_fixture, queue_args, task_args):
         # 3. Third timeout (Task fails after reaching max retries)
         # 3.1 Fetch and start the task again
         task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"],
+            queue_id=queue_id,
         )
         assert task["_id"] == task_id
         assert task["status"] == TaskState.RUNNING
@@ -255,85 +248,79 @@ def test_task_retry_on_timeout(db_fixture, queue_args, task_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_update_task_status(db_fixture, queue_args, task_args):
+def test_update_task_status(db_fixture, queue_args, get_task_args):
     """Test task status updates."""
     # Setup: Create queue and task
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # Test case 1: Success path
-    task_id = db_fixture.create_task(**task_args)
-    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+    task_id = db_fixture.create_task(**get_task_args(queue_id))
+    task = db_fixture.fetch_task(queue_id=queue_id)
     assert task["status"] == TaskState.RUNNING
     assert task["_id"] == task_id
     assert db_fixture.update_task_status(
-        queue_args["queue_name"], task_id, "success", {"result": "test passed"}
+        queue_id, task_id, "success", {"result": "test passed"}
     )
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.COMPLETED
     assert task["summary"]["result"] == "test passed"
 
     # Test case 2: Failed with retry
-    task_id = db_fixture.create_task(**task_args)  # Create new task
-    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+    task_id = db_fixture.create_task(**get_task_args(queue_id))  # Create new task
+    task = db_fixture.fetch_task(queue_id=queue_id)
     assert task["_id"] == task_id
-    assert db_fixture.update_task_status(queue_args["queue_name"], task_id, "failed")
+    assert db_fixture.update_task_status(queue_id, task_id, "failed")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.PENDING  # First failure goes to PENDING
     assert task["retries"] == 1
 
     # Test case 3: Failed after max retries
     for _ in range(2):  # Already has 1 retry, need 2 more to reach max
-        task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+        task = db_fixture.fetch_task(queue_id=queue_id)
         assert task["_id"] == task_id
-        assert db_fixture.update_task_status(
-            queue_args["queue_name"], task_id, "failed"
-        )
+        assert db_fixture.update_task_status(queue_id, task_id, "failed")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.FAILED
     assert task["retries"] == 3
 
     # Test case 4: Cancel task from PENDING
-    task_id = db_fixture.create_task(**task_args)
-    assert db_fixture.update_task_status(queue_args["queue_name"], task_id, "cancelled")
+    task_id = db_fixture.create_task(**get_task_args(queue_id))
+    assert db_fixture.update_task_status(queue_id, task_id, "cancelled")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.CANCELLED
 
     # Test case 5: Cancel task from RUNNING
-    task_id = db_fixture.create_task(**task_args)
-    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+    task_id = db_fixture.create_task(**get_task_args(queue_id))
+    task = db_fixture.fetch_task(queue_id=queue_id)
     assert task["_id"] == task_id
-    assert db_fixture.update_task_status(queue_args["queue_name"], task_id, "cancelled")
+    assert db_fixture.update_task_status(queue_id, task_id, "cancelled")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.CANCELLED
 
     # Test case 6: Invalid status
     with pytest.raises(HTTPException) as exc:
-        db_fixture.update_task_status(
-            queue_args["queue_name"], task_id, "invalid_status"
-        )
+        db_fixture.update_task_status(queue_id, task_id, "invalid_status")
     assert exc.value.status_code == 400
     assert "Invalid report_status" in exc.value.detail
 
-    # Test case 7: Non-existent queue
-    with pytest.raises(HTTPException) as exc:
-        db_fixture.update_task_status("non_existent_queue", task_id, "success")
-    assert exc.value.status_code == 404
-    assert "Queue 'non_existent_queue' not found" in exc.value.detail
+    # # Test case 7: Non-existent queue (deprecated. 404 is handled by server, not DB)
+    # with pytest.raises(HTTPException) as exc:
+    #     db_fixture.update_task_status("non_existent_queue", task_id, "success")
+    # assert exc.value.status_code == 404
+    # assert "Queue 'non_existent_queue' not found" in exc.value.detail
 
     # Test case 8: Non-existent task
     with pytest.raises(HTTPException) as exc:
-        db_fixture.update_task_status(
-            queue_args["queue_name"], "non_existent_task", "success"
-        )
+        db_fixture.update_task_status(queue_id, "non_existent_task", "success")
     assert exc.value.status_code == 404
     assert "Task non_existent_task not found" in exc.value.detail
 
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_task_fsm_consistency(db_fixture, queue_args, task_args):
+def test_task_fsm_consistency(db_fixture, queue_args, get_task_args):
     """Test if DB FSM logic is consistent with defined FSM logic."""
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # 1. Prepare pairs, so we can check if the FSM logic is consistent between
     #    DB and FSM.
@@ -341,7 +328,7 @@ def test_task_fsm_consistency(db_fixture, queue_args, task_args):
     event_mapping = {
         "fetch": (
             TaskState.PENDING,
-            lambda queue_name, task_id: db_fixture.fetch_task(queue_name=queue_name),
+            lambda queue_id, task_id: db_fixture.fetch_task(queue_id=queue_id),
             TaskFSM.fetch,
         ),
         "report_success": (
@@ -402,19 +389,19 @@ def test_task_fsm_consistency(db_fixture, queue_args, task_args):
         db_fixture._tasks.delete_many({})
 
     def get_pending():
-        task_id = db_fixture.create_task(**task_args)
+        task_id = db_fixture.create_task(**get_task_args(queue_id))
         task = db_fixture._tasks.find_one({"_id": task_id})
         assert task["status"] == TaskState.PENDING
         return task, db_fixture
 
     def get_running():
         task, db_fixture = get_pending()
-        task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+        task = db_fixture.fetch_task(queue_id=queue_id)
         assert task["status"] == TaskState.RUNNING
         return task, db_fixture
 
     def get_failed():
-        task_id = db_fixture.create_task(**task_args)
+        task_id = db_fixture.create_task(**get_task_args(queue_id))
         task = db_fixture._tasks.find_one_and_update(
             {"_id": task_id},
             {"$set": {"status": TaskState.FAILED}},
@@ -424,7 +411,7 @@ def test_task_fsm_consistency(db_fixture, queue_args, task_args):
         return task, db_fixture
 
     def get_cancelled():
-        task_id = db_fixture.create_task(**task_args)
+        task_id = db_fixture.create_task(**get_task_args(queue_id))
         task = db_fixture._tasks.find_one_and_update(
             {"_id": task_id},
             {"$set": {"status": TaskState.CANCELLED}},
@@ -434,7 +421,7 @@ def test_task_fsm_consistency(db_fixture, queue_args, task_args):
         return task, db_fixture
 
     def get_completed():
-        task_id = db_fixture.create_task(**task_args)
+        task_id = db_fixture.create_task(**get_task_args(queue_id))
         task = db_fixture._tasks.find_one_and_update(
             {"_id": task_id},
             {"$set": {"status": TaskState.COMPLETED}},
@@ -463,7 +450,7 @@ def test_task_fsm_consistency(db_fixture, queue_args, task_args):
         fsm_func(fsm)
 
         # Verify state after DB update
-        db_func(queue_name=queue_args["queue_name"], task_id=task_id)
+        db_func(queue_id=queue_id, task_id=task_id)
         task = db_fixture._tasks.find_one({"_id": task_id})
         assert (
             task["status"] == fsm.state
@@ -475,22 +462,25 @@ def test_task_fsm_consistency(db_fixture, queue_args, task_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_worker_crash_no_dispatch(db_fixture, queue_args, task_args):
+def test_worker_crash_no_dispatch(db_fixture, queue_args, get_task_args):
     """Test that crashed workers don't receive new tasks."""
     # Setup
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # Create worker
     worker_id = db_fixture.create_worker(
-        queue_name=queue_args["queue_name"],
+        queue_id=queue_id,
         max_retries=3,
     )
 
     # Create multiple tasks
     task_ids = []
     for i in range(3):
-        task_args["task_name"] = f"task_{i}"
-        task_ids.append(db_fixture.create_task(**task_args))
+        task_ids.append(
+            db_fixture.create_task(
+                **get_task_args(queue_id, override_fields={"task_name": f"task_{i}"})
+            )
+        )
 
     # Simulate task failures until worker crashes
     for _ in range(3):  # Worker max_retries is 3 by default
@@ -499,14 +489,12 @@ def test_worker_crash_no_dispatch(db_fixture, queue_args, task_args):
         assert worker["status"] == WorkerState.ACTIVE
 
         # Fetch task
-        task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"], worker_id=worker_id
-        )
+        task = db_fixture.fetch_task(queue_id=queue_id, worker_id=worker_id)
         assert task is not None
 
         # Fail task
         db_fixture.update_task_status(
-            queue_name=queue_args["queue_name"],
+            queue_id=queue_id,
             task_id=task["_id"],
             report_status="failed",
         )
@@ -517,13 +505,13 @@ def test_worker_crash_no_dispatch(db_fixture, queue_args, task_args):
 
     # Try to fetch another task
     with pytest.raises(HTTPException) as exc:
-        db_fixture.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+        db_fixture.fetch_task(queue_id=queue_id, worker_id=worker_id)
     assert exc.value.status_code == 400
     assert "crashed" in exc.value.detail
 
     # Re-activate worker
     db_fixture.update_worker_status(
-        queue_name=queue_args["queue_name"], worker_id=worker_id, report_status="active"
+        queue_id=queue_id, worker_id=worker_id, report_status="active"
     )
 
     # Verify worker is active
@@ -531,29 +519,27 @@ def test_worker_crash_no_dispatch(db_fixture, queue_args, task_args):
     assert worker["status"] == WorkerState.ACTIVE
 
     # Try to fetch another task
-    task = db_fixture.fetch_task(
-        queue_name=queue_args["queue_name"], worker_id=worker_id
-    )
+    task = db_fixture.fetch_task(queue_id=queue_id, worker_id=worker_id)
     assert task is not None
     assert task["worker_id"] == worker_id
 
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_worker_suspended_no_dispatch(db_fixture, queue_args, task_args):
+def test_worker_suspended_no_dispatch(db_fixture, queue_args, get_task_args):
     """Test that suspended workers don't receive new tasks."""
     # Setup
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # Create worker
-    worker_id = db_fixture.create_worker(queue_name=queue_args["queue_name"])
+    worker_id = db_fixture.create_worker(queue_id=queue_id)
 
     # Create task
-    task_id = db_fixture.create_task(**task_args)
+    task_id = db_fixture.create_task(**get_task_args(queue_id))
 
     # Suspend worker
     db_fixture.update_worker_status(
-        queue_name=queue_args["queue_name"],
+        queue_id=queue_id,
         worker_id=worker_id,
         report_status="suspended",
     )
@@ -564,13 +550,13 @@ def test_worker_suspended_no_dispatch(db_fixture, queue_args, task_args):
 
     # Try to fetch task
     with pytest.raises(HTTPException) as exc:
-        db_fixture.fetch_task(queue_name=queue_args["queue_name"], worker_id=worker_id)
+        db_fixture.fetch_task(queue_id=queue_id, worker_id=worker_id)
     assert exc.value.status_code == 400
     assert "suspended" in exc.value.detail
 
     # Re-activate worker
     db_fixture.update_worker_status(
-        queue_name=queue_args["queue_name"], worker_id=worker_id, report_status="active"
+        queue_id=queue_id, worker_id=worker_id, report_status="active"
     )
 
     # Verify worker is active
@@ -582,29 +568,29 @@ def test_worker_suspended_no_dispatch(db_fixture, queue_args, task_args):
 @pytest.mark.unit
 def test_fetch_priority(db_fixture, queue_args):
     # Setup: Create a queue
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # Create tasks with different priorities
     task_args_high = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "high_priority_task",
         "args": {},
         "priority": Priority.HIGH,  # High priority
     }
     task_args_medium_1 = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "medium_priority_task_1",
         "args": {},
         "priority": Priority.MEDIUM,  # Medium priority
     }
     task_args_medium_2 = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "medium_priority_task_2",
         "args": {},
         "priority": Priority.MEDIUM,  # Medium priority
     }
     task_args_low = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "low_priority_task",
         "args": {},
         "priority": Priority.LOW,  # Low priority
@@ -616,7 +602,7 @@ def test_fetch_priority(db_fixture, queue_args):
     db_fixture.create_task(**task_args_medium_2)
     db_fixture.create_task(**task_args_low)
 
-    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+    task = db_fixture.fetch_task(queue_id=queue_id)
 
     # Assert that the task fetched is the one with the highest priority
     assert task is not None
@@ -626,7 +612,7 @@ def test_fetch_priority(db_fixture, queue_args):
     )  # Ensure the fetched task has the highest priority
 
     # Fetch again, this time should follow FIFO
-    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+    task = db_fixture.fetch_task(queue_id=queue_id)
 
     assert task is not None
     assert task["task_name"] == "medium_priority_task_1"
@@ -636,25 +622,25 @@ def test_fetch_priority(db_fixture, queue_args):
 @pytest.mark.unit
 def test_fetch_extra_filter(db_fixture, queue_args):
     # Setup: Create a queue
-    db_fixture.create_queue(**queue_args)
+    queue_id = db_fixture.create_queue(**queue_args)
 
     # Create tasks with different attributes
     task_args_1 = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "task_a",
         "args": {},
         "priority": Priority.HIGH,
         "metadata": {"tag": "a"},
     }
     task_args_2 = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "task_b",
         "args": {},
         "priority": Priority.MEDIUM,
         "metadata": {"tag": "b"},
     }
     task_args_3 = {
-        "queue_name": queue_args["queue_name"],
+        "queue_id": queue_id,
         "task_name": "task_c",
         "args": {},
         "priority": Priority.LOW,
@@ -669,9 +655,7 @@ def test_fetch_extra_filter(db_fixture, queue_args):
     # Test 1. query by self-defined tag
     extra_filter = {"metadata": {"tag": "b"}}
 
-    task = db_fixture.fetch_task(
-        queue_name=queue_args["queue_name"], extra_filter=extra_filter
-    )
+    task = db_fixture.fetch_task(queue_id=queue_id, extra_filter=extra_filter)
 
     assert task is not None
     assert task["task_name"] == "task_b"
@@ -679,9 +663,7 @@ def test_fetch_extra_filter(db_fixture, queue_args):
     # Test 2. query non-existent tag
     extra_filter = {"metadata": {"tag": "no-exist"}}
 
-    task = db_fixture.fetch_task(
-        queue_name=queue_args["queue_name"], extra_filter=extra_filter
-    )
+    task = db_fixture.fetch_task(queue_id=queue_id, extra_filter=extra_filter)
 
     assert task is None  # no match
 
@@ -693,18 +675,18 @@ class TestTaskRequiredFieldFetching:
 
     def test_fetch_leaf_match(self, db_fixture, queue_args):
         """Test fetching a task with a full leaf match of required fields."""
-        db_fixture.create_queue(**queue_args)
+        queue_id = db_fixture.create_queue(**queue_args)
 
         # Create tasks
         task_args = [
             {
-                "queue_name": queue_args["queue_name"],
+                "queue_id": queue_id,
                 "task_name": "task_leaf_match",
                 "args": {"arg1": "value1", "arg2": {"arg21": 1, "arg22": 2}},
                 "priority": Priority.LOW,
             },
             {
-                "queue_name": queue_args["queue_name"],
+                "queue_id": queue_id,
                 "task_name": "task_partial_match",
                 "args": {"arg1": "value1"},
                 "priority": Priority.MEDIUM,
@@ -718,26 +700,24 @@ class TestTaskRequiredFieldFetching:
         required_fields = {"arg1": None, "arg2": {"arg21": None, "arg22": None}}
 
         # Fetch task and assert
-        task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"], required_fields=required_fields
-        )
+        task = db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
         assert task is not None
         assert task["task_name"] == "task_leaf_match"
 
     def test_fetch_non_leaf_match(self, db_fixture, queue_args):
         """Test fetching a task with a non-leaf node match of required fields."""
-        db_fixture.create_queue(**queue_args)
+        queue_id = db_fixture.create_queue(**queue_args)
 
         # Create tasks
         task_args = [
             {
-                "queue_name": queue_args["queue_name"],
+                "queue_id": queue_id,
                 "task_name": "task_1",
                 "args": {"arg1": "value1", "arg2": {"arg21": 1, "arg22": 2}},
                 "priority": Priority.LOW,
             },
             {
-                "queue_name": queue_args["queue_name"],
+                "queue_id": queue_id,
                 "task_name": "task_2",
                 "args": {"arg1": "value1"},
                 "priority": Priority.MEDIUM,
@@ -751,20 +731,18 @@ class TestTaskRequiredFieldFetching:
         required_fields = {"arg1": None, "arg2": None}
 
         # Fetch task and assert
-        task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"], required_fields=required_fields
-        )
+        task = db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
         assert task is not None
         assert task["task_name"] == "task_1"
 
     def test_fetch_no_match(self, db_fixture, queue_args):
         """Test fetching a task with no matching required fields."""
-        db_fixture.create_queue(**queue_args)
+        queue_id = db_fixture.create_queue(**queue_args)
 
         # Create tasks
         task_args = [
             {
-                "queue_name": queue_args["queue_name"],
+                "queue_id": queue_id,
                 "task_name": "task_no_match",
                 "args": {"arg2": {"arg21": 1}},
                 "priority": Priority.LOW,
@@ -778,25 +756,23 @@ class TestTaskRequiredFieldFetching:
         required_fields = {"arg1": None}
 
         # Fetch task and assert
-        task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"], required_fields=required_fields
-        )
+        task = db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
         assert task is None
 
     def test_fetch_with_multiple_matches(self, db_fixture, queue_args):
         """Test fetching tasks when multiple tasks match the required fields."""
-        db_fixture.create_queue(**queue_args)
+        queue_id = db_fixture.create_queue(**queue_args)
 
         # Create tasks
         task_args = [
             {
-                "queue_name": queue_args["queue_name"],
+                "queue_id": queue_id,
                 "task_name": "task_match_1",
                 "args": {"arg1": "value1", "arg2": {"arg21": 1}},
                 "priority": Priority.LOW,
             },
             {
-                "queue_name": queue_args["queue_name"],
+                "queue_id": queue_id,
                 "task_name": "task_match_2",
                 "args": {"arg1": "value1", "arg2": {"arg21": 1}},
                 "priority": Priority.HIGH,
@@ -810,9 +786,7 @@ class TestTaskRequiredFieldFetching:
         required_fields = {"arg1": None, "arg2": {"arg21": None}}
 
         # Fetch task and assert
-        task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"], required_fields=required_fields
-        )
+        task = db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
         assert task is not None
         # Check if it fetched the one with the highest priority
         assert task["task_name"] == "task_match_2"
