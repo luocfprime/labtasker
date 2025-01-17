@@ -22,6 +22,7 @@ from labtasker.security import hash_password
 from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 from labtasker.utils import (
     arg_match,
+    auth_required,
     flatten_dict,
     get_current_time,
     parse_timeout,
@@ -228,10 +229,11 @@ class DatabaseClient:
     def projection(self):
         return {"password": 0}
 
+    @auth_required
     @risky("Potential query injection")
     def query_collection(
         self,
-        queue_name: str,
+        queue_id: str,
         collection_name: str,
         query: Dict[str, Any],  # MongoDB query
         limit: int = 100,
@@ -244,16 +246,8 @@ class DatabaseClient:
                     detail="Invalid collection name. Must be one of: queues, tasks, workers",
                 )
 
-            queue = self._get_queue_by_name(queue_name, session=session)
-
-            if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail="Query queue_id does not match the matching queue_id given by queue_name",
-                )
-
             # Prevent query injection
-            query = _sanitize_query(queue["_id"], query)
+            query = _sanitize_query(queue_id, query)
 
             result = (
                 self._db[collection_name]
@@ -263,10 +257,11 @@ class DatabaseClient:
 
             return list(result)
 
+    @auth_required
     @risky("Potential query injection")
     def update_collection(
         self,
-        queue_name: str,
+        queue_id: str,
         collection_name: str,
         query: Dict[str, Any],  # MongoDB query
         update: Dict[str, Any],  # MongoDB update
@@ -278,16 +273,9 @@ class DatabaseClient:
                     status_code=HTTP_400_BAD_REQUEST,
                     detail="Invalid collection name. Must be one of: queues, tasks, workers",
                 )
-            queue = self._get_queue_by_name(queue_name, session=session)
-
-            if query.get("queue_id") and query.get("queue_id") != queue["_id"]:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail="Query queue_id does not match the matching queue_id given by queue_name",
-                )
 
             # Prevent query injection
-            query = _sanitize_query(queue["_id"], query)
+            query = _sanitize_query(queue_id, query)
 
             now = get_current_time()
 
@@ -336,9 +324,10 @@ class DatabaseClient:
                 )
 
     # @validate_arguments
+    @auth_required
     def create_task(
         self,
-        queue_name: str,
+        queue_id: str,
         task_name: Optional[str] = None,
         args: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -352,8 +341,6 @@ class DatabaseClient:
     ) -> str:
         """Create a task related to a queue."""
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             # Validate args
             if args is not None and not isinstance(args, dict):
                 raise HTTPException(
@@ -370,7 +357,7 @@ class DatabaseClient:
 
             task = {
                 "_id": str(uuid4()),
-                "queue_id": str(queue["_id"]),
+                "queue_id": str(queue_id),
                 "status": TaskState.PENDING,
                 "task_name": task_name,
                 "created_at": now,
@@ -391,22 +378,21 @@ class DatabaseClient:
             result = self._tasks.insert_one(task, session=session)
             return str(result.inserted_id)
 
+    @auth_required
     def create_worker(
         self,
-        queue_name: str,
+        queue_id: str,
         worker_name: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         max_retries: int = 3,
     ) -> str:
         """Create a worker."""
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             now = get_current_time()
 
             worker = {
                 "_id": str(uuid4()),
-                "queue_id": str(queue["_id"]),
+                "queue_id": queue_id,
                 "status": WorkerState.ACTIVE,
                 "worker_name": worker_name,
                 "metadata": metadata or {},
@@ -418,49 +404,42 @@ class DatabaseClient:
             result = self._workers.insert_one(worker, session=session)
             return str(result.inserted_id)
 
+    @auth_required
     def delete_queue(
         self,
-        queue_name: Optional[str] = None,
+        queue_id,
         cascade_delete: bool = False,  # TODO: need consideration
     ) -> bool:
         """
         Delete a queue.
 
         Args:
-            queue_name (str): The name of the queue to delete.
+            queue_id (str): The id of the queue to delete.
             cascade_delete (bool): Whether to delete all tasks and workers in the queue.
         """
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name, session=session)
-
-            if not queue:
-                raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND, detail="Queue not found"
-                )
-
             # Delete queue
-            self._queues.delete_one({"_id": queue["_id"]}, session=session)
+            self._queues.delete_one({"_id": queue_id}, session=session)
 
             if cascade_delete:
                 # Delete all tasks in the queue
-                self._tasks.delete_many({"queue_id": queue["_id"]}, session=session)
+                self._tasks.delete_many({"queue_id": queue_id}, session=session)
                 # Delete all workers in the queue
-                self._workers.delete_many({"queue_id": queue["_id"]}, session=session)
+                self._workers.delete_many({"queue_id": queue_id}, session=session)
 
             return True
 
+    @auth_required
     def delete_task(
         self,
-        queue_name: str,
+        queue_id: str,
         task_id: str,
     ) -> bool:
         """Delete a task."""
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             # Delete task
             result = self._tasks.delete_one(
-                {"_id": task_id, "queue_id": queue["_id"]}, session=session
+                {"_id": task_id, "queue_id": queue_id}, session=session
             )
             if result.deleted_count == 0:
                 raise HTTPException(
@@ -468,9 +447,10 @@ class DatabaseClient:
                 )
             return result.deleted_count > 0
 
+    @auth_required
     def delete_worker(
         self,
-        queue_name: str,
+        queue_id: str,
         worker_id: str,
         cascade_update: bool = True,
     ) -> bool:
@@ -478,16 +458,14 @@ class DatabaseClient:
         Delete a worker.
 
         Args:
-            queue_name (str): The name of the queue to delete the worker from.
+            queue_id (str): The name of the queue to delete the worker from.
             worker_id (str): The ID of the worker to delete.
             cascade_update (bool): Whether to set worker_id to None for associated tasks.
         """
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             # Delete worker
             worker_result = self._workers.delete_one(
-                {"_id": worker_id, "queue_id": queue["_id"]}, session=session
+                {"_id": worker_id, "queue_id": queue_id}, session=session
             )
             if worker_result.deleted_count == 0:
                 raise HTTPException(
@@ -498,24 +476,23 @@ class DatabaseClient:
             if cascade_update:
                 # Update all tasks associated with the worker
                 self._tasks.update_many(
-                    {"queue_id": queue["_id"], "worker_id": worker_id},
+                    {"queue_id": queue_id, "worker_id": worker_id},
                     {"$set": {"worker_id": None, "last_modified": now}},
                     session=session,
                 )
 
             return True
 
+    @auth_required
     def update_queue(
         self,
-        queue_name: str,
+        queue_id: str,
         new_queue_name: Optional[str] = None,
         new_password: Optional[str] = None,
         metadata_update: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Update queue settings."""
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             # Make sure name does not already exist
             if new_queue_name and self._get_queue_by_name(
                 new_queue_name, session=session
@@ -525,10 +502,12 @@ class DatabaseClient:
                     detail=f"Queue name '{new_queue_name}' already exists",
                 )
 
-            queue_name = new_queue_name or queue["queue_name"]
-            password = (
-                hash_password(new_password) if new_password else queue["password"]
-            )
+            update_dict = {}
+
+            if new_queue_name:
+                update_dict["queue_name"] = new_queue_name
+            if new_password:
+                update_dict["password"] = hash_password(new_password)
 
             if metadata_update:
                 metadata_update = _sanitize_dict(metadata_update)
@@ -539,21 +518,19 @@ class DatabaseClient:
             # Update queue settings
             update = {
                 "$set": {
-                    "queue_name": queue_name,
-                    "password": password,
                     "last_modified": get_current_time(),
+                    **update_dict,
                     **metadata_update,
                 }
             }
-            result = self._queues.update_one(
-                {"_id": queue["_id"]}, update, session=session
-            )
+            result = self._queues.update_one({"_id": queue_id}, update, session=session)
             return result.modified_count > 0
 
     # @risky("Potential query injection")
+    @auth_required
     def fetch_task(
         self,
-        queue_name: str,
+        queue_id: str,
         worker_id: Optional[str] = None,
         eta_max: Optional[str] = None,
         start_heartbeat: bool = True,
@@ -569,7 +546,7 @@ class DatabaseClient:
         5. Return task
 
         Args:
-            queue_name (str): The name of the queue to fetch the task from.
+            queue_id (str): The id of the queue to fetch the task from.
             worker_id (str, optional): The ID of the worker to assign the task to.
             eta_max (str, optional): The maximum time to wait for the task to be available.
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
@@ -577,23 +554,21 @@ class DatabaseClient:
         task_timeout = parse_timeout(eta_max) if eta_max else None
 
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             # Verify worker status if specified
             if worker_id:
                 worker = self._workers.find_one(
-                    {"_id": worker_id, "queue_id": queue["_id"]}, session=session
+                    {"_id": worker_id, "queue_id": queue_id}, session=session
                 )
                 if not worker:
                     raise HTTPException(
                         status_code=HTTP_404_NOT_FOUND,
-                        detail=f"Worker '{worker_id}' not found in queue '{queue_name}'",
+                        detail=f"Worker '{worker_id}' not found in queue '{queue_id}'",
                     )
                 worker_status = worker["status"]
                 if worker_status != WorkerState.ACTIVE:
                     raise HTTPException(
                         status_code=HTTP_400_BAD_REQUEST,
-                        detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_name}'",
+                        detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_id}'",
                     )
 
             # Fetch task
@@ -609,11 +584,11 @@ class DatabaseClient:
                 required_fields_filter, extra_filter, logical_op="and"
             )
 
-            sanitized_filter = _sanitize_query(queue["_id"], combined_filter)
+            sanitized_filter = _sanitize_query(queue_id, combined_filter)
 
             # Construct the query
             query = {
-                "queue_id": queue["_id"],
+                "queue_id": queue_id,
                 "status": TaskState.PENDING,
                 **sanitized_filter,
             }
@@ -652,26 +627,27 @@ class DatabaseClient:
 
             return None  # Return None if no tasks matched
 
+    @auth_required
     def update_task_heartbeat(
         self,
-        queue_name: str,
+        queue_id: str,
         task_id: str,
     ) -> bool:
         """Update task heartbeat timestamp."""
         with self.transaction() as session:
-            queue = self._get_queue_by_name(queue_name)
             return (
                 self._tasks.update_one(
-                    {"_id": task_id, "queue_id": queue["_id"]},
+                    {"_id": task_id, "queue_id": queue_id},
                     {"$set": {"last_heartbeat": get_current_time()}},
                     session=session,
                 ).modified_count
                 > 0
             )
 
+    @auth_required
     def update_task_status(
         self,
-        queue_name: str,
+        queue_id: str,
         task_id: str,
         report_status: str,
         summary_update: Optional[Dict[str, Any]] = None,
@@ -680,11 +656,8 @@ class DatabaseClient:
         Update task status. Used for reporting task execution results.
         """
         with self.transaction() as session:
-            # Get queue ID
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             task = self._tasks.find_one(
-                {"_id": task_id, "queue_id": queue["_id"]}, session=session
+                {"_id": task_id, "queue_id": queue_id}, session=session
             )
             if not task:
                 raise HTTPException(
@@ -732,7 +705,7 @@ class DatabaseClient:
             # Update worker status if worker is specified
             if report_status == "failed" and task["worker_id"]:
                 worker_updated = self._update_worker_status(
-                    queue_id=queue["_id"],
+                    queue_id=queue_id,
                     worker_id=task["worker_id"],
                     report_status="failed",
                     session=session,
@@ -741,9 +714,10 @@ class DatabaseClient:
 
             return result.modified_count > 0
 
+    @auth_required
     def update_task_and_reset_pending(
         self,
-        queue_name: str,
+        queue_id: str,
         task_id: str,
         task_setting_update: Optional[Dict[str, Any]] = None,
     ) -> bool:
@@ -752,14 +726,11 @@ class DatabaseClient:
         Can be used to manually restart crashed tasks after max retries.
 
         Args:
-            queue_name (str): The name of the queue to update the task in.
+            queue_id (str): The name of the queue to update the task in.
             task_id (str): The ID of the task to update.
             task_setting_update (Dict[str, Any], optional): A dictionary of task settings to update.
         """
         with self.transaction() as session:
-            # Get queue ID
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             # Update task settings
             if task_setting_update:
                 task_setting_update = _sanitize_update(task_setting_update)
@@ -778,23 +749,21 @@ class DatabaseClient:
             }
 
             result = self._tasks.update_one(
-                {"_id": task_id, "queue_id": queue["_id"]}, update, session=session
+                {"_id": task_id, "queue_id": queue_id}, update, session=session
             )
             return result.modified_count > 0
 
+    @auth_required
     def cancel_task(
         self,
-        queue_name: str,
+        queue_id: str,
         task_id: str,
     ) -> bool:
         """Cancel a task."""
         with self.transaction() as session:
-            # Verify queue exists
-            queue = self._get_queue_by_name(queue_name, session=session)
-
             # Cancel task
             result = self._tasks.update_one(
-                {"_id": task_id, "queue_id": queue["_id"]},
+                {"_id": task_id, "queue_id": queue_id},
                 {
                     "$set": {
                         "status": TaskState.CANCELLED,
@@ -849,18 +818,18 @@ class DatabaseClient:
         result = self._workers.update_one({"_id": worker_id}, update, session=session)
         return result.modified_count > 0
 
+    @auth_required
     def update_worker_status(
         self,
-        queue_name: str,
+        queue_id: str,
         worker_id: str,
         report_status: str,
     ) -> bool:
         """Update worker status."""
         with self.transaction() as session:
             # Verify queue exists
-            queue = self._get_queue_by_name(queue_name, session=session)
             return self._update_worker_status(
-                queue_id=queue["_id"],
+                queue_id=queue_id,
                 worker_id=worker_id,
                 report_status=report_status,
                 session=session,

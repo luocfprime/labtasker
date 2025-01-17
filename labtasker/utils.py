@@ -191,6 +191,22 @@ def risky(description: str):
     return decorator
 
 
+def auth_required(func):
+    """
+    A decorator to mark a function as requiring authentication.
+    This does not enforce authentication but serves as a marker.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Just call the original function without enforcing anything
+        return func(*args, **kwargs)
+
+    # Add a marker attribute to the function
+    wrapper.auth_required = True
+    return wrapper
+
+
 # _api_usage_log = defaultdict(int)
 
 # TODO: implement with logging for developers

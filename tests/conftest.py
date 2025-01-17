@@ -7,11 +7,11 @@ from labtasker.server.config import ServerConfig
 
 from .fixtures.database import (  # noqa
     db_fixture,
-    full_task_args,
+    get_full_task_args,
+    get_task_args,
     mock_db,
     queue_args,
     real_db,
-    task_args,
 )
 
 

@@ -16,27 +16,43 @@ def queue_args():
 
 
 @pytest.fixture
-def task_args():
+def get_task_args():
     """Minimum task args for db create_task for testing."""
-    return {
-        "queue_name": "test_queue",
-    }
+
+    def wrapper(queue_id, override_fields=None):
+        result = {
+            "queue_id": queue_id,  # this should be set after queue is created
+        }
+        if override_fields:
+            result.update(override_fields)
+        return result
+
+    return wrapper
 
 
 @pytest.fixture
-def full_task_args():
+def get_full_task_args():
     """Minimum task args for db create_task for testing."""
-    return {
-        "queue_name": "test_queue",
-        "task_name": "test_task",
-        "args": {"arg1": "value1", "arg2": "value2"},
-        "metadata": {"tags": ["test"]},
-        "cmd": "python test.py  --a --b",
-        "heartbeat_timeout": 60,  # 60s
-        "task_timeout": 300,  # 300s
-        "max_retries": 3,
-        "priority": Priority.MEDIUM,
-    }
+
+    def wrapper(queue_id, override_fields=None):
+        result = {
+            "queue_id": queue_id,
+            "task_name": "test_task",
+            "args": {"arg1": "value1", "arg2": "value2"},
+            "metadata": {"tags": ["test"]},
+            "cmd": "python test.py  --a --b",
+            "heartbeat_timeout": 60,  # 60s
+            "task_timeout": 300,  # 300s
+            "max_retries": 3,
+            "priority": Priority.MEDIUM,
+        }
+
+        if override_fields:
+            result.update(override_fields)
+
+        return result
+
+    return wrapper
 
 
 @pytest.fixture
