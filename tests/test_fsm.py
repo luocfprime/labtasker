@@ -6,7 +6,7 @@ from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 
 @pytest.fixture
 def task_db_entry():
-    """Sample task database entry."""
+    """Sample task database entry. Minimal for FSM testing."""
     return {
         "status": TaskState.PENDING,
         "retries": 0,
@@ -16,7 +16,7 @@ def task_db_entry():
 
 @pytest.fixture
 def worker_db_entry():
-    """Sample worker database entry."""
+    """Sample worker database entry. Minimal for FSM testing."""
     return {
         "status": WorkerState.ACTIVE,
         "retries": 0,
@@ -24,6 +24,7 @@ def worker_db_entry():
     }
 
 
+@pytest.mark.unit
 class TestTaskFSM:
     def test_from_db_entry(self, task_db_entry):
         """Test creating FSM from database entry."""
@@ -82,6 +83,7 @@ class TestTaskFSM:
         assert fsm.retries == 3
 
 
+@pytest.mark.unit
 class TestWorkerFSM:
     def test_from_db_entry(self, worker_db_entry):
         """Test creating FSM from database entry."""
