@@ -2,7 +2,10 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Union
+from typing import Any, Dict, List, Optional, Union
+
+from fastapi import HTTPException
+from starlette.status import HTTP_400_BAD_REQUEST
 
 
 def parse_timeout(timeout_str: str) -> int:
@@ -281,3 +284,44 @@ def keys_to_query_dict(keys):
             current[parts[-1]] = None  # Set the leaf node to None
 
     return query_dict
+
+
+def sanitize_update(
+    update: Dict[str, Any],
+    banned_fields: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Ban update on certain fields."""
+
+    if banned_fields is None:
+        banned_fields = ["_id", "queue_id", "created_at", "last_modified"]
+
+    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
+        for k, v in d.items():
+            if k in banned_fields:
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail=f"Field {k} is not allowed to be updated",
+                )
+            elif isinstance(v, dict):
+                d[k] = _recr_sanitize(v)
+        return d
+
+    return _recr_sanitize(update)
+
+
+def sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize a dictionary so that it does not contain any MongoDB operators."""
+
+    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
+        for k, v in d.items():
+            if isinstance(k, str):
+                if re.match(r"^\$", k):  # Match those starting with $
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail=f"MongoDB operators are not allowed in field names: {k}",
+                    )
+            if isinstance(v, dict):
+                d[k] = _recr_sanitize(v)
+        return d
+
+    return _recr_sanitize(dic)

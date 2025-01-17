@@ -1,12 +1,9 @@
 import contextlib
 import contextvars
-import re
-from functools import wraps
 from typing import Any, Dict, List, Mapping, Optional, Union
 from uuid import uuid4
 
 from fastapi import HTTPException
-from pydantic import ValidationError, validate_call
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.collection import Collection, ReturnDocument
 from pymongo.database import Database
@@ -20,6 +17,12 @@ from starlette.status import (
 
 from labtasker.constants import Priority
 from labtasker.security import hash_password
+from labtasker.server.db_utils import (
+    merge_filter,
+    query_dict_to_mongo_filter,
+    sanitize_query,
+    validate_arg,
+)
 from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 from labtasker.utils import (
     arg_match,
@@ -28,133 +31,11 @@ from labtasker.utils import (
     get_current_time,
     parse_timeout,
     risky,
+    sanitize_dict,
+    sanitize_update,
 )
 
 _in_transaction = contextvars.ContextVar("in_transaction", default=False)
-
-
-def validate_arg(func):
-    """Wrap around Pydantic `validate_call` to yield HTTP_400_BAD_REQUEST"""
-
-    @wraps(func)
-    def wrapped(*args, **kwargs):
-        try:
-            return validate_call(func)(*args, **kwargs)
-        except ValidationError as e:
-            # Catch Pydantic validation errors and re-raise them as HTTP 400
-            raise HTTPException(
-                status_code=HTTP_400_BAD_REQUEST,
-                detail=e.errors(),  # Provide detailed validation errors
-            ) from e
-        except HTTPException:
-            # Allow pre-existing HTTPExceptions to propagate
-            raise
-        except Exception as e:
-            # Catch any other exception and raise it as a generic HTTP 500 error
-            raise HTTPException(
-                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(e),
-            ) from e
-
-    return wrapped
-
-
-def query_dict_to_mongo_filter(query_dict, parent_key=""):
-    mongo_filter = {}
-
-    flattened_query = flatten_dict(query_dict, parent_key=parent_key)
-    for full_key in flattened_query.keys():
-        mongo_filter[full_key] = {"$exists": True}
-
-    return mongo_filter
-
-
-def merge_filter(*filters, logical_op="and"):
-    """
-    Merge multiple MongoDB filters using a specified logical operator, while ignoring empty filters.
-
-    Args:
-        *filters: Arbitrary number of filter dictionaries to merge.
-        logical_op (str): The logical operator to use for merging filters.
-                          Must be one of "and", "or", or "nor".
-
-    Returns:
-        dict: A MongoDB query filter with the specified logical operator applied.
-
-    Raises:
-        HTTPException: If the logical_op is not valid.
-    """
-    if logical_op not in ["and", "or", "nor"]:
-        raise HTTPException(
-            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Invalid logical operator: {logical_op}. Must be 'and', 'or', or 'nor'.",
-        )
-
-    valid_filters = [
-        f for f in filters if f
-    ]  # Filters out None, {}, or other falsy values
-
-    # If no valid filters remain, return an empty filter
-    if not valid_filters:
-        return {}
-
-    if len(valid_filters) == 1:
-        return valid_filters[0]
-
-    mongo_logical_op = f"${logical_op}"  # "$and", "$or", "$nor"
-
-    return {mongo_logical_op: valid_filters}
-
-
-def _sanitize_query(queue_id: str, query: Dict[str, Any]) -> Dict[str, Any]:
-    """Enforce only query on queue_id specified in query"""
-    return {
-        "$and": [
-            {"queue_id": queue_id},  # Enforce queue_id
-            query,  # Existing user query
-        ]
-    }
-
-
-def _sanitize_update(
-    update: Dict[str, Any],
-    banned_fields: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-    """Ban update on certain fields."""
-
-    if banned_fields is None:
-        banned_fields = ["_id", "queue_id", "created_at", "last_modified"]
-
-    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
-        for k, v in d.items():
-            if k in banned_fields:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail=f"Field {k} is not allowed to be updated",
-                )
-            elif isinstance(v, dict):
-                d[k] = _recr_sanitize(v)
-        return d
-
-    return _recr_sanitize(update)
-
-
-def _sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
-    """Sanitize a dictionary so that it does not contain any MongoDB operators."""
-
-    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
-        for k, v in d.items():
-            if isinstance(k, str):
-                if re.match(r"^\$", k):  # Match those starting with $
-                    raise HTTPException(
-                        status_code=HTTP_400_BAD_REQUEST,
-                        detail=f"MongoDB operators are not allowed in field names: {k}",
-                    )
-            if isinstance(v, dict):
-                d[k] = _recr_sanitize(v)
-        return d
-
-    return _recr_sanitize(dic)
 
 
 class DatabaseClient:
@@ -275,7 +156,7 @@ class DatabaseClient:
                 )
 
             # Prevent query injection
-            query = _sanitize_query(queue_id, query)
+            query = sanitize_query(queue_id, query)
 
             result = (
                 self._db[collection_name]
@@ -304,11 +185,11 @@ class DatabaseClient:
                 )
 
             # Prevent query injection
-            query = _sanitize_query(queue_id, query)
+            query = sanitize_query(queue_id, query)
 
             now = get_current_time()
 
-            update = _sanitize_update(
+            update = sanitize_update(
                 update
             )  # make sure important fields are not tempered with
 
@@ -538,7 +419,7 @@ class DatabaseClient:
                 update_dict["password"] = hash_password(new_password)
 
             if metadata_update:
-                metadata_update = _sanitize_dict(metadata_update)
+                metadata_update = sanitize_dict(metadata_update)
                 metadata_update = flatten_dict(metadata_update, parent_key="metadata")
             else:
                 metadata_update = {}
@@ -613,7 +494,7 @@ class DatabaseClient:
                 required_fields_filter, extra_filter, logical_op="and"
             )
 
-            sanitized_filter = _sanitize_query(queue_id, combined_filter)
+            sanitized_filter = sanitize_query(queue_id, combined_filter)
 
             # Construct the query
             query = {
@@ -717,7 +598,7 @@ class DatabaseClient:
                 )
 
             if summary_update:
-                summary_update = _sanitize_dict(summary_update)
+                summary_update = sanitize_dict(summary_update)
                 summary_update = flatten_dict(summary_update, parent_key="summary")
             else:
                 summary_update = {}
@@ -765,7 +646,7 @@ class DatabaseClient:
         with self.transaction() as session:
             # Update task settings
             if task_setting_update:
-                task_setting_update = _sanitize_update(task_setting_update)
+                task_setting_update = sanitize_update(task_setting_update)
                 task_setting_update = flatten_dict(task_setting_update)
             else:
                 task_setting_update = {}
