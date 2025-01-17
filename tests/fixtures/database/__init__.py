@@ -1,0 +1,54 @@
+import pytest
+
+from labtasker.constants import Priority
+
+from .mock import mock_db
+from .real import real_db
+
+
+@pytest.fixture
+def queue_args():
+    """Minimum queue args ~for db create_queue for testing."""
+    return {
+        "queue_name": "test_queue",
+        "password": "test_password",
+    }
+
+
+@pytest.fixture
+def task_args():
+    """Minimum task args for db create_task for testing."""
+    return {
+        "queue_name": "test_queue",
+    }
+
+
+@pytest.fixture
+def full_task_args():
+    """Minimum task args for db create_task for testing."""
+    return {
+        "queue_name": "test_queue",
+        "task_name": "test_task",
+        "args": {"arg1": "value1", "arg2": "value2"},
+        "metadata": {"tags": ["test"]},
+        "cmd": "python test.py  --a --b",
+        "heartbeat_timeout": 60,  # 60s
+        "task_timeout": 300,  # 300s
+        "max_retries": 3,
+        "priority": Priority.MEDIUM,
+    }
+
+
+@pytest.fixture
+def db_fixture(test_type, request):
+    """
+    Dynamic database fixture that supports both mock and real databases.
+    """
+    if test_type == "integration":  # prioritize integration tests over unit tests
+        return request.getfixturevalue("real_db")
+    elif test_type == "unit":
+        return request.getfixturevalue("mock_db")
+    else:
+        raise ValueError(
+            "Database testcases must be tagged with either 'unit' or 'integration'"
+        )

@@ -72,6 +72,7 @@ states:
         "my_param_1": 1,
         "my_param_2": 2
     },
+    "cmd": "python main.py --arg1=1 --arg2=2",
     "summary": {},
     "worker_id": "xxxxxx",
 }
