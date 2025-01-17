@@ -50,7 +50,8 @@ def real_db(request):
         # Connect to MongoDB using the connection details
         client = RealMongoClient(
             uri,
-            serverSelectionTimeoutMS=5000,  # 5-second timeout for server selection
+            w="majority",
+            retryWrites=True,
         )
 
         time.sleep(5)  # wait for the docker/mongodb/post-init.d script to be executed

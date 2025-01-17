@@ -51,9 +51,7 @@ class DatabaseClient:
 
         try:
             self._client = MongoClient(uri, w="majority", retryWrites=True)
-            if isinstance(self._client, MongoClient):
-                # Test connection only for real MongoDB (not mock)
-                self._client.admin.command("ping")
+            self._client.admin.command("ping")
             self._db: Database = self._client[db_name]
             self._setup_collections()
         except Exception as e:
