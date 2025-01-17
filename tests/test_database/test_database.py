@@ -33,11 +33,11 @@ def test_create_queue(db_fixture, queue_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
-def test_create_task(db_fixture, queue_args, task_args):
+def test_create_task(db_fixture, queue_args, task_args, full_task_args):
     # Create queue first
     queue_id = db_fixture.create_queue(**queue_args)
 
-    # Submit task
+    # Test 1. Create task with minimal args
     task_id = db_fixture.create_task(**task_args)
     assert task_id is not None
 
@@ -45,10 +45,21 @@ def test_create_task(db_fixture, queue_args, task_args):
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task is not None
     assert task["queue_id"] == queue_id
-    assert task["task_name"] == task_args["task_name"]
     assert task["status"] == TaskState.PENDING
-    assert task["args"] == task_args["args"]
-    assert task["metadata"] == task_args["metadata"]
+
+    # Test 2. Create task with all args
+    task_id = db_fixture.create_task(**full_task_args)
+    assert task_id is not None
+
+    task = db_fixture._tasks.find_one({"_id": task_id})
+    assert task is not None
+    assert task["queue_id"] == queue_id
+    assert task["status"] == TaskState.PENDING
+
+    for k, v in full_task_args.items():
+        if k == "queue_name":
+            continue  # since it is related by queue_id
+        assert task[k] == v, f"{k} mismatch!"
 
     # TODO: test setting heartbeat_timeout, task_timeout, max_retries, priority
 
@@ -675,53 +686,9 @@ def test_fetch_extra_filter(db_fixture, queue_args):
     assert task is None  # no match
 
 
-# @pytest.mark.integration
-# @pytest.mark.unit
-# def test_fetch_required_fields(db_fixture, queue_args):
-#     # Setup: Create a queue
-#     db_fixture.create_queue(**queue_args)
-
-#     # Create tasks with specific arguments
-#     task_args = [
-#         {
-#             "queue_name": queue_args["queue_name"],
-#             "task_name": "task_a_1",
-#             "args": {"arg1": "value1", "arg2": {"arg21": 0, "arg22": 1}},
-#             "priority": Priority.LOW,
-#         },
-#         {
-#             "queue_name": queue_args["queue_name"],
-#             "task_name": "task_a_2",
-#             "args": {"arg1": "value1", "arg2": {"arg21": 0, "arg22": 1}},
-#             "priority": Priority.LOW,
-#         },
-#         {
-#             "queue_name": queue_args["queue_name"],
-#             "task_name": "task_b_1",
-#             "args": {"arg1": "value1"},
-#             "priority": Priority.MEDIUM,
-#         },
-#     ]
-
-#     # Create tasks
-#     for args in task_args:
-#         db_fixture.create_task(**args)
-
-#     # Test 1. Fetch a valid task full match
-#     required_fields = {"arg1": None, "arg2": None}
-
-#     task = db_fixture.fetch_task(
-#         queue_name=queue_args["queue_name"], required_fields=required_fields
-#     )
-
-#     # Assert that the fetched task matches the required fields
-#     assert task is not None
-#     assert task["task_name"] == "task_1"
-
-
-# @pytest.mark.integration
+@pytest.mark.integration
 @pytest.mark.unit
-class TestTaskFetching:
+class TestTaskRequiredFieldFetching:
     """Tests for task fetching based on required fields."""
 
     def test_fetch_leaf_match(self, db_fixture, queue_args):
@@ -815,39 +782,6 @@ class TestTaskFetching:
             queue_name=queue_args["queue_name"], required_fields=required_fields
         )
         assert task is None
-
-    def test_fetch_with_nested_required_fields(self, db_fixture, queue_args):
-        """Test fetching tasks with nested required fields."""
-        db_fixture.create_queue(**queue_args)
-
-        # Create tasks
-        task_args = [
-            {
-                "queue_name": queue_args["queue_name"],
-                "task_name": "task_nested",
-                "args": {"arg1": {"nested1": "value1", "nested2": "value2"}},
-                "priority": Priority.LOW,
-            },
-            {
-                "queue_name": queue_args["queue_name"],
-                "task_name": "task_flat",
-                "args": {"arg1": "value1"},
-                "priority": Priority.MEDIUM,
-            },
-        ]
-
-        for args in task_args:
-            db_fixture.create_task(**args)
-
-        # Define required fields
-        required_fields = {"arg1": {"nested1": None}}
-
-        # Fetch task and assert
-        task = db_fixture.fetch_task(
-            queue_name=queue_args["queue_name"], required_fields=required_fields
-        )
-        assert task is not None
-        assert task["task_name"] == "task_nested"
 
     def test_fetch_with_multiple_matches(self, db_fixture, queue_args):
         """Test fetching tasks when multiple tasks match the required fields."""

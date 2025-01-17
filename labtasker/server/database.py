@@ -1,10 +1,11 @@
 import contextlib
 import contextvars
 import re
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Union
 from uuid import uuid4
 
 from fastapi import HTTPException
+from pydantic import validate_arguments
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.collection import Collection, ReturnDocument
 from pymongo.database import Database
@@ -217,6 +218,12 @@ class DatabaseClient:
         """Close the database client."""
         self._client.close()
 
+    def erase(self):
+        """Erase all data"""
+        self._queues.delete_many({})
+        self._tasks.delete_many({})
+        self._workers.delete_many({})
+
     @property
     def projection(self):
         return {"password": 0}
@@ -328,12 +335,14 @@ class DatabaseClient:
                     detail=f"Queue '{queue_name}' already exists",
                 )
 
+    # @validate_arguments
     def create_task(
         self,
         queue_name: str,
         task_name: Optional[str] = None,
-        args: Dict[str, Any] = None,
+        args: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        cmd: Optional[Union[str, List[str]]] = None,
         heartbeat_timeout: int = 60,
         task_timeout: Optional[
             int
@@ -375,6 +384,7 @@ class DatabaseClient:
                 "priority": priority,
                 "metadata": metadata or {},
                 "args": args or {},
+                "cmd": cmd or "",
                 "summary": {},
                 "worker_id": None,
             }
@@ -549,7 +559,7 @@ class DatabaseClient:
         start_heartbeat: bool = True,
         required_fields: Optional[Dict[str, Any]] = None,
         extra_filter: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[Mapping[str, Any]]:
         """
         Fetch next available task from queue.
         1. Fetch task from queue
@@ -627,7 +637,7 @@ class DatabaseClient:
 
             for task in tasks:
                 if task:
-                    if required_fields and not arg_match(required_fields, task):
+                    if required_fields and not arg_match(required_fields, task["args"]):
                         continue  # Skip to the next task if it doesn't match
 
                     updated_task = self._tasks.find_one_and_update(

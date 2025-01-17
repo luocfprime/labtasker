@@ -5,7 +5,14 @@ import pytest
 
 from labtasker.server.config import ServerConfig
 
-from .fixtures.fixture_database import db_fixture, mock_session, queue_args, task_args
+from .fixtures.database import (  # noqa
+    db_fixture,
+    full_task_args,
+    mock_db,
+    queue_args,
+    real_db,
+    task_args,
+)
 
 
 @pytest.fixture
