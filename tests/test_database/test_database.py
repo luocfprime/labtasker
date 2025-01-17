@@ -118,7 +118,6 @@ def test_create_task_invalid_args(db_fixture, queue_args):
     with pytest.raises(HTTPException) as exc:
         db_fixture.create_task(**task_data)
     assert exc.value.status_code == 400
-    assert "must be a dictionary" in exc.value.detail
 
 
 @pytest.mark.integration

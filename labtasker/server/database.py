@@ -1,11 +1,12 @@
 import contextlib
 import contextvars
 import re
+from functools import wraps
 from typing import Any, Dict, List, Mapping, Optional, Union
 from uuid import uuid4
 
 from fastapi import HTTPException
-from pydantic import validate_arguments
+from pydantic import ValidationError, validate_call
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.collection import Collection, ReturnDocument
 from pymongo.database import Database
@@ -30,6 +31,32 @@ from labtasker.utils import (
 )
 
 _in_transaction = contextvars.ContextVar("in_transaction", default=False)
+
+
+def validate_arg(func):
+    """Wrap around Pydantic `validate_call` to yield HTTP_400_BAD_REQUEST"""
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return validate_call(func)(*args, **kwargs)
+        except ValidationError as e:
+            # Catch Pydantic validation errors and re-raise them as HTTP 400
+            raise HTTPException(
+                status_code=HTTP_400_BAD_REQUEST,
+                detail=e.errors(),  # Provide detailed validation errors
+            ) from e
+        except HTTPException:
+            # Allow pre-existing HTTPExceptions to propagate
+            raise
+        except Exception as e:
+            # Catch any other exception and raise it as a generic HTTP 500 error
+            raise HTTPException(
+                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e),
+            ) from e
+
+    return wrapped
 
 
 def query_dict_to_mongo_filter(query_dict, parent_key=""):
@@ -231,6 +258,7 @@ class DatabaseClient:
 
     @auth_required
     @risky("Potential query injection")
+    @validate_arg
     def query_collection(
         self,
         queue_id: str,
@@ -259,6 +287,7 @@ class DatabaseClient:
 
     @auth_required
     @risky("Potential query injection")
+    @validate_arg
     def update_collection(
         self,
         queue_id: str,
@@ -293,6 +322,7 @@ class DatabaseClient:
             )
             return result.modified_count > 0
 
+    @validate_arg
     def create_queue(
         self,
         queue_name: str,
@@ -323,8 +353,8 @@ class DatabaseClient:
                     detail=f"Queue '{queue_name}' already exists",
                 )
 
-    # @validate_arguments
     @auth_required
+    @validate_arg
     def create_task(
         self,
         queue_id: str,
@@ -341,13 +371,6 @@ class DatabaseClient:
     ) -> str:
         """Create a task related to a queue."""
         with self.transaction() as session:
-            # Validate args
-            if args is not None and not isinstance(args, dict):
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail="Task args must be a dictionary",
-                )
-
             now = get_current_time()
 
             # fsm = TaskFSM(
@@ -379,6 +402,7 @@ class DatabaseClient:
             return str(result.inserted_id)
 
     @auth_required
+    @validate_arg
     def create_worker(
         self,
         queue_id: str,
@@ -405,6 +429,7 @@ class DatabaseClient:
             return str(result.inserted_id)
 
     @auth_required
+    @validate_arg
     def delete_queue(
         self,
         queue_id,
@@ -430,6 +455,7 @@ class DatabaseClient:
             return True
 
     @auth_required
+    @validate_arg
     def delete_task(
         self,
         queue_id: str,
@@ -448,6 +474,7 @@ class DatabaseClient:
             return result.deleted_count > 0
 
     @auth_required
+    @validate_arg
     def delete_worker(
         self,
         queue_id: str,
@@ -484,6 +511,7 @@ class DatabaseClient:
             return True
 
     @auth_required
+    @validate_arg
     def update_queue(
         self,
         queue_id: str,
@@ -528,6 +556,7 @@ class DatabaseClient:
 
     # @risky("Potential query injection")
     @auth_required
+    @validate_arg
     def fetch_task(
         self,
         queue_id: str,
@@ -628,6 +657,7 @@ class DatabaseClient:
             return None  # Return None if no tasks matched
 
     @auth_required
+    @validate_arg
     def update_task_heartbeat(
         self,
         queue_id: str,
@@ -645,6 +675,7 @@ class DatabaseClient:
             )
 
     @auth_required
+    @validate_arg
     def update_task_status(
         self,
         queue_id: str,
@@ -715,6 +746,7 @@ class DatabaseClient:
             return result.modified_count > 0
 
     @auth_required
+    @validate_arg
     def update_task_and_reset_pending(
         self,
         queue_id: str,
@@ -754,6 +786,7 @@ class DatabaseClient:
             return result.modified_count > 0
 
     @auth_required
+    @validate_arg
     def cancel_task(
         self,
         queue_id: str,
@@ -819,6 +852,7 @@ class DatabaseClient:
         return result.modified_count > 0
 
     @auth_required
+    @validate_arg
     def update_worker_status(
         self,
         queue_id: str,
@@ -855,6 +889,7 @@ class DatabaseClient:
             )
         return queue
 
+    @validate_arg
     def get_queue(
         self,
         queue_id: Optional[str] = None,
