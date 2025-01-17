@@ -26,9 +26,7 @@ def real_db(request):
     """
     global _real_db_instance
 
-    if _real_db_instance:
-        yield _real_db_instance
-    else:
+    if not _real_db_instance:
         # Lazy load docker services
         docker_services = request.getfixturevalue("docker_services")
         docker_ip = request.getfixturevalue("docker_ip")
@@ -59,6 +57,6 @@ def real_db(request):
         # Create a DatabaseClient object
         _real_db_instance = DatabaseClient(client=client, db_name="test_db")
 
-        yield _real_db_instance
+    yield _real_db_instance
 
-    _real_db_instance.erase()
+    _real_db_instance.erase()  # clean up
