@@ -7,7 +7,13 @@ from freezegun import freeze_time
 from pymongo.collection import ReturnDocument
 
 from labtasker.security import verify_password
-from labtasker.server.database import TaskFSM, TaskState, WorkerState
+from labtasker.server.database import (
+    Priority,
+    TaskFSM,
+    TaskState,
+    WorkerState,
+    merge_filter,
+)
 
 
 @pytest.mark.integration
@@ -559,3 +565,370 @@ def test_worker_suspended_no_dispatch(db_fixture, queue_args, task_args):
     # Verify worker is active
     worker = db_fixture._workers.find_one({"_id": worker_id})
     assert worker["status"] == WorkerState.ACTIVE
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_fetch_priority(db_fixture, queue_args):
+    # Setup: Create a queue
+    db_fixture.create_queue(**queue_args)
+
+    # Create tasks with different priorities
+    task_args_high = {
+        "queue_name": queue_args["queue_name"],
+        "task_name": "high_priority_task",
+        "args": {},
+        "priority": Priority.HIGH,  # High priority
+    }
+    task_args_medium_1 = {
+        "queue_name": queue_args["queue_name"],
+        "task_name": "medium_priority_task_1",
+        "args": {},
+        "priority": Priority.MEDIUM,  # Medium priority
+    }
+    task_args_medium_2 = {
+        "queue_name": queue_args["queue_name"],
+        "task_name": "medium_priority_task_2",
+        "args": {},
+        "priority": Priority.MEDIUM,  # Medium priority
+    }
+    task_args_low = {
+        "queue_name": queue_args["queue_name"],
+        "task_name": "low_priority_task",
+        "args": {},
+        "priority": Priority.LOW,  # Low priority
+    }
+
+    # Create tasks
+    db_fixture.create_task(**task_args_high)
+    db_fixture.create_task(**task_args_medium_1)
+    db_fixture.create_task(**task_args_medium_2)
+    db_fixture.create_task(**task_args_low)
+
+    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+
+    # Assert that the task fetched is the one with the highest priority
+    assert task is not None
+    assert task["task_name"] == "high_priority_task"
+    assert (
+        task["priority"] == Priority.HIGH
+    )  # Ensure the fetched task has the highest priority
+
+    # Fetch again, this time should follow FIFO
+    task = db_fixture.fetch_task(queue_name=queue_args["queue_name"])
+
+    assert task is not None
+    assert task["task_name"] == "medium_priority_task_1"
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_fetch_extra_filter(db_fixture, queue_args):
+    # Setup: Create a queue
+    db_fixture.create_queue(**queue_args)
+
+    # Create tasks with different attributes
+    task_args_1 = {
+        "queue_name": queue_args["queue_name"],
+        "task_name": "task_a",
+        "args": {},
+        "priority": Priority.HIGH,
+        "metadata": {"tag": "a"},
+    }
+    task_args_2 = {
+        "queue_name": queue_args["queue_name"],
+        "task_name": "task_b",
+        "args": {},
+        "priority": Priority.MEDIUM,
+        "metadata": {"tag": "b"},
+    }
+    task_args_3 = {
+        "queue_name": queue_args["queue_name"],
+        "task_name": "task_c",
+        "args": {},
+        "priority": Priority.LOW,
+        "metadata": {"tag": "c"},
+    }
+
+    # Create tasks
+    db_fixture.create_task(**task_args_1)
+    db_fixture.create_task(**task_args_2)
+    db_fixture.create_task(**task_args_3)
+
+    # Test 1. query by self-defined tag
+    extra_filter = {"metadata": {"tag": "b"}}
+
+    task = db_fixture.fetch_task(
+        queue_name=queue_args["queue_name"], extra_filter=extra_filter
+    )
+
+    assert task is not None
+    assert task["task_name"] == "task_b"
+
+    # Test 2. query non-existent tag
+    extra_filter = {"metadata": {"tag": "no-exist"}}
+
+    task = db_fixture.fetch_task(
+        queue_name=queue_args["queue_name"], extra_filter=extra_filter
+    )
+
+    assert task is None  # no match
+
+
+# @pytest.mark.integration
+# @pytest.mark.unit
+# def test_fetch_required_fields(db_fixture, queue_args):
+#     # Setup: Create a queue
+#     db_fixture.create_queue(**queue_args)
+
+#     # Create tasks with specific arguments
+#     task_args = [
+#         {
+#             "queue_name": queue_args["queue_name"],
+#             "task_name": "task_a_1",
+#             "args": {"arg1": "value1", "arg2": {"arg21": 0, "arg22": 1}},
+#             "priority": Priority.LOW,
+#         },
+#         {
+#             "queue_name": queue_args["queue_name"],
+#             "task_name": "task_a_2",
+#             "args": {"arg1": "value1", "arg2": {"arg21": 0, "arg22": 1}},
+#             "priority": Priority.LOW,
+#         },
+#         {
+#             "queue_name": queue_args["queue_name"],
+#             "task_name": "task_b_1",
+#             "args": {"arg1": "value1"},
+#             "priority": Priority.MEDIUM,
+#         },
+#     ]
+
+#     # Create tasks
+#     for args in task_args:
+#         db_fixture.create_task(**args)
+
+#     # Test 1. Fetch a valid task full match
+#     required_fields = {"arg1": None, "arg2": None}
+
+#     task = db_fixture.fetch_task(
+#         queue_name=queue_args["queue_name"], required_fields=required_fields
+#     )
+
+#     # Assert that the fetched task matches the required fields
+#     assert task is not None
+#     assert task["task_name"] == "task_1"
+
+
+# @pytest.mark.integration
+@pytest.mark.unit
+class TestTaskFetching:
+    """Tests for task fetching based on required fields."""
+
+    def test_fetch_leaf_match(self, db_fixture, queue_args):
+        """Test fetching a task with a full leaf match of required fields."""
+        db_fixture.create_queue(**queue_args)
+
+        # Create tasks
+        task_args = [
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_leaf_match",
+                "args": {"arg1": "value1", "arg2": {"arg21": 1, "arg22": 2}},
+                "priority": Priority.LOW,
+            },
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_partial_match",
+                "args": {"arg1": "value1"},
+                "priority": Priority.MEDIUM,
+            },
+        ]
+
+        for args in task_args:
+            db_fixture.create_task(**args)
+
+        # Define required fields
+        required_fields = {"arg1": None, "arg2": {"arg21": None, "arg22": None}}
+
+        # Fetch task and assert
+        task = db_fixture.fetch_task(
+            queue_name=queue_args["queue_name"], required_fields=required_fields
+        )
+        assert task is not None
+        assert task["task_name"] == "task_leaf_match"
+
+    def test_fetch_non_leaf_match(self, db_fixture, queue_args):
+        """Test fetching a task with a non-leaf node match of required fields."""
+        db_fixture.create_queue(**queue_args)
+
+        # Create tasks
+        task_args = [
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_1",
+                "args": {"arg1": "value1", "arg2": {"arg21": 1, "arg22": 2}},
+                "priority": Priority.LOW,
+            },
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_2",
+                "args": {"arg1": "value1"},
+                "priority": Priority.MEDIUM,
+            },
+        ]
+
+        for args in task_args:
+            db_fixture.create_task(**args)
+
+        # Define required fields
+        required_fields = {"arg1": None, "arg2": None}
+
+        # Fetch task and assert
+        task = db_fixture.fetch_task(
+            queue_name=queue_args["queue_name"], required_fields=required_fields
+        )
+        assert task is not None
+        assert task["task_name"] == "task_1"
+
+    def test_fetch_no_match(self, db_fixture, queue_args):
+        """Test fetching a task with no matching required fields."""
+        db_fixture.create_queue(**queue_args)
+
+        # Create tasks
+        task_args = [
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_no_match",
+                "args": {"arg2": {"arg21": 1}},
+                "priority": Priority.LOW,
+            }
+        ]
+
+        for args in task_args:
+            db_fixture.create_task(**args)
+
+        # Define required fields
+        required_fields = {"arg1": None}
+
+        # Fetch task and assert
+        task = db_fixture.fetch_task(
+            queue_name=queue_args["queue_name"], required_fields=required_fields
+        )
+        assert task is None
+
+    def test_fetch_with_nested_required_fields(self, db_fixture, queue_args):
+        """Test fetching tasks with nested required fields."""
+        db_fixture.create_queue(**queue_args)
+
+        # Create tasks
+        task_args = [
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_nested",
+                "args": {"arg1": {"nested1": "value1", "nested2": "value2"}},
+                "priority": Priority.LOW,
+            },
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_flat",
+                "args": {"arg1": "value1"},
+                "priority": Priority.MEDIUM,
+            },
+        ]
+
+        for args in task_args:
+            db_fixture.create_task(**args)
+
+        # Define required fields
+        required_fields = {"arg1": {"nested1": None}}
+
+        # Fetch task and assert
+        task = db_fixture.fetch_task(
+            queue_name=queue_args["queue_name"], required_fields=required_fields
+        )
+        assert task is not None
+        assert task["task_name"] == "task_nested"
+
+    def test_fetch_with_multiple_matches(self, db_fixture, queue_args):
+        """Test fetching tasks when multiple tasks match the required fields."""
+        db_fixture.create_queue(**queue_args)
+
+        # Create tasks
+        task_args = [
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_match_1",
+                "args": {"arg1": "value1", "arg2": {"arg21": 1}},
+                "priority": Priority.LOW,
+            },
+            {
+                "queue_name": queue_args["queue_name"],
+                "task_name": "task_match_2",
+                "args": {"arg1": "value1", "arg2": {"arg21": 1}},
+                "priority": Priority.HIGH,
+            },
+        ]
+
+        for args in task_args:
+            db_fixture.create_task(**args)
+
+        # Define required fields
+        required_fields = {"arg1": None, "arg2": {"arg21": None}}
+
+        # Fetch task and assert
+        task = db_fixture.fetch_task(
+            queue_name=queue_args["queue_name"], required_fields=required_fields
+        )
+        assert task is not None
+        # Check if it fetched the one with the highest priority
+        assert task["task_name"] == "task_match_2"
+
+
+@pytest.mark.unit
+def test_merge_filter():
+    # Test 1: Merge with $and (no empty filters)
+    filter1 = {"field1": {"$gt": 10}}
+    filter2 = {"field2": "value"}
+    filter3 = {"field3": {"$lt": 5}}
+    result = merge_filter(filter1, filter2, filter3, logical_op="and")
+    assert result == {
+        "$and": [{"field1": {"$gt": 10}}, {"field2": "value"}, {"field3": {"$lt": 5}}]
+    }, f"Test 1 failed: {result}"
+
+    # Test 2: Merge with $or (ignoring empty filters)
+    empty_filter = {}
+    none_filter = None
+    result = merge_filter(filter1, empty_filter, none_filter, filter3, logical_op="or")
+    assert result == {
+        "$or": [{"field1": {"$gt": 10}}, {"field3": {"$lt": 5}}]
+    }, f"Test 2 failed: {result}"
+
+    # Test 3: Merge with a single filter (returns the filter directly)
+    result = merge_filter(filter1, empty_filter, logical_op="and")
+    assert result == {"field1": {"$gt": 10}}, f"Test 3 failed: {result}"
+
+    # Test 4: Merge with all filters empty (returns an empty filter)
+    result = merge_filter(empty_filter, none_filter, logical_op="and")
+    assert result == {}, f"Test 4 failed: {result}"
+
+    # Test 5: Invalid logical operator
+    try:
+        merge_filter(filter1, filter2, logical_op="invalid_op")
+        raise AssertionError("Test 5 failed: Did not raise HTTPException")
+    except HTTPException as e:
+        assert e.status_code == 500
+        assert "Invalid logical operator" in e.detail, f"Test 5 failed: {e.detail}"
+
+    # Test 6: Merge with $nor
+    result = merge_filter(filter1, filter3, logical_op="nor")
+    assert result == {
+        "$nor": [{"field1": {"$gt": 10}}, {"field3": {"$lt": 5}}]
+    }, f"Test 6 failed: {result}"
+
+    # Test 7: No filters provided
+    result = merge_filter(logical_op="and")
+    assert result == {}, f"Test 7 failed: {result}"
+
+    # Test 8: Only empty filters provided
+    result = merge_filter(empty_filter, none_filter, {}, logical_op="or")
+    assert result == {}, f"Test 8 failed: {result}"

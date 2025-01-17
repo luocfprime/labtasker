@@ -1,4 +1,5 @@
 import time
+from functools import lru_cache
 
 import pytest
 from mongomock import MongoClient as MockMongoClient
@@ -33,8 +34,7 @@ def mock_session():
     return MockSession()
 
 
-@pytest.fixture
-def mock_db(monkeypatch, mock_session):
+def get_mock_db(monkeypatch, mock_session):
     """Create a mock database for testing."""
     client = MockMongoClient()
     client.drop_database("test_db")
@@ -80,15 +80,60 @@ def is_mongo_ready(uri):
         return False
 
 
-@pytest.fixture(scope="session")
-def real_db(docker_services, docker_ip):
-    """
-    Connect to a real MongoDB instance running in a Docker container.
+# @pytest.fixture(scope="session")
+# def real_db(request, docker_services, docker_ip):
+#     """
+#     Connect to a real MongoDB instance running in a Docker container.
 
-    This fixture starts a MongoDB container using pytest-docker, waits for the service
-    to be ready, and provides a `DatabaseClient` object for interacting with the database.
-    docker_services and docker_ip are provided by pytest-docker.
+#     This fixture starts a MongoDB container using pytest-docker, waits for the service
+#     to be ready, and provides a `DatabaseClient` object for interacting with the database.
+#     docker_services and docker_ip are provided by pytest-docker.
+#     """
+#     if not "integration" in request.node.keywords:
+#         print("Not marked as integration test. Real DB not available.")
+#         return
+
+#     # Get the MongoDB service's host and port
+#     port = docker_services.port_for("mongodb", 27017)
+#     host = docker_ip
+#     username = "test_user"
+#     password = "test_password"
+
+#     uri = f"mongodb://{username}:{password}@{host}:{port}/?authSource=admin&directConnection=true&replicaSet=rs0"
+
+#     # Wait for MongoDB to be ready
+#     docker_services.wait_until_responsive(
+#         check=lambda: is_mongo_ready(uri),
+#         timeout=30.0,  # Wait up to 30 seconds
+#         pause=1.0,  # Check every 1 seconds
+#     )
+
+#     # Connect to MongoDB using the connection details
+#     client = RealMongoClient(
+#         uri,
+#         serverSelectionTimeoutMS=5000,  # 5-second timeout for server selection
+#     )
+
+#     time.sleep(5)  # wait for the post-init script to be executed
+
+#     # Create a DatabaseClient object
+#     db = DatabaseClient(client=client, db_name="test_db")
+
+#     # Drop the test database before running tests to ensure a clean state
+#     client.drop_database("test_db")
+
+#     return db
+
+
+# FIXME:
+# @lru_cache(maxsize=1)  # Ensure the database is initialized only once
+def get_real_db(docker_services, docker_ip):
     """
+    Lazy-loaded real_db fixture. Accessing this fixture will trigger the create_real_db.
+    """
+
+    # @lru_cache(maxsize=1)
+    # def init_db():
     # Get the MongoDB service's host and port
     port = docker_services.port_for("mongodb", 27017)
     host = docker_ip
@@ -111,6 +156,8 @@ def real_db(docker_services, docker_ip):
     )
 
     time.sleep(5)  # wait for the post-init script to be executed
+
+    # return client
 
     # Create a DatabaseClient object
     db = DatabaseClient(client=client, db_name="test_db")
@@ -142,14 +189,20 @@ def task_args():
 
 
 @pytest.fixture
-def db_fixture(request, mock_db, real_db):
+def db_fixture(test_type, request):
     """
     Dynamic database fixture that supports both mock and real databases.
     """
-    if "unit" in request.node.keywords:
-        return mock_db
-    elif "integration" in request.node.keywords:
-        return real_db
+    if test_type == "integration":  # prioritize integration tests over unit tests
+        print("using real db...")
+        docker_services = request.getfixturevalue("docker_services")
+        docker_ip = request.getfixturevalue("docker_ip")
+        return get_real_db(docker_services, docker_ip)
+    elif test_type == "unit":
+        print("using mock db...")
+        monkeypatch = request.getfixturevalue("monkeypatch")
+        mock_session = request.getfixturevalue("mock_session")
+        return get_mock_db(monkeypatch, mock_session)
     else:
         raise ValueError(
             "Database testcases must be tagged with either 'unit' or 'integration'"

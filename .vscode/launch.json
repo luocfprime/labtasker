@@ -5,16 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Test",
+            "name": "Python: Unit Test",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}",
             "console": "integratedTerminal",
             "purpose": ["debug-test"],
             "justMyCode": true,
             "env": {
-                    "PYTEST_ADDOPTS": "--no-cov"
-            },
+                "PYTEST_ADDOPTS": "-m unit --no-cov"
+            }
+        },
+        {
+            "name": "Python: Integration Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "purpose": ["debug-test"],
+            "justMyCode": true,
+            "env": {
+                "PYTEST_ADDOPTS": "-m integration --no-cov"
+            }
         }
     ]
 }

@@ -7,10 +7,10 @@ from labtasker.server.server import app
 
 
 @pytest.fixture
-def test_app(mock_db):
+def test_app(db_fixture):
     """Create test app with mock database."""
-    app.state.db = mock_db
-    app.dependency_overrides[get_db] = lambda: mock_db
+    app.state.db = db_fixture
+    app.dependency_overrides[get_db] = lambda: db_fixture
     yield TestClient(app)
     app.dependency_overrides.clear()
     delattr(app.state, "db")
