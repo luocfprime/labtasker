@@ -1,6 +1,6 @@
 import pytest
 
-from labtasker.server.database import query_dict_to_mongo_filter
+from labtasker.server.db_utils import query_dict_to_mongo_filter
 
 
 @pytest.mark.unit

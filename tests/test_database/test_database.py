@@ -7,13 +7,8 @@ from freezegun import freeze_time
 from pymongo.collection import ReturnDocument
 
 from labtasker.security import verify_password
-from labtasker.server.database import (
-    Priority,
-    TaskFSM,
-    TaskState,
-    WorkerState,
-    merge_filter,
-)
+from labtasker.server.database import Priority, TaskFSM, TaskState, WorkerState
+from labtasker.server.db_utils import merge_filter
 
 
 @pytest.mark.integration
