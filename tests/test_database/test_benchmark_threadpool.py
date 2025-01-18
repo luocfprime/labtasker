@@ -16,9 +16,9 @@ class BenchmarkConfig:
 def generate_unique_queue_args(queue_args, suffix):
     """Helper to create unique queue args by adding a suffix to queue_name."""
     new_args = queue_args.copy()
-    new_args[
-        "queue_name"
-    ] = f"{queue_args['queue_name']}_{suffix}_{uuid.uuid4().hex[:8]}"
+    new_args["queue_name"] = (
+        f"{queue_args['queue_name']}_{suffix}_{uuid.uuid4().hex[:8]}"
+    )
     return new_args
 
 
