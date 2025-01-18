@@ -1,7 +1,7 @@
 import pytest
 from mongomock import MongoClient as MockMongoClient
 
-from labtasker.server.database import DatabaseClient
+from labtasker.server.database import DBService
 
 
 class MockSession:
@@ -29,7 +29,7 @@ def mock_db(monkeypatch):
     """Create a mock database for testing."""
     client = MockMongoClient()
     client.drop_database("test_db")
-    db = DatabaseClient(client=client, db_name="test_db")
+    db = DBService(client=client, db_name="test_db")
 
     # Patch MongoDB operations to ignore session parameter
     def ignore_session(original_method):

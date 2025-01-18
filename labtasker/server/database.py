@@ -38,7 +38,7 @@ from labtasker.utils import (
 _in_transaction = contextvars.ContextVar("in_transaction", default=False)
 
 
-class DatabaseClient:
+class DBService:
     def __init__(
         self, db_name: str, uri: str = None, client: Optional[MongoClient] = None
     ):

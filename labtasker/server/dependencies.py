@@ -8,7 +8,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 
 from labtasker.security import verify_password
 from labtasker.server.config import ServerConfig
-from labtasker.server.database import DatabaseClient
+from labtasker.server.database import DBService
 
 http_basic = HTTPBasic()
 
@@ -20,7 +20,7 @@ def get_server_config() -> ServerConfig:
     return ServerConfig._instance
 
 
-def get_db(request: Request) -> DatabaseClient:
+def get_db(request: Request) -> DBService:
     """Database dependency."""
     if not hasattr(request.app.state, "db"):
         raise RuntimeError(
@@ -31,7 +31,7 @@ def get_db(request: Request) -> DatabaseClient:
 
 async def get_verified_queue_dependency(
     credentials: HTTPBasicCredentials = Security(http_basic),
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ) -> Mapping[str, Any]:
     """Verify queue authentication using HTTP Basic Auth.
 

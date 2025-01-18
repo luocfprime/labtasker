@@ -3,7 +3,7 @@ import time
 import pytest
 from pymongo import MongoClient as RealMongoClient
 
-from labtasker.server.database import DatabaseClient
+from labtasker.server.database import DBService
 
 _real_db_instance = None  # keeps session scoped singleton
 
@@ -55,7 +55,7 @@ def real_db(request):
         time.sleep(5)  # wait for the docker/mongodb/post-init.d script to be executed
 
         # Create a DatabaseClient object
-        _real_db_instance = DatabaseClient(client=client, db_name="test_db")
+        _real_db_instance = DBService(client=client, db_name="test_db")
 
     yield _real_db_instance
 

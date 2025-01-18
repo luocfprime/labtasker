@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from labtasker.constants import Priority
 from labtasker.server.config import ServerConfig
-from labtasker.server.database import DatabaseClient
+from labtasker.server.database import DBService
 from labtasker.server.dependencies import (
     get_db,
     get_server_config,
@@ -18,7 +18,7 @@ from labtasker.server.dependencies import (
 )
 
 
-async def periodic_task(db: DatabaseClient, interval_seconds: int):
+async def periodic_task(db: DBService, interval_seconds: int):
     """Run a periodic task at specified intervals."""
     while True:
         try:
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan and background tasks."""
     # Setup
     config = get_server_config()
-    app.state.db = DatabaseClient(config.mongodb_uri, config.db_name)
+    app.state.db = DBService(config.mongodb_uri, config.db_name)
     task = create_task(periodic_task(app.state.db, interval_seconds=30))
 
     yield
@@ -54,7 +54,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/health")
-async def health_check(db: DatabaseClient = Depends(get_db)):
+async def health_check(db: DBService = Depends(get_db)):
     """Health check endpoint."""
     try:
         # Check database connection
@@ -83,7 +83,7 @@ class TaskSubmit(BaseModel):
 
 
 @app.post("/api/v1/queues")
-async def create_queue(queue: QueueCreate, db: DatabaseClient = Depends(get_db)):
+async def create_queue(queue: QueueCreate, db: DBService = Depends(get_db)):
     """Create a new queue"""
     _id = db.create_queue(
         queue_name=queue.queue_name,
@@ -94,7 +94,7 @@ async def create_queue(queue: QueueCreate, db: DatabaseClient = Depends(get_db))
 
 
 @app.get("/api/v1/queues/{queue_id}")
-async def get_queue(queue_id: str, db: DatabaseClient = Depends(get_db)):
+async def get_queue(queue_id: str, db: DBService = Depends(get_db)):
     """Get queue information. (No authentication required)"""
     queue = db.get_queue(queue_id=queue_id)
     return {
@@ -122,7 +122,7 @@ async def get_queue(queue: Dict[str, Any] = Depends(get_verified_queue_dependenc
 async def delete_queue(
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     cascade_delete: bool = False,
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Delete a queue"""
     db.delete_queue(queue_name=queue["queue_name"], cascade_delete=cascade_delete)
@@ -133,7 +133,7 @@ async def delete_queue(
 async def submit_task(
     task: TaskSubmit,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Submit a task to the queue"""
     task_id = db.create_task(
@@ -156,7 +156,7 @@ async def get_next_task(
     eta_max: Optional[str] = None,
     start_heartbeat: bool = True,
     extra_filter: Optional[Dict[str, Any]] = None,
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Get next available task from queue"""
     task = db.fetch_task(
@@ -185,7 +185,7 @@ async def ls_tasks(
     task_name: Optional[str] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     limit: Optional[int] = 100,
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Get tasks matching the criteria"""
     # Build task query
@@ -220,7 +220,7 @@ async def update_task_status(
     task_id: str,
     update: TaskStatusUpdate,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Report task status (success, failed, cancelled)"""
     done = db.update_task_status(
@@ -236,7 +236,7 @@ async def update_task_status(
 async def task_heartbeat(
     task_id: str,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Update task heartbeat timestamp."""
     task = db.update_task_heartbeat(
@@ -260,7 +260,7 @@ class WorkerCreate(BaseModel):
 async def create_worker(
     worker: WorkerCreate,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Create a new worker."""
     worker_id = db.create_worker(
@@ -281,7 +281,7 @@ async def update_worker_status(
     worker_id: str,
     update: WorkerStatusUpdate,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Update worker status."""
     db.update_worker_status(
@@ -296,7 +296,7 @@ async def update_worker_status(
 async def get_worker(
     worker_id: str,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    db: DatabaseClient = Depends(get_db),
+    db: DBService = Depends(get_db),
 ):
     """Get worker information."""
     workers = db.query_collection(
