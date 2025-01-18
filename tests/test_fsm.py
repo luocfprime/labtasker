@@ -114,7 +114,9 @@ class TestWorkerFSM:
             with pytest.raises(HTTPException) as exc:
                 fsm.suspend()
             assert exc.value.status_code == 500
-            assert f"Cannot transition from {state} to suspended" in exc.value.detail
+            assert (
+                f"Cannot transition from {state} to suspended" in exc.value.detail
+            )  # TODO: check here
 
     def test_fail_retry_behavior(self):
         """Test worker failure and retry behavior."""

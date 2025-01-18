@@ -4,9 +4,13 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 from uuid import uuid4
 
 from fastapi import HTTPException
-from pymongo import ASCENDING, DESCENDING, MongoClient
-from pymongo.collection import Collection, ReturnDocument
-from pymongo.database import Database
+from motor.motor_asyncio import (
+    AsyncIOMotorClient,
+    AsyncIOMotorCollection,
+    AsyncIOMotorDatabase,
+)
+from pymongo import ASCENDING, DESCENDING
+from pymongo.collection import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 from starlette.status import (
     HTTP_400_BAD_REQUEST,
@@ -38,30 +42,33 @@ from labtasker.utils import (
 _in_transaction = contextvars.ContextVar("in_transaction", default=False)
 
 
-class DatabaseClient:
-    def __init__(
-        self, db_name: str, uri: str = None, client: Optional[MongoClient] = None
+class AsyncDBService:
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(
+            "AsyncDBService is not meant to be instantiated directly. Use AsyncDBService.init() instead."
+        )
+
+    @classmethod
+    async def init(
+        cls, db_name: str, uri: str = None, client: Optional[AsyncIOMotorClient] = None
     ):
-        """Initialize database client. If client is provided, it will be used instead of connecting to MongoDB."""
+        """Initialize database service."""
+        self = cls.__new__(cls)
+
         if client:
-            self._client = client
-            self._db = self._client[db_name]
-            self._setup_collections()
-            return
+            self._client: AsyncIOMotorClient = client
+        else:
+            self._client = AsyncIOMotorClient(uri, w="majority", retryWrites=True)
 
-        try:
-            self._client = MongoClient(uri, w="majority", retryWrites=True)
-            self._client.admin.command("ping")
-            self._db: Database = self._client[db_name]
-            self._setup_collections()
-        except Exception as e:
-            raise HTTPException(
-                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to connect to MongoDB: {str(e)}",
-            )
+        self._db = self._client[db_name]
 
-    @contextlib.contextmanager
-    def transaction(self, allow_nesting: bool = False):
+        await self._client.admin.command("ping")
+        await self._setup_collections()
+
+        return self
+
+    @contextlib.asynccontextmanager
+    async def transaction(self, allow_nesting: bool = False):
         """Context manager for database transactions.
 
         Args:
@@ -69,7 +76,6 @@ class DatabaseClient:
         """
         # Check if already in transaction
         if _in_transaction.get() and not allow_nesting:
-            # raise error
             raise HTTPException(
                 status_code=HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Nested transactions are not allowed",
@@ -78,13 +84,13 @@ class DatabaseClient:
         # Set transaction flag and get token for resetting
         token = _in_transaction.set(True)
         try:
-            with self._client.start_session() as session:
-                with session.start_transaction():
+            async with await self._client.start_session() as session:
+                async with session.start_transaction():
                     try:
                         yield session
-                        session.commit_transaction()
+                        await session.commit_transaction()
                     except Exception as e:
-                        session.abort_transaction()
+                        await session.abort_transaction()
                         if isinstance(e, HTTPException):
                             raise e
                         raise HTTPException(
@@ -95,41 +101,47 @@ class DatabaseClient:
             # Reset transaction flag using token
             _in_transaction.reset(token)
 
-    def ping(self):
-        self._client.admin.command("ping")
+    async def ping(self):
+        await self._client.admin.command("ping")
 
-    def _setup_collections(self):
+    async def _setup_collections(self):
         """Setup collections and indexes."""
         # Queues collection
-        self._queues: Collection = self._db.queues
+        self._queues: AsyncIOMotorCollection = self._db.queues
         # _id is automatically indexed by MongoDB
-        self._queues.create_index([("queue_name", ASCENDING)], unique=True)
+        await self._queues.create_index([("queue_name", ASCENDING)], unique=True)
 
         # Tasks collection
-        self._tasks: Collection = self._db.tasks
+        self._tasks: AsyncIOMotorCollection = self._db.tasks
         # _id is automatically indexed by MongoDB
-        self._tasks.create_index([("queue_id", ASCENDING)])  # Reference to queue._id
-        self._tasks.create_index([("status", ASCENDING)])
-        self._tasks.create_index([("priority", DESCENDING)])  # Higher priority first
-        self._tasks.create_index([("created_at", ASCENDING)])  # Older tasks first
+        await self._tasks.create_index(
+            [("queue_id", ASCENDING)]
+        )  # Reference to queue._id
+        await self._tasks.create_index([("status", ASCENDING)])
+        await self._tasks.create_index(
+            [("priority", DESCENDING)]
+        )  # Higher priority first
+        await self._tasks.create_index([("created_at", ASCENDING)])  # Older tasks first
 
         # Workers collection
-        self._workers: Collection = self._db.workers
+        self._workers: AsyncIOMotorCollection = self._db.workers
         # _id is automatically indexed by MongoDB
-        self._workers.create_index([("queue_id", ASCENDING)])  # Reference to queue._id
-        self._workers.create_index(
-            [("worker_name", ASCENDING)]
-        )  # Optional index for searching
+        await self._workers.create_index(
+            [("queue_id", ASCENDING)]
+        )  # Reference to queue._id
+        await self._workers.create_index([("worker_name", ASCENDING)])
 
-    def close(self):
+        self._collections_initialized = True
+
+    async def close(self):
         """Close the database client."""
-        self._client.close()
+        await self._client.close()
 
-    def erase(self):
+    async def erase(self):
         """Erase all data"""
-        self._queues.delete_many({})
-        self._tasks.delete_many({})
-        self._workers.delete_many({})
+        await self._queues.delete_many({})
+        await self._tasks.delete_many({})
+        await self._workers.delete_many({})
 
     @property
     def projection(self):
@@ -138,7 +150,7 @@ class DatabaseClient:
     @auth_required
     @risky("Potential query injection")
     @validate_arg
-    def query_collection(
+    async def query_collection(
         self,
         queue_id: str,
         collection_name: str,
@@ -146,7 +158,7 @@ class DatabaseClient:
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Query a collection."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             if collection_name not in ["queues", "tasks", "workers"]:
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
@@ -156,18 +168,18 @@ class DatabaseClient:
             # Prevent query injection
             query = sanitize_query(queue_id, query)
 
-            result = (
+            cursor = (
                 self._db[collection_name]
                 .find(query, self.projection, session=session)
                 .limit(limit)
             )
 
-            return list(result)
+            return await cursor.to_list(length=limit)
 
     @auth_required
     @risky("Potential query injection")
     @validate_arg
-    def update_collection(
+    async def update_collection(
         self,
         queue_id: str,
         collection_name: str,
@@ -175,7 +187,7 @@ class DatabaseClient:
         update: Dict[str, Any],  # MongoDB update
     ) -> bool:
         """Update a collection."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             if collection_name not in ["queues", "tasks", "workers"]:
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
@@ -187,22 +199,20 @@ class DatabaseClient:
 
             now = get_current_time()
 
-            update = sanitize_update(
-                update
-            )  # make sure important fields are not tempered with
+            update = sanitize_update(update)
 
             if update.get("$set"):
                 update["$set"]["last_modified"] = now
             else:
                 update["$set"] = {"last_modified": now}
 
-            result = self._db[collection_name].update_many(
+            result = await self._db[collection_name].update_many(
                 query, update, session=session
             )
             return result.modified_count > 0
 
     @validate_arg
-    def create_queue(
+    async def create_queue(
         self,
         queue_name: str,
         password: str,
@@ -213,7 +223,7 @@ class DatabaseClient:
             raise HTTPException(
                 status_code=HTTP_400_BAD_REQUEST, detail="Queue name is required"
             )
-        with self.transaction() as session:
+        async with self.transaction() as session:
             try:
                 now = get_current_time()
                 queue = {
@@ -224,7 +234,7 @@ class DatabaseClient:
                     "last_modified": now,
                     "metadata": metadata or {},
                 }
-                result = self._queues.insert_one(queue, session=session)
+                result = await self._queues.insert_one(queue, session=session)
                 return str(result.inserted_id)
             except DuplicateKeyError:
                 raise HTTPException(
@@ -234,7 +244,7 @@ class DatabaseClient:
 
     @auth_required
     @validate_arg
-    def create_task(
+    async def create_task(
         self,
         queue_id: str,
         task_name: Optional[str] = None,
@@ -249,7 +259,7 @@ class DatabaseClient:
         priority: int = Priority.MEDIUM,
     ) -> str:
         """Create a task related to a queue."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             now = get_current_time()
 
             # fsm = TaskFSM(
@@ -277,12 +287,12 @@ class DatabaseClient:
                 "summary": {},
                 "worker_id": None,
             }
-            result = self._tasks.insert_one(task, session=session)
+            result = await self._tasks.insert_one(task, session=session)
             return str(result.inserted_id)
 
     @auth_required
     @validate_arg
-    def create_worker(
+    async def create_worker(
         self,
         queue_id: str,
         worker_name: Optional[str] = None,
@@ -290,7 +300,7 @@ class DatabaseClient:
         max_retries: int = 3,
     ) -> str:
         """Create a worker."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             now = get_current_time()
 
             worker = {
@@ -304,15 +314,15 @@ class DatabaseClient:
                 "created_at": now,
                 "last_modified": now,
             }
-            result = self._workers.insert_one(worker, session=session)
+            result = await self._workers.insert_one(worker, session=session)
             return str(result.inserted_id)
 
     @auth_required
     @validate_arg
-    def delete_queue(
+    async def delete_queue(
         self,
         queue_id,
-        cascade_delete: bool = False,  # TODO: need consideration
+        cascade_delete: bool = False,
     ) -> bool:
         """
         Delete a queue.
@@ -321,29 +331,29 @@ class DatabaseClient:
             queue_id (str): The id of the queue to delete.
             cascade_delete (bool): Whether to delete all tasks and workers in the queue.
         """
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Delete queue
-            self._queues.delete_one({"_id": queue_id}, session=session)
+            await self._queues.delete_one({"_id": queue_id}, session=session)
 
             if cascade_delete:
                 # Delete all tasks in the queue
-                self._tasks.delete_many({"queue_id": queue_id}, session=session)
+                await self._tasks.delete_many({"queue_id": queue_id}, session=session)
                 # Delete all workers in the queue
-                self._workers.delete_many({"queue_id": queue_id}, session=session)
+                await self._workers.delete_many({"queue_id": queue_id}, session=session)
 
             return True
 
     @auth_required
     @validate_arg
-    def delete_task(
+    async def delete_task(
         self,
         queue_id: str,
         task_id: str,
     ) -> bool:
         """Delete a task."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Delete task
-            result = self._tasks.delete_one(
+            result = await self._tasks.delete_one(
                 {"_id": task_id, "queue_id": queue_id}, session=session
             )
             if result.deleted_count == 0:
@@ -354,7 +364,7 @@ class DatabaseClient:
 
     @auth_required
     @validate_arg
-    def delete_worker(
+    async def delete_worker(
         self,
         queue_id: str,
         worker_id: str,
@@ -368,9 +378,9 @@ class DatabaseClient:
             worker_id (str): The ID of the worker to delete.
             cascade_update (bool): Whether to set worker_id to None for associated tasks.
         """
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Delete worker
-            worker_result = self._workers.delete_one(
+            worker_result = await self._workers.delete_one(
                 {"_id": worker_id, "queue_id": queue_id}, session=session
             )
             if worker_result.deleted_count == 0:
@@ -381,7 +391,7 @@ class DatabaseClient:
             now = get_current_time()
             if cascade_update:
                 # Update all tasks associated with the worker
-                self._tasks.update_many(
+                await self._tasks.update_many(
                     {"queue_id": queue_id, "worker_id": worker_id},
                     {"$set": {"worker_id": None, "last_modified": now}},
                     session=session,
@@ -391,7 +401,7 @@ class DatabaseClient:
 
     @auth_required
     @validate_arg
-    def update_queue(
+    async def update_queue(
         self,
         queue_id: str,
         new_queue_name: Optional[str] = None,
@@ -399,9 +409,9 @@ class DatabaseClient:
         metadata_update: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Update queue settings."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Make sure name does not already exist
-            if new_queue_name and self._get_queue_by_name(
+            if new_queue_name and await self._get_queue_by_name(
                 new_queue_name, session=session
             ):
                 raise HTTPException(
@@ -430,13 +440,14 @@ class DatabaseClient:
                     **metadata_update,
                 }
             }
-            result = self._queues.update_one({"_id": queue_id}, update, session=session)
+            result = await self._queues.update_one(
+                {"_id": queue_id}, update, session=session
+            )
             return result.modified_count > 0
 
-    # @risky("Potential query injection")
     @auth_required
     @validate_arg
-    def fetch_task(
+    async def fetch_task(
         self,
         queue_id: str,
         worker_id: Optional[str] = None,
@@ -461,10 +472,10 @@ class DatabaseClient:
         """
         task_timeout = parse_timeout(eta_max) if eta_max else None
 
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Verify worker status if specified
             if worker_id:
-                worker = self._workers.find_one(
+                worker = await self._workers.find_one(
                     {"_id": worker_id, "queue_id": queue_id}, session=session
                 )
                 if not worker:
@@ -514,16 +525,16 @@ class DatabaseClient:
             if task_timeout:
                 update["$set"]["task_timeout"] = task_timeout
 
-            tasks = self._tasks.find(
+            cursor = self._tasks.find(
                 query, session=session, sort=[("priority", -1), ("created_at", 1)]
             )
 
-            for task in tasks:
+            async for task in cursor:
                 if task:
                     if required_fields and not arg_match(required_fields, task["args"]):
                         continue  # Skip to the next task if it doesn't match
 
-                    updated_task = self._tasks.find_one_and_update(
+                    updated_task = await self._tasks.find_one_and_update(
                         {"_id": task["_id"]},
                         update,
                         session=session,
@@ -537,25 +548,23 @@ class DatabaseClient:
 
     @auth_required
     @validate_arg
-    def update_task_heartbeat(
+    async def update_task_heartbeat(
         self,
         queue_id: str,
         task_id: str,
     ) -> bool:
         """Update task heartbeat timestamp."""
-        with self.transaction() as session:
-            return (
-                self._tasks.update_one(
-                    {"_id": task_id, "queue_id": queue_id},
-                    {"$set": {"last_heartbeat": get_current_time()}},
-                    session=session,
-                ).modified_count
-                > 0
+        async with self.transaction() as session:
+            result = await self._tasks.update_one(
+                {"_id": task_id, "queue_id": queue_id},
+                {"$set": {"last_heartbeat": get_current_time()}},
+                session=session,
             )
+            return result.modified_count > 0
 
     @auth_required
     @validate_arg
-    def update_task_status(
+    async def update_task_status(
         self,
         queue_id: str,
         task_id: str,
@@ -565,8 +574,8 @@ class DatabaseClient:
         """
         Update task status. Used for reporting task execution results.
         """
-        with self.transaction() as session:
-            task = self._tasks.find_one(
+        async with self.transaction() as session:
+            task = await self._tasks.find_one(
                 {"_id": task_id, "queue_id": queue_id}, session=session
             )
             if not task:
@@ -610,11 +619,13 @@ class DatabaseClient:
                 }
             }
 
-            result = self._tasks.update_one({"_id": task_id}, update, session=session)
+            result = await self._tasks.update_one(
+                {"_id": task_id}, update, session=session
+            )
 
             # Update worker status if worker is specified
             if report_status == "failed" and task["worker_id"]:
-                worker_updated = self._update_worker_status(
+                worker_updated = await self._update_worker_status(
                     queue_id=queue_id,
                     worker_id=task["worker_id"],
                     report_status="failed",
@@ -626,7 +637,7 @@ class DatabaseClient:
 
     @auth_required
     @validate_arg
-    def update_task_and_reset_pending(
+    async def update_task_and_reset_pending(
         self,
         queue_id: str,
         task_id: str,
@@ -641,7 +652,7 @@ class DatabaseClient:
             task_id (str): The ID of the task to update.
             task_setting_update (Dict[str, Any], optional): A dictionary of task settings to update.
         """
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Update task settings
             if task_setting_update:
                 task_setting_update = sanitize_update(task_setting_update)
@@ -659,22 +670,22 @@ class DatabaseClient:
                 }
             }
 
-            result = self._tasks.update_one(
+            result = await self._tasks.update_one(
                 {"_id": task_id, "queue_id": queue_id}, update, session=session
             )
             return result.modified_count > 0
 
     @auth_required
     @validate_arg
-    def cancel_task(
+    async def cancel_task(
         self,
         queue_id: str,
         task_id: str,
     ) -> bool:
         """Cancel a task."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Cancel task
-            result = self._tasks.update_one(
+            result = await self._tasks.update_one(
                 {"_id": task_id, "queue_id": queue_id},
                 {
                     "$set": {
@@ -686,11 +697,11 @@ class DatabaseClient:
             )
             return result.modified_count > 0
 
-    def _update_worker_status(
+    async def _update_worker_status(
         self, queue_id: str, worker_id: str, report_status: str, session=None
     ) -> bool:
         """Internal method to update worker status."""
-        worker = self._workers.find_one(
+        worker = await self._workers.find_one(
             {"_id": worker_id, "queue_id": queue_id}, session=session
         )
         if not worker:
@@ -727,41 +738,34 @@ class DatabaseClient:
             }
         }
 
-        result = self._workers.update_one({"_id": worker_id}, update, session=session)
+        result = await self._workers.update_one(
+            {"_id": worker_id}, update, session=session
+        )
         return result.modified_count > 0
 
     @auth_required
     @validate_arg
-    def update_worker_status(
+    async def update_worker_status(
         self,
         queue_id: str,
         worker_id: str,
         report_status: str,
     ) -> bool:
         """Update worker status."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Verify queue exists
-            return self._update_worker_status(
+            return await self._update_worker_status(
                 queue_id=queue_id,
                 worker_id=worker_id,
                 report_status=report_status,
                 session=session,
             )
 
-    def _get_queue_by_name(self, queue_name: str, session=None) -> Mapping[str, Any]:
-        """Get queue by name with error handling.
-
-        Args:
-            queue_name: Name of queue to find
-            session: Optional MongoDB session for transactions
-
-        Returns:
-            Queue document
-
-        Raises:
-            HTTPException: If queue not found
-        """
-        queue = self._queues.find_one({"queue_name": queue_name}, session=session)
+    async def _get_queue_by_name(
+        self, queue_name: str, session=None
+    ) -> Mapping[str, Any]:
+        """Get queue by name with error handling."""
+        queue = await self._queues.find_one({"queue_name": queue_name}, session=session)
         if not queue:
             raise HTTPException(
                 status_code=HTTP_404_NOT_FOUND, detail=f"Queue '{queue_name}' not found"
@@ -769,17 +773,17 @@ class DatabaseClient:
         return queue
 
     @validate_arg
-    def get_queue(
+    async def get_queue(
         self,
         queue_id: Optional[str] = None,
         queue_name: Optional[str] = None,
     ) -> Mapping[str, Any]:
         """Get queue by id or name. Name and id must match."""
-        with self.transaction() as session:
+        async with self.transaction() as session:
             if queue_id:
-                queue = self._queues.find_one({"_id": queue_id}, session=session)
+                queue = await self._queues.find_one({"_id": queue_id}, session=session)
             else:
-                queue = self._get_queue_by_name(queue_name, session=session)
+                queue = await self._get_queue_by_name(queue_name, session=session)
 
             if not queue:
                 raise HTTPException(
@@ -802,7 +806,7 @@ class DatabaseClient:
 
             return queue
 
-    def handle_timeouts(self) -> List[str]:
+    async def handle_timeouts(self) -> List[str]:
         """Check and handle task timeouts."""
         now = get_current_time()
         transitioned_tasks = []
@@ -841,11 +845,10 @@ class DatabaseClient:
             ],
         }
 
-        with self.transaction() as session:
+        async with self.transaction() as session:
             # Find tasks that might have timed out
-            tasks = self._tasks.find(query, session=session)
-
-            tasks = list(tasks)  # Convert cursor to list
+            cursor = self._tasks.find(query, session=session)
+            tasks = await cursor.to_list(length=None)  # Get all matching tasks
 
             for task in tasks:
                 try:
@@ -861,7 +864,7 @@ class DatabaseClient:
 
                     # Update worker status if worker is specified
                     if task["worker_id"]:
-                        self._update_worker_status(
+                        await self._update_worker_status(
                             queue_id=task["queue_id"],
                             worker_id=task["worker_id"],
                             report_status="failed",
@@ -869,7 +872,7 @@ class DatabaseClient:
                         )
 
                     # Update task in database
-                    result = self._tasks.update_one(
+                    result = await self._tasks.update_one(
                         {"_id": task["_id"]},
                         {
                             "$set": {

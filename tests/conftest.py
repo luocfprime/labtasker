@@ -1,6 +1,7 @@
 import os
 
 import pytest
+import pytest_asyncio
 
 from .fixtures.database import (  # noqa
     db_fixture,
@@ -85,3 +86,18 @@ def allow_unsafe():
 #             )
 #         except subprocess.CalledProcessError as e:
 #             print(f"Failed to clean up Docker resources: {e}")
+
+
+@pytest_asyncio.fixture
+async def async_db_fixture(test_type, request):
+    """
+    Dynamic async database fixture that supports both mock and real databases.
+    """
+    if test_type == "integration":  # prioritize integration tests over unit tests
+        return await request.getfixturevalue("real_db")
+    elif test_type == "unit":
+        return await request.getfixturevalue("mock_db")
+    else:
+        raise ValueError(
+            "Database testcases must be tagged with either 'unit' or 'integration'"
+        )
