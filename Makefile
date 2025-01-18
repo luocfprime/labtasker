@@ -14,6 +14,9 @@ unit-test:
 integration-test:
 	pytest -m "integration" --cov=labtasker --cov-report=term-missing --cov-report=xml:cov.xml
 
+performance-test:
+	pytest -m "integration and benchmark" --benchmark-columns="rounds, iterations, min, mean, max"
+
 clean:
 	# Python cache files
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

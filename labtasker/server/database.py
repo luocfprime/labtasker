@@ -98,6 +98,13 @@ class DBService:
     def ping(self):
         self._client.admin.command("ping")
 
+    def is_empty(self):
+        return (
+            self._queues.count_documents({}) == 0
+            and self._tasks.count_documents({}) == 0
+            and self._workers.count_documents({}) == 0
+        )
+
     def _setup_collections(self):
         """Setup collections and indexes."""
         # Queues collection
