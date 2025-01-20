@@ -38,8 +38,8 @@ class TaskSubmitRequest(BaseModel):
     """Task submission request."""
 
     task_name: Optional[str] = None
-    args: Dict[str, Any]
-    metadata: Optional[Dict[str, Any]]
+    args: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     cmd: Optional[Union[str, List[str]]] = None
     heartbeat_timeout: Optional[int] = 60
     task_timeout: Optional[int] = None
@@ -81,13 +81,13 @@ class Task(BaseModel):
     task_id: str = Field(alias="_id")  # Accepts "_id" as an input field
     queue_id: str
     status: str
-    task_name: Optional[str] = Field(default=None)
+    task_name: Optional[str]
     created_at: datetime
-    start_time: Optional[datetime] = None
-    last_heartbeat: Optional[datetime] = None
+    start_time: Optional[datetime]
+    last_heartbeat: Optional[datetime]
     last_modified: datetime
-    heartbeat_timeout: Optional[int] = None
-    task_timeout: Optional[int] = None
+    heartbeat_timeout: Optional[int]
+    task_timeout: Optional[int]
     max_retries: int
     retries: int
     priority: int
@@ -95,7 +95,7 @@ class Task(BaseModel):
     args: Dict
     cmd: str
     summary: Dict
-    worker_id: Optional[str] = None
+    worker_id: Optional[str]
 
 
 class TaskLsRespose(BaseModel):
@@ -114,7 +114,7 @@ class TaskStatusUpdateRequest(BaseModel):
 
 class WorkerCreateRequest(BaseModel):
     worker_name: Optional[str] = None
-    metadata: Optional[Dict[str, Any]]
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     max_retries: Optional[int] = 3
 
 
@@ -135,7 +135,15 @@ class WorkerLsRequest(BaseModel):
 
 
 class Worker(BaseModel):
-    pass
+    worker_id: str = Field(alias="_id")
+    queue_id: str
+    status: str
+    worker_name: Optional[str]
+    metadata: Dict
+    retries: int
+    max_retries: int
+    created_at: datetime
+    last_modified: datetime
 
 
 class WorkerLsResponse(BaseModel):

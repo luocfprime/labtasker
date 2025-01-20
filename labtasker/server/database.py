@@ -10,6 +10,7 @@ from pymongo.database import Database
 from pymongo.errors import DuplicateKeyError
 from starlette.status import (
     HTTP_400_BAD_REQUEST,
+    HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
     HTTP_500_INTERNAL_SERVER_ERROR,
@@ -494,13 +495,13 @@ class DBService:
                 )
                 if not worker:
                     raise HTTPException(
-                        status_code=HTTP_400_BAD_REQUEST,
+                        status_code=HTTP_404_NOT_FOUND,
                         detail=f"Worker '{worker_id}' not found in queue '{queue_id}'",
                     )
                 worker_status = worker["status"]
                 if worker_status != WorkerState.ACTIVE:
                     raise HTTPException(
-                        status_code=HTTP_400_BAD_REQUEST,
+                        status_code=HTTP_403_FORBIDDEN,
                         detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_id}'",
                     )
 

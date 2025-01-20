@@ -5,6 +5,13 @@ import pytest
 from fastapi import HTTPException
 from freezegun import freeze_time
 from pymongo.collection import ReturnDocument
+from starlette.status import (
+    HTTP_400_BAD_REQUEST,
+    HTTP_403_FORBIDDEN,
+    HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
+    HTTP_500_INTERNAL_SERVER_ERROR,
+)
 
 from labtasker.security import verify_password
 from labtasker.server.database import Priority, TaskFSM, TaskState, WorkerState
@@ -110,7 +117,7 @@ def test_create_duplicate_queue(db_fixture, queue_args, monkeypatch):
     # Try to create duplicate queue
     with pytest.raises(HTTPException) as exc_info:
         db_fixture.create_queue(**queue_args)
-    assert exc_info.value.status_code == 409
+    assert exc_info.value.status_code == HTTP_409_CONFLICT
     assert "already exists" in exc_info.value.detail
 
 
@@ -120,7 +127,7 @@ def test_create_queue_invalid_name(db_fixture):
     """Test creating a queue with invalid name."""
     with pytest.raises(HTTPException) as exc:
         db_fixture.create_queue(queue_name="", password="test")
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == HTTP_400_BAD_REQUEST
 
 
 @pytest.mark.integration
@@ -138,7 +145,7 @@ def test_create_task_invalid_args(db_fixture, queue_args):
     }
     with pytest.raises(HTTPException) as exc:
         db_fixture.create_task(**task_data)
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == HTTP_400_BAD_REQUEST
 
 
 @pytest.mark.integration
@@ -320,19 +327,19 @@ def test_update_task_status(db_fixture, queue_args, get_task_args):
     # Test case 6: Invalid status
     with pytest.raises(HTTPException) as exc:
         db_fixture.report_task_status(queue_id, task_id, "invalid_status")
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == HTTP_400_BAD_REQUEST
     assert "Invalid report_status" in exc.value.detail
 
-    # # Test case 7: Non-existent queue (deprecated. 404 is handled by server, not DB)
+    # # Test case 7: Non-existent queue (deprecated. HTTP_404_NOT_FOUND is handled by server, not DB)
     # with pytest.raises(HTTPException) as exc:
     #     db_fixture.update_task_status("non_existent_queue", task_id, "success")
-    # assert exc.value.status_code == 404
+    # assert exc.value.status_code == HTTP_404_NOT_FOUND
     # assert "Queue 'non_existent_queue' not found" in exc.value.detail
 
     # Test case 8: Non-existent task
     with pytest.raises(HTTPException) as exc:
         db_fixture.report_task_status(queue_id, "non_existent_task", "success")
-    assert exc.value.status_code == 404
+    assert exc.value.status_code == HTTP_404_NOT_FOUND
     assert "Task non_existent_task not found" in exc.value.detail
 
 
@@ -526,7 +533,7 @@ def test_worker_crash_no_dispatch(db_fixture, queue_args, get_task_args):
     # Try to fetch another task
     with pytest.raises(HTTPException) as exc:
         db_fixture.fetch_task(queue_id=queue_id, worker_id=worker_id)
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == HTTP_403_FORBIDDEN
     assert "crashed" in exc.value.detail
 
     # Re-activate worker
@@ -571,7 +578,7 @@ def test_worker_suspended_no_dispatch(db_fixture, queue_args, get_task_args):
     # Try to fetch task
     with pytest.raises(HTTPException) as exc:
         db_fixture.fetch_task(queue_id=queue_id, worker_id=worker_id)
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == HTTP_403_FORBIDDEN
     assert "suspended" in exc.value.detail
 
     # Re-activate worker
@@ -844,7 +851,7 @@ def test_merge_filter():
         merge_filter(filter1, filter2, logical_op="invalid_op")
         raise AssertionError("Test 5 failed: Did not raise HTTPException")
     except HTTPException as e:
-        assert e.status_code == 500
+        assert e.status_code == HTTP_500_INTERNAL_SERVER_ERROR
         assert "Invalid logical operator" in e.detail, f"Test 5 failed: {e.detail}"
 
     # Test 6: Merge with $nor

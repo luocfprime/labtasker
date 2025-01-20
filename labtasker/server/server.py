@@ -154,7 +154,7 @@ def submit_task(
 
 @app.get("/api/v1/queues/me/tasks")
 def ls_tasks(
-    task_request: TaskLsRequest,
+    task_request: TaskLsRequest = Depends(),
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
@@ -187,7 +187,10 @@ def fetch_task(
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
-    """Get next available task from queue"""
+    """
+    Get next available task from queue.
+    Note: this is not an idempotent operation since the internal state changes according to FSM.
+    """
     task = db.fetch_task(
         queue_id=queue["_id"],
         worker_id=task_request.worker_id,
@@ -212,7 +215,7 @@ def fetch_task(
     )
 
 
-@app.patch("/api/v1/queues/me/tasks/{task_id}/status")
+@app.post("/api/v1/queues/me/tasks/{task_id}/status")
 def report_task_status(
     task_id: str,
     update: TaskStatusUpdateRequest,
@@ -231,7 +234,7 @@ def report_task_status(
 
 
 @app.post("/api/v1/queues/me/tasks/{task_id}/heartbeat")
-def task_heartbeat(
+def refresh_task_heartbeat(
     task_id: str,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
@@ -256,7 +259,7 @@ def create_worker(
 ):
     """Create a new worker."""
     worker_id = db.create_worker(
-        queue_name=queue["queue_name"],
+        queue_id=queue["_id"],
         worker_name=worker.worker_name,
         metadata=worker.metadata,
         max_retries=worker.max_retries,
@@ -266,7 +269,7 @@ def create_worker(
 
 @app.get("/api/v1/queues/me/workers")
 def ls_worker(
-    worker_request: WorkerLsRequest,
+    worker_request: WorkerLsRequest = Depends(),
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
@@ -292,7 +295,7 @@ def ls_worker(
     return WorkerLsResponse(found=True, workers=parse_obj_as(List[Worker], workers))
 
 
-@app.patch("/api/v1/queues/me/workers/{worker_id}/status")
+@app.post("/api/v1/queues/me/workers/{worker_id}/status")
 def report_worker_status(
     worker_id: str,
     update: WorkerStatusUpdateRequest,
