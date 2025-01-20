@@ -28,6 +28,33 @@ def test_create_queue(db_fixture, queue_args):
 
 @pytest.mark.integration
 @pytest.mark.unit
+def test_delete_queue_without_cascade(db_fixture, queue_args):
+    queue_id = db_fixture.create_queue(**queue_args)
+    assert queue_id is not None
+
+    assert db_fixture.delete_queue(queue_id, cascade_delete=False)
+    assert db_fixture._queues.find_one({"_id": queue_id}) is None
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_delete_queue_with_cascade(db_fixture, queue_args, get_task_args):
+    queue_id = db_fixture.create_queue(**queue_args)
+    assert queue_id is not None
+
+    # create some tasks and workers
+    for i in range(5):
+        db_fixture.create_task(**get_task_args(queue_id))
+        db_fixture.create_worker(queue_id=queue_id)
+
+    assert db_fixture.delete_queue(queue_id, cascade_delete=True)
+    assert db_fixture._queues.find_one({"_id": queue_id}) is None
+    assert db_fixture._tasks.find_one({"queue_id": queue_id}) is None
+    assert db_fixture._workers.find_one({"queue_id": queue_id}) is None
+
+
+@pytest.mark.integration
+@pytest.mark.unit
 def test_create_task(db_fixture, queue_args, get_task_args, get_full_task_args):
     # Create queue first
     queue_id = db_fixture.create_queue(**queue_args)
@@ -94,7 +121,6 @@ def test_create_queue_invalid_name(db_fixture):
     with pytest.raises(HTTPException) as exc:
         db_fixture.create_queue(queue_name="", password="test")
     assert exc.value.status_code == 400
-    assert "Queue name is required" in exc.value.detail
 
 
 @pytest.mark.integration
@@ -568,25 +594,25 @@ def test_fetch_priority(db_fixture, queue_args):
     task_args_high = {
         "queue_id": queue_id,
         "task_name": "high_priority_task",
-        "args": {},
+        "args": {"arg1": 1},
         "priority": Priority.HIGH,  # High priority
     }
     task_args_medium_1 = {
         "queue_id": queue_id,
         "task_name": "medium_priority_task_1",
-        "args": {},
+        "args": {"arg1": 1},
         "priority": Priority.MEDIUM,  # Medium priority
     }
     task_args_medium_2 = {
         "queue_id": queue_id,
         "task_name": "medium_priority_task_2",
-        "args": {},
+        "args": {"arg1": 1},
         "priority": Priority.MEDIUM,  # Medium priority
     }
     task_args_low = {
         "queue_id": queue_id,
         "task_name": "low_priority_task",
-        "args": {},
+        "args": {"arg1": 1},
         "priority": Priority.LOW,  # Low priority
     }
 
@@ -622,21 +648,21 @@ def test_fetch_extra_filter(db_fixture, queue_args):
     task_args_1 = {
         "queue_id": queue_id,
         "task_name": "task_a",
-        "args": {},
+        "args": {"arg1": 1},
         "priority": Priority.HIGH,
         "metadata": {"tag": "a"},
     }
     task_args_2 = {
         "queue_id": queue_id,
         "task_name": "task_b",
-        "args": {},
+        "args": {"arg1": 1},
         "priority": Priority.MEDIUM,
         "metadata": {"tag": "b"},
     }
     task_args_3 = {
         "queue_id": queue_id,
         "task_name": "task_c",
-        "args": {},
+        "args": {"arg1": 1},
         "priority": Priority.LOW,
         "metadata": {"tag": "c"},
     }

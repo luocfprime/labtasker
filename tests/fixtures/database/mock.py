@@ -3,6 +3,17 @@ from mongomock import MongoClient as MockMongoClient
 
 from labtasker.server.database import DBService
 
+MONGO_METHODS_TO_PATCH = [
+    "find_one",
+    "insert_one",
+    "update_one",
+    "delete_one",
+    "delete_many",
+    "find",
+    "update_many",
+    "find_one_and_update",
+]
+
 
 class MockSession:
     def __init__(self):
@@ -39,17 +50,7 @@ def mock_db(monkeypatch):
 
         return wrapper
 
-    # Patch collection methods to ignore session
-    patched_methods = [
-        "find_one",
-        "insert_one",
-        "update_one",
-        "delete_one",
-        "find",
-        "update_many",
-        "find_one_and_update",
-    ]
-    for method in patched_methods:
+    for method in MONGO_METHODS_TO_PATCH:
         for collection in [db._queues, db._tasks, db._workers]:
             original = getattr(collection, method)
             monkeypatch.setattr(collection, method, ignore_session(original))
