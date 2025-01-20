@@ -2,13 +2,39 @@ import argparse
 import asyncio
 from asyncio import create_task
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel
+from starlette.status import (
+    HTTP_201_CREATED,
+    HTTP_204_NO_CONTENT,
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
+    HTTP_500_INTERNAL_SERVER_ERROR,
+)
 
-from labtasker.constants import Priority
+from labtasker.api_models import (
+    QueueCreateRequest,
+    QueueCreateResponse,
+    QueueGetResponse,
+    Task,
+    TaskFetchRequest,
+    TaskFetchResponse,
+    TaskFetchTask,
+    TaskLsRequest,
+    TaskLsRespose,
+    TaskStatusUpdateRequest,
+    TaskSubmitRequest,
+    TaskSubmitResponse,
+    Worker,
+    WorkerCreateRequest,
+    WorkerCreateResponse,
+    WorkerLsRequest,
+    WorkerLsResponse,
+    WorkerStatusUpdateRequest,
+)
 from labtasker.server.config import ServerConfig
 from labtasker.server.database import DBService
 from labtasker.server.dependencies import (
@@ -16,6 +42,7 @@ from labtasker.server.dependencies import (
     get_server_config,
     get_verified_queue_dependency,
 )
+from labtasker.utils import parse_obj_as
 
 
 async def periodic_task(db: DBService, interval_seconds: int):
@@ -54,7 +81,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/health")
-async def health_check(db: DBService = Depends(get_db)):
+def health_check(db: DBService = Depends(get_db)):
     """Health check endpoint."""
     try:
         # Check database connection
@@ -64,201 +91,166 @@ async def health_check(db: DBService = Depends(get_db)):
         return {"status": "unhealthy", "database": str(e)}
 
 
-class QueueCreate(BaseModel):
-    queue_name: str
-    password: str
-    metadata: Optional[Dict[str, Any]] = {}
-
-
-class TaskSubmit(BaseModel):
-    """Task submission request."""
-
-    task_name: Optional[str] = None
-    args: Dict[str, Any]
-    metadata: Optional[Dict[str, Any]] = {}
-    heartbeat_timeout: Optional[int] = 60
-    task_timeout: Optional[int] = None
-    max_retries: Optional[int] = 3
-    priority: Optional[int] = Priority.MEDIUM
-
-
-@app.post("/api/v1/queues")
-async def create_queue(queue: QueueCreate, db: DBService = Depends(get_db)):
+@app.post("/api/v1/queues", status_code=HTTP_201_CREATED)
+def create_queue(queue: QueueCreateRequest, db: DBService = Depends(get_db)):
     """Create a new queue"""
-    _id = db.create_queue(
+    queue_id = db.create_queue(
         queue_name=queue.queue_name,
-        password=queue.password,
+        password=queue.password.get_secret_value(),
         metadata=queue.metadata,
     )
-    return {"status": "success", "queue_id": _id}
+    return QueueCreateResponse(queue_id=queue_id)
 
 
-@app.get("/api/v1/queues/{queue_id}")
-async def get_queue(queue_id: str, db: DBService = Depends(get_db)):
-    """Get queue information. (No authentication required)"""
-    queue = db.get_queue(queue_id=queue_id)
-    return {
-        "queue_id": str(queue["_id"]),
-        "queue_name": queue["queue_name"],
-        "status": "active",
-        "created_at": queue["created_at"],
-    }
-
-
-@app.get("/api/v1/queues")
-async def get_queue(queue: Dict[str, Any] = Depends(get_verified_queue_dependency)):
+@app.get("/api/v1/queues/me")
+def get_queue(queue: Dict[str, Any] = Depends(get_verified_queue_dependency)):
     """Get queue information"""
-    return {
-        "queue_id": str(queue["_id"]),
-        "queue_name": queue["queue_name"],
-        "status": "active",
-        "created_at": queue["created_at"],
-        "last_modified": queue["last_modified"],
-        "metadata": queue["metadata"],
-    }
+    return QueueGetResponse(
+        queue_id=queue["_id"],
+        queue_name=queue["queue_name"],
+        created_at=queue["created_at"],
+        last_modified=queue["last_modified"],
+        metadata=queue["metadata"],
+    )
 
 
-@app.delete("/api/v1/queues")
-async def delete_queue(
+# TODO: update queue
+
+
+@app.delete("/api/v1/queues/me", status_code=HTTP_204_NO_CONTENT)
+def delete_queue(
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     cascade_delete: bool = False,
     db: DBService = Depends(get_db),
 ):
     """Delete a queue"""
-    db.delete_queue(queue_name=queue["queue_name"], cascade_delete=cascade_delete)
-    return {"status": "success"}
+    if db.delete_queue(queue_id=queue["_id"], cascade_delete=cascade_delete) == 0:
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail="Queue not found",
+        )
 
 
-@app.post("/api/v1/tasks")
-async def submit_task(
-    task: TaskSubmit,
+@app.post("/api/v1/queues/me/tasks", status_code=HTTP_201_CREATED)
+def submit_task(
+    task: TaskSubmitRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
     """Submit a task to the queue"""
     task_id = db.create_task(
-        queue_name=queue["queue_name"],
+        queue_id=queue["_id"],
         task_name=task.task_name,
         args=task.args,
         metadata=task.metadata,
+        cmd=task.cmd,
         heartbeat_timeout=task.heartbeat_timeout,
         task_timeout=task.task_timeout,
         max_retries=task.max_retries,
         priority=task.priority,
     )
-    return {"status": "success", "task_id": task_id}
+    return TaskSubmitResponse(task_id=task_id)
 
 
-@app.get("/api/v1/tasks/next")
-async def get_next_task(
+@app.get("/api/v1/queues/me/tasks")
+def ls_tasks(
+    task_request: TaskLsRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    worker_id: Optional[str] = None,
-    eta_max: Optional[str] = None,
-    start_heartbeat: bool = True,
-    extra_filter: Optional[Dict[str, Any]] = None,
-    db: DBService = Depends(get_db),
-):
-    """Get next available task from queue"""
-    task = db.fetch_task(
-        queue_name=queue["queue_name"],
-        worker_id=worker_id,
-        eta_max=eta_max,
-        start_heartbeat=start_heartbeat,
-        extra_filter=extra_filter,
-    )
-    if not task:
-        return {"status": "no_task"}
-    task_id = str(task.pop("_id"))
-    task["task_id"] = task_id
-    return {
-        "status": "success",
-        "task_id": task_id,
-        "args": task["args"],
-        "metadata": task["metadata"],
-    }
-
-
-@app.get("/api/v1/tasks")
-async def ls_tasks(
-    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    task_id: Optional[str] = None,
-    task_name: Optional[str] = None,
-    extra_filter: Optional[Dict[str, Any]] = None,
-    limit: Optional[int] = 100,
     db: DBService = Depends(get_db),
 ):
     """Get tasks matching the criteria"""
     # Build task query
-    task_query = extra_filter or {}
+    task_query = task_request.extra_filter or {}
     task_query["queue_id"] = queue["_id"]
 
-    if task_id:
-        task_query["_id"] = task_id
-    if task_name:
-        task_query["task_name"] = task_name
+    if task_request.task_id:
+        task_query["_id"] = task_request.task_id
+    if task_request.task_name:
+        task_query["task_name"] = task_request.task_name
 
     tasks = db.query_collection(
-        queue_name=queue["queue_name"],
+        queue_id=queue["_id"],
         collection_name="tasks",
         query=task_query,
-        limit=limit,
+        limit=task_request.limit,
+        offset=task_request.offset,
+    )
+    if not tasks:
+        return TaskLsRespose(found=False)
+
+    return TaskLsRespose(found=True, tasks=parse_obj_as(List[Task], tasks))
+
+
+@app.post("/api/v1/queues/me/tasks/next")
+def fetch_task(
+    task_request: TaskFetchRequest,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DBService = Depends(get_db),
+):
+    """Get next available task from queue"""
+    task = db.fetch_task(
+        queue_id=queue["_id"],
+        worker_id=task_request.worker_id,
+        eta_max=task_request.eta_max,
+        start_heartbeat=task_request.start_heartbeat,
+        required_fields=task_request.required_fields,
+        extra_filter=task_request.extra_filter,
     )
 
-    for task in tasks:
-        task_id = str(task.pop("_id"))
-        task["task_id"] = task_id
-    return {"status": "success", "tasks": tasks}
+    if not task:
+        return TaskFetchResponse(found=False)
+    return TaskFetchResponse(
+        found=True,
+        task=TaskFetchTask(
+            task_id=task["_id"],
+            args=task["args"],
+            metadata=task["metadata"],
+            created_at=task["created_at"],
+            heartbeat_timeout=task["heartbeat_timeout"],
+            task_timeout=task["task_timeout"],
+        ),
+    )
 
 
-class TaskStatusUpdate(BaseModel):
-    status: str
-    summary: Optional[Dict[str, Any]] = {}
-
-
-@app.patch("/api/v1/tasks/{task_id}/status")
-async def update_task_status(
+@app.patch("/api/v1/queues/me/tasks/{task_id}/status")
+def report_task_status(
     task_id: str,
-    update: TaskStatusUpdate,
+    update: TaskStatusUpdateRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
     """Report task status (success, failed, cancelled)"""
-    done = db.update_task_status(
-        queue_name=queue["queue_name"],
+    done = db.report_task_status(
+        queue_id=queue["_id"],
         task_id=task_id,
         report_status=update.status,
         summary_update=update.summary,
     )
-    return {"status": "success" if done else "error"}
+    if not done:
+        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@app.post("/api/v1/tasks/{task_id}/heartbeat")
-async def task_heartbeat(
+@app.post("/api/v1/queues/me/tasks/{task_id}/heartbeat")
+def task_heartbeat(
     task_id: str,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
     """Update task heartbeat timestamp."""
-    task = db.update_task_heartbeat(
-        queue_name=queue["queue_name"],
+    done = db.refresh_task_heartbeat(
+        queue_id=queue["_id"],
         task_id=task_id,
     )
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"status": "success"}
+    if not done:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Task not found.")
 
 
-class WorkerCreate(BaseModel):
-    """Worker creation request."""
-
-    worker_name: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = {}
-    max_retries: Optional[int] = 3
+# TODO: delete task
 
 
-@app.post("/api/v1/workers")
-async def create_worker(
-    worker: WorkerCreate,
+@app.post("/api/v1/queues/me/workers", status_code=HTTP_201_CREATED)
+def create_worker(
+    worker: WorkerCreateRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
@@ -269,55 +261,55 @@ async def create_worker(
         metadata=worker.metadata,
         max_retries=worker.max_retries,
     )
-    return {"status": "success", "worker_id": worker_id}
+    return WorkerCreateResponse(worker_id=worker_id)
 
 
-class WorkerStatusUpdate(BaseModel):
-    status: str
-
-
-@app.patch("/api/v1/workers/{worker_id}/status")
-async def update_worker_status(
-    worker_id: str,
-    update: WorkerStatusUpdate,
-    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
-    db: DBService = Depends(get_db),
-):
-    """Update worker status."""
-    db.update_worker_status(
-        queue_name=queue["queue_name"],
-        worker_id=worker_id,
-        report_status=update.status,
-    )
-    return {"status": "success"}
-
-
-@app.get("/api/v1/workers/{worker_id}")
-async def get_worker(
-    worker_id: str,
+@app.get("/api/v1/queues/me/workers")
+def ls_worker(
+    worker_request: WorkerLsRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
     """Get worker information."""
+    worker_query = worker_request.extra_filter or {}
+    worker_query["queue_id"] = queue["_id"]
+
+    if worker_request.worker_id:
+        worker_query["_id"] = worker_request.worker_id
+    if worker_request.worker_name:
+        worker_query["worker_name"] = worker_request.worker_name
+
     workers = db.query_collection(
-        queue_name=queue["queue_name"],
+        queue_id=queue["_id"],
         collection_name="workers",
-        query={"_id": worker_id},
+        query=worker_query,
+        limit=worker_request.limit,
+        offset=worker_request.offset,
     )
+    if not workers:
+        return WorkerLsResponse(found=False)
 
-    if not workers or len(workers) == 0:
-        raise HTTPException(status_code=404, detail="Worker not found")
+    return WorkerLsResponse(found=True, workers=parse_obj_as(List[Worker], workers))
 
-    worker = workers[0]
-    return {
-        "worker_id": worker_id,
-        "status": worker["status"],
-        "worker_name": worker.get("worker_name"),
-        "metadata": worker.get("metadata", {}),
-        "retries": worker["retries"],
-        "created_at": worker["created_at"],
-        "last_modified": worker["last_modified"],
-    }
+
+@app.patch("/api/v1/queues/me/workers/{worker_id}/status")
+def report_worker_status(
+    worker_id: str,
+    update: WorkerStatusUpdateRequest,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DBService = Depends(get_db),
+):
+    """Update worker status."""
+    done = db.report_worker_status(
+        queue_name=queue["queue_name"],
+        worker_id=worker_id,
+        report_status=update.status,
+    )
+    if not done:
+        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# TODO: delete worker
 
 
 def parse_args():

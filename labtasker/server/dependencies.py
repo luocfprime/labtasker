@@ -38,7 +38,9 @@ async def get_verified_queue_dependency(
     Uses queue_name as username and password for authentication.
     """
     try:
-        queue = db.get_queue(queue_name=credentials.username)
+        queue = db.get_queue(queue_id=credentials.username) or db.get_queue(
+            queue_name=credentials.username
+        )  # get queue by either id or name
         if not verify_password(credentials.password, queue["password"]):
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED,

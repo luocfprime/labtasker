@@ -2,9 +2,10 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from fastapi import HTTPException
+from pydantic import TypeAdapter
 from starlette.status import HTTP_400_BAD_REQUEST
 
 
@@ -325,3 +326,7 @@ def sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
         return d
 
     return _recr_sanitize(dic)
+
+
+def parse_obj_as(dst_type: Type[Any], obj: Any) -> Any:
+    return TypeAdapter(dst_type).validate_python(obj)
