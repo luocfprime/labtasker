@@ -151,6 +151,7 @@ class DBService:
         collection_name: str,
         query: Dict[str, Any],  # MongoDB query
         limit: int = 100,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Query a collection."""
         with self.transaction() as session:
@@ -166,6 +167,7 @@ class DBService:
             result = (
                 self._db[collection_name]
                 .find(query, self.projection, session=session)
+                .skip(offset)
                 .limit(limit)
             )
 
@@ -180,8 +182,8 @@ class DBService:
         collection_name: str,
         query: Dict[str, Any],  # MongoDB query
         update: Dict[str, Any],  # MongoDB update
-    ) -> bool:
-        """Update a collection."""
+    ) -> int:
+        """Update a collection. Return modified count"""
         with self.transaction() as session:
             if collection_name not in ["queues", "tasks", "workers"]:
                 raise HTTPException(
@@ -206,7 +208,7 @@ class DBService:
             result = self._db[collection_name].update_many(
                 query, update, session=session
             )
-            return result.modified_count > 0
+            return result.modified_count
 
     @validate_arg
     def create_queue(
@@ -248,7 +250,7 @@ class DBService:
         args: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         cmd: Optional[Union[str, List[str]]] = None,
-        heartbeat_timeout: int = 60,
+        heartbeat_timeout: Optional[int] = None,
         task_timeout: Optional[
             int
         ] = None,  # Maximum time in seconds for task execution
@@ -256,6 +258,11 @@ class DBService:
         priority: int = Priority.MEDIUM,
     ) -> str:
         """Create a task related to a queue."""
+        if not args and not cmd:
+            raise HTTPException(
+                status_code=HTTP_400_BAD_REQUEST,
+                detail="Either args or cmd must be provided",
+            )
         with self.transaction() as session:
             now = get_current_time()
 
@@ -320,25 +327,35 @@ class DBService:
         self,
         queue_id,
         cascade_delete: bool = False,  # TODO: need consideration
-    ) -> bool:
+    ) -> int:
         """
         Delete a queue.
 
         Args:
             queue_id (str): The id of the queue to delete.
             cascade_delete (bool): Whether to delete all tasks and workers in the queue.
+
+        Return:
+            deleted_count: total affected entries
         """
         with self.transaction() as session:
+            deleted_count = 0
             # Delete queue
-            self._queues.delete_one({"_id": queue_id}, session=session)
+            deleted_count += self._queues.delete_one(
+                {"_id": queue_id}, session=session
+            ).deleted_count
 
             if cascade_delete:
                 # Delete all tasks in the queue
-                self._tasks.delete_many({"queue_id": queue_id}, session=session)
+                deleted_count += self._tasks.delete_many(
+                    {"queue_id": queue_id}, session=session
+                ).deleted_count
                 # Delete all workers in the queue
-                self._workers.delete_many({"queue_id": queue_id}, session=session)
+                deleted_count += self._workers.delete_many(
+                    {"queue_id": queue_id}, session=session
+                ).deleted_count
 
-            return True
+            return deleted_count
 
     @auth_required
     @validate_arg
@@ -346,18 +363,13 @@ class DBService:
         self,
         queue_id: str,
         task_id: str,
-    ) -> bool:
+    ) -> int:
         """Delete a task."""
         with self.transaction() as session:
             # Delete task
-            result = self._tasks.delete_one(
+            return self._tasks.delete_one(
                 {"_id": task_id, "queue_id": queue_id}, session=session
-            )
-            if result.deleted_count == 0:
-                raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND, detail="Task not found"
-                )
-            return result.deleted_count > 0
+            ).deleted_count
 
     @auth_required
     @validate_arg
@@ -366,7 +378,7 @@ class DBService:
         queue_id: str,
         worker_id: str,
         cascade_update: bool = True,
-    ) -> bool:
+    ) -> int:
         """
         Delete a worker.
 
@@ -374,27 +386,27 @@ class DBService:
             queue_id (str): The name of the queue to delete the worker from.
             worker_id (str): The ID of the worker to delete.
             cascade_update (bool): Whether to set worker_id to None for associated tasks.
+
+        Return:
+            affected_count:
         """
         with self.transaction() as session:
+            affected_count = 0
             # Delete worker
-            worker_result = self._workers.delete_one(
+            affected_count += self._workers.delete_one(
                 {"_id": worker_id, "queue_id": queue_id}, session=session
-            )
-            if worker_result.deleted_count == 0:
-                raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND, detail="Worker not found"
-                )
+            ).deleted_count
 
             now = get_current_time()
             if cascade_update:
                 # Update all tasks associated with the worker
-                self._tasks.update_many(
+                affected_count += self._tasks.update_many(
                     {"queue_id": queue_id, "worker_id": worker_id},
                     {"$set": {"worker_id": None, "last_modified": now}},
                     session=session,
-                )
+                ).modified_count
 
-            return True
+            return affected_count
 
     @auth_required
     @validate_arg
@@ -404,8 +416,8 @@ class DBService:
         new_queue_name: Optional[str] = None,
         new_password: Optional[str] = None,
         metadata_update: Optional[Dict[str, Any]] = None,
-    ) -> bool:
-        """Update queue settings."""
+    ) -> int:
+        """Update queue settings. Returns modified_count"""
         with self.transaction() as session:
             # Make sure name does not already exist
             if new_queue_name and self._get_queue_by_name(
@@ -438,7 +450,7 @@ class DBService:
                 }
             }
             result = self._queues.update_one({"_id": queue_id}, update, session=session)
-            return result.modified_count > 0
+            return result.modified_count
 
     # @risky("Potential query injection")
     @auth_required
@@ -463,10 +475,16 @@ class DBService:
         Args:
             queue_id (str): The id of the queue to fetch the task from.
             worker_id (str, optional): The ID of the worker to assign the task to.
-            eta_max (str, optional): The maximum time to wait for the task to be available.
+            eta_max (str, optional): The optional task execution timeout override. Used when start_heartbeat is False.
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
         """
         task_timeout = parse_timeout(eta_max) if eta_max else None
+
+        if not start_heartbeat and not task_timeout:
+            raise HTTPException(
+                status_code=HTTP_400_BAD_REQUEST,
+                detail="Eta max must be specified when start_heartbeat is False",
+            )
 
         with self.transaction() as session:
             # Verify worker status if specified
@@ -476,7 +494,7 @@ class DBService:
                 )
                 if not worker:
                     raise HTTPException(
-                        status_code=HTTP_404_NOT_FOUND,
+                        status_code=HTTP_400_BAD_REQUEST,
                         detail=f"Worker '{worker_id}' not found in queue '{queue_id}'",
                     )
                 worker_status = worker["status"]
@@ -544,7 +562,7 @@ class DBService:
 
     @auth_required
     @validate_arg
-    def update_task_heartbeat(
+    def refresh_task_heartbeat(
         self,
         queue_id: str,
         task_id: str,
@@ -562,7 +580,7 @@ class DBService:
 
     @auth_required
     @validate_arg
-    def update_task_status(
+    def report_task_status(
         self,
         queue_id: str,
         task_id: str,
@@ -621,7 +639,7 @@ class DBService:
 
             # Update worker status if worker is specified
             if report_status == "failed" and task["worker_id"]:
-                worker_updated = self._update_worker_status(
+                worker_updated = self._report_worker_status(
                     queue_id=queue_id,
                     worker_id=task["worker_id"],
                     report_status="failed",
@@ -693,7 +711,7 @@ class DBService:
             )
             return result.modified_count > 0
 
-    def _update_worker_status(
+    def _report_worker_status(
         self, queue_id: str, worker_id: str, report_status: str, session=None
     ) -> bool:
         """Internal method to update worker status."""
@@ -739,7 +757,7 @@ class DBService:
 
     @auth_required
     @validate_arg
-    def update_worker_status(
+    def report_worker_status(
         self,
         queue_id: str,
         worker_id: str,
@@ -747,8 +765,7 @@ class DBService:
     ) -> bool:
         """Update worker status."""
         with self.transaction() as session:
-            # Verify queue exists
-            return self._update_worker_status(
+            return self._report_worker_status(
                 queue_id=queue_id,
                 worker_id=worker_id,
                 report_status=report_status,
@@ -780,7 +797,7 @@ class DBService:
         self,
         queue_id: Optional[str] = None,
         queue_name: Optional[str] = None,
-    ) -> Mapping[str, Any]:
+    ) -> Optional[Mapping[str, Any]]:
         """Get queue by id or name. Name and id must match."""
         with self.transaction() as session:
             if queue_id:
@@ -789,10 +806,7 @@ class DBService:
                 queue = self._get_queue_by_name(queue_name, session=session)
 
             if not queue:
-                raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND,
-                    detail=f"Queue '{queue_name}' not found",
-                )
+                return None
 
             # Make sure the provided queue_name and queue_id match
             if queue_id and queue["_id"] != queue_id:
@@ -868,7 +882,7 @@ class DBService:
 
                     # Update worker status if worker is specified
                     if task["worker_id"]:
-                        self._update_worker_status(
+                        self._report_worker_status(
                             queue_id=task["queue_id"],
                             worker_id=task["worker_id"],
                             report_status="failed",

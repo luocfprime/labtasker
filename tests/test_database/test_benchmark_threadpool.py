@@ -22,6 +22,9 @@ def generate_unique_queue_args(queue_args, suffix):
     return new_args
 
 
+@pytest.mark.skip(
+    reason="this benchmark is no longer necessary because fastapi has its own threadpool."
+)
 @pytest.mark.benchmark
 class TestBenchmarkThreadpool:
     """Benchmark tests comparing synchronous vs threadpool DB operations."""
@@ -64,7 +67,7 @@ class TestBenchmarkThreadpool:
                     if task:
                         # Update task status with random success/failure
                         status = "success" if _ % 3 != 0 else "failed"
-                        db_fixture.update_task_status(
+                        db_fixture.report_task_status(
                             queue_id,
                             task["_id"],
                             status,
@@ -131,7 +134,7 @@ class TestBenchmarkThreadpool:
                             # Update task status with random success/failure
                             status = "success" if _ % 3 != 0 else "failed"
                             await run_in_threadpool(
-                                db_fixture.update_task_status,
+                                db_fixture.report_task_status,
                                 queue_id,
                                 task["_id"],
                                 status,
@@ -202,7 +205,7 @@ class TestBenchmarkThreadpool:
             for idx, (queue_id, task_id) in enumerate(tasks_to_update):
                 # Report task with random success/failure
                 status = "success" if idx % 3 != 0 else "failed"
-                db_fixture.update_task_status(
+                db_fixture.report_task_status(
                     queue_id, task_id, status, {"result": f"processed_{task_id}"}
                 )
 
@@ -282,7 +285,7 @@ class TestBenchmarkThreadpool:
                     # Alternate between success and failure
                     status = "success" if idx % 3 != 0 else "failed"
                     await run_in_threadpool(
-                        db_fixture.update_task_status,
+                        db_fixture.report_task_status,
                         queue_id,
                         task_id,
                         status,

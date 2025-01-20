@@ -32,7 +32,7 @@ def test_delete_queue_without_cascade(db_fixture, queue_args):
     queue_id = db_fixture.create_queue(**queue_args)
     assert queue_id is not None
 
-    assert db_fixture.delete_queue(queue_id, cascade_delete=False)
+    db_fixture.delete_queue(queue_id, cascade_delete=False)
     assert db_fixture._queues.find_one({"_id": queue_id}) is None
 
 
@@ -47,7 +47,7 @@ def test_delete_queue_with_cascade(db_fixture, queue_args, get_task_args):
         db_fixture.create_task(**get_task_args(queue_id))
         db_fixture.create_worker(queue_id=queue_id)
 
-    assert db_fixture.delete_queue(queue_id, cascade_delete=True)
+    db_fixture.delete_queue(queue_id, cascade_delete=True)
     assert db_fixture._queues.find_one({"_id": queue_id}) is None
     assert db_fixture._tasks.find_one({"queue_id": queue_id}) is None
     assert db_fixture._workers.find_one({"queue_id": queue_id}) is None
@@ -278,7 +278,7 @@ def test_update_task_status(db_fixture, queue_args, get_task_args):
     task = db_fixture.fetch_task(queue_id=queue_id)
     assert task["status"] == TaskState.RUNNING
     assert task["_id"] == task_id
-    assert db_fixture.update_task_status(
+    assert db_fixture.report_task_status(
         queue_id, task_id, "success", {"result": "test passed"}
     )
     task = db_fixture._tasks.find_one({"_id": task_id})
@@ -289,7 +289,7 @@ def test_update_task_status(db_fixture, queue_args, get_task_args):
     task_id = db_fixture.create_task(**get_task_args(queue_id))  # Create new task
     task = db_fixture.fetch_task(queue_id=queue_id)
     assert task["_id"] == task_id
-    assert db_fixture.update_task_status(queue_id, task_id, "failed")
+    assert db_fixture.report_task_status(queue_id, task_id, "failed")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.PENDING  # First failure goes to PENDING
     assert task["retries"] == 1
@@ -298,14 +298,14 @@ def test_update_task_status(db_fixture, queue_args, get_task_args):
     for _ in range(2):  # Already has 1 retry, need 2 more to reach max
         task = db_fixture.fetch_task(queue_id=queue_id)
         assert task["_id"] == task_id
-        assert db_fixture.update_task_status(queue_id, task_id, "failed")
+        assert db_fixture.report_task_status(queue_id, task_id, "failed")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.FAILED
     assert task["retries"] == 3
 
     # Test case 4: Cancel task from PENDING
     task_id = db_fixture.create_task(**get_task_args(queue_id))
-    assert db_fixture.update_task_status(queue_id, task_id, "cancelled")
+    assert db_fixture.report_task_status(queue_id, task_id, "cancelled")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.CANCELLED
 
@@ -313,13 +313,13 @@ def test_update_task_status(db_fixture, queue_args, get_task_args):
     task_id = db_fixture.create_task(**get_task_args(queue_id))
     task = db_fixture.fetch_task(queue_id=queue_id)
     assert task["_id"] == task_id
-    assert db_fixture.update_task_status(queue_id, task_id, "cancelled")
+    assert db_fixture.report_task_status(queue_id, task_id, "cancelled")
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["status"] == TaskState.CANCELLED
 
     # Test case 6: Invalid status
     with pytest.raises(HTTPException) as exc:
-        db_fixture.update_task_status(queue_id, task_id, "invalid_status")
+        db_fixture.report_task_status(queue_id, task_id, "invalid_status")
     assert exc.value.status_code == 400
     assert "Invalid report_status" in exc.value.detail
 
@@ -331,7 +331,7 @@ def test_update_task_status(db_fixture, queue_args, get_task_args):
 
     # Test case 8: Non-existent task
     with pytest.raises(HTTPException) as exc:
-        db_fixture.update_task_status(queue_id, "non_existent_task", "success")
+        db_fixture.report_task_status(queue_id, "non_existent_task", "success")
     assert exc.value.status_code == 404
     assert "Task non_existent_task not found" in exc.value.detail
 
@@ -353,27 +353,27 @@ def test_task_fsm_consistency(db_fixture, queue_args, get_task_args):
         ),
         "report_success": (
             TaskState.RUNNING,
-            partial(db_fixture.update_task_status, report_status="success"),
+            partial(db_fixture.report_task_status, report_status="success"),
             TaskFSM.complete,
         ),
         "report_failed": (
             TaskState.RUNNING,
-            partial(db_fixture.update_task_status, report_status="failed"),
+            partial(db_fixture.report_task_status, report_status="failed"),
             TaskFSM.fail,
         ),
         "report_pending_cancelled": (
             TaskState.PENDING,
-            partial(db_fixture.update_task_status, report_status="cancelled"),
+            partial(db_fixture.report_task_status, report_status="cancelled"),
             TaskFSM.cancel,
         ),
         "report_running_cancelled": (
             TaskState.RUNNING,
-            partial(db_fixture.update_task_status, report_status="cancelled"),
+            partial(db_fixture.report_task_status, report_status="cancelled"),
             TaskFSM.cancel,
         ),
         "report_failed_cancelled": (
             TaskState.FAILED,
-            partial(db_fixture.update_task_status, report_status="cancelled"),
+            partial(db_fixture.report_task_status, report_status="cancelled"),
             TaskFSM.cancel,
         ),
         "reset_pending": (
@@ -513,7 +513,7 @@ def test_worker_crash_no_dispatch(db_fixture, queue_args, get_task_args):
         assert task is not None
 
         # Fail task
-        db_fixture.update_task_status(
+        db_fixture.report_task_status(
             queue_id=queue_id,
             task_id=task["_id"],
             report_status="failed",
@@ -530,7 +530,7 @@ def test_worker_crash_no_dispatch(db_fixture, queue_args, get_task_args):
     assert "crashed" in exc.value.detail
 
     # Re-activate worker
-    db_fixture.update_worker_status(
+    db_fixture.report_worker_status(
         queue_id=queue_id, worker_id=worker_id, report_status="active"
     )
 
@@ -558,7 +558,7 @@ def test_worker_suspended_no_dispatch(db_fixture, queue_args, get_task_args):
     task_id = db_fixture.create_task(**get_task_args(queue_id))
 
     # Suspend worker
-    db_fixture.update_worker_status(
+    db_fixture.report_worker_status(
         queue_id=queue_id,
         worker_id=worker_id,
         report_status="suspended",
@@ -575,7 +575,7 @@ def test_worker_suspended_no_dispatch(db_fixture, queue_args, get_task_args):
     assert "suspended" in exc.value.detail
 
     # Re-activate worker
-    db_fixture.update_worker_status(
+    db_fixture.report_worker_status(
         queue_id=queue_id, worker_id=worker_id, report_status="active"
     )
 

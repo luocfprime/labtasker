@@ -19,10 +19,21 @@ def queue_args():
 def get_task_args():
     """Minimum task args for db create_task for testing."""
 
-    def wrapper(queue_id, override_fields=None):
+    def wrapper(queue_id, override_fields=None, args_or_cmd="args"):
+        """
+        Args:
+            override_fields: optionally override given fields
+            args_or_cmd: either "args" or "cmd" must be provided for minimalistic task configuration
+        """
+        assert args_or_cmd in ("args", "cmd")
         result = {
             "queue_id": queue_id,  # this should be set after queue is created
         }
+        if args_or_cmd == "args":
+            result.update({"args": {"arg1": "value1"}})
+        elif args_or_cmd == "cmd":
+            result.update({"cmd": "python test.py  --a --b"})
+
         if override_fields:
             result.update(override_fields)
         return result
