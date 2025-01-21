@@ -12,7 +12,6 @@ from starlette.status import (
 )
 
 from labtasker.api_models import (
-    QueueCreateRequest,
     QueueCreateResponse,
     QueueGetResponse,
     TaskFetchRequest,
@@ -29,33 +28,7 @@ from labtasker.api_models import (
 )
 from labtasker.security import get_auth_headers
 from labtasker.utils import get_current_time
-from tests.fixtures.server.sync_app import test_app
-
-
-@pytest.fixture
-def queue_create_request():
-    return QueueCreateRequest(
-        queue_name="test_queue",
-        password=SecretStr("test_password"),
-        metadata={"tag": "test"},
-    )
-
-
-@pytest.fixture
-def task_submit_request():
-    """Test task data."""
-    return TaskSubmitRequest(
-        task_name="test_task",
-        args={"param1": 1},
-        metadata={"test": "data"},
-    )
-
-
-@pytest.fixture
-def auth_headers(queue_create_request):
-    return get_auth_headers(
-        queue_create_request.queue_name, queue_create_request.password
-    )
+from tests.fixtures.server import test_app
 
 
 @pytest.fixture

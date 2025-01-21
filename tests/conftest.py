@@ -3,15 +3,9 @@ import os
 import pytest
 
 from labtasker.server.config import init_server_config
-from tests.fixtures.database import (  # noqa: F401
-    db_fixture,
-    get_full_task_args,
-    get_task_args,
-    mock_db,
-    queue_args,
-    real_db,
-)
+from tests.fixtures.database import mock_db, real_db  # noqa: F401
 from tests.fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
+from tests.test_database.conftest import get_full_task_args, get_task_args, queue_args
 
 
 @pytest.fixture
@@ -71,3 +65,23 @@ def setup_config(pytestconfig):
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture
+def db_fixture(test_type, request, monkeypatch):
+    """
+    Dynamic database fixture that supports both mock and real databases.
+    """
+    if test_type == "integration":  # prioritize integration tests over unit tests
+        db = request.getfixturevalue("real_db")
+    elif test_type == "unit":
+        db = request.getfixturevalue("mock_db")
+    else:
+        raise ValueError(
+            "Database testcases must be tagged with either 'unit' or 'integration'"
+        )
+
+    # patch the global _db_service as db_fixture so that get_db() has testing behavior
+    monkeypatch.setattr("labtasker.server.database._db_service", db)
+
+    return db

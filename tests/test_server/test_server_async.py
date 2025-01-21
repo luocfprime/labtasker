@@ -2,18 +2,15 @@ import asyncio
 from datetime import datetime, timedelta
 
 import pytest
-from pydantic import SecretStr
 from starlette.status import HTTP_200_OK, HTTP_201_CREATED
 
 from labtasker.api_models import (
-    QueueCreateRequest,
     QueueCreateResponse,
     TaskFetchRequest,
     TaskLsRequest,
     TaskSubmitRequest,
 )
-from labtasker.security import get_auth_headers
-from tests.fixtures.server.async_app import test_app
+from tests.fixtures.server import async_test_app
 
 
 async def tick(
@@ -45,34 +42,8 @@ async def tick(
 
 
 @pytest.fixture
-def queue_create_request():
-    return QueueCreateRequest(
-        queue_name="test_queue",
-        password=SecretStr("test_password"),
-        metadata={"tag": "test"},
-    )
-
-
-@pytest.fixture
-def task_submit_request():
-    """Test task data."""
-    return TaskSubmitRequest(
-        task_name="test_task",
-        args={"param1": 1},
-        metadata={"test": "data"},
-    )
-
-
-@pytest.fixture
-def auth_headers(queue_create_request):
-    return get_auth_headers(
-        queue_create_request.queue_name, queue_create_request.password
-    )
-
-
-@pytest.fixture
-async def setup_queue(test_app, queue_create_request):
-    response = await test_app.post(
+async def setup_queue(async_test_app, queue_create_request):
+    response = await async_test_app.post(
         "/api/v1/queues", json=queue_create_request.to_request_dict()
     )
     assert (
@@ -88,11 +59,11 @@ async def setup_queue(test_app, queue_create_request):
 class TestTaskEndpoints:
 
     async def test_worker_task_timeout(
-        self, test_app, setup_queue, auth_headers, mock_get_current_time
+        self, async_test_app, setup_queue, auth_headers, mock_get_current_time
     ):
         """This testcase see if heartbeat timeout can be properly handled"""
         # 1. Create a task
-        response = await test_app.post(
+        response = await async_test_app.post(
             "/api/v1/queues/me/tasks",
             headers=auth_headers,
             json=TaskSubmitRequest(
@@ -107,7 +78,7 @@ class TestTaskEndpoints:
         start = datetime(2025, 1, 1, 0, 0, 0)
         mock_get_current_time.set_current_time(start)
         for i in range(3):  # 3 retries
-            response = await test_app.post(
+            response = await async_test_app.post(
                 "/api/v1/queues/me/tasks/next",
                 headers=auth_headers,
                 json=TaskFetchRequest(
@@ -121,7 +92,7 @@ class TestTaskEndpoints:
             await tick(mock_get_current_time, timedelta(minutes=2))
 
             # get status
-            response = await test_app.get(
+            response = await async_test_app.get(
                 "/api/v1/queues/me/tasks",
                 headers=auth_headers,
                 params=TaskLsRequest(
