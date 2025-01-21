@@ -20,6 +20,12 @@ from labtasker.server.db_utils import merge_filter
 
 @pytest.mark.integration
 @pytest.mark.unit
+def test_ping(db_fixture):
+    assert db_fixture.ping()
+
+
+@pytest.mark.integration
+@pytest.mark.unit
 def test_create_queue(db_fixture, queue_args):
     queue_id = db_fixture.create_queue(**queue_args)
     assert queue_id is not None

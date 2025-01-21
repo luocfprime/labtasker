@@ -2,7 +2,9 @@ import os
 
 import pytest
 
-from .fixtures.database import (  # noqa
+from labtasker.server.config import init_server_config
+
+from .fixtures.database import (  # noqa: F401
     db_fixture,
     get_full_task_args,
     get_task_args,
@@ -10,6 +12,7 @@ from .fixtures.database import (  # noqa
     queue_args,
     real_db,
 )
+from .fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
 
 
 @pytest.fixture
@@ -53,35 +56,19 @@ def allow_unsafe():
         del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
 
 
-# @pytest.fixture
-# def test_server_config(monkeypatch):
-#     """Set test environment variables."""
-#     monkeypatch.setenv("DB_NAME", "test_db")
-#     monkeypatch.setenv("DB_HOST", "localhost")
-#     monkeypatch.setenv("DB_PORT", "27017")
-#     monkeypatch.setenv("ADMIN_USERNAME", "test_admin")
-#     monkeypatch.setenv("ADMIN_PASSWORD", "test_password")
-#     return ServerConfig()
+@pytest.fixture(scope="session", autouse=True)
+def setup_config(pytestconfig):
+    proj_root = pytestconfig.rootdir  # noqa
+
+    # Initialize server config for testing
+    os.environ["PERIODIC_TASK_INTERVAL"] = "0.01"  # spin really fast for testing
+    env_file_path = os.path.join(proj_root, "server.example.env")
+
+    print(f"Config {env_file_path} exists: {os.path.exists(env_file_path)}")
+
+    init_server_config(env_file_path)
 
 
-# @pytest.fixture(scope="session", autouse=True)
-# def reset_singletons():
-#     """Reset all singletons before each test."""
-#     # Reset singleton instances directly for testing
-#     ServerConfig._instance = None  # Direct reset
-#     yield  # Allow test to run
-
-
-# @pytest.fixture(scope="session", autouse=True)
-# def cleanup_docker(request):
-#     """Clean up Docker containers and networks after tests."""
-#     yield
-#
-#     if "integration" in request.node.keywords:
-#         try:
-#             subprocess.run(
-#                 ["docker-compose", "-f", "tests/docker-compose.yml", "down", "-v"],
-#                 check=True,
-#             )
-#         except subprocess.CalledProcessError as e:
-#             print(f"Failed to clean up Docker resources: {e}")
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"

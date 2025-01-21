@@ -67,15 +67,20 @@ def get_full_task_args():
 
 
 @pytest.fixture
-def db_fixture(test_type, request):
+def db_fixture(test_type, request, monkeypatch):
     """
     Dynamic database fixture that supports both mock and real databases.
     """
     if test_type == "integration":  # prioritize integration tests over unit tests
-        return request.getfixturevalue("real_db")
+        db = request.getfixturevalue("real_db")
     elif test_type == "unit":
-        return request.getfixturevalue("mock_db")
+        db = request.getfixturevalue("mock_db")
     else:
         raise ValueError(
             "Database testcases must be tagged with either 'unit' or 'integration'"
         )
+
+    # patch the global _db_service as db_fixture so that get_db() has testing behavior
+    monkeypatch.setattr("labtasker.server.database._db_service", db)
+
+    return db

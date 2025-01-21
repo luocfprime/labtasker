@@ -1,17 +1,13 @@
-import argparse
 import asyncio
 from asyncio import create_task
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from starlette.status import (
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
-    HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
-    HTTP_409_CONFLICT,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
@@ -35,20 +31,20 @@ from labtasker.api_models import (
     WorkerLsResponse,
     WorkerStatusUpdateRequest,
 )
-from labtasker.server.config import ServerConfig
+from labtasker.server.config import get_server_config
 from labtasker.server.database import DBService
-from labtasker.server.dependencies import (
-    get_db,
-    get_server_config,
-    get_verified_queue_dependency,
-)
-from labtasker.utils import parse_obj_as
+from labtasker.server.dependencies import get_db, get_verified_queue_dependency
+from labtasker.utils import get_current_time, parse_obj_as
 
 
-async def periodic_task(db: DBService, interval_seconds: int):
+async def periodic_task(interval_seconds: float):
     """Run a periodic task at specified intervals."""
     while True:
         try:
+            # print(
+            #     f"now: {get_current_time()}, current_event_loop: {asyncio.get_running_loop().__hash__()}"
+            # )
+            db = get_db()
             transitioned_tasks = db.handle_timeouts()
             if transitioned_tasks:
                 print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
@@ -62,8 +58,7 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan and background tasks."""
     # Setup
     config = get_server_config()
-    app.state.db = DBService(config.mongodb_uri, config.db_name)
-    task = create_task(periodic_task(app.state.db, interval_seconds=30))
+    task = create_task(periodic_task(config.periodic_task_interval))
 
     yield
 
@@ -73,8 +68,6 @@ async def lifespan(app: FastAPI):
         await task
     except asyncio.CancelledError:
         pass
-    if app.state.db:
-        app.state.db.close()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -313,17 +306,3 @@ def report_worker_status(
 
 
 # TODO: delete worker
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Start the LabTasker server.")
-    parser.add_argument("--env-file", type=str, help="Path to the environment file")
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    config = ServerConfig(
-        args.env_file
-    )  # this is where config initialized when deploying
-    uvicorn.run(app, host=config.api_host, port=config.api_port)

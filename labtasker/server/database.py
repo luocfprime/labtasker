@@ -18,6 +18,7 @@ from starlette.status import (
 
 from labtasker.constants import Priority
 from labtasker.security import hash_password
+from labtasker.server.config import get_server_config
 from labtasker.server.db_utils import (
     merge_filter,
     query_dict_to_mongo_filter,
@@ -40,6 +41,7 @@ _in_transaction = contextvars.ContextVar("in_transaction", default=False)
 
 
 class DBService:
+
     def __init__(
         self, db_name: str, uri: str = None, client: Optional[MongoClient] = None
     ):
@@ -96,8 +98,9 @@ class DBService:
             # Reset transaction flag using token
             _in_transaction.reset(token)
 
-    def ping(self):
+    def ping(self) -> bool:
         self._client.admin.command("ping")
+        return True
 
     def is_empty(self):
         return (
@@ -912,3 +915,15 @@ class DBService:
                     )  # TODO: log
 
             return transitioned_tasks
+
+
+_db_service = None
+
+
+def get_db() -> DBService:
+    """Get database service instance."""
+    global _db_service
+    config = get_server_config()
+    if not _db_service:
+        _db_service = DBService(config.mongodb_uri, config.db_name)  # TODO: check
+    return _db_service

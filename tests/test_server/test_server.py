@@ -1,55 +1,45 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from freezegun import freeze_time
 from pydantic import SecretStr, ValidationError
-from pytest_asyncio import fixture
 from starlette.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
-    HTTP_400_BAD_REQUEST,
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
-    HTTP_404_NOT_FOUND,
-    HTTP_409_CONFLICT,
-    HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
 from labtasker.api_models import (
     QueueCreateRequest,
     QueueCreateResponse,
     QueueGetResponse,
-    Task,
     TaskFetchRequest,
     TaskFetchResponse,
-    TaskFetchTask,
     TaskLsRequest,
     TaskLsRespose,
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
-    Worker,
     WorkerCreateRequest,
     WorkerCreateResponse,
     WorkerLsRequest,
     WorkerLsResponse,
-    WorkerStatusUpdateRequest,
 )
 from labtasker.security import get_auth_headers
-from labtasker.server.dependencies import get_db
-from labtasker.server.server import app
+from labtasker.server.endpoints import app
+from labtasker.utils import get_current_time
 
 
 @pytest.fixture
 def test_app(db_fixture):
     """Create test app with mock database."""
-    app.state.db = db_fixture
-    app.dependency_overrides[get_db] = lambda: db_fixture
+    # Depends on db_fixture to ensure db is patched
+    # To trigger lifespan function, see https://www.starlette.io/lifespan/#running-lifespan-in-tests
+    # which is not intended for sync tests
     yield TestClient(app)
-    app.dependency_overrides.clear()
-    delattr(app.state, "db")
 
 
 @pytest.fixture
@@ -78,7 +68,7 @@ def auth_headers(queue_create_request):
     )
 
 
-@fixture
+@pytest.fixture
 def setup_queue(test_app, queue_create_request):
     response = test_app.post(
         "/api/v1/queues", json=queue_create_request.to_request_dict()
@@ -88,6 +78,13 @@ def setup_queue(test_app, queue_create_request):
     ), f"Got {response.status_code}, {response.json()}"
     queue = QueueCreateResponse(**response.json())
     return queue
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_health(test_app):
+    response = test_app.get("/health")
+    assert response.status_code == HTTP_200_OK
 
 
 @pytest.mark.integration
@@ -308,7 +305,8 @@ class TestTaskEndpoints:
         )
         assert response.status_code == HTTP_201_CREATED, f"{response.json()}"
 
-        start = datetime.now()
+        start = get_current_time()
+
         tolerance = timedelta(seconds=1)
         with freeze_time(start) as frozen_time:
             # 2. Fetch task
@@ -433,148 +431,3 @@ class TestWorkerEndpoints:
             ).model_dump(),
         )
         assert response.status_code == HTTP_403_FORBIDDEN, f"{response.json()}"
-
-
-# @pytest.fixture
-# def queue_data():
-#     """Test queue data."""
-#     return {
-#         "queue_name": "test_queue",
-#         "password": "test_password",
-#         "metadata": {"test": "data"},
-#     }
-#
-#
-# @pytest.fixture
-# def task_data(queue_data):
-#     """Test task data."""
-#     return {
-#         "queue_name": queue_data["queue_name"],
-#         "password": queue_data["password"],
-#         "task_name": "test_task",
-#         "args": {"param1": 1},
-#         "metadata": {"test": "data"},
-#     }
-#
-#
-# @pytest.fixture
-# def auth_headers(queue_data):
-#     """Create Basic Auth headers."""
-#     return get_auth_headers(queue_data["queue_name"], queue_data["password"])
-#
-#
-# class TestQueueEndpoints:
-#     """Test queue-related endpoints."""
-#
-#     def test_create_queue(self, test_app, queue_data):
-#         response = test_app.post("/api/v1/queues", json=queue_data)
-#         assert response.status_code == HTTP_200_OK
-#         data = response.json()
-#         assert data["status"] == "success"
-#         assert "queue_id" in data
-#
-#     def test_get_queue(self, test_app, queue_data, auth_headers):
-#         # Create queue first
-#         response = test_app.post("/api/v1/queues", json=queue_data)
-#         queue_id = response.json()["queue_id"]
-#
-#         response = test_app.get(
-#             "/api/v1/queues",
-#             headers=auth_headers,  # Use Basic Auth
-#         )
-#         assert response.status_code == HTTP_200_OK
-#         data = response.json()
-#         assert data["queue_id"] == queue_id
-#         assert data["queue_name"] == queue_data["queue_name"]
-#
-#
-# class TestTaskEndpoints:
-#     """Test task-related endpoints."""
-#
-#     def test_submit_task(self, test_app, queue_data, task_data, auth_headers):
-#         """Test task submission."""
-#         # Create queue first
-#         test_app.post("/api/v1/queues", json=queue_data)
-#
-#         response = test_app.post(
-#             "/api/v1/tasks",
-#             headers=auth_headers,  # Use Basic Auth
-#             json={
-#                 "task_name": task_data["task_name"],
-#                 "args": task_data["args"],
-#                 "metadata": task_data["metadata"],
-#             },
-#         )
-#         assert response.status_code == HTTP_200_OK
-#
-#     def test_get_next_task(self, test_app, queue_data, task_data, auth_headers):
-#         # Setup
-#         test_app.post("/api/v1/queues", json=queue_data)
-#         test_app.post("/api/v1/tasks", headers=auth_headers, json=task_data)
-#
-#         response = test_app.get(
-#             "/api/v1/tasks/next",
-#             headers=auth_headers,  # Use Basic Auth
-#         )
-#         assert response.status_code == HTTP_200_OK
-#         data = response.json()
-#         assert data["status"] in ["success", "no_task"]
-#
-#
-# class TestWorkerEndpoints:
-#     """Test worker-related endpoints."""
-#
-#     def test_create_worker(self, test_app, queue_data, auth_headers):
-#         # Setup
-#         test_app.post("/api/v1/queues", json=queue_data)
-#
-#         response = test_app.post(
-#             "/api/v1/workers",
-#             headers=auth_headers,  # Use Basic Auth
-#             json={
-#                 "worker_name": "test_worker",
-#                 "metadata": {"test": "data"},
-#             },
-#         )
-#         assert response.status_code == HTTP_200_OK
-#
-#     def test_worker_status_update(self, test_app, queue_data, auth_headers):
-#         """Test worker status update endpoint."""
-#         # Setup: Create queue and worker
-#         test_app.post("/api/v1/queues", json=queue_data)
-#
-#         # Create worker with correct format
-#         response = test_app.post(
-#             "/api/v1/workers",
-#             headers=auth_headers,
-#             json={"worker_name": "test_worker", "metadata": {"test": "data"}},
-#         )
-#         assert response.status_code == HTTP_200_OK
-#         data = response.json()
-#         assert "worker_id" in data
-#         worker_id = data["worker_id"]
-#
-#         # Test status updates
-#         for status in ["suspended", "active"]:
-#             # Update status
-#             response = test_app.patch(
-#                 f"/api/v1/workers/{worker_id}/status",
-#                 headers=auth_headers,
-#                 json={"status": status},
-#             )
-#             assert response.status_code == HTTP_200_OK
-#             assert response.json()["status"] == "success"
-#
-#             # Verify worker status was updated
-#             response = test_app.get(
-#                 f"/api/v1/workers/{worker_id}", headers=auth_headers
-#             )
-#             assert response.status_code == HTTP_200_OK
-#             data = response.json()
-#             assert data["worker_id"] == worker_id
-#             assert data["status"] == status
-#             assert data["worker_name"] == "test_worker"
-#             assert data["metadata"] == {"test": "data"}
-#             assert "retries" in data
-#             assert "created_at" in data
-#             assert "last_modified" in data

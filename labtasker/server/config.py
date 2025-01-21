@@ -1,60 +1,61 @@
-import os
+from functools import lru_cache
 from typing import Optional
 
-from dotenv import load_dotenv
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class ServerConfig:
-    """Server configuration singleton."""
+class ServerConfig(BaseSettings):
+    # Database settings
+    db_user: str
+    db_password: str
+    db_name: str = "labtasker_db"
+    db_host: str = "localhost"
+    db_port: int = 27017
 
-    _instance = None
+    # API settings
+    api_host: str = "0.0.0.0"
+    api_port: int = 8080
 
-    def __new__(cls, env_file: Optional[str] = None):
-        if cls._instance is None:
-            cls._instance = super(ServerConfig, cls).__new__(cls)
-            cls._instance._initialize(env_file)
-        return cls._instance
+    # Other settings
+    periodic_task_interval: float = 30.0
 
-    def _initialize(self, env_file: Optional[str] = None):
-        if env_file:
-            load_dotenv(env_file)
+    model_config = SettingsConfigDict(
+        # env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="allow",
+    )
 
-        # Database settings
-        self.db_user = os.getenv("DB_USER")
-        self.db_password = os.getenv("DB_PASSWORD")
-        self.db_name = os.getenv("DB_NAME", "labtasker_db")
-        self.db_host = os.getenv("DB_HOST", "localhost")
-        self.db_port = int(os.getenv("DB_PORT", "27017"))
-
-        assert self.db_user and self.db_password, "DB_USER and DB_PASSWORD must be set"
-
-        # Admin settings
-        self.admin_username = os.getenv("ADMIN_USERNAME", "labtasker")
-        self.admin_password = os.getenv("ADMIN_PASSWORD")
-
-        # API settings
-        self.api_host = os.getenv("API_HOST", "0.0.0.0")
-        self.api_port = int(os.getenv("API_PORT", "8080"))
-
-        # Security settings
-        self.security_bcrypt_rounds = int(os.getenv("SECURITY_BCRYPT_ROUNDS", "12"))
-        self.security_min_password_length = int(
-            os.getenv("SECURITY_MIN_PASSWORD_LENGTH", "12")
-        )
-        self.security_max_login_attempts = int(
-            os.getenv("SECURITY_MAX_LOGIN_ATTEMPTS", "5")
-        )
-        self.security_lockout_duration = int(
-            os.getenv("SECURITY_LOCKOUT_DURATION", "15")
-        )
-
-        # Validate security settings
-        if self.security_bcrypt_rounds < 10:
-            raise ValueError("SECURITY_BCRYPT_ROUNDS must be at least 10")
-        if self.security_min_password_length < 8:
-            raise ValueError("SECURITY_MIN_PASSWORD_LENGTH must be at least 8")
+    @field_validator("db_user", "db_password")
+    def validate_required_fields(cls, v, field):
+        if not v:
+            raise ValueError(f"{field.name} must be set")
+        return v
 
     @property
     def mongodb_uri(self) -> str:
         """Get MongoDB URI from config."""
-        return f"mongodb://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/?authSource=admin&directConnection=true&replicaSet=rs0"
+        return (
+            f"mongodb://{self.db_user}:{self.db_password}@"
+            f"{self.db_host}:{self.db_port}/"
+            "?authSource=admin&directConnection=true&replicaSet=rs0"
+        )
+
+
+_config: Optional[ServerConfig] = None
+
+
+def init_server_config(env_file: Optional[str] = None):
+    global _config
+    if _config is not None:
+        raise RuntimeError("ServerConfig already initialized.")
+    _config = ServerConfig(_env_file=env_file)  # noqa
+
+
+def get_server_config() -> ServerConfig:
+    """Get singleton instance of ServerConfig."""
+    global _config
+    if _config is None:
+        raise RuntimeError("ServerConfig not initialized.")
+    return _config
