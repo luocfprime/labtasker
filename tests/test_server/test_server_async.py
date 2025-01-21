@@ -2,8 +2,6 @@ import asyncio
 from datetime import datetime, timedelta
 
 import pytest
-from asgi_lifespan import LifespanManager
-from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 from starlette.status import HTTP_200_OK, HTTP_201_CREATED
 
@@ -15,7 +13,7 @@ from labtasker.api_models import (
     TaskSubmitRequest,
 )
 from labtasker.security import get_auth_headers
-from labtasker.server.endpoints import app
+from tests.fixtures.server.async_app import test_app
 
 
 async def tick(
@@ -44,17 +42,6 @@ async def tick(
     # Final tick to reach exact delta
     remaining = delta - (vt_interval * (cycles - 1))
     frozen_time.tick(delta=remaining)
-
-
-@pytest.fixture
-async def test_app(db_fixture):
-    # Depends on db_fixture to ensure db is patched
-    # note: you _must_ set `base_url` for relative urls like "/" to work
-    async with LifespanManager(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://testserver"
-        ) as client:
-            yield client
 
 
 @pytest.fixture

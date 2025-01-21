@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 import pytest
-from fastapi.testclient import TestClient
 from freezegun import freeze_time
 from pydantic import SecretStr, ValidationError
 from starlette.status import (
@@ -29,17 +28,8 @@ from labtasker.api_models import (
     WorkerLsResponse,
 )
 from labtasker.security import get_auth_headers
-from labtasker.server.endpoints import app
 from labtasker.utils import get_current_time
-
-
-@pytest.fixture
-def test_app(db_fixture):
-    """Create test app with mock database."""
-    # Depends on db_fixture to ensure db is patched
-    # To trigger lifespan function, see https://www.starlette.io/lifespan/#running-lifespan-in-tests
-    # which is not intended for sync tests
-    yield TestClient(app)
+from tests.fixtures.server.sync_app import test_app
 
 
 @pytest.fixture

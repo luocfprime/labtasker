@@ -3,8 +3,7 @@ import os
 import pytest
 
 from labtasker.server.config import init_server_config
-
-from .fixtures.database import (  # noqa: F401
+from tests.fixtures.database import (  # noqa: F401
     db_fixture,
     get_full_task_args,
     get_task_args,
@@ -12,7 +11,7 @@ from .fixtures.database import (  # noqa: F401
     queue_args,
     real_db,
 )
-from .fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
+from tests.fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
 
 
 @pytest.fixture

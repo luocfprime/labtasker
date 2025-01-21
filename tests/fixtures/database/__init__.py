@@ -1,9 +1,8 @@
 import pytest
 
 from labtasker.constants import Priority
-
-from .mock import mock_db
-from .real import real_db
+from tests.fixtures.database.mock import mock_db
+from tests.fixtures.database.real import real_db
 
 
 @pytest.fixture

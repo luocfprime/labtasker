@@ -3,9 +3,8 @@ from importlib import metadata
 
 import click
 
+from labtasker import __version__
 from labtasker.client.client import LabtaskerClient
-
-from .. import __version__
 
 
 @click.group()
