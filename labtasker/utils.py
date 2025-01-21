@@ -96,9 +96,13 @@ def get_timeout_delta(timeout: Union[int, str]) -> timedelta:
     raise TypeError("Timeout must be an integer or string")
 
 
-def get_current_time() -> datetime:
-    """Get current UTC time."""
-    return datetime.now(timezone.utc)
+def _get_current_time(tz) -> datetime:
+    return datetime.now(tz)
+
+
+def get_current_time(tz=None) -> datetime:
+    """Get current UTC time. Centralized time control."""
+    return _get_current_time(tz)
 
 
 def flatten_dict(d, parent_key="", sep="."):
