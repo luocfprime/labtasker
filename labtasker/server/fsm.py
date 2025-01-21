@@ -22,7 +22,15 @@ class InvalidStateTransition(HTTPException):
         super().__init__(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=message)
 
 
-class TaskState(str, Enum):
+class State(str, Enum):
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
+
+
+class TaskState(State):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -30,7 +38,7 @@ class TaskState(str, Enum):
     CANCELLED = "cancelled"
 
 
-class WorkerState(str, Enum):
+class WorkerState(State):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     CRASHED = "crashed"
