@@ -1,62 +1,39 @@
 import sys
+from contextlib import contextmanager
+from typing import Set
 
-from lark import Lark, Transformer
-
-# Define the grammar for detecting sensitive patterns
-grammar = r"""
-    start: (line | sensitive_pattern | blank_line)*
-
-    line: WS? NON_SENSITIVE_TEXT NEWLINE?
-    sensitive_pattern: WS? KEYWORD WS? ASSIGN WS? VALUE NEWLINE?
-    blank_line: WS? NEWLINE?
-
-    KEYWORD: /(?i)password/
-    ASSIGN: /[=:]/
-    VALUE: ( QUOTED_VALUE | UNQUOTED_VALUE )
-    QUOTED_VALUE: /(\"[^\"]*\")|(\'[^\']*\')/
-    UNQUOTED_VALUE: /[^\s\n]+/
-    WS: /[ \t]+/
-    NON_SENSITIVE_TEXT: /[^\n]+/
-    NEWLINE: /\n/
-
-    %import common.WS -> WHITESPACE
-"""
+_registered_sensitive_texts: Set[str] = set()
+_hook_enabled = True
 
 
-class SanitizeTransformer(Transformer):
-    def sensitive_pattern(self, args):
-        return "*****\n"
-
-    def line(self, args):
-        text = "".join(str(arg) for arg in args)
-        if any(sensitive in text.lower() for sensitive in ["password", "secret"]):
-            return "*****\n"
-        return text
-
-    def blank_line(self, args):
-        return "".join(str(arg) for arg in args) if args else "\n"
-
-    def start(self, args):
-        return "".join(str(arg) for arg in args)
+def register_sensitive_text(text: str):
+    """Register a sensitive text to be filtered out of tracebacks"""
+    _registered_sensitive_texts.add(text)
 
 
-def sanitize_text(text):
-    if not isinstance(text, str):
-        return ""
+def sanitize_text(text: str):
+    for sensitive_text in _registered_sensitive_texts:
+        text = text.replace(sensitive_text, "*" * len(sensitive_text))
+    return text
 
-    try:
-        parser = Lark(grammar, parser="lalr", transformer=SanitizeTransformer())
-        return parser.parse(text)
-    except Exception:
-        # Fallback: basic sanitization if parsing fails
-        lines = text.split("\n")
-        sanitized_lines = []
-        for line in lines:
-            if any(sensitive in line.lower() for sensitive in ["password", "secret"]):
-                sanitized_lines.append("*****")
-            else:
-                sanitized_lines.append(line)
-        return "\n".join(sanitized_lines)
+
+def sanitize_exception_chain(exc):
+    """
+    Recursively sanitize exception messages in the exception chain, including
+    __cause__ and __context__.
+    """
+    if exc is None:
+        return None
+
+    # Sanitize the current exception message
+    sanitized_msg = sanitize_text(str(exc))
+    sanitized_exc = type(exc)(sanitized_msg)
+
+    # Recursively sanitize __cause__ and __context__
+    sanitized_exc.__cause__ = sanitize_exception_chain(exc.__cause__)
+    sanitized_exc.__context__ = sanitize_exception_chain(exc.__context__)
+
+    return sanitized_exc
 
 
 def install_traceback_filter():
@@ -64,7 +41,11 @@ def install_traceback_filter():
     original_excepthook = sys.excepthook
 
     def filtered_excepthook(exc_type, exc_value, exc_tb):
-        sanitized_msg = sanitize_text(str(exc_value))
+        if not _hook_enabled:
+            original_excepthook(exc_type, exc_value, exc_tb)
+            return
+
+        sanitized_msg = sanitize_text(str(exc_value) if exc_value else "")
         sanitized_exc = exc_type(sanitized_msg)
 
         original_excepthook(exc_type, sanitized_exc, exc_tb)
@@ -72,4 +53,17 @@ def install_traceback_filter():
     sys.excepthook = filtered_excepthook
 
 
-install_traceback_filter()
+@contextmanager
+def filter_exception():
+    try:
+        yield
+    except Exception as e:
+        sanitized_exc = sanitize_exception_chain(e)
+
+        # Raise the sanitized exception without retaining the original chain
+        raise sanitized_exc from None
+
+
+def set_traceback_filter_hook(enabled: bool = True):
+    global _hook_enabled
+    _hook_enabled = enabled
