@@ -3,7 +3,6 @@ import argparse
 import uvicorn
 
 from labtasker.server.config import get_server_config, init_server_config
-from labtasker.server.database import get_db
 from labtasker.server.endpoints import app
 
 

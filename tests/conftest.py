@@ -1,11 +1,11 @@
 import os
 
 import pytest
+import respx
 
 from labtasker.server.config import init_server_config
 from tests.fixtures.database import mock_db, real_db  # noqa: F401
 from tests.fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
-from tests.test_database.conftest import get_full_task_args, get_task_args, queue_args
 
 
 @pytest.fixture
@@ -85,3 +85,12 @@ def db_fixture(test_type, request, monkeypatch):
     monkeypatch.setattr("labtasker.server.database._db_service", db)
 
     return db
+
+
+@pytest.fixture
+def respx_mock_when_unit_test(test_type):
+    if "unit" in test_type:
+        with respx.mock:
+            yield
+    else:
+        yield

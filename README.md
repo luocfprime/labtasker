@@ -32,6 +32,14 @@ make lint
 
 ### Run tests
 
+Unit tests (no extra dependencies)
+
 ```bash
-make test
+make unit-test
+```
+
+Integration tests (requires a docker environment)
+
+```bash
+make integration-test
 ```

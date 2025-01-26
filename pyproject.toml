@@ -33,6 +33,8 @@ dependencies = [
     "lark>=1.2.0",
     "pydantic-settings>=2.7.0",
     "httpx>=0.24.0",
+    "typer>=0.15.0",
+    "loguru>=0.7.0",
 ]
 [project.optional-dependencies]
 dev = [
@@ -50,7 +52,8 @@ dev = [
     "pytest-benchmark>=4.0.0",
     "pytest-asyncio>=0.24.0",
     "asgi-lifespan>=2.1.0",
-    "tox>=4.23.2"
+    "tox>=4.23.2",
+    "respx>=0.22.0"
 ]
 doc = [
     "mkdocs-material>=9.0.0",
@@ -63,7 +66,7 @@ Documentation = "https://labtasker.readthedocs.io"
 Repository = "https://github.com/yourusername/labtasker.git"
 
 [project.scripts]
-labtasker = "labtasker.cli.commands:cli"
+labtasker = "labtasker.__main__:app"
 
 #[project.entry-points."labtasker.commands"]
 #config = "labtasker.cli.commands:config"

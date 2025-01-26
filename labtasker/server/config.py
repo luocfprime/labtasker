@@ -1,4 +1,3 @@
-from functools import lru_cache
 from typing import Optional
 
 from pydantic import field_validator
@@ -55,7 +54,6 @@ def init_server_config(env_file: Optional[str] = None):
 
 def get_server_config() -> ServerConfig:
     """Get singleton instance of ServerConfig."""
-    global _config
     if _config is None:
         raise RuntimeError("ServerConfig not initialized.")
     return _config

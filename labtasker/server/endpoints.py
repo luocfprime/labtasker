@@ -34,7 +34,7 @@ from labtasker.api_models import (
 from labtasker.server.config import get_server_config
 from labtasker.server.database import DBService
 from labtasker.server.dependencies import get_db, get_verified_queue_dependency
-from labtasker.utils import get_current_time, parse_obj_as
+from labtasker.utils import parse_obj_as
 
 
 async def periodic_task(interval_seconds: float):
