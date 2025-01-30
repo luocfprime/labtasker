@@ -330,6 +330,11 @@ def sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
                         status_code=HTTP_400_BAD_REQUEST,
                         detail=f"MongoDB operators are not allowed in field names: {k}",
                     )
+                if k.startswith("."):
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail=f"Field names starting with `.` are not allowed: {k}",
+                    )
             if isinstance(v, dict):
                 d[k] = _recr_sanitize(v)
         return d
