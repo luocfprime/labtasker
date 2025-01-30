@@ -151,6 +151,11 @@ def flatten_dict(d, parent_key="", sep="."):
     return dict(items)
 
 
+def add_key_prefix(d: Dict[str, Any], prefix: str) -> Dict[str, Any]:
+    """Add a prefix to all first level keys in a dictionary."""
+    return {f"{prefix}{k}": v for k, v in d.items()}
+
+
 def strtobool(val):
     """Convert a string representation of truth to true (1) or false (0).
     True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values

@@ -27,9 +27,9 @@ from labtasker.server.db_utils import (
 )
 from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 from labtasker.utils import (
+    add_key_prefix,
     arg_match,
     auth_required,
-    flatten_dict,
     get_current_time,
     parse_timeout,
     risky,
@@ -441,7 +441,7 @@ class DBService:
 
             if metadata_update:
                 metadata_update = sanitize_dict(metadata_update)
-                metadata_update = flatten_dict(metadata_update, parent_key="metadata")
+                metadata_update = add_key_prefix(metadata_update, prefix="metadata.")
             else:
                 metadata_update = {}
 
@@ -480,6 +480,8 @@ class DBService:
             queue_id (str): The id of the queue to fetch the task from.
             worker_id (str, optional): The ID of the worker to assign the task to.
             eta_max (str, optional): The optional task execution timeout override. Used when start_heartbeat is False.
+            start_heartbeat (bool): Whether to start heartbeat.
+            required_fields (dict, optional): Which fields are required.
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
         """
         task_timeout = parse_timeout(eta_max) if eta_max else None
@@ -626,7 +628,7 @@ class DBService:
 
             if summary_update:
                 summary_update = sanitize_dict(summary_update)
-                summary_update = flatten_dict(summary_update, parent_key="summary")
+                summary_update = add_key_prefix(summary_update, prefix="summary.")
             else:
                 summary_update = {}
 
@@ -674,7 +676,6 @@ class DBService:
             # Update task settings
             if task_setting_update:
                 task_setting_update = sanitize_update(task_setting_update)
-                task_setting_update = flatten_dict(task_setting_update)
             else:
                 task_setting_update = {}
 
