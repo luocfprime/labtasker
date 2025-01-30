@@ -1,4 +1,6 @@
-.PHONY: format lint test clean
+.PHONY: format lint unit-test integration-test performance-test cmd-grammar clean
+
+ANTLR=antlr
 
 format:
 	black .
@@ -16,6 +18,10 @@ integration-test:
 
 performance-test:
 	pytest -m "integration and benchmark" --benchmark-columns="rounds, iterations, min, mean, max"
+
+cmd-grammar:
+	$(ANTLR) -Dlanguage=Python3 labtasker/client/core/cmd_parser/LabCmdLexer.g4
+	$(ANTLR) -Dlanguage=Python3 labtasker/client/core/cmd_parser/LabCmd.g4
 
 clean:
 	# Python cache files
