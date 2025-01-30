@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from antlr4 import CommonTokenStream, InputStream, ParseTreeWalker
 from antlr4.error.ErrorListener import ErrorListener
@@ -8,7 +8,7 @@ from labtasker.client.core.cmd_parser.LabCmd import LabCmd
 from labtasker.client.core.cmd_parser.LabCmdLexer import LabCmdLexer
 from labtasker.client.core.cmd_parser.LabCmdListener import LabCmdListener
 
-_debug_print = True
+_debug_print = False
 
 
 def print_tab(content, ctx, tabs):
@@ -58,7 +58,7 @@ class CmdListener(LabCmdListener):
         super().__init__()
         self.variable_table = variable_table
         self.result_str = ""
-        self.result_list = []
+        self.args = set()
         self.variable = None
 
     # Enter a parse tree produced by LabCmd#command.
@@ -84,9 +84,11 @@ class CmdListener(LabCmdListener):
             raise ValueError("Variable not found")
 
         self.result_str += str(self.variable)
-        self.result_list.append(str(self.variable))
 
         self.variable = None
+
+    def enterArgumentList(self, ctx: LabCmd.ArgumentListContext):
+        self.args.add(str(ctx.getText()))
 
     # Enter a parse tree produced by LabCmd#argument.
     @enter_debug
@@ -118,7 +120,6 @@ class CmdListener(LabCmdListener):
     @exit_debug
     def exitText(self, ctx: LabCmd.TextContext):
         self.result_str += ctx.getText()
-        self.result_list.append(ctx.getText())
 
 
 class CustomErrorListener(ErrorListener):
@@ -158,7 +159,16 @@ class CustomErrorListener(ErrorListener):
         raise SyntaxError(f"Parsing halted due to syntax error: {msg}")
 
 
-def cmd_interpolate(input_str: str, variable_table: Dict[str, Any]) -> str:
+def cmd_interpolate(input_str: str, variable_table: Dict[str, Any]):
+    """
+
+    Args:
+        input_str:
+        variable_table:
+
+    Returns:
+        interpolated str, involved keys
+    """
     # Parse the input string
     input_stream = InputStream(input_str)
     lexer = LabCmdLexer(input_stream)
@@ -178,7 +188,7 @@ def cmd_interpolate(input_str: str, variable_table: Dict[str, Any]) -> str:
     listener = CmdListener(variable_table)
     walker = ParseTreeWalker()
     walker.walk(listener, tree)
-    return listener.result_str
+    return listener.result_str, listener.args
 
 
 def main():
