@@ -1,9 +1,0 @@
-VARIABLE_START=1
-TEXT=2
-VARIABLE_END=3
-DOT=4
-ID=5
-WS=6
-'{{'=1
-'}}'=3
-'.'=4
