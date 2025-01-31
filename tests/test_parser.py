@@ -1,9 +1,22 @@
+import sys
+from io import StringIO
 from shlex import split
 
 import pytest
 
-from labtasker.client.core.cmd_parser import cmd_interpolate
+from labtasker.client.core.cmd_parser import CmdSyntaxError, cmd_interpolate
 from labtasker.utils import keys_to_query_dict
+
+
+@pytest.fixture(autouse=True)
+def test_suppress_stderr():
+    """Suppress the stderr produced by parser format print."""
+    original_stderr = sys.stderr
+    sys.stderr = StringIO()
+    try:
+        yield
+    finally:
+        sys.stderr = original_stderr
 
 
 @pytest.fixture
@@ -34,3 +47,31 @@ class TestParseCmd:
 
         assert split(parsed) == split(tgt_cmd), f"got {parsed}"
         assert query_dict == tgt_query_dict, f"got {query_dict}"
+
+    def test_missing_key(self, params):
+        cmd = "python main.py --arg1 {{}}"
+        with pytest.raises(CmdSyntaxError):
+            cmd_interpolate(cmd, params)
+
+    def test_no_exist_key(self, params):
+        cmd = "python main.py --arg1 {{arg_non_existent}}"
+        with pytest.raises(KeyError):
+            cmd_interpolate(cmd, params)
+
+    def test_unmatch_parentheses(self, params):
+        cmd = "python main.py --arg1 {{{ arg1 }}"
+        with pytest.raises(CmdSyntaxError):
+            cmd_interpolate(cmd, params)
+
+        cmd = "python main.py --arg1 { {  {{ arg1 }}"
+        parsed, _ = cmd_interpolate(cmd, params)
+        assert split(parsed) == split(
+            "python main.py --arg1 { {  value1"
+        ), f"got {parsed}"
+
+        # Note: --arg1 {{ arg1 }}} is allowed for now. Since we do not check unmatched parenthesis on the other side
+
+    def test_empty_command(self, params):
+        cmd = ""
+        parsed, _ = cmd_interpolate(cmd, params)
+        assert parsed == "", "Command should remain empty"
