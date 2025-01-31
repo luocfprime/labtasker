@@ -15,7 +15,7 @@ def serializedATN():
     return [
         4,
         1,
-        6,
+        7,
         36,
         2,
         0,
@@ -319,7 +319,7 @@ class LabCmd(Parser):
 
     sharedContextCache = PredictionContextCache()
 
-    literalNames = ["<INVALID>", "'{{'", "<INVALID>", "'}}'", "'.'"]
+    literalNames = ["<INVALID>", "'%('", "<INVALID>", "')'", "'.'"]
 
     symbolicNames = [
         "<INVALID>",
@@ -329,6 +329,7 @@ class LabCmd(Parser):
         "DOT",
         "ID",
         "WS",
+        "OTHERS",
     ]
 
     RULE_command = 0
@@ -346,6 +347,7 @@ class LabCmd(Parser):
     DOT = 4
     ID = 5
     WS = 6
+    OTHERS = 7
 
     def __init__(self, input: TokenStream, output: TextIO = sys.stdout):
         super().__init__(input, output)

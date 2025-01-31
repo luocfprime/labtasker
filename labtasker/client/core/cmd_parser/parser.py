@@ -256,8 +256,11 @@ def cmd_interpolate(input_str: str, variable_table: Dict[str, Any]):
 
 
 def main():
-    # input_str = "python train.py --arg1 {{ a.b }} --arg2 {{c.d.e}} --arg3 {{arg3}} {{ a .e}} {{ a }}}"
-    input_str = "python train.py --arg1 {{ {{ a.b }} --arg2 {{c.d.e}} --arg3 {{arg3}} {{ a .e}} {{ a }}}"
+    input_str = (
+        "python train.py --arg1 %( a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
+    )
+    # input_str = "python train.py --arg1 %( { a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
+    # input_str = "python train.py --arg1 %( a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
 
     variable_table = {
         "a": {"b": "value1", "e": "fcc"},
