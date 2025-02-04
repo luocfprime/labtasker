@@ -1,11 +1,11 @@
 from functools import wraps
-from pathlib import Path
 from typing import Optional
 
 from pydantic import HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from labtasker.client.core.logging import logger
+from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH
 
 
 class ClientConfig(BaseSettings):
@@ -18,7 +18,7 @@ class ClientConfig(BaseSettings):
     heartbeat_interval: int = 30  # seconds
 
     model_config = SettingsConfigDict(
-        env_file=".labtasker/client.env",
+        env_file=LABTASKER_CLIENT_CONFIG_PATH,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="allow",
@@ -26,7 +26,6 @@ class ClientConfig(BaseSettings):
 
 
 _config: Optional[ClientConfig] = None
-_config_path = Path(".labtasker/client.env")
 
 
 def requires_client_config(func):
@@ -75,7 +74,3 @@ def dump_client_config():
 def get_client_config() -> ClientConfig:
     """Get singleton instance of ClientConfig."""
     return _config
-
-
-def get_client_config_path() -> Path:
-    return _config_path
