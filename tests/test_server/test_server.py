@@ -17,7 +17,7 @@ from labtasker.api_models import (
     TaskFetchRequest,
     TaskFetchResponse,
     TaskLsRequest,
-    TaskLsRespose,
+    TaskLsResponse,
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
@@ -185,7 +185,7 @@ class TestTaskEndpoints:
             params=TaskLsRequest(offset=0, limit=5).model_dump(),
         )
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
-        data = TaskLsRespose(**response.json())
+        data = TaskLsResponse(**response.json())
         assert data.found is True
         assert len(data.tasks) == 5
         for i, task in enumerate(data.tasks):
@@ -198,7 +198,7 @@ class TestTaskEndpoints:
             params=TaskLsRequest(offset=5, limit=5).model_dump(),
         )
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
-        data = TaskLsRespose(**response.json())
+        data = TaskLsResponse(**response.json())
         assert data.found is True
         assert len(data.tasks) == 5
         for i, task in enumerate(data.tasks):
@@ -243,7 +243,7 @@ class TestTaskEndpoints:
         )
 
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
-        data = TaskLsRespose(**response.json())
+        data = TaskLsResponse(**response.json())
         assert data.found is True
         assert data.tasks[0].status == "completed"
 
@@ -300,7 +300,7 @@ class TestTaskEndpoints:
                 ).model_dump(),
             )
             assert response.status_code == HTTP_200_OK, f"{response.json()}"
-            data = TaskLsRespose(**response.json())
+            data = TaskLsResponse(**response.json())
             assert data.tasks[0].last_heartbeat is not None
             assert (
                 abs(

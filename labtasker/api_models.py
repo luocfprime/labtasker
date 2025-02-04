@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field, SecretStr
 from labtasker.constants import Priority
 
 
+class HealthCheckResponse(BaseModel):
+    status: str = Field(..., pattern=r"^(healthy|unhealthy)$")
+    database: str
+
+
 class QueueCreateRequest(BaseModel):
     queue_name: str = Field(
         ..., pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
@@ -98,7 +103,7 @@ class Task(BaseModel):
     worker_id: Optional[str]
 
 
-class TaskLsRespose(BaseModel):
+class TaskLsResponse(BaseModel):
     found: bool = False
     tasks: List[Task] = Field(default_factory=list)
 

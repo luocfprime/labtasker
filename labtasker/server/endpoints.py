@@ -20,7 +20,7 @@ from labtasker.api_models import (
     TaskFetchResponse,
     TaskFetchTask,
     TaskLsRequest,
-    TaskLsRespose,
+    TaskLsResponse,
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
@@ -169,9 +169,9 @@ def ls_tasks(
         offset=task_request.offset,
     )
     if not tasks:
-        return TaskLsRespose(found=False)
+        return TaskLsResponse(found=False)
 
-    return TaskLsRespose(found=True, tasks=parse_obj_as(List[Task], tasks))
+    return TaskLsResponse(found=True, tasks=parse_obj_as(List[Task], tasks))
 
 
 @app.post("/api/v1/queues/me/tasks/next")
