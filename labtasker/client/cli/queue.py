@@ -1,12 +1,11 @@
 """
-Implements `labtasker config`
+Implements `labtasker queue xxx`
 """
 
 import typer
 from pydantic import HttpUrl, SecretStr, ValidationError
 from typing_extensions import Annotated
 
-from labtasker.client.cli.cli import app
 from labtasker.client.core.config import (
     dump_client_config,
     init_config_with_default,
@@ -15,9 +14,11 @@ from labtasker.client.core.config import (
 from labtasker.client.core.logging import stderr_console
 from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH
 
+app = typer.Typer()
+
 
 @app.command()
-def config(
+def create(
     api_base_url: Annotated[
         str,
         typer.Option(

@@ -11,23 +11,25 @@ from tests.fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
 @pytest.fixture
 def test_type(request):
     """
-    Fixture to determine the current test type (e.g., 'unit', 'integration').
+    Fixture to determine the current test type (e.g., 'unit', 'integration', 'e2e').
     Priority: CLI marker (-m) > Test-specific marker > Environment variable > Default.
     """
     # 1. Check the CLI marker (-m option)
     cli_marker = request.config.option.markexpr
-    if cli_marker in ["unit", "integration"]:  # Add more types if needed
+    if cli_marker in ["unit", "integration", "e2e"]:  # Add more types if needed
         return cli_marker
 
     # 2. Check test-specific markers
-    if "integration" in request.node.keywords:
-        return "integration"
-    elif "unit" in request.node.keywords:
+    if "unit" in request.node.keywords:
         return "unit"
+    elif "integration" in request.node.keywords:
+        return "integration"
+    elif "e2e" in request.node.keywords:
+        return "e2e"
 
     # 3. Fallback to environment variable
     env_test_type = os.getenv("TEST_TYPE")
-    if env_test_type in ["unit", "integration"]:  # Add more types if needed
+    if env_test_type in ["unit", "integration", "e2e"]:  # Add more types if needed
         return env_test_type
 
     # 4. Default to 'unit' if nothing else is specified
@@ -72,7 +74,10 @@ def db_fixture(test_type, request, monkeypatch):
     """
     Dynamic database fixture that supports both mock and real databases.
     """
-    if test_type == "integration":  # prioritize integration tests over unit tests
+    if test_type in [
+        "integration",
+        "e2e",
+    ]:  # prioritize integration tests over unit tests
         db = request.getfixturevalue("real_db")
     elif test_type == "unit":
         db = request.getfixturevalue("mock_db")
