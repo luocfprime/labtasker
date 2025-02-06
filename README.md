@@ -1,5 +1,6 @@
 # Labtasker [WIP]
 
+![unit-test-matrix](https://github.com/fkcptlst/labtasker/actions/workflows/unit-test-matrix.yml/badge.svg)
 [![codecov](https://codecov.io/gh/fkcptlst/labtasker/graph/badge.svg?token=KQFBV3QRPY)](https://codecov.io/gh/fkcptlst/labtasker)
 
 A easy-to-use task management tool for lab environments.
