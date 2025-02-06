@@ -11,10 +11,13 @@ lint:
 	mypy .
 
 unit-test:
-	pytest -m "unit" --cov=labtasker --cov-report=term-missing --cov-report=xml:cov.xml
+	pytest -m "unit" --cov=labtasker --cov-report=term-missing --cov-report=xml
 
 integration-test:
-	pytest -m "integration" --cov=labtasker --cov-report=term-missing --cov-report=xml:cov.xml
+	pytest -m "integration" --cov=labtasker --cov-report=term-missing --cov-report=xml
+
+e2e-test:
+	pytest -m "e2e" --cov=labtasker --cov-report=term-missing --cov-report=xml
 
 performance-test:
 	pytest -m "integration and benchmark" --benchmark-columns="rounds, iterations, min, mean, max"

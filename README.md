@@ -1,5 +1,7 @@
 # Labtasker [WIP]
 
+[![codecov](https://codecov.io/gh/fkcptlst/labtasker/graph/badge.svg?token=KQFBV3QRPY)](https://codecov.io/gh/fkcptlst/labtasker)
+
 A easy-to-use task management tool for lab environments.
 
 ## Development Setup
