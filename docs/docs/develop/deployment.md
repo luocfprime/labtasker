@@ -27,17 +27,17 @@ To expose MongoDB for external tools:
 ## Deployment
 1. Start services:
    ```bash
-   docker-compose --env-file server.env up -d
+   docker compose --env-file server.env up -d
    ```
 
 2. Check status:
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 
 3. View logs:
    ```bash
-   docker-compose logs -f
+   docker compose logs -f
    ```
 
 ## Maintenance

@@ -9,7 +9,7 @@ The deployment of Labtasker is straightforward. Basically, you need to:
 
 ## Deploy server
 
-You can deploy Labtasker server on a cloud server via docker-compose.
+You can deploy Labtasker server on a cloud server via docker compose.
 
 ```bash
 git clone https://github.com/fkcptlst/labtasker.git
@@ -28,7 +28,7 @@ cp server.example.env server.env
 Then, run the following command to start the server:
 
 ```bash
-docker-compose --env-file server.env up -d
+docker compose --env-file server.env up -d
 ```
 
 ## Install client
