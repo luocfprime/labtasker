@@ -1,7 +1,6 @@
 import os
 
 import pytest
-import respx
 
 from labtasker.server.config import init_server_config
 from tests.fixtures.database import mock_db, real_db  # noqa: F401
@@ -36,34 +35,6 @@ def test_type(request):
     return "unit"
 
 
-@pytest.fixture(scope="session")
-def docker_compose_command():
-    """Docker Compose command for running tests."""
-    return "docker-compose"
-
-
-@pytest.fixture(scope="session", autouse=True)
-def allow_unsafe():
-    """Enable unsafe operations for testing."""
-    os.environ["ALLOW_UNSAFE_BEHAVIOR"] = "true"
-    yield
-    if "ALLOW_UNSAFE_BEHAVIOR" in os.environ:
-        del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_config(pytestconfig):
-    proj_root = pytestconfig.rootdir  # noqa
-
-    # Initialize server config for testing
-    os.environ["PERIODIC_TASK_INTERVAL"] = "0.01"  # spin really fast for testing
-    env_file_path = os.path.join(proj_root, "server.example.env")
-
-    print(f"Config {env_file_path} exists: {os.path.exists(env_file_path)}")
-
-    init_server_config(env_file_path)
-
-
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
@@ -92,10 +63,30 @@ def db_fixture(test_type, request, monkeypatch):
     return db
 
 
-@pytest.fixture
-def respx_mock_when_unit_test(test_type):
-    if "unit" in test_type:
-        with respx.mock:
-            yield
-    else:
-        yield
+# auto use fixtures ------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def setup_working_dir(): ...
+
+
+@pytest.fixture(scope="session", autouse=True)
+def allow_unsafe():
+    """Enable unsafe operations for testing."""
+    os.environ["ALLOW_UNSAFE_BEHAVIOR"] = "true"
+    yield
+    if "ALLOW_UNSAFE_BEHAVIOR" in os.environ:
+        del os.environ["ALLOW_UNSAFE_BEHAVIOR"]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_config(pytestconfig):
+    proj_root = pytestconfig.rootdir  # noqa
+
+    # Initialize server config for testing
+    os.environ["PERIODIC_TASK_INTERVAL"] = "0.01"  # spin really fast for testing
+    env_file_path = os.path.join(proj_root, "server.example.env")
+
+    print(f"Config {env_file_path} exists: {os.path.exists(env_file_path)}")
+
+    init_server_config(env_file_path)
