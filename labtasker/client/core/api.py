@@ -11,26 +11,38 @@ from labtasker.api_models import (
     TaskSubmitResponse,
     WorkerLsResponse,
 )
-from labtasker.client.core.config import ClientConfig, get_client_config
+from labtasker.client.core.config import get_client_config
 from labtasker.security import get_auth_headers
 
-_httpx_client = httpx.Client()
+_httpx_client = None
 
 
 def get_httpx_client() -> httpx.Client:
+    """Lazily initialize httpx client."""
+    global _httpx_client
+    if _httpx_client is None:
+        config = get_client_config()
+        auth_headers = get_auth_headers(config.queue_name, config.password)
+        _httpx_client = httpx.Client(
+            base_url=config.api_base_url,
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
     return _httpx_client
 
 
-def health_check(
-    client: Optional[httpx.Client] = None, config: Optional[ClientConfig] = None
-) -> HealthCheckResponse:
+def close_httpx_client():
+    """Close the httpx client."""
+    global _httpx_client
+    if _httpx_client is not None:
+        _httpx_client.close()
+        _httpx_client = None
+
+
+def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     """Check the health of the server."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
-    response = client.get(f"{config.api_base_url}/health", headers=headers)
+    response = client.get("/health")
     response.raise_for_status()
     return HealthCheckResponse(**response.json())
 
@@ -40,36 +52,25 @@ def create_queue(
     password: str,
     metadata: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> QueueCreateResponse:
     """Create a new queue."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "queue_name": queue_name,
         "password": password,
         "metadata": metadata or {},
     }
-    response = client.post(
-        f"{config.api_base_url}/api/v1/queues", headers=headers, json=payload
-    )
+    response = client.post("/api/v1/queues", json=payload)
     response.raise_for_status()
     return QueueCreateResponse(**response.json())
 
 
-def get_queue(
-    client: Optional[httpx.Client] = None, config: Optional[ClientConfig] = None
-) -> QueueGetResponse:
+def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
     """Get queue information."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
-    response = client.get(f"{config.api_base_url}/api/v1/queues/me", headers=headers)
+    response = client.get("/api/v1/queues/me")
     response.raise_for_status()
     return QueueGetResponse(**response.json())
 
@@ -77,18 +78,12 @@ def get_queue(
 def delete_queue(
     cascade_delete: bool = False,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> None:
     """Delete a queue."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     params = {"cascade_delete": cascade_delete}
-    response = client.delete(
-        f"{config.api_base_url}/api/v1/queues/me", headers=headers, params=params
-    )
+    response = client.delete("/api/v1/queues/me", params=params)
     response.raise_for_status()
 
 
@@ -102,14 +97,10 @@ def submit_task(
     max_retries: Optional[int],
     priority: Optional[int],
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> TaskSubmitResponse:
     """Submit a task to the queue."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "task_name": task_name,
         "args": args,
@@ -120,9 +111,7 @@ def submit_task(
         "max_retries": max_retries,
         "priority": priority,
     }
-    response = client.post(
-        f"{config.api_base_url}/api/v1/queues/me/tasks", headers=headers, json=payload
-    )
+    response = client.post("/api/v1/queues/me/tasks", json=payload)
     response.raise_for_status()
     return TaskSubmitResponse(**response.json())
 
@@ -134,14 +123,10 @@ def fetch_task(
     required_fields: Optional[Dict[str, Any]],
     extra_filter: Optional[Dict[str, Any]],
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> TaskFetchResponse:
     """Fetch the next available task from the queue."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "worker_id": worker_id,
         "eta_max": eta_max,
@@ -149,11 +134,7 @@ def fetch_task(
         "required_fields": required_fields,
         "extra_filter": extra_filter,
     }
-    response = client.post(
-        f"{config.api_base_url}/api/v1/queues/me/tasks/next",
-        headers=headers,
-        json=payload,
-    )
+    response = client.post("/api/v1/queues/me/tasks/next", json=payload)
     response.raise_for_status()
     return TaskFetchResponse(**response.json())
 
@@ -163,41 +144,26 @@ def report_task_status(
     status: str,
     summary: Optional[Dict[str, Any]],
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> None:
     """Report the status of a task."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "status": status,
         "summary": summary,
     }
-    response = client.post(
-        f"{config.api_base_url}/api/v1/queues/me/tasks/{task_id}/status",
-        headers=headers,
-        json=payload,
-    )
+    response = client.post(f"/api/v1/queues/me/tasks/{task_id}/status", json=payload)
     response.raise_for_status()
 
 
 def refresh_task_heartbeat(
     task_id: str,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> None:
     """Refresh the heartbeat of a task."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
-    response = client.post(
-        f"{config.api_base_url}/api/v1/queues/me/tasks/{task_id}/heartbeat",
-        headers=headers,
-    )
+    response = client.post(f"/api/v1/queues/me/tasks/{task_id}/heartbeat")
     response.raise_for_status()
 
 
@@ -206,22 +172,16 @@ def create_worker(
     metadata: Optional[Dict[str, Any]],
     max_retries: Optional[int],
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> str:
     """Create a new worker."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "worker_name": worker_name,
         "metadata": metadata,
         "max_retries": max_retries,
     }
-    response = client.post(
-        f"{config.api_base_url}/api/v1/queues/me/workers", headers=headers, json=payload
-    )
+    response = client.post("/api/v1/queues/me/workers", json=payload)
     response.raise_for_status()
     return response.json()["worker_id"]
 
@@ -233,14 +193,10 @@ def ls_worker(
     limit: int = 100,
     offset: int = 0,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> WorkerLsResponse:
     """List workers."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "worker_id": worker_id,
         "worker_name": worker_name,
@@ -248,11 +204,7 @@ def ls_worker(
         "limit": limit,
         "offset": offset,
     }
-    response = client.get(
-        f"{config.api_base_url}/api/v1/queues/me/workers",
-        headers=headers,
-        params=payload,
-    )
+    response = client.get("/api/v1/queues/me/workers", params=payload)
     response.raise_for_status()
     return WorkerLsResponse(**response.json())
 
@@ -261,21 +213,15 @@ def report_worker_status(
     worker_id: str,
     status: str,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> None:
     """Report the status of a worker."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "status": status,
     }
     response = client.post(
-        f"{config.api_base_url}/api/v1/queues/me/workers/{worker_id}/status",
-        headers=headers,
-        json=payload,
+        f"/api/v1/queues/me/workers/{worker_id}/status", json=payload
     )
     response.raise_for_status()
 
@@ -287,14 +233,10 @@ def ls_tasks(
     limit: int = 100,
     offset: int = 0,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> TaskLsResponse:
     """List tasks in a queue."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {
         "task_id": task_id,
         "task_name": task_name,
@@ -302,9 +244,7 @@ def ls_tasks(
         "limit": limit,
         "offset": offset,
     }
-    response = client.get(
-        f"{config.api_base_url}/api/v1/queues/me/tasks", headers=headers, params=payload
-    )
+    response = client.get("/api/v1/queues/me/tasks", params=payload)
     response.raise_for_status()
     return TaskLsResponse(**response.json())
 
@@ -312,17 +252,11 @@ def ls_tasks(
 def delete_task(
     task_id: str,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> None:
     """Delete a specific task."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
-    response = client.delete(
-        f"{config.api_base_url}/api/v1/queues/me/tasks/{task_id}", headers=headers
-    )
+    response = client.delete(f"/api/v1/queues/me/tasks/{task_id}")
     response.raise_for_status()
 
 
@@ -330,33 +264,21 @@ def update_queue(
     queue_id: str,
     metadata: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> None:
     """Update queue details."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
     payload = {"metadata": metadata or {}}
-    response = client.put(
-        f"{config.api_base_url}/api/v1/queues/{queue_id}", headers=headers, json=payload
-    )
+    response = client.put(f"/api/v1/queues/{queue_id}", json=payload)
     response.raise_for_status()
 
 
 def delete_worker(
     worker_id: str,
     client: Optional[httpx.Client] = None,
-    config: Optional[ClientConfig] = None,
 ) -> None:
     """Delete a specific worker."""
     if client is None:
         client = get_httpx_client()
-    if config is None:
-        config = get_client_config()
-    headers = get_auth_headers(config.queue_name, config.password)
-    response = client.delete(
-        f"{config.api_base_url}/api/v1/queues/me/workers/{worker_id}", headers=headers
-    )
+    response = client.delete(f"/api/v1/queues/me/workers/{worker_id}")
     response.raise_for_status()

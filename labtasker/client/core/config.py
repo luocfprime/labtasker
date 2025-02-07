@@ -5,7 +5,7 @@ from pydantic import HttpUrl, SecretStr, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from labtasker.client.core.logging import logger
-from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH
+from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH, LABTASKER_ROOT
 from labtasker.utils import get_current_time
 
 
@@ -98,3 +98,17 @@ def dump_client_config():
 def get_client_config() -> ClientConfig:
     """Get singleton instance of ClientConfig."""
     return _config
+
+
+from pathlib import Path
+
+
+def gitignore_setup():
+    """Setup .gitignore file to ignore labtasker_client_config.env"""
+    gitignore_path = Path(LABTASKER_ROOT) / ".gitignore"
+
+    # Ensure .gitignore exists and check if "*.env" is already present
+    if not gitignore_path.exists():
+        with open(gitignore_path, mode="a", encoding="utf-8") as f:
+            f.write("*.env\n")
+            f.write("logs\n")
