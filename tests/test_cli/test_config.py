@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from labtasker.client.cli import app
 from labtasker.client.core.config import ClientConfig
-from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH
+from labtasker.constants import get_labtasker_client_config_path
 
 runner = CliRunner()
 
@@ -29,7 +29,7 @@ def test_config():
         input="y\n",  #  prompt: Configuration at .labtasker/client.env already exists, overwrite? [y/N]: y
     )
     assert result.exit_code == 0
-    config = ClientConfig(_env_file=LABTASKER_CLIENT_CONFIG_PATH)  # noqa
+    config = ClientConfig(_env_file=get_labtasker_client_config_path())  # noqa
     assert config.api_base_url == HttpUrl("http://localhost:8080")
     assert config.queue_name == "test-queue"
     assert config.password == SecretStr("test-password")

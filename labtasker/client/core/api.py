@@ -24,7 +24,7 @@ def get_httpx_client() -> httpx.Client:
         config = get_client_config()
         auth_headers = get_auth_headers(config.queue_name, config.password)
         _httpx_client = httpx.Client(
-            base_url=config.api_base_url,
+            base_url=str(config.api_base_url),
             headers={**auth_headers, "Content-Type": "application/json"},
         )
     return _httpx_client

@@ -5,7 +5,7 @@ from pydantic import HttpUrl, SecretStr, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from labtasker.client.core.logging import logger
-from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH, LABTASKER_ROOT
+from labtasker.constants import get_labtasker_client_config_path, get_labtasker_root
 from labtasker.utils import get_current_time
 
 
@@ -19,7 +19,7 @@ class ClientConfig(BaseSettings):
     heartbeat_interval: int  # seconds
 
     model_config = SettingsConfigDict(
-        env_file=LABTASKER_CLIENT_CONFIG_PATH,
+        env_file=get_labtasker_client_config_path(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="allow",
@@ -54,7 +54,7 @@ def init_config_with_default():
 
 
 def load_client_config(
-    env_file: str = LABTASKER_CLIENT_CONFIG_PATH, **overwrite_fields
+    env_file: str = get_labtasker_client_config_path(), **overwrite_fields
 ):
     global _config
     if _config is not None:
@@ -88,10 +88,10 @@ def dump_client_config():
     config_dict["password"] = _config.password.get_secret_value()
 
     # Write the configuration to the specified path in .env format
-    with open(LABTASKER_CLIENT_CONFIG_PATH, "w", encoding="utf-8") as f:
+    with open(get_labtasker_client_config_path(), "w", encoding="utf-8") as f:
         for key, value in config_dict.items():
             f.write(f"{key.upper()}={value}\n")
-    logger.info(f"Configuration saved to {LABTASKER_CLIENT_CONFIG_PATH}")
+    logger.info(f"Configuration saved to {get_labtasker_client_config_path()}")
 
 
 @requires_client_config
@@ -105,7 +105,7 @@ from pathlib import Path
 
 def gitignore_setup():
     """Setup .gitignore file to ignore labtasker_client_config.env"""
-    gitignore_path = Path(LABTASKER_ROOT) / ".gitignore"
+    gitignore_path = Path(get_labtasker_root()) / ".gitignore"
 
     # Ensure .gitignore exists and check if "*.env" is already present
     if not gitignore_path.exists():

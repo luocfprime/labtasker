@@ -12,7 +12,7 @@ from labtasker import __version__
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import load_client_config
 from labtasker.client.core.logging import stderr_console, stdout_console
-from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH
+from labtasker.constants import get_labtasker_client_config_path
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -26,9 +26,11 @@ def version_callback(value: bool):
 def cli_requires_config(func, /, *, load_config: bool = True):
     @wraps(func)
     def wrapped(*args, **kwargs):
-        if not LABTASKER_CLIENT_CONFIG_PATH.exists():  # check if config file exists
+        if (
+            not get_labtasker_client_config_path().exists()
+        ):  # check if config file exists
             stderr_console.print(
-                f"Configuration at {LABTASKER_CLIENT_CONFIG_PATH} not found. Run `labtasker config` to initialize configuration."
+                f"Configuration at {get_labtasker_client_config_path()} not found. Run `labtasker config` to initialize configuration."
             )
             raise typer.Exit(-1)
         # load config

@@ -12,7 +12,7 @@ from labtasker.client.core.config import (
     update_client_config,
 )
 from labtasker.client.core.logging import stderr_console
-from labtasker.constants import LABTASKER_CLIENT_CONFIG_PATH
+from labtasker.constants import get_labtasker_client_config_path
 
 app = typer.Typer()
 
@@ -70,16 +70,16 @@ def create(
         )
         raise typer.Exit(-1)
 
-    if not LABTASKER_CLIENT_CONFIG_PATH.exists():
+    if not get_labtasker_client_config_path().exists():
         if not typer.confirm(
-            f"Configuration at {LABTASKER_CLIENT_CONFIG_PATH} not found, create?"
+            f"Configuration at {get_labtasker_client_config_path()} not found, create?"
         ):
             raise typer.Exit()
 
-        LABTASKER_CLIENT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        get_labtasker_client_config_path().parent.mkdir(parents=True, exist_ok=True)
     else:
         if not typer.confirm(
-            f"Configuration at {LABTASKER_CLIENT_CONFIG_PATH} already exists, overwrite?"
+            f"Configuration at {get_labtasker_client_config_path()} already exists, overwrite?"
         ):
             raise typer.Exit()
 

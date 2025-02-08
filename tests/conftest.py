@@ -45,10 +45,7 @@ def db_fixture(test_type, request, monkeypatch):
     """
     Dynamic database fixture that supports both mock and real databases.
     """
-    if test_type in [
-        "integration",
-        "e2e",
-    ]:  # prioritize integration tests over unit tests
+    if test_type in ["integration", "e2e"]:
         db = request.getfixturevalue("real_db")
     elif test_type == "unit":
         db = request.getfixturevalue("mock_db")
