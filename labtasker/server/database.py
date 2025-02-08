@@ -147,7 +147,7 @@ class DBService:
         return {"password": 0}
 
     @auth_required
-    @risky("Potential query injection")
+    # @risky("Potential query injection")
     @validate_arg
     def query_collection(
         self,
