@@ -74,10 +74,15 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/health")
-def health_check(db: DBService = Depends(get_db)):
-    """Health check endpoint."""
+def health_check():
+    """Basic health check."""
+    return {"status": "healthy"}
+
+
+@app.get("/health/full")
+def full_health_check(db: DBService = Depends(get_db)):
+    """Full health check with database."""
     try:
-        # Check database connection
         db.ping()
         return {"status": "healthy", "database": "connected"}
     except Exception as e:

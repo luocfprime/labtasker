@@ -42,7 +42,7 @@ def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     """Check the health of the server."""
     if client is None:
         client = get_httpx_client()
-    response = client.get("/health")
+    response = client.get("/health/full")
     response.raise_for_status()
     return HealthCheckResponse(**response.json())
 
