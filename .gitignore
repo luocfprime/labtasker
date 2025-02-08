@@ -5,6 +5,7 @@
 **/*.interp
 **/*.tokens
 
+tmp/
 
 .idea/
 

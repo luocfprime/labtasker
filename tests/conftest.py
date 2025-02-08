@@ -77,7 +77,7 @@ def allow_unsafe():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_config(pytestconfig):
+def setup_server_config(pytestconfig):
     proj_root = pytestconfig.rootdir  # noqa
 
     # Initialize server config for testing
