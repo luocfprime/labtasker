@@ -1,6 +1,9 @@
+import pytest
+
 from labtasker.security import hash_password, verify_password
 
 
+@pytest.mark.unit
 def test_hash_and_verify_password():
     password = "password"
     hashed_password = hash_password(password)
