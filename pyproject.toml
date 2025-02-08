@@ -34,10 +34,9 @@ dependencies = [
     "bcrypt>=4.0.0",
     "antlr4-python3-runtime>=4.13.0",
     "pydantic-settings>=2.7.0",
-    "httpx>=0.24.0",
+    "httpx[socks]>=0.24.0",
     "typer>=0.15.0",
     "loguru>=0.7.0",
-    "rpyc>=6.0.0"
 ]
 [project.optional-dependencies]
 dev = [
