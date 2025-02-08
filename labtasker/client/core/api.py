@@ -14,7 +14,7 @@ from labtasker.api_models import (
 from labtasker.client.core.config import get_client_config
 from labtasker.security import get_auth_headers
 
-_httpx_client = None
+_httpx_client: Optional[httpx.Client] = None
 
 
 def get_httpx_client() -> httpx.Client:
