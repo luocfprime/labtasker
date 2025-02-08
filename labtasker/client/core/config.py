@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from labtasker.client.core.logging import logger
 from labtasker.constants import get_labtasker_client_config_path, get_labtasker_root
+from labtasker.filtering import register_sensitive_text
+from labtasker.security import get_auth_headers
 from labtasker.utils import get_current_time
 
 
@@ -65,6 +67,12 @@ def load_client_config(
 
     if overwrite_fields:
         update_client_config(**overwrite_fields)
+
+    # register sensitive text
+    register_sensitive_text(_config.password.get_secret_value())
+    register_sensitive_text(
+        get_auth_headers(_config.queue_name, _config.password)["Authorization"]
+    )
 
 
 @requires_client_config
