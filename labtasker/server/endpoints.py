@@ -76,7 +76,7 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/health")
 def health_check():
     """Basic health check."""
-    return {"status": "healthy"}
+    return {"connection": "ok"}
 
 
 @app.get("/health/full")
