@@ -926,5 +926,5 @@ def get_db() -> DBService:
     global _db_service
     config = get_server_config()
     if not _db_service:
-        _db_service = DBService(config.mongodb_uri, config.db_name)  # TODO: check
+        _db_service = DBService(db_name=config.db_name, uri=config.mongodb_uri)
     return _db_service
