@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 COPY . .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir ".[dev]"
+RUN pip install --no-cache-dir "."
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

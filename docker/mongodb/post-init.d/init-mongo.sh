@@ -49,4 +49,7 @@ db.createCollection('workers', { capped: false })
 EOF
 echo "Collections created successfully."
 
+echo "Marking setup as completed..."
+touch /setup_completed
+
 echo "MongoDB setup completed."

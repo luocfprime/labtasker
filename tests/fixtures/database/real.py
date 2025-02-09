@@ -20,7 +20,7 @@ def is_mongo_ready(uri):
 
 
 @pytest.fixture
-def real_db(request):
+def real_db(request, server_config):
     """
     MongoDB factory used for fixture lazy loading.
     """
@@ -33,8 +33,9 @@ def real_db(request):
 
         port = docker_services.port_for("mongodb", 27017)
         host = docker_ip
-        username = "test_user"
-        password = "test_password"
+
+        username = server_config.db_user
+        password = server_config.db_password
 
         uri = f"mongodb://{username}:{password}@{host}:{port}/?authSource=admin&directConnection=true&replicaSet=rs0"
 
@@ -45,17 +46,10 @@ def real_db(request):
             pause=1.0,  # Check every 1 seconds
         )
 
-        # Connect to MongoDB using the connection details
-        client = RealMongoClient(
-            uri,
-            w="majority",
-            retryWrites=True,
-        )
+        # Create a DatabaseClient object
+        _real_db_instance = DBService(db_name=server_config.db_name, uri=uri)
 
         time.sleep(5)  # wait for the docker/mongodb/post-init.d script to be executed
-
-        # Create a DatabaseClient object
-        _real_db_instance = DBService(client=client, db_name="test_db")
 
     yield _real_db_instance
 

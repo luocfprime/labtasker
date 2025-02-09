@@ -8,21 +8,20 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${DB_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${DB_PASSWORD}
       - MONGO_INITDB_DATABASE=${DB_NAME:-labtasker_db}
-    command: [ "--replSet", "rs0", "--keyFile", "/data/configdb/mongo-keyfile" ]
-    entrypoint: [ "/usr/local/bin/docker-entrypoint-wrapped.sh" ]
+    command: ["--replSet", "rs0", "--keyFile", "/data/configdb/mongo-keyfile"]
+    entrypoint: ["/usr/local/bin/docker-entrypoint-wrapped.sh"]
     volumes:
       - mongo-data:/data/db
       - mongo-keyfile:/data/configdb:rw
-      - ./docker/mongodb/healthcheck.sh:/usr/local/bin/healthcheck.sh:ro
-      - ./docker/mongodb/docker-entrypoint-wrapped.sh:/usr/local/bin/docker-entrypoint-wrapped.sh:ro
-      - ./docker/mongodb/init.d:/docker-entrypoint-initdb.d/
-      - ./docker/mongodb/post-init.d:/docker-entrypoint-post-initdb.d/
+      - ../docker/mongodb/docker-entrypoint-wrapped.sh:/usr/local/bin/docker-entrypoint-wrapped.sh:ro
+      - ../docker/mongodb/init.d:/docker-entrypoint-initdb.d/
+      - ../docker/mongodb/post-init.d:/docker-entrypoint-post-initdb.d/
     ports:
       - ${EXPOSE_DB:+${DB_PORT:-27017}:27017}
     networks:
       - labtasker-network
     healthcheck:
-      test: [ "CMD", "/usr/local/bin/healthcheck.sh" ]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -39,7 +38,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME:-labtasker_db}
       - DB_HOST=mongodb
-      - DB_PORT=${DB_PORT:-27017}
+      - DB_PORT=27017
       - API_HOST=${API_HOST:-0.0.0.0}
       - API_PORT=${API_PORT:-8080}
     ports:

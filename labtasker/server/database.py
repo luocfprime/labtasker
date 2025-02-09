@@ -45,7 +45,10 @@ class DBService:
     def __init__(
         self, db_name: str, uri: str = None, client: Optional[MongoClient] = None
     ):
-        """Initialize database client. If client is provided, it will be used instead of connecting to MongoDB."""
+        """
+        Initialize database client. If client is provided, it will be used instead of connecting to MongoDB.
+        The instances of this class is stateless. The instance itself does not preserve any state across API calls.
+        """
         if client:
             self._client = client
             self._db = self._client[db_name]
