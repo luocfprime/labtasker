@@ -1,10 +1,13 @@
+from collections.abc import Callable
 from functools import wraps
+from pathlib import Path
 from typing import Optional
 
+import typer
 from pydantic import HttpUrl, SecretStr, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from labtasker.client.core.logging import logger
+from labtasker.client.core.logging import logger, stderr_console
 from labtasker.constants import get_labtasker_client_config_path, get_labtasker_root
 from labtasker.filtering import register_sensitive_text
 from labtasker.security import get_auth_headers
@@ -31,11 +34,24 @@ class ClientConfig(BaseSettings):
 _config: Optional[ClientConfig] = None
 
 
-def requires_client_config(func):
+def requires_client_config(func: Callable = None, /, *, auto_load_config: bool = True):
+    if func is None:  # if no function is provided, return the decorator
+        return lambda func: requires_client_config(
+            func, auto_load_config=auto_load_config
+        )  # return the decorator
+
     @wraps(func)
     def wrapped(*args, **kwargs):
-        if _config is None:
-            raise RuntimeError("ClientConfig not initialized.")
+        if (
+            not get_labtasker_client_config_path().exists()
+        ):  # check if config file exists
+            stderr_console.print(
+                f"Configuration at {get_labtasker_client_config_path()} not found. Run `labtasker config` to initialize configuration."
+            )
+            raise typer.Exit(-1)
+        # load config
+        if auto_load_config:
+            load_client_config()
         return func(*args, **kwargs)
 
     return wrapped
@@ -75,7 +91,7 @@ def load_client_config(
     )
 
 
-@requires_client_config
+@requires_client_config(auto_load_config=False)
 @validate_call
 def update_client_config(
     api_base_url: Optional[HttpUrl] = None,
@@ -84,10 +100,13 @@ def update_client_config(
     heartbeat_interval: Optional[int] = None,
 ):
     global _config
-    _config = _config.model_copy(update=locals())
+    new_config = _config.model_copy(update=locals())
+    # validate config
+    ClientConfig.model_validate(new_config)
+    _config = new_config
 
 
-@requires_client_config
+@requires_client_config(auto_load_config=False)
 def dump_client_config():
     global _config
     # Convert the configuration to a dictionary
@@ -106,9 +125,6 @@ def dump_client_config():
 def get_client_config() -> ClientConfig:
     """Get singleton instance of ClientConfig."""
     return _config
-
-
-from pathlib import Path
 
 
 def gitignore_setup():

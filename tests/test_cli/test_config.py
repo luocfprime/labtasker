@@ -9,6 +9,8 @@ from labtasker.constants import get_labtasker_client_config_path
 runner = CliRunner()
 
 
+@pytest.mark.e2e
+@pytest.mark.integration
 @pytest.mark.unit
 def test_config():
     result = runner.invoke(

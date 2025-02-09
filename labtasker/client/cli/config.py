@@ -9,6 +9,7 @@ from typing_extensions import Annotated
 from labtasker.client.cli.cli import app
 from labtasker.client.core.config import (
     dump_client_config,
+    gitignore_setup,
     init_config_with_default,
     update_client_config,
 )
@@ -73,15 +74,14 @@ def config(
         if not typer.confirm(
             f"Configuration at {get_labtasker_client_config_path()} not found, create?"
         ):
-            raise typer.Exit()
+            raise typer.Abort()
 
         get_labtasker_client_config_path().parent.mkdir(parents=True, exist_ok=True)
+        gitignore_setup()
     else:
         if not typer.confirm(
             f"Configuration at {get_labtasker_client_config_path()} already exists, overwrite?"
         ):
-            raise typer.Exit()
+            raise typer.Abort()
 
     dump_client_config()
-
-    return True
