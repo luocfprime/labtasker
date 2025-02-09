@@ -1,3 +1,5 @@
+from fastapi import HTTPException
+
 from labtasker.filtering import (
     filter_exception,
     register_sensitive_text,
@@ -40,3 +42,7 @@ def raise_with_decorator():
     set_traceback_filter_hook(enabled=False)
 
     raise_chained_exception()
+
+
+def raise_fastapi_http_exception():
+    raise HTTPException(status_code=500, detail=f"password={dummy_password}")

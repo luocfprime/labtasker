@@ -2,6 +2,8 @@ import sys
 from contextlib import contextmanager
 from typing import Set
 
+from fastapi.exceptions import HTTPException
+
 _registered_sensitive_texts: Set[str] = set()
 _hook_enabled = True
 
@@ -46,7 +48,18 @@ def install_traceback_filter():
             return
 
         sanitized_msg = sanitize_text(str(exc_value) if exc_value else "")
-        sanitized_exc = exc_type(sanitized_msg)
+
+        if issubclass(exc_type, HTTPException):
+            # preserve http status code
+            sanitized_exc = HTTPException(
+                status_code=(
+                    exc_value.status_code if hasattr(exc_value, "status_code") else 500
+                ),
+                detail=sanitized_msg,
+                headers=getattr(exc_value, "headers", None),
+            )
+        else:
+            sanitized_exc = exc_type(sanitized_msg)
 
         original_excepthook(exc_type, sanitized_exc, exc_tb)
 

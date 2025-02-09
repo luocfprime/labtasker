@@ -58,3 +58,10 @@ class TestSanitizeSensitiveTraceback:
         )
         assert dummy_password not in output
         assert placeholder(dummy_password) in output
+
+    def test_raise_fastapi_http_exception(self):
+        output = run_fn_in_subprocess(
+            "tests.test_filtering.exception_utils", "raise_fastapi_http_exception"
+        )
+        assert dummy_password not in output
+        assert placeholder(dummy_password) in output
