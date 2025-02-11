@@ -261,8 +261,8 @@ class TestTaskEndpoints:
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         data = TaskLsResponse(**response.json())
         assert data.found is True
-        assert len(data.tasks) == 5
-        for i, task in enumerate(data.tasks):
+        assert len(data.content) == 5
+        for i, task in enumerate(data.content):
             assert task.task_name == f"test_task_{i}"
 
         # get next 5
@@ -274,8 +274,8 @@ class TestTaskEndpoints:
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         data = TaskLsResponse(**response.json())
         assert data.found is True
-        assert len(data.tasks) == 5
-        for i, task in enumerate(data.tasks):
+        assert len(data.content) == 5
+        for i, task in enumerate(data.content):
             assert task.task_name == f"test_task_{i + 5}"
 
     def test_report_task_status(
@@ -319,7 +319,7 @@ class TestTaskEndpoints:
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         data = TaskLsResponse(**response.json())
         assert data.found is True
-        assert data.tasks[0].status == "completed"
+        assert data.content[0].status == "completed"
 
         # test with illegal status
         with pytest.raises(ValidationError) as exc:
@@ -375,10 +375,10 @@ class TestTaskEndpoints:
             )
             assert response.status_code == HTTP_200_OK, f"{response.json()}"
             data = TaskLsResponse(**response.json())
-            assert data.tasks[0].last_heartbeat is not None
+            assert data.content[0].last_heartbeat is not None
             assert (
                 abs(
-                    data.tasks[0].last_heartbeat.timestamp()
+                    data.content[0].last_heartbeat.timestamp()
                     - (start + timedelta(seconds=30)).timestamp()
                 )
                 <= tolerance.total_seconds()
@@ -456,7 +456,7 @@ class TestWorkerEndpoints:
         )
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         worker_ls = WorkerLsResponse(**response.json())
-        assert worker_ls.workers[0].status == "crashed"
+        assert worker_ls.content[0].status == "crashed"
 
         # Try to fetch a task using the crashed worker
         response = test_app.post(

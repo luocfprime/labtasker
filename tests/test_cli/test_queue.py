@@ -8,12 +8,28 @@ from labtasker.security import verify_password
 
 runner = CliRunner()
 
+# Mark the entire file as e2e, integration and unit tests
+pytestmark = [pytest.mark.e2e, pytest.mark.integration, pytest.mark.unit]
 
-@pytest.mark.e2e
-@pytest.mark.integration
-@pytest.mark.unit
-@pytest.mark.dependency(name="TestCreate")
+
 class TestCreate:
+    @pytest.mark.dependency()
+    def test_create_no_metadata(self, db_fixture):
+        result = runner.invoke(
+            app,
+            [
+                "queue",
+                "create",
+                "--queue-name",
+                "new-test-queue",
+                "--password",
+                "new-test-password",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        queue = db_fixture._queues.find_one({"queue_name": "new-test-queue"})
+        assert queue is not None
+
     @pytest.mark.parametrize(
         "metadata",
         [
@@ -44,22 +60,6 @@ class TestCreate:
         assert verify_password("new-test-password", queue["password"])
         assert queue["metadata"] == literal_eval(metadata)
 
-    def test_create_no_metadata(self, db_fixture):
-        result = runner.invoke(
-            app,
-            [
-                "queue",
-                "create",
-                "--queue-name",
-                "new-test-queue",
-                "--password",
-                "new-test-password",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        queue = db_fixture._queues.find_one({"queue_name": "new-test-queue"})
-        assert queue is not None
-
 
 @pytest.fixture
 def cli_create_queue_from_config(client_config):
@@ -84,10 +84,7 @@ def cli_create_queue_from_config(client_config):
     return client_config
 
 
-@pytest.mark.e2e
-@pytest.mark.integration
-@pytest.mark.unit
-@pytest.mark.dependency(depends=["TestCreate"])
+@pytest.mark.dependency(depends=["TestCreate::test_create_no_metadata"])
 class TestGet:
     def test_get(self, db_fixture, cli_create_queue_from_config):
         # get queue
@@ -96,10 +93,7 @@ class TestGet:
         assert cli_create_queue_from_config.queue_name in result.output, result.output
 
 
-@pytest.mark.e2e
-@pytest.mark.integration
-@pytest.mark.unit
-@pytest.mark.dependency(depends=["TestCreate"])
+@pytest.mark.dependency(depends=["TestCreate::test_create_no_metadata"])
 class TestDelete:
     def test_delete(self, db_fixture, cli_create_queue_from_config):
         result = runner.invoke(
@@ -113,10 +107,7 @@ class TestDelete:
         assert result.exit_code == 0, result.output
 
 
-@pytest.mark.e2e
-@pytest.mark.integration
-@pytest.mark.unit
-@pytest.mark.dependency(depends=["TestCreate"])
+@pytest.mark.dependency(depends=["TestCreate::test_create_no_metadata"])
 class TestUpdate:
     def test_update_queue_name(self, db_fixture, cli_create_queue_from_config):
         new_name = "updated-queue-name"

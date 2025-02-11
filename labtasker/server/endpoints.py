@@ -201,7 +201,7 @@ def ls_tasks(
     if not tasks:
         return TaskLsResponse(found=False)
 
-    return TaskLsResponse(found=True, tasks=parse_obj_as(List[Task], tasks))
+    return TaskLsResponse(found=True, content=parse_obj_as(List[Task], tasks))
 
 
 @app.post("/api/v1/queues/me/tasks/next")
@@ -315,7 +315,7 @@ def ls_worker(
     if not workers:
         return WorkerLsResponse(found=False)
 
-    return WorkerLsResponse(found=True, workers=parse_obj_as(List[Worker], workers))
+    return WorkerLsResponse(found=True, content=parse_obj_as(List[Worker], workers))
 
 
 @app.post("/api/v1/queues/me/workers/{worker_id}/status")
@@ -335,4 +335,19 @@ def report_worker_status(
         raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# TODO: delete worker
+@app.delete("/api/v1/queues/me/workers/{worker_id}", status_code=HTTP_204_NO_CONTENT)
+def delete_worker(
+    worker_id: str,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    cascade_update: bool = True,
+    db: DBService = Depends(get_db),
+):
+    """Delete a worker."""
+    deleted_count = db.delete_worker(
+        queue_id=queue["_id"], worker_id=worker_id, cascade_update=cascade_update
+    )
+    if deleted_count == 0:
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail="Worker not found",
+        )

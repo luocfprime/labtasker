@@ -191,7 +191,7 @@ def create_worker(
     ).model_dump()
     response = client.post("/api/v1/queues/me/workers", json=payload)
     response.raise_for_status()
-    return WorkerCreateResponse(**response.json())["worker_id"]
+    return WorkerCreateResponse(**response.json()).worker_id
 
 
 def ls_worker(
@@ -289,10 +289,12 @@ def update_queue(
 
 def delete_worker(
     worker_id: str,
+    cascade_update: bool = True,
     client: Optional[httpx.Client] = None,
 ) -> None:
     """Delete a specific worker."""
     if client is None:
         client = get_httpx_client()
-    response = client.delete(f"/api/v1/queues/me/workers/{worker_id}")
+    params = {"cascade_update": cascade_update}
+    response = client.delete(f"/api/v1/queues/me/workers/{worker_id}", params=params)
     response.raise_for_status()

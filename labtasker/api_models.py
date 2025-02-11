@@ -105,7 +105,7 @@ class Task(BaseModel):
 
 class TaskLsResponse(BaseModel):
     found: bool = False
-    tasks: List[Task] = Field(default_factory=list)
+    content: List[Task] = Field(default_factory=list)
 
 
 class TaskSubmitResponse(BaseModel):
@@ -153,7 +153,7 @@ class Worker(BaseModel):
 
 class WorkerLsResponse(BaseModel):
     found: bool = False
-    workers: List[Worker] = Field(default_factory=list)
+    content: List[Worker] = Field(default_factory=list)
 
 
 class QueueUpdateRequest(BaseModel):
