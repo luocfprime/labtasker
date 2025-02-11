@@ -2,15 +2,20 @@
 Implements `labtasker queue xxx`
 """
 
-from ast import literal_eval
 from typing import Optional
 
 import typer
 from typing_extensions import Annotated
 
-from labtasker.client.core.api import create_queue, delete_queue, get_queue
+from labtasker.client.core.api import (
+    create_queue,
+    delete_queue,
+    get_queue,
+    update_queue,
+)
+from labtasker.client.core.cli_utils import parse_metadata
 from labtasker.client.core.config import requires_client_config
-from labtasker.client.core.logging import stderr_console, stdout_console
+from labtasker.client.core.logging import stdout_console
 
 app = typer.Typer()
 
@@ -44,15 +49,7 @@ def create(
     """
     Create a queue.
     """
-    if metadata:
-        try:
-            metadata = literal_eval(metadata)
-            assert isinstance(metadata, dict)
-        except (ValueError, AssertionError, SyntaxError) as e:
-            stderr_console.print("Error: Metadata must be a valid dict JSON string.")
-            stderr_console.print(e)
-            raise typer.Exit(code=1)
-
+    metadata = parse_metadata(metadata)
     stdout_console.print(
         create_queue(
             queue_name=queue_name,
@@ -71,7 +68,46 @@ def get():
 
 @app.command()
 @requires_client_config
-def update(): ...
+def update(
+    new_queue_name: Optional[str] = typer.Option(
+        None,
+        help="New name for the queue.",
+    ),
+    new_password: Optional[str] = typer.Option(
+        None,
+        prompt=True,
+        confirmation_prompt=True,
+        hide_input=True,
+        prompt_required=False,  # only trigger interactive prompt when `--new-password` is provided
+        help="New password for the queue.",
+    ),
+    metadata: Optional[str] = typer.Option(
+        None,
+        help='Optional metadata update as a JSON string (e.g., \'{"key": "value"}\').',
+    ),
+):
+    """
+    Update the current queue.
+    If you do not wish to expose password in command (e.g. `labtasker queue update --new-password my-pass --new-queue-name my-name`),
+    omit the content of `--new-password` and an interactive prompt will show up (i.e. labtasker queue update --new-password  --new-queue-name my-name).
+    """
+    # Parse metadata
+    parsed_metadata = parse_metadata(metadata)
+
+    # Proceed with the update logic
+    stdout_console.print(
+        f"Updating queue with:\n"
+        f"  New Queue Name: {new_queue_name or 'No change'}\n"
+        f"  New Password: {'******' if new_password else 'No change'}\n"
+        f"  Metadata: {parsed_metadata or 'No change'}"
+    )
+
+    updated_queue = update_queue(
+        new_queue_name=new_queue_name,
+        new_password=new_password,
+        metadata_update=parsed_metadata,
+    )
+    stdout_console.print(updated_queue)
 
 
 @app.command()

@@ -2,8 +2,6 @@
 Implements `labtasker config`
 """
 
-from os import abort
-
 import typer
 from pydantic import HttpUrl, SecretStr, ValidationError
 from typing_extensions import Annotated

@@ -76,6 +76,8 @@ def cli_create_queue_from_config(client_config):
             client_config.queue_name,
             "--password",
             client_config.password.get_secret_value(),
+            "--metadata",
+            '{"tag": "test"}',  # TODO: hard-coded
         ],
     )
     assert result.exit_code == 0, result.output
@@ -109,3 +111,88 @@ class TestDelete:
             ],
         )
         assert result.exit_code == 0, result.output
+
+
+@pytest.mark.e2e
+@pytest.mark.integration
+@pytest.mark.unit
+@pytest.mark.dependency(depends=["TestCreate"])
+class TestUpdate:
+    def test_update_queue_name(self, db_fixture, cli_create_queue_from_config):
+        new_name = "updated-queue-name"
+        result = runner.invoke(
+            app,
+            [
+                "queue",
+                "update",
+                "--new-queue-name",
+                new_name,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        # Verify the queue name is updated
+        queue = db_fixture._queues.find_one({"queue_name": new_name})
+        assert queue is not None
+
+    def test_update_queue_password(self, db_fixture, cli_create_queue_from_config):
+        new_password = "updated-password"
+        result = runner.invoke(
+            app,
+            [
+                "queue",
+                "update",
+                "--new-password",
+                new_password,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        # Verify the password is updated
+        queue = db_fixture._queues.find_one(
+            {"queue_name": cli_create_queue_from_config.queue_name}
+        )
+        assert queue is not None
+        assert verify_password(new_password, queue["password"])
+
+    def test_update_queue_metadata(self, db_fixture, cli_create_queue_from_config):
+        new_metadata = '{"new_key": "new_value"}'
+        result = runner.invoke(
+            app,
+            [
+                "queue",
+                "update",
+                "--metadata",
+                new_metadata,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        # Verify the metadata is updated
+        queue = db_fixture._queues.find_one(
+            {"queue_name": cli_create_queue_from_config.queue_name}
+        )
+        assert queue is not None
+        for key, value in literal_eval(new_metadata).items():
+            assert queue["metadata"][key] == value
+
+    def test_update_no_changes(self, db_fixture, cli_create_queue_from_config):
+        result = runner.invoke(
+            app,
+            [
+                "queue",
+                "update",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        # Verify no changes were made
+        queue = db_fixture._queues.find_one(
+            {"queue_name": cli_create_queue_from_config.queue_name}
+        )
+        assert queue is not None
+        assert queue["queue_name"] == cli_create_queue_from_config.queue_name
+        assert verify_password(
+            cli_create_queue_from_config.password.get_secret_value(), queue["password"]
+        )
+        assert queue["metadata"] == literal_eval('{"tag": "test"}')  # TODO: hard-coded

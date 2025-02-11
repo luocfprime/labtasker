@@ -7,13 +7,14 @@ from labtasker.api_models import (
     QueueCreateRequest,
     QueueCreateResponse,
     QueueGetResponse,
+    QueueUpdateRequest,
     TaskFetchResponse,
     TaskLsResponse,
     TaskSubmitResponse,
     WorkerLsResponse,
 )
 from labtasker.client.core.config import get_client_config
-from labtasker.security import get_auth_headers
+from labtasker.security import SecretStr, get_auth_headers
 
 _httpx_client: Optional[httpx.Client] = None
 
@@ -266,13 +267,20 @@ def update_queue(
     new_password: Optional[str] = None,
     metadata_update: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
-) -> None:
+) -> QueueGetResponse:
     """Update queue details."""
     if client is None:
         client = get_httpx_client()
-    payload = {"metadata_update": metadata_update or {}}
-    response = client.put(f"/api/v1/queues/me", json=payload)
+
+    update_request = QueueUpdateRequest(
+        new_queue_name=new_queue_name,
+        new_password=SecretStr(new_password) if new_password else None,
+        metadata_update=metadata_update or {},
+    )
+
+    response = client.put("/api/v1/queues/me", json=update_request.to_request_dict())
     response.raise_for_status()
+    return QueueGetResponse(**response.json())
 
 
 def delete_worker(

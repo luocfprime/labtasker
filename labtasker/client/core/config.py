@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-from pydantic import HttpUrl, SecretStr, validate_call
+from pydantic import Field, HttpUrl, SecretStr, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from labtasker.client.core.constants import (
@@ -21,8 +21,10 @@ class ClientConfig(BaseSettings):
     # API settings
     api_base_url: HttpUrl
 
-    queue_name: str
-    password: SecretStr
+    queue_name: str = Field(
+        ..., pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
+    )
+    password: SecretStr = Field(None, min_length=1, max_length=100)
 
     heartbeat_interval: int  # seconds
 

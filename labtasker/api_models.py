@@ -162,3 +162,12 @@ class QueueUpdateRequest(BaseModel):
     )
     new_password: Optional[SecretStr] = Field(None, min_length=1, max_length=100)
     metadata_update: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+    def to_request_dict(self):
+        """
+        Used to form a quest, since password must be revealed
+        """
+        result = self.model_dump()
+        if self.new_password:
+            result.update({"new_password": self.new_password.get_secret_value()})
+        return result
