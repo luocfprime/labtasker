@@ -54,7 +54,7 @@ def config(
         ),
     ],
 ):
-    init_config_with_default()
+    init_config_with_default(disable_warning=True)
 
     try:
         update_client_config(

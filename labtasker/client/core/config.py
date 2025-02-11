@@ -62,9 +62,9 @@ def requires_client_config(func: Callable = None, /, *, auto_load_config: bool =
     return wrapped
 
 
-def init_config_with_default():
+def init_config_with_default(disable_warning: bool = False):
     global _config
-    if _config:
+    if _config and not disable_warning:
         logger.warning(
             "ClientConfig already initialized. Initializing again with default would overwrite existing values. Please check if this is intended."
         )
