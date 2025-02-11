@@ -8,10 +8,16 @@ from labtasker.api_models import (
     QueueCreateResponse,
     QueueGetResponse,
     QueueUpdateRequest,
+    TaskFetchRequest,
     TaskFetchResponse,
     TaskLsResponse,
+    TaskStatusUpdateRequest,
+    TaskSubmitRequest,
     TaskSubmitResponse,
+    WorkerCreateRequest,
+    WorkerCreateResponse,
     WorkerLsResponse,
+    WorkerStatusUpdateRequest,
 )
 from labtasker.client.core.config import get_client_config
 from labtasker.security import SecretStr, get_auth_headers
@@ -58,11 +64,11 @@ def create_queue(
     """Create a new queue."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "queue_name": queue_name,
-        "password": password,
-        "metadata": metadata or {},
-    }
+    payload = QueueCreateRequest(
+        queue_name=queue_name,
+        password=SecretStr(password),
+        metadata=metadata,
+    ).to_request_dict()  # Convert to dict for JSON serialization
     response = client.post("/api/v1/queues", json=payload)
     response.raise_for_status()
     return QueueCreateResponse(**response.json())
@@ -103,16 +109,16 @@ def submit_task(
     """Submit a task to the queue."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "task_name": task_name,
-        "args": args,
-        "metadata": metadata,
-        "cmd": cmd,
-        "heartbeat_timeout": heartbeat_timeout,
-        "task_timeout": task_timeout,
-        "max_retries": max_retries,
-        "priority": priority,
-    }
+    payload = TaskSubmitRequest(
+        task_name=task_name,
+        args=args,
+        metadata=metadata,
+        cmd=cmd,
+        heartbeat_timeout=heartbeat_timeout,
+        task_timeout=task_timeout,
+        max_retries=max_retries,
+        priority=priority,
+    ).model_dump()  # Convert to dict for JSON serialization
     response = client.post("/api/v1/queues/me/tasks", json=payload)
     response.raise_for_status()
     return TaskSubmitResponse(**response.json())
@@ -129,13 +135,13 @@ def fetch_task(
     """Fetch the next available task from the queue."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "worker_id": worker_id,
-        "eta_max": eta_max,
-        "start_heartbeat": start_heartbeat,
-        "required_fields": required_fields,
-        "extra_filter": extra_filter,
-    }
+    payload = TaskFetchRequest(
+        worker_id=worker_id,
+        eta_max=eta_max,
+        start_heartbeat=start_heartbeat,
+        required_fields=required_fields,
+        extra_filter=extra_filter,
+    ).model_dump()
     response = client.post("/api/v1/queues/me/tasks/next", json=payload)
     response.raise_for_status()
     return TaskFetchResponse(**response.json())
@@ -150,10 +156,10 @@ def report_task_status(
     """Report the status of a task."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "status": status,
-        "summary": summary,
-    }
+    payload = TaskStatusUpdateRequest(
+        status=status,
+        summary=summary,
+    ).model_dump()
     response = client.post(f"/api/v1/queues/me/tasks/{task_id}/status", json=payload)
     response.raise_for_status()
 
@@ -178,14 +184,14 @@ def create_worker(
     """Create a new worker."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "worker_name": worker_name,
-        "metadata": metadata,
-        "max_retries": max_retries,
-    }
+    payload = WorkerCreateRequest(
+        worker_name=worker_name,
+        metadata=metadata,
+        max_retries=max_retries,
+    ).model_dump()
     response = client.post("/api/v1/queues/me/workers", json=payload)
     response.raise_for_status()
-    return response.json()["worker_id"]
+    return WorkerCreateResponse(**response.json())["worker_id"]
 
 
 def ls_worker(
@@ -219,9 +225,7 @@ def report_worker_status(
     """Report the status of a worker."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "status": status,
-    }
+    payload = WorkerStatusUpdateRequest(status=status).model_dump()
     response = client.post(
         f"/api/v1/queues/me/workers/{worker_id}/status", json=payload
     )

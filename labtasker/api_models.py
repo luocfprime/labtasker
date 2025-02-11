@@ -128,7 +128,7 @@ class WorkerCreateResponse(BaseModel):
 
 
 class WorkerStatusUpdateRequest(BaseModel):
-    status: str
+    status: str = Field(..., pattern=r"^(active|suspended|failed)$")
 
 
 class WorkerLsRequest(BaseModel):
