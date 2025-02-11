@@ -1,6 +1,3 @@
-import os
-from datetime import timedelta
-
 import pytest
 
 from labtasker.utils import arg_match

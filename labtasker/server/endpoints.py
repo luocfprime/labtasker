@@ -1,7 +1,7 @@
 import asyncio
 from asyncio import create_task
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import Depends, FastAPI, HTTPException
 from starlette.status import (

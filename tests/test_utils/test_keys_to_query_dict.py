@@ -68,7 +68,7 @@ def test_keys_to_query_dict_edge_cases(keys, expected_dict):
 @pytest.mark.unit
 def test_input_not_list():
     with pytest.raises(TypeError, match="Input must be a list of strings."):
-        keys_to_query_dict("arg1.arg11")
+        keys_to_query_dict("arg1.arg11")  # type: ignore
 
 
 @pytest.mark.unit
