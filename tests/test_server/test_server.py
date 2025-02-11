@@ -9,6 +9,7 @@ from starlette.status import (
     HTTP_204_NO_CONTENT,
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
+    HTTP_422_UNPROCESSABLE_ENTITY,
 )
 
 from labtasker.api_models import (
@@ -125,6 +126,79 @@ class TestQueueEndpoints:
             "/api/v1/queues/me", headers=auth_headers, params={"cascade_delete": True}
         )
         assert response.status_code == HTTP_204_NO_CONTENT, f"{response.json()}"
+
+    def test_update_queue_name(self, test_app, setup_queue, queue_create_request):
+        auth_headers = get_auth_headers(
+            setup_queue.queue_id, queue_create_request.password
+        )  # use queue_id for authentication since queue_name is about to be changed
+        new_name = "updated_queue_name"
+        response = test_app.put(
+            "/api/v1/queues/me",
+            headers=auth_headers,
+            json={"new_queue_name": new_name},
+        )
+        assert response.status_code == HTTP_200_OK
+
+        # Verify the update
+        response = test_app.get("/api/v1/queues/me", headers=auth_headers)
+        assert response.status_code == HTTP_200_OK
+        data = QueueGetResponse(**response.json())
+        assert data.queue_name == new_name
+
+    def test_update_queue_password(self, test_app, setup_queue, auth_headers):
+        new_password = "new_password"
+        response = test_app.put(
+            "/api/v1/queues/me",
+            headers=auth_headers,
+            json={"new_password": new_password},
+        )
+        assert response.status_code == HTTP_200_OK
+
+        # Verify the update by attempting to access with the new password
+        new_auth_headers = get_auth_headers(
+            setup_queue.queue_id, SecretStr(new_password)
+        )
+        response = test_app.get("/api/v1/queues/me", headers=new_auth_headers)
+        assert response.status_code == HTTP_200_OK
+
+    def test_update_queue_metadata(self, test_app, setup_queue, auth_headers):
+        new_metadata = {"key": "value"}
+        response = test_app.put(
+            "/api/v1/queues/me",
+            headers=auth_headers,
+            json={"metadata_update": new_metadata},
+        )
+        assert response.status_code == HTTP_200_OK
+
+        # Verify the update
+        response = test_app.get("/api/v1/queues/me", headers=auth_headers)
+        assert response.status_code == HTTP_200_OK
+        data = QueueGetResponse(**response.json())
+
+        for k, v in new_metadata.items():
+            assert data.metadata[k] == v, f"{k} not found in metadata"
+
+    def test_update_queue_no_changes(
+        self, test_app, setup_queue, queue_create_request, auth_headers
+    ):
+        response = test_app.put(
+            "/api/v1/queues/me",
+            headers=auth_headers,
+            json={},
+        )
+        assert response.status_code == HTTP_200_OK
+        data = QueueGetResponse(**response.json())
+        assert data.queue_name == queue_create_request.queue_name
+        assert data.metadata == queue_create_request.metadata
+
+    def test_update_queue_invalid_name(self, test_app, setup_queue, auth_headers):
+        # Attempt to update with an invalid name (e.g., empty string)
+        response = test_app.put(
+            "/api/v1/queues/me",
+            headers=auth_headers,
+            json={"new_queue_name": "#$@"},  # invalid name
+        )
+        assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
 
 
 @pytest.mark.integration

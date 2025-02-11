@@ -1,7 +1,7 @@
 import asyncio
 from asyncio import create_task
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from starlette.status import (
@@ -15,6 +15,7 @@ from labtasker.api_models import (
     QueueCreateRequest,
     QueueCreateResponse,
     QueueGetResponse,
+    QueueUpdateRequest,
     Task,
     TaskFetchRequest,
     TaskFetchResponse,
@@ -112,7 +113,31 @@ def get_queue(queue: Dict[str, Any] = Depends(get_verified_queue_dependency)):
     )
 
 
-# TODO: update queue
+@app.put("/api/v1/queues/me")
+def update_queue(
+    update_request: QueueUpdateRequest,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DBService = Depends(get_db),
+):
+    """Update queue details."""
+    db.update_queue(
+        queue_id=queue["_id"],
+        new_queue_name=update_request.new_queue_name,
+        new_password=(
+            update_request.new_password.get_secret_value()
+            if update_request.new_password
+            else None
+        ),
+        metadata_update=update_request.metadata_update,
+    )
+    updated_queue = db.get_queue(queue_id=queue["_id"])
+    return QueueGetResponse(
+        queue_id=updated_queue["_id"],
+        queue_name=updated_queue["queue_name"],
+        created_at=updated_queue["created_at"],
+        last_modified=updated_queue["last_modified"],
+        metadata=updated_queue["metadata"],
+    )
 
 
 @app.delete("/api/v1/queues/me", status_code=HTTP_204_NO_CONTENT)

@@ -154,3 +154,11 @@ class Worker(BaseModel):
 class WorkerLsResponse(BaseModel):
     found: bool = False
     workers: List[Worker] = Field(default_factory=list)
+
+
+class QueueUpdateRequest(BaseModel):
+    new_queue_name: Optional[str] = Field(
+        None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
+    )
+    new_password: Optional[SecretStr] = Field(None, min_length=1, max_length=100)
+    metadata_update: Optional[Dict[str, Any]] = Field(default_factory=dict)
