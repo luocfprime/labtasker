@@ -4,6 +4,7 @@ import httpx
 
 from labtasker.api_models import (
     HealthCheckResponse,
+    QueueCreateRequest,
     QueueCreateResponse,
     QueueGetResponse,
     TaskFetchResponse,
@@ -261,15 +262,16 @@ def delete_task(
 
 
 def update_queue(
-    queue_id: str,
-    metadata: Optional[Dict[str, Any]] = None,
+    new_queue_name: Optional[str] = None,
+    new_password: Optional[str] = None,
+    metadata_update: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
 ) -> None:
     """Update queue details."""
     if client is None:
         client = get_httpx_client()
-    payload = {"metadata": metadata or {}}
-    response = client.put(f"/api/v1/queues/{queue_id}", json=payload)
+    payload = {"metadata_update": metadata_update or {}}
+    response = client.put(f"/api/v1/queues/me", json=payload)
     response.raise_for_status()
 
 

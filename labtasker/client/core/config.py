@@ -7,8 +7,11 @@ import typer
 from pydantic import HttpUrl, SecretStr, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from labtasker.client.core.constants import (
+    get_labtasker_client_config_path,
+    get_labtasker_root,
+)
 from labtasker.client.core.logging import logger, stderr_console
-from labtasker.constants import get_labtasker_client_config_path, get_labtasker_root
 from labtasker.filtering import register_sensitive_text
 from labtasker.security import get_auth_headers
 from labtasker.utils import get_current_time
@@ -36,8 +39,8 @@ _config: Optional[ClientConfig] = None
 
 def requires_client_config(func: Callable = None, /, *, auto_load_config: bool = True):
     if func is None:  # if no function is provided, return the decorator
-        return lambda func: requires_client_config(
-            func, auto_load_config=auto_load_config
+        return lambda f: requires_client_config(
+            f, auto_load_config=auto_load_config
         )  # return the decorator
 
     @wraps(func)
@@ -72,10 +75,14 @@ def init_config_with_default():
 
 
 def load_client_config(
-    env_file: str = get_labtasker_client_config_path(), **overwrite_fields
+    env_file: str = get_labtasker_client_config_path(),
+    skip_if_loaded: bool = True,
+    **overwrite_fields,
 ):
     global _config
     if _config is not None:
+        if skip_if_loaded:
+            return
         logger.warning(
             "ClientConfig already initialized. This would result a second time loading."
         )

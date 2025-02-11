@@ -2,6 +2,8 @@
 Implements `labtasker config`
 """
 
+from os import abort
+
 import typer
 from pydantic import HttpUrl, SecretStr, ValidationError
 from typing_extensions import Annotated
@@ -13,8 +15,8 @@ from labtasker.client.core.config import (
     init_config_with_default,
     update_client_config,
 )
+from labtasker.client.core.constants import get_labtasker_client_config_path
 from labtasker.client.core.logging import stderr_console
-from labtasker.constants import get_labtasker_client_config_path
 
 
 @app.command()
@@ -71,17 +73,17 @@ def config(
         raise typer.Exit(-1)
 
     if not get_labtasker_client_config_path().exists():
-        if not typer.confirm(
-            f"Configuration at {get_labtasker_client_config_path()} not found, create?"
-        ):
-            raise typer.Abort()
+        typer.confirm(
+            f"Configuration at {get_labtasker_client_config_path()} not found, create?",
+            abort=True,
+        )
 
         get_labtasker_client_config_path().parent.mkdir(parents=True, exist_ok=True)
         gitignore_setup()
     else:
-        if not typer.confirm(
-            f"Configuration at {get_labtasker_client_config_path()} already exists, overwrite?"
-        ):
-            raise typer.Abort()
+        typer.confirm(
+            f"Configuration at {get_labtasker_client_config_path()} already exists, overwrite?",
+            abort=True,
+        )
 
     dump_client_config()

@@ -941,7 +941,6 @@ def test_update_queue_no_changes(db_fixture, queue_args):
     # Verify no changes were made
     queue = db_fixture._queues.find_one({"_id": queue_id})
     assert queue is not None
-    print(queue)
     assert queue["queue_name"] == queue_args["queue_name"]
     assert verify_password(queue_args["password"], queue["password"])
     assert queue["metadata"] == queue_args["metadata"]
