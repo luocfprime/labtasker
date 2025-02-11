@@ -86,7 +86,7 @@ def test_parse_timeout_errors():
         parse_timeout("1h30")  # Missing unit
 
     with pytest.raises(ValueError):
-        parse_timeout(None)  # None input
+        parse_timeout(None)  # type: ignore
 
     with pytest.raises(ValueError):
         parse_timeout("h1")  # Invalid unit
@@ -113,10 +113,10 @@ def test_get_timeout_delta():
         get_timeout_delta("invalid")
 
     with pytest.raises(ValueError):
-        get_timeout_delta(1.5)  # Float not supported for direct seconds
+        get_timeout_delta(1.5)  # type: ignore # Float not supported for direct seconds
 
     with pytest.raises(TypeError):
-        get_timeout_delta(None)
+        get_timeout_delta(None)  # type: ignore
 
 
 @pytest.mark.unit

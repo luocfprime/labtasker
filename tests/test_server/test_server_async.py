@@ -8,6 +8,7 @@ from labtasker.api_models import (
     QueueCreateResponse,
     TaskFetchRequest,
     TaskLsRequest,
+    TaskLsResponse,
     TaskSubmitRequest,
 )
 from tests.fixtures.server import async_test_app
@@ -100,9 +101,11 @@ class TestTaskEndpoints:
                 ).model_dump(),
             )
             assert response.status_code == HTTP_200_OK, f"{response.json()}"
-            assert response.json()["tasks"][0]["retries"] == i + 1
+            print(response.json())
+            resp = TaskLsResponse(**response.json())
+            assert resp.content[0].retries == i + 1
 
             if i < 2:  # first 2 fails enters retry "pending" status
-                assert response.json()["tasks"][0]["status"] == "pending"
+                assert resp.content[0].status == "pending"
             else:  # 3rd fail crashes
-                assert response.json()["tasks"][0]["status"] == "failed"
+                assert resp.content[0].status == "failed"
