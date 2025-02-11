@@ -873,3 +873,85 @@ def test_merge_filter():
     # Test 8: Only empty filters provided
     result = merge_filter(empty_filter, none_filter, {}, logical_op="or")
     assert result == {}, f"Test 8 failed: {result}"
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_update_queue_name(db_fixture, queue_args):
+    # Create a queue first
+    queue_id = db_fixture.create_queue(**queue_args)
+    assert queue_id is not None
+
+    # Update the queue name
+    new_name = "updated_queue_name"
+    db_fixture.update_queue(queue_id=queue_id, new_queue_name=new_name)
+
+    # Verify the update
+    queue = db_fixture._queues.find_one({"_id": queue_id})
+    assert queue is not None
+    assert queue["queue_name"] == new_name
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_update_queue_password(db_fixture, queue_args):
+    # Create a queue first
+    queue_id = db_fixture.create_queue(**queue_args)
+    assert queue_id is not None
+
+    # Update the queue password
+    new_password = "new_password"
+    db_fixture.update_queue(queue_id=queue_id, new_password=new_password)
+
+    # Verify the update by checking if the password is hashed and can be verified
+    queue = db_fixture._queues.find_one({"_id": queue_id})
+    assert queue is not None
+    assert queue["password"] != queue_args["password"]  # Ensure it's hashed
+    assert verify_password(new_password, queue["password"])
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_update_queue_metadata(db_fixture, queue_args):
+    # Create a queue first
+    queue_id = db_fixture.create_queue(**queue_args)
+    assert queue_id is not None
+
+    # Update the queue metadata
+    new_metadata = {"new_key": "new_value"}
+    db_fixture.update_queue(queue_id=queue_id, metadata_update=new_metadata)
+
+    # Verify the update
+    queue = db_fixture._queues.find_one({"_id": queue_id})
+    assert queue is not None
+    assert queue["metadata"] == new_metadata
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_update_queue_no_changes(db_fixture, queue_args):
+    # Create a queue first
+    queue_args["metadata"] = {"old_key": "old_value"}  # add metadata
+    queue_id = db_fixture.create_queue(**queue_args)
+    assert queue_id is not None
+
+    # Attempt to update with no changes
+    db_fixture.update_queue(queue_id=queue_id)
+
+    # Verify no changes were made
+    queue = db_fixture._queues.find_one({"_id": queue_id})
+    assert queue is not None
+    print(queue)
+    assert queue["queue_name"] == queue_args["queue_name"]
+    assert verify_password(queue_args["password"], queue["password"])
+    assert queue["metadata"] == queue_args["metadata"]
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_update_queue_invalid_id(db_fixture):
+    # Attempt to update a non-existent queue
+    modified_cnt = db_fixture.update_queue(
+        queue_id="non_existent_id", new_queue_name="new_name"
+    )
+    assert modified_cnt == 0

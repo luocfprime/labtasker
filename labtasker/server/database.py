@@ -428,7 +428,7 @@ class DBService:
         with self.transaction() as session:
             # Make sure name does not already exist
             if new_queue_name and self._get_queue_by_name(
-                new_queue_name, session=session
+                new_queue_name, session=session, raise_exception=False
             ):
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
@@ -780,12 +780,15 @@ class DBService:
                 session=session,
             )
 
-    def _get_queue_by_name(self, queue_name: str, session=None) -> Mapping[str, Any]:
+    def _get_queue_by_name(
+        self, queue_name: str, session=None, raise_exception=True
+    ) -> Optional[Mapping[str, Any]]:
         """Get queue by name with error handling.
 
         Args:
             queue_name: Name of queue to find
             session: Optional MongoDB session for transactions
+            raise_exception: if not found, raise HTTPException
 
         Returns:
             Queue document
@@ -795,9 +798,12 @@ class DBService:
         """
         queue = self._queues.find_one({"queue_name": queue_name}, session=session)
         if not queue:
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND, detail=f"Queue '{queue_name}' not found"
-            )
+            if raise_exception:
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND,
+                    detail=f"Queue '{queue_name}' not found",
+                )
+            return None
         return queue
 
     @validate_arg
