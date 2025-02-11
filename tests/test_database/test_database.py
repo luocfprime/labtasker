@@ -954,3 +954,60 @@ def test_update_queue_invalid_id(db_fixture):
         queue_id="non_existent_id", new_queue_name="new_name"
     )
     assert modified_cnt == 0
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_create_delete_worker(db_fixture, queue_args):
+    queue_id = db_fixture.create_queue(**queue_args)
+
+    # Create a worker first
+    worker_id = db_fixture.create_worker(
+        queue_id=queue_id, worker_name="worker_name", metadata={"tag": "test"}
+    )
+    assert worker_id is not None
+
+    # Verify the worker is created
+    worker = db_fixture._workers.find_one({"_id": worker_id})
+    assert worker is not None
+
+    # Delete the worker
+    affected_cnt = db_fixture.delete_worker(queue_id=queue_id, worker_id=worker_id)
+    assert affected_cnt == 1
+
+    # Verify the worker is deleted
+    worker = db_fixture._workers.find_one({"_id": worker_id})
+    assert worker is None
+
+    # Attempt to delete a non-existent worker
+    affected_cnt = db_fixture.delete_worker(
+        queue_id=queue_id, worker_id="non_existent_worker_id"
+    )
+    assert affected_cnt == 0
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_delete_worker_cascade_update(db_fixture, queue_args):
+    queue_id = db_fixture.create_queue(**queue_args)
+    worker_id = db_fixture.create_worker(
+        queue_id=queue_id, worker_name="worker_name", metadata={"tag": "test"}
+    )
+    task_id = db_fixture.create_task(
+        queue_id=queue_id,
+        task_name="task_name",
+        args={"arg1": "value1"},
+        metadata={"tag": "test"},
+        cmd="echo hello",
+        heartbeat_timeout=60,
+        task_timeout=60,
+        max_retries=3,
+        priority=Priority.MEDIUM,
+    )
+
+    # delete worker with cascade update
+    db_fixture.delete_worker(
+        queue_id=queue_id, worker_id=worker_id, cascade_update=True
+    )
+    task = db_fixture._tasks.find_one({"_id": task_id})
+    assert task["worker_id"] is None
