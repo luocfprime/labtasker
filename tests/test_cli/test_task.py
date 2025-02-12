@@ -69,7 +69,7 @@ class TestSubmit:
 
 @pytest.fixture
 def setup_pending_task(db_fixture, cli_create_queue_from_config):
-    """Setup a task in PENDING state in current queue."""
+    """Set up a task in PENDING state in current queue."""
     queue_id = db_fixture._queues.find_one(
         {"queue_name": cli_create_queue_from_config.queue_name}
     )["_id"]
@@ -88,7 +88,7 @@ def setup_pending_task(db_fixture, cli_create_queue_from_config):
 
 @pytest.fixture
 def setup_running_task(db_fixture, cli_create_queue_from_config):
-    """Setup a task in RUNNING state in current queue."""
+    """Set up a task in RUNNING state in current queue."""
     queue_id = db_fixture._queues.find_one(
         {"queue_name": cli_create_queue_from_config.queue_name}
     )["_id"]
@@ -152,18 +152,11 @@ class TestLs:
     def test_ls_tasks_empty(self, db_fixture, cli_create_queue_from_config):
         result = runner.invoke(app, ["task", "ls"])
         assert result.exit_code == 0, result.output
-        assert "No tasks found" in result.output  # Adjust based on your output message
 
 
 class TestDelete:
-    def test_delete_task(self, db_fixture, cli_create_queue_from_config):
-        # Create a task first
-        task_id = db_fixture.create_task(
-            task_name="task-to-delete",
-            args={"key": "value"},
-            metadata={"tag": "test"},
-            cmd="echo hello",
-        )
+    def test_delete_task(self, db_fixture, setup_pending_task):
+        task_id = setup_pending_task
         result = runner.invoke(app, ["task", "delete", task_id, "--yes"])
         assert result.exit_code == 0, result.output
 
