@@ -124,13 +124,13 @@ def test_flatten_dict():
     """Test dictionary flattening with dot notation."""
     # Test case 1: Simple nested dictionary
     nested_dict = {
-        "status": "completed",
+        "status": "success",
         "summary": {"field1": "value1", "nested": {"subfield1": "subvalue1"}},
         "retries": 3,
     }
 
     expected = {
-        "status": "completed",
+        "status": "success",
         "summary.field1": "value1",
         "summary.nested.subfield1": "subvalue1",
         "retries": 3,

@@ -319,7 +319,7 @@ class TestTaskEndpoints:
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         data = TaskLsResponse(**response.json())
         assert data.found is True
-        assert data.content[0].status == "completed"
+        assert data.content[0].status == "success"
 
         # test with illegal status
         with pytest.raises(ValidationError) as exc:

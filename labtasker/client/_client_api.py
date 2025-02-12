@@ -29,7 +29,7 @@ class Task:
         try:
             response = requests.patch(url, json=data)
             response.raise_for_status()
-            if status in ["completed", "failed"]:
+            if status in ["success", "failed"]:
                 self.stop_heartbeat()
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to report task status: {str(e)}")

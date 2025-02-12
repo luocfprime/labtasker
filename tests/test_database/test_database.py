@@ -295,7 +295,7 @@ def test_update_task_status(db_fixture, queue_args, get_task_args):
         queue_id, task_id, "success", {"result": "test passed"}
     )
     task = db_fixture._tasks.find_one({"_id": task_id})
-    assert task["status"] == TaskState.COMPLETED
+    assert task["status"] == TaskState.SUCCESS
     assert task["summary"]["result"] == "test passed"
 
     # Test case 2: Failed with retry
@@ -404,8 +404,8 @@ def test_task_fsm_consistency(db_fixture, queue_args, get_task_args):
             db_fixture.update_task_and_reset_pending,
             TaskFSM.reset,
         ),
-        "reset_completed": (
-            TaskState.COMPLETED,
+        "reset_success": (
+            TaskState.SUCCESS,
             db_fixture.update_task_and_reset_pending,
             TaskFSM.reset,
         ),
@@ -453,11 +453,11 @@ def test_task_fsm_consistency(db_fixture, queue_args, get_task_args):
         assert task is not None
         return task, db_fixture
 
-    def get_completed():
+    def get_success():
         task_id = db_fixture.create_task(**get_task_args(queue_id))
         task = db_fixture._tasks.find_one_and_update(
             {"_id": task_id},
-            {"$set": {"status": TaskState.COMPLETED}},
+            {"$set": {"status": TaskState.SUCCESS}},
             return_document=ReturnDocument.AFTER,
         )
         assert task is not None
@@ -467,7 +467,7 @@ def test_task_fsm_consistency(db_fixture, queue_args, get_task_args):
         TaskState.PENDING: get_pending,
         TaskState.RUNNING: get_running,
         TaskState.FAILED: get_failed,
-        TaskState.COMPLETED: get_completed,
+        TaskState.SUCCESS: get_success,
         TaskState.CANCELLED: get_cancelled,
     }
 

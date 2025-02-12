@@ -150,7 +150,7 @@ def fetch_task(
 def report_task_status(
     task_id: str,
     status: str,
-    summary: Optional[Dict[str, Any]],
+    summary: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
 ) -> None:
     """Report the status of a task."""
@@ -158,7 +158,7 @@ def report_task_status(
         client = get_httpx_client()
     payload = TaskStatusUpdateRequest(
         status=status,
-        summary=summary,
+        summary=summary if summary else {},
     ).model_dump()
     response = client.post(f"/api/v1/queues/me/tasks/{task_id}/status", json=payload)
     response.raise_for_status()

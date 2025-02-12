@@ -121,7 +121,7 @@ def flatten_dict(d, parent_key="", sep="."):
 
     Example:
         >>> nested_dict = {
-        ...     "status": "completed",
+        ...     "status": "success",
         ...     "summary": {
         ...         "field1": "value1",
         ...         "nested": {
@@ -132,7 +132,7 @@ def flatten_dict(d, parent_key="", sep="."):
         ... }
         >>> flatten_dict(nested_dict)
         {
-            "status": "completed",
+            "status": "success",
             "summary.field1": "value1",
             "summary.nested.subfield1": "subvalue1",
             "retries": 3

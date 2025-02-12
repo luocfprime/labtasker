@@ -28,7 +28,7 @@ states:
 - cancelled
 - pending
 - running
-- completed
+- success
 - failed
 
 ## Collections

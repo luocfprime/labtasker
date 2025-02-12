@@ -71,7 +71,7 @@ class TestBenchmarkThreadpool:
                             queue_id,
                             task["_id"],
                             status,
-                            {"result": f"completed_{task['task_name']}"},
+                            {"result": f"success_{task['task_name']}"},
                         )
 
                 results.append((queue_id, task_ids))
@@ -138,7 +138,7 @@ class TestBenchmarkThreadpool:
                                 queue_id,
                                 task["_id"],
                                 status,
-                                {"result": f"completed_{task['task_name']}"},
+                                {"result": f"success_{task['task_name']}"},
                             )
 
                     results.append((queue_id, task_ids))

@@ -33,7 +33,7 @@ class State(str, Enum):
 class TaskState(State):
     PENDING = "pending"
     RUNNING = "running"
-    COMPLETED = "completed"
+    SUCCESS = "success"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
@@ -76,12 +76,12 @@ class TaskFSM(FSMValidatorMixin):
     VALID_TRANSITIONS = {
         TaskState.PENDING: {TaskState.RUNNING, TaskState.PENDING, TaskState.CANCELLED},
         TaskState.RUNNING: {
-            TaskState.COMPLETED,
+            TaskState.SUCCESS,
             TaskState.FAILED,
             TaskState.PENDING,
             TaskState.CANCELLED,
         },
-        TaskState.COMPLETED: {
+        TaskState.SUCCESS: {
             TaskState.PENDING,
             TaskState.CANCELLED,
         },  # Can be reset and requeued
@@ -132,7 +132,7 @@ class TaskFSM(FSMValidatorMixin):
         - state to PENDING for requeuing
 
         Note: This allows tasks to be requeued from any state,
-        useful for retrying failed tasks or rerunning completed ones.
+        useful for retrying failed tasks or rerunning success ones.
         """
         # Reset task settings
         self.retries = 0
@@ -153,15 +153,15 @@ class TaskFSM(FSMValidatorMixin):
 
     @event
     def complete(self) -> TaskState:
-        """Mark task as completed.
+        """Mark task as success.
 
         Transitions:
-        - RUNNING -> COMPLETED (successful completion)
+        - RUNNING -> SUCCESS (successful completion)
         - Others -> InvalidStateTransition (invalid)
 
-        Note: COMPLETED is a terminal state with no further transitions.
+        Note: SUCCESS is a terminal state with no further transitions.
         """
-        self.state = TaskState.COMPLETED
+        self.state = TaskState.SUCCESS
         return self.state
 
     @event

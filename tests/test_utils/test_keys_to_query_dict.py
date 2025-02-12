@@ -10,7 +10,7 @@ def test_keys_to_query_dict_with_flatten_dict():
     """
     # Define a sample nested dictionary
     nested_dict = {
-        "status": "completed",
+        "status": "success",
         "summary": {"field1": "value1", "nested": {"subfield1": "subvalue1"}},
         "retries": 3,
     }

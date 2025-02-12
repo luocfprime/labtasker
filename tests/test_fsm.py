@@ -38,7 +38,7 @@ class TestTaskFSM:
         states = [
             TaskState.PENDING,
             TaskState.RUNNING,
-            TaskState.COMPLETED,
+            TaskState.SUCCESS,
             TaskState.FAILED,
         ]
         for state in states:
@@ -50,7 +50,7 @@ class TestTaskFSM:
         """Test resetting task from any state."""
         states = [
             TaskState.RUNNING,
-            TaskState.COMPLETED,
+            TaskState.SUCCESS,
             TaskState.FAILED,
             TaskState.CANCELLED,
         ]
