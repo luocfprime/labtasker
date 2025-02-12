@@ -271,7 +271,39 @@ def refresh_task_heartbeat(
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Task not found.")
 
 
-# TODO: delete task
+@app.get("/api/v1/queues/me/tasks/{task_id}")
+def get_task(
+    task_id: str,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DBService = Depends(get_db),
+):
+    """Get a specific task by ID."""
+    task = db.get_task(queue_id=queue["_id"], task_id=task_id)
+    if not task:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Task not found")
+    return TaskFetchTask(
+        task_id=task["_id"],
+        args=task["args"],
+        metadata=task["metadata"],
+        created_at=task["created_at"],
+        task_timeout=task["task_timeout"],
+        heartbeat_timeout=task["heartbeat_timeout"],
+    )
+
+
+@app.delete("/api/v1/queues/me/tasks/{task_id}", status_code=HTTP_204_NO_CONTENT)
+def delete_task(
+    task_id: str,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DBService = Depends(get_db),
+):
+    """Delete a specific task."""
+    deleted_count = db.delete_task(queue_id=queue["_id"], task_id=task_id)
+    if deleted_count == 0:
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail="Task not found",
+        )
 
 
 @app.post("/api/v1/queues/me/workers", status_code=HTTP_201_CREATED)
@@ -351,3 +383,16 @@ def delete_worker(
             status_code=HTTP_404_NOT_FOUND,
             detail="Worker not found",
         )
+
+
+@app.get("/api/v1/queues/me/workers/{worker_id}", response_model=Worker)
+def get_worker(
+    worker_id: str,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DBService = Depends(get_db),
+):
+    """Get a specific worker by ID."""
+    worker = db.get_worker(queue_id=queue["_id"], worker_id=worker_id)
+    if not worker:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Worker not found")
+    return worker

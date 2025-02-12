@@ -9,6 +9,7 @@ from starlette.status import (
     HTTP_204_NO_CONTENT,
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
+    HTTP_404_NOT_FOUND,
     HTTP_422_UNPROCESSABLE_ENTITY,
 )
 
@@ -17,11 +18,13 @@ from labtasker.api_models import (
     QueueGetResponse,
     TaskFetchRequest,
     TaskFetchResponse,
+    TaskFetchTask,
     TaskLsRequest,
     TaskLsResponse,
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
+    Worker,
     WorkerCreateRequest,
     WorkerCreateResponse,
     WorkerLsRequest,
@@ -384,6 +387,65 @@ class TestTaskEndpoints:
                 <= tolerance.total_seconds()
             )
 
+    def test_delete_task(
+        self, test_app, setup_queue, auth_headers, task_submit_request
+    ):
+        # Submit a task first
+        response = test_app.post(
+            "/api/v1/queues/me/tasks",
+            json=task_submit_request.model_dump(),
+            headers=auth_headers,
+        )
+        assert response.status_code == HTTP_201_CREATED
+
+        task_id = response.json()["task_id"]
+
+        # Now delete the task
+        delete_response = test_app.delete(
+            f"/api/v1/queues/me/tasks/{task_id}", headers=auth_headers
+        )
+        assert delete_response.status_code == HTTP_204_NO_CONTENT
+
+        # Verify the task is deleted
+        get_response = test_app.get(
+            f"/api/v1/queues/me/tasks/{task_id}", headers=auth_headers
+        )
+        assert get_response.status_code == HTTP_404_NOT_FOUND
+
+    def test_delete_non_existent_task(self, test_app, setup_queue, auth_headers):
+        # Attempt to delete a non-existent task
+        response = test_app.delete(
+            "/api/v1/queues/me/tasks/non_existent_task_id", headers=auth_headers
+        )
+        assert response.status_code == HTTP_404_NOT_FOUND
+        assert "Task not found" in response.json()["detail"]
+
+    def test_get_task(self, test_app, setup_queue, auth_headers, task_submit_request):
+        # Submit a task first
+        response = test_app.post(
+            "/api/v1/queues/me/tasks",
+            json=task_submit_request.model_dump(),
+            headers=auth_headers,
+        )
+        assert response.status_code == HTTP_201_CREATED
+        task_id = response.json()["task_id"]
+
+        # Now get the task
+        get_response = test_app.get(
+            f"/api/v1/queues/me/tasks/{task_id}", headers=auth_headers
+        )
+        assert get_response.status_code == HTTP_200_OK
+        task_data = TaskFetchTask(**get_response.json())
+        assert task_data.task_id == task_id
+
+    def test_get_non_existent_task(self, test_app, setup_queue, auth_headers):
+        # Attempt to get a non-existent task
+        response = test_app.get(
+            "/api/v1/queues/me/tasks/non_existent_task_id", headers=auth_headers
+        )
+        assert response.status_code == HTTP_404_NOT_FOUND
+        assert "Task not found" in response.json()["detail"]
+
 
 @pytest.mark.integration
 @pytest.mark.unit
@@ -468,3 +530,33 @@ class TestWorkerEndpoints:
             ).model_dump(),
         )
         assert response.status_code == HTTP_403_FORBIDDEN, f"{response.json()}"
+
+    def test_get_worker(self, test_app, setup_queue, auth_headers):
+        # Create a worker first
+        worker_response = test_app.post(
+            "/api/v1/queues/me/workers",
+            headers=auth_headers,
+            json=WorkerCreateRequest(
+                worker_name="test_worker",
+                max_retries=3,
+                metadata={"tag": "test"},
+            ).model_dump(),
+        )
+        assert worker_response.status_code == HTTP_201_CREATED
+        worker_id = worker_response.json()["worker_id"]
+
+        # Now get the worker
+        get_response = test_app.get(
+            f"/api/v1/queues/me/workers/{worker_id}", headers=auth_headers
+        )
+        assert get_response.status_code == HTTP_200_OK
+        worker_data = Worker(**get_response.json())
+        assert worker_data.worker_name == "test_worker"
+
+    def test_get_non_existent_worker(self, test_app, setup_queue, auth_headers):
+        # Attempt to get a non-existent worker
+        response = test_app.get(
+            "/api/v1/queues/me/workers/non_existent_worker_id", headers=auth_headers
+        )
+        assert response.status_code == HTTP_404_NOT_FOUND
+        assert "Worker not found" in response.json()["detail"]

@@ -719,6 +719,10 @@ class DBService:
             )
             return result.modified_count > 0
 
+    def get_task(self, queue_id: str, task_id: str) -> Optional[Mapping[str, Any]]:
+        """Retrieve a task by ID."""
+        return self._tasks.find_one({"_id": task_id, "queue_id": queue_id})
+
     def _report_worker_status(
         self, queue_id: str, worker_id: str, report_status: str, session=None
     ) -> bool:
@@ -779,6 +783,10 @@ class DBService:
                 report_status=report_status,
                 session=session,
             )
+
+    def get_worker(self, queue_id: str, worker_id: str) -> Optional[Mapping[str, Any]]:
+        """Retrieve a worker by ID."""
+        return self._workers.find_one({"_id": worker_id, "queue_id": queue_id})
 
     def _get_queue_by_name(
         self, queue_name: str, session=None, raise_exception=True
