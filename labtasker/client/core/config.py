@@ -39,27 +39,30 @@ class ClientConfig(BaseSettings):
 _config: Optional[ClientConfig] = None
 
 
-def requires_client_config(func: Callable = None, /, *, auto_load_config: bool = True):
-    if func is None:  # if no function is provided, return the decorator
-        return lambda f: requires_client_config(
-            f, auto_load_config=auto_load_config
-        )  # return the decorator
+def requires_client_config(
+    func: Optional[Callable] = None, /, *, auto_load_config: bool = True
+):
+    def decorator(function: Callable):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            if not get_labtasker_client_config_path().exists():
+                stderr_console.print(
+                    f"Configuration at {get_labtasker_client_config_path()} not found. "
+                    f"Run `labtasker config` to initialize configuration."
+                )
+                raise typer.Exit(-1)
 
-    @wraps(func)
-    def wrapped(*args, **kwargs):
-        if (
-            not get_labtasker_client_config_path().exists()
-        ):  # check if config file exists
-            stderr_console.print(
-                f"Configuration at {get_labtasker_client_config_path()} not found. Run `labtasker config` to initialize configuration."
-            )
-            raise typer.Exit(-1)
-        # load config
-        if auto_load_config:
-            load_client_config()
-        return func(*args, **kwargs)
+            if auto_load_config:
+                load_client_config()
 
-    return wrapped
+            return function(*args, **kwargs)
+
+        return wrapped
+
+    if func is None:
+        return decorator
+    else:
+        return decorator(func)
 
 
 def init_config_with_default(disable_warning: bool = False):
