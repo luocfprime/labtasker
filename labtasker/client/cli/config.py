@@ -13,8 +13,8 @@ from labtasker.client.core.config import (
     init_config_with_default,
     update_client_config,
 )
-from labtasker.client.core.constants import get_labtasker_client_config_path
 from labtasker.client.core.logging import stderr_console
+from labtasker.client.core.paths import get_labtasker_client_config_path
 
 
 @app.command()

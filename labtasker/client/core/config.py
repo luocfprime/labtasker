@@ -7,11 +7,11 @@ import typer
 from pydantic import Field, HttpUrl, SecretStr, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from labtasker.client.core.constants import (
+from labtasker.client.core.logging import logger, stderr_console
+from labtasker.client.core.paths import (
     get_labtasker_client_config_path,
     get_labtasker_root,
 )
-from labtasker.client.core.logging import logger, stderr_console
 from labtasker.filtering import register_sensitive_text
 from labtasker.security import get_auth_headers
 from labtasker.utils import get_current_time

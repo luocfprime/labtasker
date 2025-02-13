@@ -40,7 +40,7 @@ def labtasker_test_root(proj_root, monkeypatch):
 
     # Patch the constants
     monkeypatch.setattr(
-        "labtasker.client.core.constants._LABTASKER_ROOT", labtasker_test_root
+        "labtasker.client.core.paths._LABTASKER_ROOT", labtasker_test_root
     )
 
     yield labtasker_test_root

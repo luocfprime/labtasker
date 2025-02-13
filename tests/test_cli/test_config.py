@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from labtasker.client.cli import app
 from labtasker.client.core.config import ClientConfig
-from labtasker.client.core.constants import get_labtasker_client_config_path
+from labtasker.client.core.paths import get_labtasker_client_config_path
 
 runner = CliRunner()
 
