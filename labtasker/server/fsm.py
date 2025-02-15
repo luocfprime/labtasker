@@ -215,11 +215,14 @@ class WorkerFSM(FSMValidatorMixin):
     @event
     def activate(self) -> WorkerState:
         """
-        Activate worker.
+        Activate worker. If previous state is crashed, reset retries to 0.
 
         Transitions:
         - Any state -> ACTIVE (worker resumes)
         """
+        if self.state == WorkerState.CRASHED:
+            self.retries = 0
+
         self.state = WorkerState.ACTIVE
         return self.state
 
