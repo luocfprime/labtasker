@@ -1,4 +1,5 @@
 import labtasker.client.cli.config
+import labtasker.client.cli.loop
 from labtasker.client.cli.cli import app
 from labtasker.client.cli.queue import app as queue_app
 from labtasker.client.cli.task import app as task_app

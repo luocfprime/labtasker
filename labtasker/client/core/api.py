@@ -96,14 +96,14 @@ def delete_queue(
 
 
 def submit_task(
-    task_name: Optional[str],
-    args: Optional[Dict[str, Any]],
-    metadata: Optional[Dict[str, Any]],
-    cmd: Optional[Union[str, List[str]]],
-    heartbeat_timeout: Optional[int],
-    task_timeout: Optional[int],
-    max_retries: Optional[int],
-    priority: Optional[int],
+    task_name: Optional[str] = None,
+    args: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    cmd: Optional[Union[str, List[str]]] = None,
+    heartbeat_timeout: Optional[int] = None,
+    task_timeout: Optional[int] = None,
+    max_retries: Optional[int] = None,
+    priority: Optional[int] = None,
     client: Optional[httpx.Client] = None,
 ) -> TaskSubmitResponse:
     """Submit a task to the queue."""
@@ -125,11 +125,12 @@ def submit_task(
 
 
 def fetch_task(
-    worker_id: Optional[str],
-    eta_max: Optional[str],
-    start_heartbeat: bool,
-    required_fields: Optional[Dict[str, Any]],
-    extra_filter: Optional[Dict[str, Any]],
+    worker_id: Optional[str] = None,
+    eta_max: Optional[str] = None,
+    heartbeat_timeout: Optional[int] = None,
+    start_heartbeat: bool = True,
+    required_fields: Optional[Dict[str, Any]] = None,
+    extra_filter: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
 ) -> TaskFetchResponse:
     """Fetch the next available task from the queue."""
@@ -138,6 +139,7 @@ def fetch_task(
     payload = TaskFetchRequest(
         worker_id=worker_id,
         eta_max=eta_max,
+        heartbeat_timeout=heartbeat_timeout,
         start_heartbeat=start_heartbeat,
         required_fields=required_fields,
         extra_filter=extra_filter,
@@ -176,9 +178,9 @@ def refresh_task_heartbeat(
 
 
 def create_worker(
-    worker_name: Optional[str],
-    metadata: Optional[Dict[str, Any]],
-    max_retries: Optional[int],
+    worker_name: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    max_retries: Optional[int] = None,
     client: Optional[httpx.Client] = None,
 ) -> str:
     """Create a new worker."""

@@ -130,9 +130,7 @@ def ls(
         help="Initial offset for pagination.",
     ),
 ):
-    """
-    List tasks in the queue.
-    """
+    """List tasks in the queue."""
     extra_filter = parse_metadata(extra_filter)
     page_iter = pager_iterator(
         fetch_function=partial(

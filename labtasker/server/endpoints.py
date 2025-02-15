@@ -218,6 +218,7 @@ def fetch_task(
         queue_id=queue["_id"],
         worker_id=task_request.worker_id,
         eta_max=task_request.eta_max,
+        heartbeat_timeout=task_request.heartbeat_timeout,
         start_heartbeat=task_request.start_heartbeat,
         required_fields=task_request.required_fields,
         extra_filter=task_request.extra_filter,

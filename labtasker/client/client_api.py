@@ -1,6 +1,13 @@
 from labtasker.client.core.api import *
+from labtasker.client.core.job_runner import finish, loop, task_info
 
 __all__ = [
+    # job runner api
+    "task_info",
+    "loop",
+    "finish",
+    # http api (you should be careful with these unless you know what you are doing)
+    "close_httpx_client",
     "health_check",
     "submit_task",
     "delete_worker",

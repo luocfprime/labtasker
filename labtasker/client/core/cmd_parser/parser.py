@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Set, Tuple
 
 from antlr4 import CommonTokenStream, InputStream, ParserRuleContext, ParseTreeWalker
 from antlr4.error.ErrorListener import ErrorListener
@@ -221,7 +221,9 @@ class CustomErrorListener(ErrorListener):
         raise CmdSyntaxError(msg)
 
 
-def cmd_interpolate(input_str: str, variable_table: Dict[str, Any]):
+def cmd_interpolate(
+    input_str: str, variable_table: Dict[str, Any]
+) -> Tuple[str, Set[str]]:
     """
 
     Args:
@@ -255,26 +257,26 @@ def cmd_interpolate(input_str: str, variable_table: Dict[str, Any]):
     return listener.result_str, listener.args
 
 
-def main():
-    input_str = (
-        "python train.py --arg1 %( a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
-    )
-    # input_str = "python train.py --arg1 %( { a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
-    # input_str = "python train.py --arg1 %( a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
-
-    variable_table = {
-        "a": {"b": "value1", "e": "fcc"},
-        "arg3": "e3",
-        "c": {"d": {"e": "value2", "f": "value3"}},
-        "e": [1, 2, 3],
-    }
-
-    output_str = cmd_interpolate(input_str, variable_table)
-    print("table:\t", variable_table)
-    print("Input:\t", input_str)
-    print("Output:\t", output_str)
-
-
-# Example usage
-if __name__ == "__main__":
-    main()
+# def main():
+#     input_str = (
+#         "python train.py --arg1 %( a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
+#     )
+#     # input_str = "python train.py --arg1 %( { a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
+#     # input_str = "python train.py --arg1 %( a.b ) --arg2 %(c.d.e) --arg3 %(arg3) %( a .e) %( a )"
+#
+#     variable_table = {
+#         "a": {"b": "value1", "e": "fcc"},
+#         "arg3": "e3",
+#         "c": {"d": {"e": "value2", "f": "value3"}},
+#         "e": [1, 2, 3],
+#     }
+#
+#     output_str = cmd_interpolate(input_str, variable_table)
+#     print("table:\t", variable_table)
+#     print("Input:\t", input_str)
+#     print("Output:\t", output_str)
+#
+#
+# # Example usage
+# if __name__ == "__main__":
+#     main()

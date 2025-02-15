@@ -467,6 +467,7 @@ class DBService:
         queue_id: str,
         worker_id: Optional[str] = None,
         eta_max: Optional[str] = None,
+        heartbeat_timeout: Optional[int] = None,
         start_heartbeat: bool = True,
         required_fields: Optional[Dict[str, Any]] = None,
         extra_filter: Optional[Dict[str, Any]] = None,
@@ -482,7 +483,8 @@ class DBService:
         Args:
             queue_id (str): The id of the queue to fetch the task from.
             worker_id (str, optional): The ID of the worker to assign the task to.
-            eta_max (str, optional): The optional task execution timeout override. Used when start_heartbeat is False.
+            eta_max (str, optional): The optional task execution timeout override. Recommended using when start_heartbeat is False.
+            heartbeat_timeout (int, optional): The optional heartbeat timeout interval in seconds.
             start_heartbeat (bool): Whether to start heartbeat.
             required_fields (dict, optional): Which fields are required.
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
@@ -547,6 +549,9 @@ class DBService:
 
             if task_timeout:
                 update["$set"]["task_timeout"] = task_timeout
+
+            if heartbeat_timeout:
+                update["$set"]["heartbeat_timeout"] = heartbeat_timeout
 
             tasks = self._tasks.find(
                 query, session=session, sort=[("priority", -1), ("created_at", 1)]

@@ -46,7 +46,7 @@ class TaskSubmitRequest(BaseModel):
     args: Optional[Dict[str, Any]] = Field(default_factory=dict)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     cmd: Optional[Union[str, List[str]]] = None
-    heartbeat_timeout: Optional[int] = 60
+    heartbeat_timeout: Optional[int] = None
     task_timeout: Optional[int] = None
     max_retries: Optional[int] = 3
     priority: Optional[int] = Priority.MEDIUM
@@ -55,6 +55,7 @@ class TaskSubmitRequest(BaseModel):
 class TaskFetchRequest(BaseModel):
     worker_id: Optional[str] = None
     eta_max: Optional[str] = None
+    heartbeat_timeout: Optional[int] = None
     start_heartbeat: bool = True
     required_fields: Optional[Dict[str, Any]] = None
     extra_filter: Optional[Dict[str, Any]] = None

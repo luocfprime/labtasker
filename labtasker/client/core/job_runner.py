@@ -1,0 +1,180 @@
+import json
+import os
+import traceback
+from contextvars import ContextVar
+from functools import wraps
+from typing import Any, Dict, List, Optional, Union
+
+from labtasker.api_models import TaskFetchTask
+from labtasker.client.core.api import create_worker, fetch_task, report_task_status
+from labtasker.client.core.config import get_client_config
+from labtasker.client.core.heartbeat import end_heartbeat
+from labtasker.client.core.logging import log_to_file, logger
+from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
+
+__all__ = ["task_info", "loop", "finish"]
+
+_current_worker_id: ContextVar[Optional[str]] = ContextVar("worker_id", default=None)
+_current_task_id: ContextVar[Optional[str]] = ContextVar("task_id", default=None)
+_current_task_info: ContextVar[Optional[TaskFetchTask]] = ContextVar(
+    "task_info", default=None
+)
+
+
+def task_info() -> TaskFetchTask:
+    """Get current task info"""
+    return _current_task_info.get()
+
+
+def set_task_info(info: TaskFetchTask):
+    _current_task_info.set(info)
+    _current_task_id.set(info.task_id)
+
+
+def set_current_worker_id(worker_id: str):
+    _current_worker_id.set(worker_id)
+
+
+def setup():
+    """Setup necessary paths, dirs and environment variables for task execution."""
+    task_id = _current_task_id.get()
+    set_labtasker_log_dir(task_id=task_id, set_env=True, overwrite=True)
+    os.environ["LABTASKER_TASK_ID"] = task_id
+
+
+def dump_status(status: str):
+    with open(get_labtasker_log_dir() / "status.json", "w") as f:
+        json.dump(
+            {
+                "status": status,
+            },
+            f,  # type: ignore
+            indent=4,
+        )
+
+
+def loop(
+    required_fields: Union[Dict[str, Any], List[str]] = None,
+    extra_filter: Optional[Dict[str, Any]] = None,
+    worker_id: Optional[str] = None,
+    create_worker_kwargs: Optional[Dict[str, Any]] = None,
+    eta_max: Optional[str] = None,
+    heartbeat_timeout: Optional[int] = None,
+    pass_args_dict: bool = False,
+):
+    """Run the wrapped job function in loop.
+
+    Args:
+        required_fields: Fields required for task execution
+        extra_filter: Additional filtering criteria for tasks
+        worker_id: Specific worker ID to use
+        create_worker_kwargs: Arguments for default worker creation
+        eta_max: Maximum ETA for task execution.
+        heartbeat_timeout: Heartbeat timeout in seconds. Default to 3 times the send interval.
+        pass_args_dict: If True, passes task_info().args as first argument
+    """
+    if heartbeat_timeout is None:
+        heartbeat_timeout = get_client_config().heartbeat_interval * 3
+
+    # Create worker if not exists
+    if _current_worker_id.get() is None:
+        new_worker_id = worker_id or create_worker(**(create_worker_kwargs or {}))
+        set_current_worker_id(new_worker_id)
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            """Run the task in loop.
+            1. Call fetch_task
+            2. Setup
+            3. Run task
+            4. Submit result (finish).
+            """
+            # Run task in a loop
+            while True:
+                try:
+                    # Fetch task
+                    resp = fetch_task(
+                        worker_id=_current_worker_id.get(),
+                        eta_max=eta_max,
+                        heartbeat_timeout=heartbeat_timeout,
+                        start_heartbeat=True,
+                        required_fields=required_fields,
+                        extra_filter=extra_filter,
+                    )
+                    if not resp.found:  # task run complete
+                        logger.info(
+                            f"Tasks with required fields {required_fields} and extra filter {extra_filter} are all done."
+                        )
+                        break
+
+                    # Set task info
+                    set_task_info(resp.task)
+
+                    # Setup
+                    setup()
+
+                    with log_to_file(file_path=get_labtasker_log_dir() / "run.log"):
+                        try:
+                            func_args = (
+                                (resp.task.args, *args) if pass_args_dict else args
+                            )
+                            func(*func_args, **kwargs)
+
+                            # Default finish. Can be overridden by the user if called somewhere deep in the wrapped func().
+                            finish(status="success", summary={})
+                        except BaseException as e:
+                            logger.exception(f"Task {_current_task_id.get()} failed")
+                            finish(
+                                status="error",
+                                summary={
+                                    "labtasker_exception": {
+                                        "type": type(e).__name__,
+                                        "message": str(e),
+                                        "traceback": traceback.format_exc(),
+                                    }
+                                },
+                            )
+                        finally:
+                            end_heartbeat()
+
+                except Exception:
+                    logger.exception("Critical error in task loop.")
+
+        return wrapper
+
+    return decorator
+
+
+def finish(status: str, summary: Optional[Dict[str, Any]] = None):
+    """
+    Called when a task is finished. It writes status and summary to log dir, and reports to server.
+    Args:
+        status:
+        summary:
+
+    Returns:
+
+    """
+    summary_file_path = get_labtasker_log_dir() / "summary.json"
+    if summary_file_path.exists():
+        # Skip if summary.json exists. Might be already called from subprocess.
+        return
+
+    # Write summary and status locally
+    fd = os.open(summary_file_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    with os.fdopen(fd, "w") as f:
+        json.dump(
+            summary if summary else {},
+            f,  # type: ignore
+            indent=4,
+        )
+
+    dump_status(status=status)
+
+    # Report to server
+    report_task_status(
+        task_id=_current_task_id.get(),
+        status=status,
+        summary=summary if summary else {},
+    )

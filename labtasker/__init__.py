@@ -1,4 +1,4 @@
-# from labtasker.client.client import LabtaskerClient  # noqa: F401 FIXME:
+from labtasker.client.client_api import *
 from labtasker.filtering import install_traceback_filter
 
 __version__ = "0.1.0"
