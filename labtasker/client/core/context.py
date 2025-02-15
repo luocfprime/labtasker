@@ -2,7 +2,7 @@ import os
 from contextvars import ContextVar
 from typing import Optional
 
-from labtasker.api_models import TaskFetchTask
+from labtasker.api_models import Task
 
 _current_worker_id: ContextVar[Optional[str]] = ContextVar(
     "worker_id", default=os.environ.get("LABTASKER_WORKER_ID", None)
@@ -10,9 +10,7 @@ _current_worker_id: ContextVar[Optional[str]] = ContextVar(
 _current_task_id: ContextVar[Optional[str]] = ContextVar(
     "task_id", default=os.environ.get("LABTASKER_TASK_ID", None)
 )
-_current_task_info: ContextVar[Optional[TaskFetchTask]] = ContextVar(
-    "task_info", default=None
-)
+_current_task_info: ContextVar[Optional[Task]] = ContextVar("task_info", default=None)
 
 
 def current_worker_id():
@@ -23,12 +21,12 @@ def current_task_id():
     return _current_task_id.get()
 
 
-def task_info() -> TaskFetchTask:
+def task_info() -> Task:
     """Get current task info"""
     return _current_task_info.get()
 
 
-def set_task_info(info: TaskFetchTask):
+def set_task_info(info: Task):
     _current_task_info.set(info)
     set_current_task_id(info.task_id)
 
