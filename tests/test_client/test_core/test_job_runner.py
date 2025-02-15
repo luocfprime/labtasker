@@ -10,10 +10,10 @@ pytestmark = [
 
 
 @pytest.fixture(autouse=True)
-def setup_queue():
+def setup_queue(client_config):
     return create_queue(
-        queue_name="test-queue",
-        password="test-password",
+        queue_name=client_config.queue_name,
+        password=client_config.password.get_secret_value(),
         metadata={"tag": "test"},
     )
 
