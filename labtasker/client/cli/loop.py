@@ -10,6 +10,7 @@ from typing import Optional
 import typer
 
 import labtasker
+import labtasker.client.core.context
 from labtasker.client.cli.cli import app
 from labtasker.client.core.cli_utils import parse_metadata
 from labtasker.client.core.cmd_parser import CmdSyntaxError, cmd_interpolate
@@ -99,7 +100,7 @@ def loop(
             else:
                 finish("success")
 
-        logger.info(f"Task {labtasker.task_info().task_id} ended.")
+        logger.info(f"Task {labtasker.client.core.context.task_info().task_id} ended.")
 
     run_cmd()
 
