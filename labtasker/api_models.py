@@ -1,17 +1,25 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from labtasker.constants import Priority
 
 
-class HealthCheckResponse(BaseModel):
+class BaseApiModel(BaseModel):
+    """
+    Base API model for all API models.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class HealthCheckResponse(BaseApiModel):
     status: str = Field(..., pattern=r"^(healthy|unhealthy)$")
     database: str
 
 
-class QueueCreateRequest(BaseModel):
+class QueueCreateRequest(BaseApiModel):
     queue_name: str = Field(
         ..., pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
@@ -27,19 +35,19 @@ class QueueCreateRequest(BaseModel):
         return result
 
 
-class QueueCreateResponse(BaseModel):
+class QueueCreateResponse(BaseApiModel):
     queue_id: str
 
 
-class QueueGetResponse(BaseModel):
-    queue_id: str
+class QueueGetResponse(BaseApiModel):
+    queue_id: str = Field(alias="_id")
     queue_name: str
     created_at: datetime
     last_modified: datetime
     metadata: Dict[str, Any]
 
 
-class TaskSubmitRequest(BaseModel):
+class TaskSubmitRequest(BaseApiModel):
     """Task submission request."""
 
     task_name: Optional[str] = None
@@ -52,7 +60,7 @@ class TaskSubmitRequest(BaseModel):
     priority: Optional[int] = Priority.MEDIUM
 
 
-class TaskFetchRequest(BaseModel):
+class TaskFetchRequest(BaseApiModel):
     worker_id: Optional[str] = None
     eta_max: Optional[str] = None
     heartbeat_timeout: Optional[int] = None
@@ -61,29 +69,16 @@ class TaskFetchRequest(BaseModel):
     extra_filter: Optional[Dict[str, Any]] = None
 
 
-class TaskFetchTask(BaseModel):
-    task_id: str
-    args: Dict[str, Any]
-    metadata: Dict[str, Any]
-    created_at: datetime
-    heartbeat_timeout: Optional[int] = None
-    task_timeout: Optional[int] = None
+# class TaskFetchTask(BaseApiModel):
+#     task_id: str = Field(alias="_id")
+#     args: Dict[str, Any]
+#     metadata: Dict[str, Any]
+#     created_at: datetime
+#     heartbeat_timeout: Optional[int] = None
+#     task_timeout: Optional[int] = None
 
 
-class TaskFetchResponse(BaseModel):
-    found: bool = False
-    task: Optional[TaskFetchTask] = None
-
-
-class TaskLsRequest(BaseModel):
-    offset: int = 0
-    limit: int = 100
-    task_id: Optional[str] = None
-    task_name: Optional[str] = None
-    extra_filter: Optional[Dict[str, Any]] = None
-
-
-class Task(BaseModel):
+class Task(BaseApiModel):
     task_id: str = Field(alias="_id")  # Accepts "_id" as an input field
     queue_id: str
     status: str
@@ -104,35 +99,48 @@ class Task(BaseModel):
     worker_id: Optional[str]
 
 
-class TaskLsResponse(BaseModel):
+class TaskFetchResponse(BaseApiModel):
+    found: bool = False
+    task: Optional[Task] = None
+
+
+class TaskLsRequest(BaseApiModel):
+    offset: int = 0
+    limit: int = 100
+    task_id: Optional[str] = None
+    task_name: Optional[str] = None
+    extra_filter: Optional[Dict[str, Any]] = None
+
+
+class TaskLsResponse(BaseApiModel):
     found: bool = False
     content: List[Task] = Field(default_factory=list)
 
 
-class TaskSubmitResponse(BaseModel):
+class TaskSubmitResponse(BaseApiModel):
     task_id: str
 
 
-class TaskStatusUpdateRequest(BaseModel):
+class TaskStatusUpdateRequest(BaseApiModel):
     status: str = Field(..., pattern=r"^(success|failed|cancelled)$")
     summary: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-class WorkerCreateRequest(BaseModel):
+class WorkerCreateRequest(BaseApiModel):
     worker_name: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     max_retries: Optional[int] = 3
 
 
-class WorkerCreateResponse(BaseModel):
+class WorkerCreateResponse(BaseApiModel):
     worker_id: str
 
 
-class WorkerStatusUpdateRequest(BaseModel):
+class WorkerStatusUpdateRequest(BaseApiModel):
     status: str = Field(..., pattern=r"^(active|suspended|failed)$")
 
 
-class WorkerLsRequest(BaseModel):
+class WorkerLsRequest(BaseApiModel):
     offset: int = 0
     limit: int = 100
     worker_id: Optional[str] = None
@@ -140,7 +148,7 @@ class WorkerLsRequest(BaseModel):
     extra_filter: Optional[Dict[str, Any]] = None
 
 
-class Worker(BaseModel):
+class Worker(BaseApiModel):
     worker_id: str = Field(alias="_id")
     queue_id: str
     status: str
@@ -152,12 +160,12 @@ class Worker(BaseModel):
     last_modified: datetime
 
 
-class WorkerLsResponse(BaseModel):
+class WorkerLsResponse(BaseApiModel):
     found: bool = False
     content: List[Worker] = Field(default_factory=list)
 
 
-class QueueUpdateRequest(BaseModel):
+class QueueUpdateRequest(BaseApiModel):
     new_queue_name: Optional[str] = Field(
         None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )

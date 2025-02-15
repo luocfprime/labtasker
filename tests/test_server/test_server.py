@@ -16,9 +16,9 @@ from starlette.status import (
 from labtasker.api_models import (
     QueueCreateResponse,
     QueueGetResponse,
+    Task,
     TaskFetchRequest,
     TaskFetchResponse,
-    TaskFetchTask,
     TaskLsRequest,
     TaskLsResponse,
     TaskStatusUpdateRequest,
@@ -262,6 +262,7 @@ class TestTaskEndpoints:
             params=TaskLsRequest(offset=0, limit=5).model_dump(),
         )
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
+        assert "task_id" in response.json()["content"][0], f"{response.json()}"
         data = TaskLsResponse(**response.json())
         assert data.found is True
         assert len(data.content) == 5
@@ -435,7 +436,7 @@ class TestTaskEndpoints:
             f"/api/v1/queues/me/tasks/{task_id}", headers=auth_headers
         )
         assert get_response.status_code == HTTP_200_OK
-        task_data = TaskFetchTask(**get_response.json())
+        task_data = Task(**get_response.json())
         assert task_data.task_id == task_id
 
     def test_get_non_existent_task(self, test_app, setup_queue, auth_headers):

@@ -19,7 +19,6 @@ from labtasker.api_models import (
     Task,
     TaskFetchRequest,
     TaskFetchResponse,
-    TaskFetchTask,
     TaskLsRequest,
     TaskLsResponse,
     TaskStatusUpdateRequest,
@@ -101,19 +100,17 @@ def create_queue(queue: QueueCreateRequest, db: DBService = Depends(get_db)):
     return QueueCreateResponse(queue_id=queue_id)
 
 
-@app.get("/api/v1/queues/me")
+@app.get(
+    "/api/v1/queues/me", response_model=QueueGetResponse, response_model_by_alias=False
+)
 def get_queue(queue: Dict[str, Any] = Depends(get_verified_queue_dependency)):
     """Get queue information"""
-    return QueueGetResponse(
-        queue_id=queue["_id"],
-        queue_name=queue["queue_name"],
-        created_at=queue["created_at"],
-        last_modified=queue["last_modified"],
-        metadata=queue["metadata"],
-    )
+    return parse_obj_as(QueueGetResponse, queue)
 
 
-@app.put("/api/v1/queues/me")
+@app.put(
+    "/api/v1/queues/me", response_model=QueueGetResponse, response_model_by_alias=False
+)
 def update_queue(
     update_request: QueueUpdateRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
@@ -131,13 +128,7 @@ def update_queue(
         metadata_update=update_request.metadata_update,
     )
     updated_queue = db.get_queue(queue_id=queue["_id"])
-    return QueueGetResponse(
-        queue_id=updated_queue["_id"],
-        queue_name=updated_queue["queue_name"],
-        created_at=updated_queue["created_at"],
-        last_modified=updated_queue["last_modified"],
-        metadata=updated_queue["metadata"],
-    )
+    return parse_obj_as(QueueGetResponse, updated_queue)
 
 
 @app.delete("/api/v1/queues/me", status_code=HTTP_204_NO_CONTENT)
@@ -175,7 +166,11 @@ def submit_task(
     return TaskSubmitResponse(task_id=task_id)
 
 
-@app.get("/api/v1/queues/me/tasks")
+@app.get(
+    "/api/v1/queues/me/tasks",
+    response_model=TaskLsResponse,
+    response_model_by_alias=False,
+)
 def ls_tasks(
     task_request: TaskLsRequest = Depends(),
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
@@ -204,7 +199,11 @@ def ls_tasks(
     return TaskLsResponse(found=True, content=parse_obj_as(List[Task], tasks))
 
 
-@app.post("/api/v1/queues/me/tasks/next")
+@app.post(
+    "/api/v1/queues/me/tasks/next",
+    response_model=TaskFetchResponse,
+    response_model_by_alias=False,
+)
 def fetch_task(
     task_request: TaskFetchRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
@@ -226,17 +225,7 @@ def fetch_task(
 
     if not task:
         return TaskFetchResponse(found=False)
-    return TaskFetchResponse(
-        found=True,
-        task=TaskFetchTask(
-            task_id=task["_id"],
-            args=task["args"],
-            metadata=task["metadata"],
-            created_at=task["created_at"],
-            heartbeat_timeout=task["heartbeat_timeout"],
-            task_timeout=task["task_timeout"],
-        ),
-    )
+    return TaskFetchResponse(found=True, task=parse_obj_as(Task, task))
 
 
 @app.post("/api/v1/queues/me/tasks/{task_id}/status")
@@ -272,7 +261,11 @@ def refresh_task_heartbeat(
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Task not found.")
 
 
-@app.get("/api/v1/queues/me/tasks/{task_id}")
+@app.get(
+    "/api/v1/queues/me/tasks/{task_id}",
+    response_model=Task,
+    response_model_by_alias=False,
+)
 def get_task(
     task_id: str,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
@@ -282,14 +275,7 @@ def get_task(
     task = db.get_task(queue_id=queue["_id"], task_id=task_id)
     if not task:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Task not found")
-    return TaskFetchTask(
-        task_id=task["_id"],
-        args=task["args"],
-        metadata=task["metadata"],
-        created_at=task["created_at"],
-        task_timeout=task["task_timeout"],
-        heartbeat_timeout=task["heartbeat_timeout"],
-    )
+    return parse_obj_as(Task, task)
 
 
 @app.delete("/api/v1/queues/me/tasks/{task_id}", status_code=HTTP_204_NO_CONTENT)
@@ -323,7 +309,11 @@ def create_worker(
     return WorkerCreateResponse(worker_id=worker_id)
 
 
-@app.get("/api/v1/queues/me/workers")
+@app.get(
+    "/api/v1/queues/me/workers",
+    response_model=WorkerLsResponse,
+    response_model_by_alias=False,
+)
 def ls_worker(
     worker_request: WorkerLsRequest = Depends(),
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
