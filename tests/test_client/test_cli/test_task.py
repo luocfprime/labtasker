@@ -14,7 +14,9 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.unit,
     pytest.mark.dependency(
-        depends=["tests/test_cli/test_queue.py::TestCreate::test_create_no_metadata"],
+        depends=[
+            "tests/test_client/test_cli/test_queue.py::TestCreate::test_create_no_metadata"
+        ],
         scope="session",
     ),
 ]
