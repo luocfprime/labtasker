@@ -20,6 +20,7 @@ from labtasker.client.core.context import (
 from labtasker.client.core.heartbeat import end_heartbeat
 from labtasker.client.core.logging import log_to_file, logger
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
+from labtasker.utils import keys_to_query_dict
 
 __all__ = ["loop", "finish"]
 
@@ -55,6 +56,9 @@ def loop(
         heartbeat_timeout: Heartbeat timeout in seconds. Default to 3 times the send interval.
         pass_args_dict: If True, passes task_info().args as first argument
     """
+    if isinstance(required_fields, list):
+        required_fields = keys_to_query_dict(required_fields)
+
     if heartbeat_timeout is None:
         heartbeat_timeout = get_client_config().heartbeat_interval * 3
 
