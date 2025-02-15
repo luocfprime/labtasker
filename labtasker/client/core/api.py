@@ -20,6 +20,7 @@ from labtasker.api_models import (
     WorkerStatusUpdateRequest,
 )
 from labtasker.client.core.config import get_client_config
+from labtasker.constants import Priority
 from labtasker.security import SecretStr, get_auth_headers
 
 _httpx_client: Optional[httpx.Client] = None
@@ -84,7 +85,7 @@ def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
 
 
 def delete_queue(
-    cascade_delete: bool = False,
+    cascade_delete: bool = True,
     client: Optional[httpx.Client] = None,
 ) -> None:
     """Delete a queue."""
@@ -102,8 +103,8 @@ def submit_task(
     cmd: Optional[Union[str, List[str]]] = None,
     heartbeat_timeout: Optional[int] = None,
     task_timeout: Optional[int] = None,
-    max_retries: Optional[int] = None,
-    priority: Optional[int] = None,
+    max_retries: int = 3,
+    priority: int = Priority.MEDIUM,
     client: Optional[httpx.Client] = None,
 ) -> TaskSubmitResponse:
     """Submit a task to the queue."""
@@ -180,7 +181,7 @@ def refresh_task_heartbeat(
 def create_worker(
     worker_name: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    max_retries: Optional[int] = None,
+    max_retries: Optional[int] = 3,
     client: Optional[httpx.Client] = None,
 ) -> str:
     """Create a new worker."""

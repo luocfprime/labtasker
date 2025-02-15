@@ -56,8 +56,8 @@ class TaskSubmitRequest(BaseApiModel):
     cmd: Optional[Union[str, List[str]]] = None
     heartbeat_timeout: Optional[int] = None
     task_timeout: Optional[int] = None
-    max_retries: Optional[int] = 3
-    priority: Optional[int] = Priority.MEDIUM
+    max_retries: int = 3
+    priority: int = Priority.MEDIUM
 
 
 class TaskFetchRequest(BaseApiModel):
