@@ -5,7 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 from labtasker.client.cli import app
-from tests.test_cli.test_queue import cli_create_queue_from_config
+from tests.test_client.test_cli.test_queue import cli_create_queue_from_config
 
 runner = CliRunner()
 
