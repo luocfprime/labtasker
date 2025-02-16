@@ -11,40 +11,43 @@ stderr_console = Console(markup=True, stderr=True)
 
 @contextmanager
 def log_to_file(
-    file_path: Path, capture_stdout: bool = True, capture_stderr: bool = True, **kwargs
+    file_path: Path,
+    capture_stdout: bool = True,
+    capture_stderr: bool = True,
+    **kwargs,
 ):
-    """Temporarily redirect log to a file
+    """Temporarily redirect log to a file.
 
     Args:
-        file_path: Path to log file
-        capture_stdout:
-        capture_stderr:
-        **kwargs: Logger extra kwargs
+        file_path (Path): Path to the log file.
+        capture_stdout (bool): Whether to redirect stdout to the log file.
+        capture_stderr (bool): Whether to redirect stderr to the log file.
+        **kwargs: Additional arguments for the `logger.add` method.
     """
     log_file = open(file_path, "a")
 
-    original_stdout = None
-    original_stderr = None
+    # Save original stdout and stderr
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
 
-    # Redirect stdout and stderr to log file
+    # Redirect stdout and stderr if requested
     if capture_stdout:
-        original_stdout = sys.stdout
-        stdout_console.file = log_file
+        sys.stdout = log_file
     if capture_stderr:
-        original_stderr = sys.stderr
-        stderr_console.file = log_file
+        sys.stderr = log_file
 
+    # Add a loguru handler to the file
     handler_id = logger.add(log_file, **kwargs)
 
     try:
         yield
     finally:
-        # Restore stdout and stderr
+        # Restore original stdout and stderr
         if capture_stdout:
             sys.stdout = original_stdout
         if capture_stderr:
             sys.stderr = original_stderr
 
-        # Remove loguru handler and close the file
+        # Remove the loguru handler and close the file
         logger.remove(handler_id)
         log_file.close()
