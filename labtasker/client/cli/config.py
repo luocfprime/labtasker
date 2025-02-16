@@ -46,7 +46,7 @@ def config(
         ),
     ],
     heartbeat_interval: Annotated[
-        int,
+        float,
         typer.Option(
             prompt=True,
             envvar="HEARTBEAT_INTERVAL",

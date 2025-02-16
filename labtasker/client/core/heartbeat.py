@@ -37,6 +37,16 @@ class Heartbeat:
 
         self._thread.start()
 
+    def delay(self, interval: float) -> bool:
+        spin_interval = 0.01
+        cycles = int(interval // spin_interval)
+        for _ in range(cycles):
+            time.sleep(spin_interval)
+            # check if heartbeat should stop
+            if self._stop_event.is_set() or not os.path.exists(self._lockfile):
+                return False
+        return True
+
     def _heartbeat(self):
         """Refresh heartbeat periodically"""
         while True:
@@ -46,10 +56,8 @@ class Heartbeat:
                 logger.error(f"Heartbeat failed for task {self.task_id}: {e}")
 
             # check if heartbeat should stop
-            if self._stop_event.is_set() or not os.path.exists(self._lockfile):
+            if not self.delay(self.heartbeat_interval):
                 break
-
-            time.sleep(self.heartbeat_interval)
 
     def stop(self):
         """Stop the heartbeat thread."""
@@ -67,13 +75,17 @@ _current_heartbeat: ContextVar[Optional[Heartbeat]] = ContextVar(
 )
 
 
-def start_heartbeat(task_id, raise_error=True):
+def start_heartbeat(
+    task_id, heartbeat_interval: Optional[float] = None, raise_error=True
+):
     if _current_heartbeat.get() is not None:
         if raise_error:
             raise RuntimeError("Heartbeat already started.")
         return
+
     heartbeat_manager = Heartbeat(
-        task_id=task_id, heartbeat_interval=get_client_config().heartbeat_interval
+        task_id=task_id,
+        heartbeat_interval=heartbeat_interval or get_client_config().heartbeat_interval,
     )
     heartbeat_manager.start()
     _current_heartbeat.set(heartbeat_manager)
