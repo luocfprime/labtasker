@@ -4,7 +4,7 @@ from shutil import copytree, rmtree
 
 import pytest
 
-from labtasker.client.core.config import get_client_config
+from labtasker.client.core.config import get_client_config, load_client_config
 from labtasker.security import get_auth_headers
 from tests.fixtures.database import mock_db, real_db  # noqa: F401
 from tests.fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
@@ -51,4 +51,5 @@ def labtasker_test_root(proj_root, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def client_config(labtasker_test_root):
+    load_client_config(skip_if_loaded=False, disable_warning=True)  # reload client env
     return get_client_config()

@@ -26,7 +26,7 @@ class ClientConfig(BaseSettings):
     )
     password: SecretStr = Field(None, min_length=1, max_length=100)
 
-    heartbeat_interval: int  # seconds
+    heartbeat_interval: float  # seconds
 
     model_config = SettingsConfigDict(
         env_file=get_labtasker_client_config_path(),
@@ -82,15 +82,17 @@ def init_config_with_default(disable_warning: bool = False):
 def load_client_config(
     env_file: str = get_labtasker_client_config_path(),
     skip_if_loaded: bool = True,
+    disable_warning: bool = False,
     **overwrite_fields,
 ):
     global _config
     if _config is not None:
         if skip_if_loaded:
             return
-        logger.warning(
-            "ClientConfig already initialized. This would result a second time loading."
-        )
+        if not disable_warning:
+            logger.warning(
+                "ClientConfig already initialized. This would result a second time loading."
+            )
     _config = ClientConfig(_env_file=env_file)  # noqa
 
     if overwrite_fields:
@@ -109,7 +111,7 @@ def update_client_config(
     api_base_url: Optional[HttpUrl] = None,
     queue_name: Optional[str] = None,
     password: Optional[SecretStr] = None,
-    heartbeat_interval: Optional[int] = None,
+    heartbeat_interval: Optional[float] = None,
 ):
     global _config
     new_config = _config.model_copy(update=locals())
