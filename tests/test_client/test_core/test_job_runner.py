@@ -52,7 +52,6 @@ def test_job_success(setup_tasks):
         assert args["arg2"]["arg3"] == cnt
         finish("success")
         time.sleep(0.1)
-        print(cnt)
 
     job()
 

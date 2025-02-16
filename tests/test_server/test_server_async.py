@@ -101,7 +101,6 @@ class TestTaskEndpoints:
                 ).model_dump(),
             )
             assert response.status_code == HTTP_200_OK, f"{response.json()}"
-            print(response.json())
             resp = TaskLsResponse(**response.json())
             assert resp.content[0].retries == i + 1
 
