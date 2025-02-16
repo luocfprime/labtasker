@@ -17,7 +17,7 @@ from labtasker.client.core.context import (
     set_current_worker_id,
     set_task_info,
 )
-from labtasker.client.core.heartbeat import end_heartbeat
+from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import log_to_file, logger
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
 from labtasker.utils import keys_to_query_dict
@@ -103,6 +103,7 @@ def loop(
                     )
 
                     with log_to_file(file_path=get_labtasker_log_dir() / "run.log"):
+                        start_heartbeat(task_id=current_task_id())
                         try:
                             func_args = (
                                 (resp.task.args, *args) if pass_args_dict else args
@@ -127,7 +128,7 @@ def loop(
                             end_heartbeat()
 
                 except Exception:
-                    logger.exception("Critical error in task loop.")
+                    logger.exception("Error in task loop.")
 
         return wrapper
 
