@@ -246,7 +246,9 @@ def report_task_status(
         raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@app.post("/api/v1/queues/me/tasks/{task_id}/heartbeat")
+@app.post(
+    "/api/v1/queues/me/tasks/{task_id}/heartbeat", status_code=HTTP_204_NO_CONTENT
+)
 def refresh_task_heartbeat(
     task_id: str,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),

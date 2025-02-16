@@ -367,7 +367,7 @@ class TestTaskEndpoints:
                 f"/api/v1/queues/me/tasks/{response.json()['task']['task_id']}/heartbeat",
                 headers=auth_headers,
             )
-            assert response.status_code == HTTP_200_OK, f"{response.json()}"
+            assert response.status_code == HTTP_204_NO_CONTENT, f"{response.json()}"
 
             # 4. Check heartbeat timestamp via ls
             response = test_app.get(
