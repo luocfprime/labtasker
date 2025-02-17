@@ -697,6 +697,15 @@ class DBService:
                 detail=str(e),
             )
 
+        # Update worker status if worker is specified
+        if report_status == "failed" and task["worker_id"]:
+            self._report_worker_status(
+                queue_id=queue_id,
+                worker_id=task["worker_id"],
+                report_status="failed",
+                session=session,
+            )
+
         if summary_update:
             summary_update = sanitize_dict(summary_update)
             summary_update = add_key_prefix(summary_update, prefix="summary.")
@@ -708,21 +717,12 @@ class DBService:
                 "status": fsm.state,
                 "retries": fsm.retries,
                 "last_modified": get_current_time(),
+                "worker_id": None,
                 **summary_update,
             }
         }
 
         result = self._tasks.update_one({"_id": task_id}, update, session=session)
-
-        # Update worker status if worker is specified
-        if report_status == "failed" and task["worker_id"]:
-            worker_updated = self._report_worker_status(
-                queue_id=queue_id,
-                worker_id=task["worker_id"],
-                report_status="failed",
-                session=session,
-            )
-            return worker_updated and result.modified_count > 0
 
         return result.modified_count > 0
 
@@ -983,6 +983,7 @@ class DBService:
                                 "status": fsm.state,
                                 "retries": fsm.retries,
                                 "last_modified": now,
+                                "worker_id": None,
                                 "summary.labtasker_error": "Either heartbeat or task execution timed out",
                             }
                         },
