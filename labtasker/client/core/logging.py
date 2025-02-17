@@ -8,6 +8,17 @@ from rich.console import Console
 stdout_console = Console(markup=True)
 stderr_console = Console(markup=True, stderr=True)
 
+LOGGER_FORMAT = (
+    "<green>[{time:YYYY-MM-DD HH:mm:ss.SSS}]</green>"
+    "[<level>{level: <8}</level>]"
+    " - <level>{message}</level>"
+)
+
+
+def reset_logger():
+    logger.remove()
+    logger.add(sys.stderr, format=LOGGER_FORMAT)
+
 
 @contextmanager
 def log_to_file(
@@ -51,3 +62,6 @@ def log_to_file(
         # Remove the loguru handler and close the file
         logger.remove(handler_id)
         log_file.close()
+
+
+reset_logger()  # initialize
