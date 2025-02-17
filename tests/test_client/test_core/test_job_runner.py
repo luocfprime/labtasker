@@ -45,33 +45,34 @@ def reset_worker_id():
     set_current_worker_id(None)
 
 
-def test_job_success(capsys, setup_tasks):
+def test_job_success(setup_tasks, db_fixture):
     tasks = ls_tasks()
     assert tasks.found
     assert len(tasks.content) == TOTAL_TASKS
 
-    cnt = -1
+    idx = -1
 
     @loop(required_fields=["arg1", "arg2"], eta_max="1h", pass_args_dict=True)
     def job(args):
-        nonlocal cnt
-        cnt += 1
+        nonlocal idx
+        idx += 1
         task_name = task_info().task_name
-        assert task_name == f"test_task_{cnt}"
-        assert args["arg1"] == cnt
-        assert args["arg2"]["arg3"] == cnt
+        assert task_name == f"test_task_{idx}"
+        assert args["arg1"] == idx
+        assert args["arg2"]["arg3"] == idx
+
+        time.sleep(0.1)  # a tiny delay to ensure the tasks api request are processed
+
         finish("success")
-        time.sleep(0.1)
 
     job()
 
-    assert cnt + 1 == TOTAL_TASKS, cnt
+    assert idx + 1 == TOTAL_TASKS, idx
 
     tasks = ls_tasks()
     assert tasks.found
     for task in tasks.content:
         assert task.status == "success"
-    capsys.readouterr()
 
 
 def test_job_manual_failure(setup_tasks):
@@ -88,8 +89,8 @@ def test_job_manual_failure(setup_tasks):
     def job(args):
         nonlocal cnt
         cnt += 1
+        time.sleep(0.1)  # a tiny delay to ensure the tasks api request are processed
         finish("failed")
-        time.sleep(1.5)
 
     job()
 
@@ -97,10 +98,15 @@ def test_job_manual_failure(setup_tasks):
 
     tasks = ls_tasks()
     assert tasks.found
+
+    total_retries = 0
     for task in tasks.content:
         # all failed tasks should be rejoined into the queue
         # since the most recently failed task will join at the end
         assert task.status == "pending"
+        total_retries += task.retries
+
+    assert total_retries == max_retries, total_retries
 
 
 def test_job_auto_failure(setup_tasks):
@@ -117,8 +123,9 @@ def test_job_auto_failure(setup_tasks):
     def job(args):
         nonlocal cnt
         cnt += 1
-        time.sleep(1.5)
-        assert False
+        time.sleep(0.1)  # a tiny delay to ensure the tasks api request are processed
+
+        assert False  # the exception should be caught in loop and auto reported
 
     job()
 
@@ -130,6 +137,3 @@ def test_job_auto_failure(setup_tasks):
         # all failed tasks should be rejoined into the queue
         # since the most recently failed task will join at the end
         assert task.status == "pending"
-
-
-def test_job_heartbeat_timeout(): ...
