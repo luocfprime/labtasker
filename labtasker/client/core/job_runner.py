@@ -5,10 +5,10 @@ from functools import wraps
 from typing import Any, Dict, List, Optional, Union
 
 from labtasker.client.core.api import (
+    WorkerSuspended,
     create_worker,
     fetch_task,
     report_task_status,
-    report_worker_status,
 )
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.context import (
@@ -94,6 +94,10 @@ def loop(
                         )
                         break
 
+                    logger.info(
+                        f"Prepared to run task {resp.task.task_id} with args {resp.task.args}."
+                    )
+
                     # Set task info
                     set_task_info(resp.task)
 
@@ -115,7 +119,7 @@ def loop(
                         except BaseException as e:
                             logger.exception(f"Task {current_task_id()} failed")
                             finish(
-                                status="error",
+                                status="failed",
                                 summary={
                                     "labtasker_exception": {
                                         "type": type(e).__name__,
@@ -126,7 +130,9 @@ def loop(
                             )
                         finally:
                             end_heartbeat()
-
+                except WorkerSuspended:
+                    logger.info("Worker suspended.")
+                    break
                 except Exception:
                     logger.exception("Error in task loop.")
 
@@ -145,6 +151,11 @@ def finish(status: str, summary: Optional[Dict[str, Any]] = None):
     Returns:
 
     """
+    assert status in [
+        "success",
+        "failed",
+    ], f"Invalid status {status}, should be one of ['success', 'failed']"
+
     summary_file_path = get_labtasker_log_dir() / "summary.json"
     if summary_file_path.exists():
         # Skip if summary.json exists. Might be already called from subprocess.
@@ -167,10 +178,3 @@ def finish(status: str, summary: Optional[Dict[str, Any]] = None):
         status=status,
         summary=summary if summary else {},
     )
-
-    # Report worker status to server if failed
-    if current_worker_id() is not None and status == "failed":
-        report_worker_status(
-            worker_id=current_worker_id(),
-            status="failed",
-        )
