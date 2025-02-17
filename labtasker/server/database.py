@@ -486,7 +486,7 @@ class DBService:
             eta_max (str, optional): The optional task execution timeout override. Recommended using when start_heartbeat is False.
             heartbeat_timeout (float, optional): The optional heartbeat timeout interval in seconds.
             start_heartbeat (bool): Whether to start heartbeat.
-            required_fields (dict, optional): Which fields are required.
+            required_fields (dict, optional): Which fields are required. If None, no constraint is put on which fields should exist in args dict.
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
         """
         task_timeout = parse_timeout(eta_max) if eta_max else None
