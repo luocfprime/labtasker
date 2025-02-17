@@ -19,7 +19,10 @@ class InvalidStateTransition(HTTPException):
     """Raised when attempting an invalid state transition."""
 
     def __init__(self, message: str):
-        super().__init__(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=message)
+        super().__init__(
+            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"InvalidStateTransition: {message}",
+        )
 
 
 class State(str, Enum):

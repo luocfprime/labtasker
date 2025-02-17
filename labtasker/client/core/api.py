@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN
 
 from labtasker.api_models import (
     HealthCheckResponse,
@@ -24,6 +25,10 @@ from labtasker.constants import Priority
 from labtasker.security import SecretStr, get_auth_headers
 
 _httpx_client: Optional[httpx.Client] = None
+
+
+class WorkerSuspended(Exception):
+    pass
 
 
 def get_httpx_client() -> httpx.Client:
@@ -146,6 +151,10 @@ def fetch_task(
         extra_filter=extra_filter,
     ).model_dump()
     response = client.post("/api/v1/queues/me/tasks/next", json=payload)
+    if response.status_code == HTTP_403_FORBIDDEN:
+        raise WorkerSuspended(
+            "Current worker could be halted due to exceeding max failure counts."
+        )
     response.raise_for_status()
     return TaskFetchResponse(**response.json())
 
@@ -226,12 +235,25 @@ def report_worker_status(
     client: Optional[httpx.Client] = None,
 ) -> None:
     """Report the status of a worker."""
+    assert status in [
+        "active",
+        "suspended",
+        "failed",
+    ], f"Invalid status {status}, should be one of ['active', 'suspended', 'failed']"
+
     if client is None:
         client = get_httpx_client()
     payload = WorkerStatusUpdateRequest(status=status).model_dump()
     response = client.post(
         f"/api/v1/queues/me/workers/{worker_id}/status", json=payload
     )
+
+    if (
+        response.status_code == HTTP_400_BAD_REQUEST
+        and "InvalidStateTransition" in response.text
+    ):
+        raise RuntimeError(f"FSM invalid transition: \n" f"Detail: {response.text}")
+
     response.raise_for_status()
 
 
