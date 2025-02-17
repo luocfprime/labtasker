@@ -46,10 +46,10 @@ def real_db(request, server_config):
             pause=1.0,  # Check every 1 seconds
         )
 
+        time.sleep(5)  # wait for the docker/mongodb/post-init.d script to be executed
+
         # Create a DatabaseClient object
         _real_db_instance = DBService(db_name=server_config.db_name, uri=uri)
-
-        time.sleep(5)  # wait for the docker/mongodb/post-init.d script to be executed
 
     yield _real_db_instance
 
