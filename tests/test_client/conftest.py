@@ -6,8 +6,6 @@ import pytest
 
 from labtasker.client.core.config import get_client_config, load_client_config
 from labtasker.security import get_auth_headers
-from tests.fixtures.database import mock_db, real_db  # noqa: F401
-from tests.fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
 from tests.fixtures.server.sync_app import test_app
 
 

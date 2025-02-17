@@ -4,7 +4,6 @@ import pytest
 
 from labtasker.server.config import get_server_config, init_server_config
 from tests.fixtures.database import mock_db, real_db  # noqa: F401
-from tests.fixtures.mock_datetime_now import mock_get_current_time  # noqa: F401
 
 
 @pytest.fixture(scope="session")
@@ -63,19 +62,24 @@ def db_fixture(test_type, request, monkeypatch):
 
 
 @pytest.fixture(scope="session")
+def server_env_file(proj_root):
+    return os.path.join(proj_root, "server.example.env")
+
+
+@pytest.fixture(scope="session")
 def docker_compose_file(proj_root):
     """Get an absolute path to the `docker-compose.yml` file. Override from pytest-docker."""
     return os.path.join(proj_root, "docker-compose.yml")
 
 
 @pytest.fixture(scope="session")
-def docker_setup(proj_root, test_type):
+def docker_setup(server_env_file, test_type):
     """Override the pytest-docker docker_setup to take in env file"""
     if test_type == "integration":
         # only start mongodb for integration test
-        return [f"--env-file {proj_root}/server.example.env up --build -d mongodb"]
+        return [f"--env-file {server_env_file} up --build -d mongodb"]
     elif test_type == "e2e":
-        return [f"--env-file {proj_root}/server.example.env up --build -d"]
+        return [f"--env-file {server_env_file} up --build -d"]
 
 
 @pytest.fixture(scope="session")
@@ -97,11 +101,19 @@ def allow_unsafe():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def server_config(proj_root):
+def server_config(test_type, server_env_file):
     # Initialize server config for testing
-    os.environ["PERIODIC_TASK_INTERVAL"] = "0.01"  # spin really fast for testing
-    env_file_path = os.path.join(proj_root, "server.example.env")
-    init_server_config(env_file_path)
+    if test_type in ["unit", "integration"]:
+        # Only in unit test and integration test, we can modify server config
+        # through environment variables.
+        # In end-to-end testing, server config is loaded from env file via docker compose.
+        # Therefore, we cannot modify server config by modifying environment variables here.
+        # See https://docs.docker.com/compose/how-tos/environment-variables/envvars-precedence/.
+
+        # Spin really fast for unit and integration testing,
+        os.environ["PERIODIC_TASK_INTERVAL"] = "0.01"
+
+    init_server_config(server_env_file)
 
     yield get_server_config()
 

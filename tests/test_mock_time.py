@@ -4,6 +4,7 @@ import pytest
 
 from labtasker.server.database import get_current_time as db_get_current_time
 from labtasker.utils import get_current_time as utils_get_current_time
+from tests.fixtures.mock_datetime_now import mock_get_current_time
 
 
 @pytest.mark.unit

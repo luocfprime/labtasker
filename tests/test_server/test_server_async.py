@@ -11,6 +11,7 @@ from labtasker.api_models import (
     TaskLsResponse,
     TaskSubmitRequest,
 )
+from tests.fixtures.mock_datetime_now import mock_get_current_time
 from tests.fixtures.server import async_test_app
 
 
