@@ -1,3 +1,5 @@
+/.git/
+/.pytest_cache/
 /.dockerignore
 /.pre-commit-config.yaml
 /.coverage
@@ -15,10 +17,13 @@
 /.labtasker/
 /coverage.xml
 /docs/
-/labtasker.egg-info/
 /Makefile
 /PRIVACY.md
 /README.md
 /server.example.env
 /tox.ini
 /docker/
+**/*.egg-info
+**/*.swp
+**/__pycache__
+build
