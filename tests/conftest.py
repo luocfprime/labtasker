@@ -12,7 +12,7 @@ def proj_root(pytestconfig) -> str:
     return str(pytestconfig.rootdir)  # noqa
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_type(request):
     """
     Fixture to determine the current test type (e.g., 'unit', 'integration', 'e2e').
@@ -69,9 +69,13 @@ def docker_compose_file(proj_root):
 
 
 @pytest.fixture(scope="session")
-def docker_setup(proj_root):
+def docker_setup(proj_root, test_type):
     """Override the pytest-docker docker_setup to take in env file"""
-    return [f"--env-file {proj_root}/server.example.env up --build -d"]
+    if test_type == "integration":
+        # only start mongodb for integration test
+        return [f"--env-file {proj_root}/server.example.env up --build -d mongodb"]
+    elif test_type == "e2e":
+        return [f"--env-file {proj_root}/server.example.env up --build -d"]
 
 
 @pytest.fixture(scope="session")
