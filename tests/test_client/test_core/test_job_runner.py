@@ -4,11 +4,15 @@ import pytest
 
 from labtasker import create_queue, finish, loop, ls_tasks, submit_task, task_info
 from labtasker.client.core.context import set_current_worker_id
+from tests.fixtures.logging import silence_logger
 
 pytestmark = [
     pytest.mark.unit,
     pytest.mark.integration,
     pytest.mark.e2e,
+    pytest.mark.usefixtures(
+        "silence_logger"
+    ),  # silence logger in testcases of this module
 ]
 
 TOTAL_TASKS = 5
@@ -41,7 +45,7 @@ def reset_worker_id():
     set_current_worker_id(None)
 
 
-def test_job_success(setup_tasks):
+def test_job_success(capsys, setup_tasks):
     tasks = ls_tasks()
     assert tasks.found
     assert len(tasks.content) == TOTAL_TASKS
@@ -67,9 +71,10 @@ def test_job_success(setup_tasks):
     assert tasks.found
     for task in tasks.content:
         assert task.status == "success"
+    capsys.readouterr()
 
 
-def test_job_failure(db_fixture, setup_tasks):
+def test_job_manual_failure(setup_tasks):
     cnt = 0
 
     max_retries = 3
@@ -85,6 +90,35 @@ def test_job_failure(db_fixture, setup_tasks):
         cnt += 1
         finish("failed")
         time.sleep(1.5)
+
+    job()
+
+    assert cnt == max_retries, cnt
+
+    tasks = ls_tasks()
+    assert tasks.found
+    for task in tasks.content:
+        # all failed tasks should be rejoined into the queue
+        # since the most recently failed task will join at the end
+        assert task.status == "pending"
+
+
+def test_job_auto_failure(setup_tasks):
+    cnt = 0
+
+    max_retries = 3
+
+    @loop(
+        required_fields=["arg1", "arg2"],
+        eta_max="1h",
+        create_worker_kwargs={"max_retries": max_retries},
+        pass_args_dict=True,
+    )
+    def job(args):
+        nonlocal cnt
+        cnt += 1
+        time.sleep(1.5)
+        assert False
 
     job()
 

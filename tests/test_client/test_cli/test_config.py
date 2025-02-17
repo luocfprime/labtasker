@@ -5,13 +5,20 @@ from typer.testing import CliRunner
 from labtasker.client.cli import app
 from labtasker.client.core.config import ClientConfig
 from labtasker.client.core.paths import get_labtasker_client_config_path
+from tests.fixtures.logging import silence_logger
 
 runner = CliRunner()
 
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.integration,
+    pytest.mark.e2e,
+    pytest.mark.usefixtures(
+        "silence_logger"
+    ),  # silence logger in testcases of this module
+]
 
-@pytest.mark.e2e
-@pytest.mark.integration
-@pytest.mark.unit
+
 def test_config():
     result = runner.invoke(
         app,
