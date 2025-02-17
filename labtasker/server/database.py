@@ -554,7 +554,10 @@ class DBService:
                 update["$set"]["heartbeat_timeout"] = heartbeat_timeout
 
             tasks = self._tasks.find(
-                query, session=session, sort=[("priority", -1), ("created_at", 1)]
+                query,
+                session=session,
+                # sort: highest priority, least recently modified, oldest created
+                sort=[("priority", -1), ("last_modified", 1), ("created_at", 1)],
             )
 
             for task in tasks:
@@ -898,11 +901,7 @@ class DBService:
             for task in tasks:
                 try:
                     # Create FSM with current state
-                    fsm = TaskFSM(
-                        current_state=task["status"],
-                        retries=task.get("retries"),
-                        max_retries=task.get("max_retries"),
-                    )
+                    fsm = TaskFSM.from_db_entry(task)
 
                     # Transition to FAILED state through FSM
                     fsm.fail()
