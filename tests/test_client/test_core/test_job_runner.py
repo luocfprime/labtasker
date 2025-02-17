@@ -3,6 +3,7 @@ import time
 import pytest
 
 from labtasker import create_queue, finish, loop, ls_tasks, submit_task, task_info
+from labtasker.client.core.context import set_current_worker_id
 
 pytestmark = [
     pytest.mark.unit,
@@ -35,6 +36,11 @@ def setup_tasks(db_fixture):
         )
 
 
+@pytest.fixture(autouse=True)
+def reset_worker_id():
+    set_current_worker_id(None)
+
+
 def test_job_success(setup_tasks):
     tasks = ls_tasks()
     assert tasks.found
@@ -63,14 +69,33 @@ def test_job_success(setup_tasks):
         assert task.status == "success"
 
 
-# def test_job_failure():
-#
-#     @loop()
-#     def job():
-#         ...
-#         finish("failure")
-#
-#     ...
-#
-#
-# def test_job_heartbeat_timeout(): ...
+def test_job_failure(db_fixture, setup_tasks):
+    cnt = 0
+
+    max_retries = 3
+
+    @loop(
+        required_fields=["arg1", "arg2"],
+        eta_max="1h",
+        create_worker_kwargs={"max_retries": max_retries},
+        pass_args_dict=True,
+    )
+    def job(args):
+        nonlocal cnt
+        cnt += 1
+        finish("failed")
+        time.sleep(1.5)
+
+    job()
+
+    assert cnt == max_retries, cnt
+
+    tasks = ls_tasks()
+    assert tasks.found
+    for task in tasks.content:
+        # all failed tasks should be rejoined into the queue
+        # since the most recently failed task will join at the end
+        assert task.status == "pending"
+
+
+def test_job_heartbeat_timeout(): ...

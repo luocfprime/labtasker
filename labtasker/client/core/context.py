@@ -36,6 +36,6 @@ def set_current_task_id(task_id: str):
     _current_task_id.set(task_id)
 
 
-def set_current_worker_id(worker_id: str):
-    os.environ["LABTASKER_WORKER_ID"] = worker_id
+def set_current_worker_id(worker_id: Optional[str]):
+    os.environ["LABTASKER_WORKER_ID"] = worker_id if worker_id else ""
     _current_worker_id.set(worker_id)
