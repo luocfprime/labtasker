@@ -352,7 +352,7 @@ def report_worker_status(
 ):
     """Update worker status."""
     done = db.report_worker_status(
-        queue_name=queue["queue_name"],
+        queue_id=queue["_id"],
         worker_id=worker_id,
         report_status=update.status,
     )
