@@ -46,7 +46,7 @@ def loop(
         None,
         help="Maximum ETA for the task. (e.g. '1h', '1h30m', '50s')",
     ),
-    heartbeat_timeout: int = typer.Option(
+    heartbeat_timeout: float = typer.Option(
         get_client_config().heartbeat_interval * 3,
         help="Heartbeat timeout for the task in seconds.",
     ),

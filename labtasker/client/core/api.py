@@ -106,7 +106,7 @@ def submit_task(
     args: Optional[Dict[str, Any]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
-    heartbeat_timeout: Optional[int] = None,
+    heartbeat_timeout: Optional[float] = None,
     task_timeout: Optional[int] = None,
     max_retries: int = 3,
     priority: int = Priority.MEDIUM,
@@ -133,7 +133,7 @@ def submit_task(
 def fetch_task(
     worker_id: Optional[str] = None,
     eta_max: Optional[str] = None,
-    heartbeat_timeout: Optional[int] = None,
+    heartbeat_timeout: Optional[float] = None,
     start_heartbeat: bool = True,
     required_fields: Optional[Dict[str, Any]] = None,
     extra_filter: Optional[Dict[str, Any]] = None,

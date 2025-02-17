@@ -42,7 +42,7 @@ def loop(
     worker_id: Optional[str] = None,
     create_worker_kwargs: Optional[Dict[str, Any]] = None,
     eta_max: Optional[str] = None,
-    heartbeat_timeout: Optional[int] = None,
+    heartbeat_timeout: Optional[float] = None,
     pass_args_dict: bool = False,
 ):
     """Run the wrapped job function in loop.

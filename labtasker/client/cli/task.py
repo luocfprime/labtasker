@@ -43,7 +43,7 @@ def submit(
         None,
         help="Command to execute for the task.",
     ),
-    heartbeat_timeout: Optional[int] = typer.Option(
+    heartbeat_timeout: Optional[float] = typer.Option(
         60,
         help="Heartbeat timeout for the task.",
     ),

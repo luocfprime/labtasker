@@ -54,7 +54,7 @@ class TaskSubmitRequest(BaseApiModel):
     args: Optional[Dict[str, Any]] = Field(default_factory=dict)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     cmd: Optional[Union[str, List[str]]] = None
-    heartbeat_timeout: Optional[int] = None
+    heartbeat_timeout: Optional[float] = None
     task_timeout: Optional[int] = None
     max_retries: int = 3
     priority: int = Priority.MEDIUM
@@ -63,19 +63,10 @@ class TaskSubmitRequest(BaseApiModel):
 class TaskFetchRequest(BaseApiModel):
     worker_id: Optional[str] = None
     eta_max: Optional[str] = None
-    heartbeat_timeout: Optional[int] = None
+    heartbeat_timeout: Optional[float] = None
     start_heartbeat: bool = True
     required_fields: Optional[Dict[str, Any]] = None
     extra_filter: Optional[Dict[str, Any]] = None
-
-
-# class TaskFetchTask(BaseApiModel):
-#     task_id: str = Field(alias="_id")
-#     args: Dict[str, Any]
-#     metadata: Dict[str, Any]
-#     created_at: datetime
-#     heartbeat_timeout: Optional[int] = None
-#     task_timeout: Optional[int] = None
 
 
 class Task(BaseApiModel):
@@ -87,7 +78,7 @@ class Task(BaseApiModel):
     start_time: Optional[datetime]
     last_heartbeat: Optional[datetime]
     last_modified: datetime
-    heartbeat_timeout: Optional[int]
+    heartbeat_timeout: Optional[float]
     task_timeout: Optional[int]
     max_retries: int
     retries: int
