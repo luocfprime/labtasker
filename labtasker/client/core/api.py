@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
-from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_409_CONFLICT
 
 from labtasker.api_models import (
     HealthCheckResponse,
@@ -163,6 +163,7 @@ def report_task_status(
     task_id: str,
     status: str,
     summary: Optional[Dict[str, Any]] = None,
+    worker_id: Optional[str] = None,
     client: Optional[httpx.Client] = None,
 ) -> None:
     """Report the status of a task."""
@@ -170,9 +171,15 @@ def report_task_status(
         client = get_httpx_client()
     payload = TaskStatusUpdateRequest(
         status=status,
+        worker_id=worker_id,
         summary=summary if summary else {},
     ).model_dump()
     response = client.post(f"/api/v1/queues/me/tasks/{task_id}/status", json=payload)
+    if response.status_code == HTTP_409_CONFLICT:
+        raise RuntimeError(
+            "Current task is assigned to a different worker.\n"
+            f"Detail: {response.text}"
+        )
     response.raise_for_status()
 
 

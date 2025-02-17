@@ -114,6 +114,7 @@ class TaskSubmitResponse(BaseApiModel):
 
 class TaskStatusUpdateRequest(BaseApiModel):
     status: str = Field(..., pattern=r"^(success|failed|cancelled)$")
+    worker_id: Optional[str] = None
     summary: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 

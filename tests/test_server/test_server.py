@@ -10,6 +10,7 @@ from starlette.status import (
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
     HTTP_422_UNPROCESSABLE_ENTITY,
 )
 
@@ -34,6 +35,9 @@ from labtasker.security import get_auth_headers
 from labtasker.utils import get_current_time
 from tests.fixtures.server import test_app
 
+# Mark the entire file as integration and unit tests
+pytestmark = [pytest.mark.integration, pytest.mark.unit]
+
 
 @pytest.fixture
 def setup_queue(test_app, queue_create_request):
@@ -47,15 +51,11 @@ def setup_queue(test_app, queue_create_request):
     return queue
 
 
-@pytest.mark.integration
-@pytest.mark.unit
 def test_health(test_app):
     response = test_app.get("/health")
     assert response.status_code == HTTP_200_OK
 
 
-@pytest.mark.integration
-@pytest.mark.unit
 class TestQueueEndpoints:
     """
     Queue CRUD
@@ -204,8 +204,6 @@ class TestQueueEndpoints:
         assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
 
 
-@pytest.mark.integration
-@pytest.mark.unit
 class TestTaskEndpoints:
 
     def test_submit_task(
@@ -448,8 +446,6 @@ class TestTaskEndpoints:
         assert "Task not found" in response.json()["detail"]
 
 
-@pytest.mark.integration
-@pytest.mark.unit
 class TestWorkerEndpoints:
     def test_create_worker(self, test_app, setup_queue, auth_headers):
         response = test_app.post(
@@ -561,3 +557,63 @@ class TestWorkerEndpoints:
         )
         assert response.status_code == HTTP_404_NOT_FOUND
         assert "Worker not found" in response.json()["detail"]
+
+
+def test_report_task_status_with_unmatched_worker_id(
+    test_app, setup_queue, auth_headers, task_submit_request
+):
+    # Submit a task first
+    test_app.post(
+        "/api/v1/queues/me/tasks",
+        json=task_submit_request.model_dump(),
+        headers=auth_headers,
+    )
+
+    # Create 2 workers
+    worker_ids = []
+    for i in range(2):
+        worker_id = test_app.post(
+            "/api/v1/queues/me/workers",
+            headers=auth_headers,
+            json=WorkerCreateRequest(
+                worker_name="test_worker",
+                max_retries=3,
+                metadata={"test": "data"},
+            ).model_dump(),
+        ).json()["worker_id"]
+        worker_ids.append(worker_id)
+
+    # Fetch task using first worker
+    response = test_app.post(
+        "/api/v1/queues/me/tasks/next",
+        headers=auth_headers,
+        json=TaskFetchRequest(
+            start_heartbeat=True,
+            worker_id=worker_ids[0],
+            extra_filter={"task_name": task_submit_request.task_name},
+        ).model_dump(),
+    )
+    assert response.status_code == HTTP_200_OK, f"{response.json()}"
+
+    task = TaskFetchResponse(**response.json()).task
+    task_id = task.task_id
+
+    # update status using second worker
+    response = test_app.post(
+        f"/api/v1/queues/me/tasks/{task_id}/status",
+        headers=auth_headers,
+        json=TaskStatusUpdateRequest(
+            status="success", worker_id=worker_ids[1]
+        ).model_dump(),
+    )
+    assert response.status_code == HTTP_409_CONFLICT, f"{response.json()}"
+
+    # now update status using the correct matching first worker
+    response = test_app.post(
+        f"/api/v1/queues/me/tasks/{task_id}/status",
+        headers=auth_headers,
+        json=TaskStatusUpdateRequest(
+            status="success", worker_id=worker_ids[0]
+        ).model_dump(),
+    )
+    assert response.status_code == HTTP_200_OK, f"{response.json()}"

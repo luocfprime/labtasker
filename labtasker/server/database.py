@@ -597,15 +597,30 @@ class DBService:
 
     @auth_required
     @validate_arg
-    def report_task_status(
+    def worker_report_task_status(
         self,
         queue_id: str,
         task_id: str,
+        worker_id: str,
         report_status: str,
         summary_update: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """
-        Update task status. Used for reporting task execution results.
+        """Report task status by a worker.
+        Preventing the following conflicting scenario:
+            1. task foo assigned to worker A.
+            2. worker A timed out while running.
+            3. task foo reassigned to worker B.
+            4. worker A report task status, but the task is actually run by worker B, which leads to confusion.
+
+        Args:
+            queue_id:
+            task_id:
+            worker_id:
+            report_status:
+            summary_update:
+
+        Returns:
+
         """
         with self.transaction() as session:
             task = self._tasks.find_one(
@@ -616,55 +631,100 @@ class DBService:
                     status_code=HTTP_404_NOT_FOUND, detail=f"Task {task_id} not found"
                 )
 
-            try:
-                fsm = TaskFSM.from_db_entry(task)
+            # check if the task is assigned to the worker
+            if task["worker_id"] != worker_id:
+                raise HTTPException(
+                    status_code=HTTP_409_CONFLICT,
+                    detail=f"Task {task_id} is assigned to worker {task['worker_id']}",
+                )
 
-                if report_status == "success":
-                    fsm.complete()
-                elif report_status == "failed":
-                    fsm.fail()
-                elif report_status == "cancelled":
-                    fsm.cancel()
-                else:
-                    raise HTTPException(
-                        status_code=HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid report_status: {report_status}",
-                    )
+            return self._report_task_status(
+                queue_id=queue_id,
+                task=task,
+                report_status=report_status,
+                summary_update=summary_update,
+                session=session,
+            )
 
-            except Exception as e:
+    @auth_required
+    @validate_arg
+    def report_task_status(
+        self,
+        queue_id: str,
+        task_id: str,
+        report_status: str,
+        summary_update: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Update task status. Used for reporting task execution results."""
+        with self.transaction() as session:
+            task = self._tasks.find_one(
+                {"_id": task_id, "queue_id": queue_id}, session=session
+            )
+            if not task:
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND, detail=f"Task {task_id} not found"
+                )
+            return self._report_task_status(
+                queue_id=queue_id,
+                task=task,
+                report_status=report_status,
+                summary_update=summary_update,
+                session=session,
+            )
+
+    def _report_task_status(
+        self, queue_id, task, report_status, summary_update, session
+    ):
+        task_id = task["_id"]
+        try:
+            fsm = TaskFSM.from_db_entry(task)
+
+            if report_status == "success":
+                fsm.complete()
+            elif report_status == "failed":
+                fsm.fail()
+            elif report_status == "cancelled":
+                fsm.cancel()
+            else:
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
-                    detail=str(e),
+                    detail=f"Invalid report_status: {report_status}",
                 )
 
-            if summary_update:
-                summary_update = sanitize_dict(summary_update)
-                summary_update = add_key_prefix(summary_update, prefix="summary.")
-            else:
-                summary_update = {}
+        except Exception as e:
+            raise HTTPException(
+                status_code=HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
 
-            update = {
-                "$set": {
-                    "status": fsm.state,
-                    "retries": fsm.retries,
-                    "last_modified": get_current_time(),
-                    **summary_update,
-                }
+        if summary_update:
+            summary_update = sanitize_dict(summary_update)
+            summary_update = add_key_prefix(summary_update, prefix="summary.")
+        else:
+            summary_update = {}
+
+        update = {
+            "$set": {
+                "status": fsm.state,
+                "retries": fsm.retries,
+                "last_modified": get_current_time(),
+                **summary_update,
             }
+        }
 
-            result = self._tasks.update_one({"_id": task_id}, update, session=session)
+        result = self._tasks.update_one({"_id": task_id}, update, session=session)
 
-            # Update worker status if worker is specified
-            if report_status == "failed" and task["worker_id"]:
-                worker_updated = self._report_worker_status(
-                    queue_id=queue_id,
-                    worker_id=task["worker_id"],
-                    report_status="failed",
-                    session=session,
-                )
-                return worker_updated and result.modified_count > 0
+        # Update worker status if worker is specified
+        if report_status == "failed" and task["worker_id"]:
+            worker_updated = self._report_worker_status(
+                queue_id=queue_id,
+                worker_id=task["worker_id"],
+                report_status="failed",
+                session=session,
+            )
+            return worker_updated and result.modified_count > 0
 
-            return result.modified_count > 0
+        return result.modified_count > 0
 
     @auth_required
     @validate_arg

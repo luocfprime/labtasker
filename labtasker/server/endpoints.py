@@ -236,12 +236,21 @@ def report_task_status(
     db: DBService = Depends(get_db),
 ):
     """Report task status (success, failed, cancelled)"""
-    done = db.report_task_status(
-        queue_id=queue["_id"],
-        task_id=task_id,
-        report_status=update.status,
-        summary_update=update.summary,
-    )
+    if update.worker_id is not None:
+        done = db.worker_report_task_status(
+            queue_id=queue["_id"],
+            task_id=task_id,
+            worker_id=update.worker_id,
+            report_status=update.status,
+            summary_update=update.summary,
+        )
+    else:
+        done = db.report_task_status(
+            queue_id=queue["_id"],
+            task_id=task_id,
+            report_status=update.status,
+            summary_update=update.summary,
+        )
     if not done:
         raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR)
 
