@@ -12,7 +12,7 @@ import typer
 import labtasker
 import labtasker.client.core.context
 from labtasker.client.cli.cli import app
-from labtasker.client.core.cli_utils import parse_metadata
+from labtasker.client.core.cli_utils import eta_max_validation, parse_metadata
 from labtasker.client.core.cmd_parser import CmdSyntaxError, cmd_interpolate
 from labtasker.client.core.config import get_client_config, requires_client_config
 from labtasker.client.core.job_runner import finish
@@ -44,6 +44,7 @@ def loop(
     ),
     eta_max: Optional[str] = typer.Option(
         None,
+        callback=eta_max_validation,
         help="Maximum ETA for the task. (e.g. '1h', '1h30m', '50s')",
     ),
     heartbeat_timeout: float = typer.Option(

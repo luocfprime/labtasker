@@ -5,6 +5,8 @@ import typer
 from pydantic import BaseModel
 from rich.json import JSON
 
+from labtasker.utils import parse_timeout
+
 
 def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
     """
@@ -20,6 +22,15 @@ def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
         return parsed
     except (ValueError, SyntaxError) as e:
         raise typer.BadParameter(f"Invalid metadata: {e}")
+
+
+def eta_max_validation(value: str):
+    try:
+        parse_timeout(value)
+    except Exception:
+        raise typer.BadParameter(
+            "ETA max must be a valid duration string (e.g. '1h', '1h30m', '50s')"
+        )
 
 
 def ls_jsonl_format_iter(jsonl_iterator: Iterable[BaseModel], use_rich: bool = True):
