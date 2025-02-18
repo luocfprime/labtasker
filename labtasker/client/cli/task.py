@@ -33,11 +33,11 @@ def submit(
     task_name: str = typer.Option(..., help="Name of the task."),
     args: Optional[str] = typer.Option(
         None,
-        help='Arguments for the task as a JSON string (e.g., \'{"key": "value"}\').',
+        help='Arguments for the task as a python dict string (e.g., \'{"key": "value"}\').',
     ),
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata as a JSON string (e.g., \'{"key": "value"}\').',
+        help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
     ),
     cmd: Optional[str] = typer.Option(
         None,

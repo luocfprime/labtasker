@@ -43,7 +43,7 @@ def create(
     ],
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata as a JSON string (e.g., \'{"key": "value"}\').',
+        help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
     ),
 ):
     """
@@ -64,7 +64,7 @@ def create(
 def create_from_config(
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata as a JSON string (e.g., \'{"key": "value"}\').',
+        help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
     )
 ):
     """
@@ -105,7 +105,7 @@ def update(
     ),
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata update as a JSON string (e.g., \'{"key": "value"}\').',
+        help='Optional metadata update as a python dict string (e.g., \'{"key": "value"}\').',
     ),
 ):
     """
