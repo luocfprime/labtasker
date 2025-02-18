@@ -21,8 +21,17 @@ from labtasker.client.core.logging import logger, stderr_console, stdout_console
 from labtasker.utils import keys_to_query_dict
 
 
-def infinite_defaultdict():
-    return defaultdict(infinite_defaultdict)
+class InfiniteDefaultDict(defaultdict):
+
+    def __getitem__(self, key):
+        if key not in self:
+            self[key] = InfiniteDefaultDict()
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        if key not in self:
+            self[key] = InfiniteDefaultDict()
+        return super().get(key, default)
 
 
 @app.command()
@@ -55,7 +64,7 @@ def loop(
     extra_filter = parse_metadata(extra_filter)
 
     # Generate required fields dict
-    dummy_variable_table = infinite_defaultdict()
+    dummy_variable_table = InfiniteDefaultDict()
     try:
         _, queried_keys = cmd_interpolate(cmd, dummy_variable_table)
     except (CmdSyntaxError, KeyError, TypeError) as e:
