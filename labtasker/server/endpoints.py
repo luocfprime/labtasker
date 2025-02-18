@@ -34,10 +34,10 @@ from labtasker.api_models import (
 from labtasker.server.config import get_server_config
 from labtasker.server.database import DBService
 from labtasker.server.dependencies import get_db, get_verified_queue_dependency
-from labtasker.utils import parse_obj_as
+from labtasker.utils import get_current_time, parse_obj_as
 
 
-async def periodic_task(interval_seconds: float):
+async def periodic_task(app: FastAPI, interval_seconds: float):
     """Run a periodic task at specified intervals."""
     while True:
         try:
@@ -46,6 +46,7 @@ async def periodic_task(interval_seconds: float):
             # )
             db = get_db()
             transitioned_tasks = db.handle_timeouts()
+            app.state.prev_polling = get_current_time().timestamp()
             if transitioned_tasks:
                 print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
         except Exception as e:
@@ -58,7 +59,9 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan and background tasks."""
     # Setup
     config = get_server_config()
-    task = create_task(periodic_task(config.periodic_task_interval))
+    task = create_task(periodic_task(app, config.periodic_task_interval))
+
+    app.state.prev_polling = get_current_time().timestamp()
 
     yield
 
@@ -87,6 +90,20 @@ def full_health_check(db: DBService = Depends(get_db)):
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "database": str(e)}
+
+
+@app.get("/api/v1/polling")
+def get_polling():
+    """Get the previous polling time"""
+    return {
+        "prev_polling": app.state.prev_polling,
+        "next_eta": (
+            app.state.prev_polling
+            + get_server_config().periodic_task_interval
+            - get_current_time().timestamp()
+        ),
+        "polling_interval": get_server_config().periodic_task_interval,
+    }
 
 
 @app.post("/api/v1/queues", status_code=HTTP_201_CREATED)
@@ -166,13 +183,13 @@ def submit_task(
     return TaskSubmitResponse(task_id=task_id)
 
 
-@app.get(
-    "/api/v1/queues/me/tasks",
+@app.post(
+    "/api/v1/queues/me/tasks/search",
     response_model=TaskLsResponse,
     response_model_by_alias=False,
 )
 def ls_tasks(
-    task_request: TaskLsRequest = Depends(),
+    task_request: TaskLsRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
@@ -320,13 +337,13 @@ def create_worker(
     return WorkerCreateResponse(worker_id=worker_id)
 
 
-@app.get(
-    "/api/v1/queues/me/workers",
+@app.post(
+    "/api/v1/queues/me/workers/search",
     response_model=WorkerLsResponse,
     response_model_by_alias=False,
 )
 def ls_worker(
-    worker_request: WorkerLsRequest = Depends(),
+    worker_request: WorkerLsRequest,
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):

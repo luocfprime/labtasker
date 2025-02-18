@@ -11,12 +11,14 @@ from labtasker.api_models import (
     QueueUpdateRequest,
     TaskFetchRequest,
     TaskFetchResponse,
+    TaskLsRequest,
     TaskLsResponse,
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
     WorkerCreateRequest,
     WorkerCreateResponse,
+    WorkerLsRequest,
     WorkerLsResponse,
     WorkerStatusUpdateRequest,
 )
@@ -224,14 +226,14 @@ def ls_worker(
     """List workers."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "worker_id": worker_id,
-        "worker_name": worker_name,
-        "extra_filter": extra_filter,
-        "limit": limit,
-        "offset": offset,
-    }
-    response = client.get("/api/v1/queues/me/workers", params=payload)
+    payload = WorkerLsRequest(
+        worker_id=worker_id,
+        worker_name=worker_name,
+        extra_filter=extra_filter,
+        limit=limit,
+        offset=offset,
+    ).model_dump()
+    response = client.post("/api/v1/queues/me/workers/search", json=payload)
     response.raise_for_status()
     return WorkerLsResponse(**response.json())
 
@@ -275,14 +277,14 @@ def ls_tasks(
     """List tasks in a queue."""
     if client is None:
         client = get_httpx_client()
-    payload = {
-        "task_id": task_id,
-        "task_name": task_name,
-        "extra_filter": extra_filter,
-        "limit": limit,
-        "offset": offset,
-    }
-    response = client.get("/api/v1/queues/me/tasks", params=payload)
+    payload = TaskLsRequest(
+        task_id=task_id,
+        task_name=task_name,
+        extra_filter=extra_filter,
+        limit=limit,
+        offset=offset,
+    ).model_dump()
+    response = client.post("/api/v1/queues/me/tasks/search", json=payload)
     response.raise_for_status()
     return TaskLsResponse(**response.json())
 

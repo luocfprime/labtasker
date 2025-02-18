@@ -94,10 +94,10 @@ class TestTaskEndpoints:
             await tick(mock_get_current_time, timedelta(minutes=2))
 
             # get status
-            response = await async_test_app.get(
-                "/api/v1/queues/me/tasks",
+            response = await async_test_app.post(
+                "/api/v1/queues/me/tasks/search",
                 headers=auth_headers,
-                params=TaskLsRequest(
+                json=TaskLsRequest(
                     task_name="test_task",
                 ).model_dump(),
             )

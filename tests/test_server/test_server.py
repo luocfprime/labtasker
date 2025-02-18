@@ -254,10 +254,10 @@ class TestTaskEndpoints:
             )
 
         # Test 1. list tasks by limit and offset
-        response = test_app.get(
-            "/api/v1/queues/me/tasks",
+        response = test_app.post(
+            "/api/v1/queues/me/tasks/search",
             headers=auth_headers,
-            params=TaskLsRequest(offset=0, limit=5).model_dump(),
+            json=TaskLsRequest(offset=0, limit=5).model_dump(),
         )
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         assert "task_id" in response.json()["content"][0], f"{response.json()}"
@@ -268,10 +268,10 @@ class TestTaskEndpoints:
             assert task.task_name == f"test_task_{i}"
 
         # get next 5
-        response = test_app.get(
-            "/api/v1/queues/me/tasks",
+        response = test_app.post(
+            "/api/v1/queues/me/tasks/search",
             headers=auth_headers,
-            params=TaskLsRequest(offset=5, limit=5).model_dump(),
+            json=TaskLsRequest(offset=5, limit=5).model_dump(),
         )
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         data = TaskLsResponse(**response.json())
@@ -312,10 +312,10 @@ class TestTaskEndpoints:
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
 
         # query using ls tasks
-        response = test_app.get(
-            "/api/v1/queues/me/tasks",
+        response = test_app.post(
+            "/api/v1/queues/me/tasks/search",
             headers=auth_headers,
-            params=TaskLsRequest(task_name=task_submit_request.task_name).model_dump(),
+            json=TaskLsRequest(task_name=task_submit_request.task_name).model_dump(),
         )
 
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
@@ -368,10 +368,10 @@ class TestTaskEndpoints:
             assert response.status_code == HTTP_204_NO_CONTENT, f"{response.json()}"
 
             # 4. Check heartbeat timestamp via ls
-            response = test_app.get(
-                "/api/v1/queues/me/tasks",
+            response = test_app.post(
+                "/api/v1/queues/me/tasks/search",
                 headers=auth_headers,
-                params=TaskLsRequest(
+                json=TaskLsRequest(
                     task_name="test_task",
                 ).model_dump(),
             )
@@ -508,10 +508,10 @@ class TestWorkerEndpoints:
 
         # The worker should be suspended by now.
         # Get worker from ls api
-        response = test_app.get(
-            "/api/v1/queues/me/workers",
+        response = test_app.post(
+            "/api/v1/queues/me/workers/search",
             headers=auth_headers,
-            params=WorkerLsRequest(worker_id=worker_id).model_dump(),
+            json=WorkerLsRequest(worker_id=worker_id).model_dump(),
         )
         assert response.status_code == HTTP_200_OK, f"{response.json()}"
         worker_ls = WorkerLsResponse(**response.json())
