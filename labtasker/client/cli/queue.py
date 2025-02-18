@@ -14,7 +14,7 @@ from labtasker.client.core.api import (
     update_queue,
 )
 from labtasker.client.core.cli_utils import parse_metadata
-from labtasker.client.core.config import requires_client_config
+from labtasker.client.core.config import get_client_config, requires_client_config
 from labtasker.client.core.logging import stdout_console
 
 app = typer.Typer()
@@ -54,6 +54,28 @@ def create(
         create_queue(
             queue_name=queue_name,
             password=password,
+            metadata=metadata,
+        )
+    )
+
+
+@app.command()
+@requires_client_config
+def create_from_config(
+    metadata: Optional[str] = typer.Option(
+        None,
+        help='Optional metadata as a JSON string (e.g., \'{"key": "value"}\').',
+    )
+):
+    """
+    Create a queue from config in `.labtasker/client.env`.
+    """
+    metadata = parse_metadata(metadata)
+    config = get_client_config()
+    stdout_console.print(
+        create_queue(
+            queue_name=config.queue_name,
+            password=config.password.get_secret_value(),
             metadata=metadata,
         )
     )
