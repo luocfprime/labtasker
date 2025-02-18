@@ -1,4 +1,4 @@
-# Labtasker [WIP]
+# Labtasker
 
 ![unit-test-matrix](https://github.com/fkcptlst/labtasker/actions/workflows/unit-test-matrix.yml/badge.svg)
 [![codecov](https://codecov.io/gh/fkcptlst/labtasker/graph/badge.svg?token=KQFBV3QRPY)](https://codecov.io/gh/fkcptlst/labtasker)
@@ -6,44 +6,26 @@
 
 A easy-to-use task management tool for lab environments.
 
-## Development Setup
+## Features
 
-### Pre-commit hooks
+- Easy configuration and setup.
+- Versatile and minimalistic design.
+- Supports both CLI and Python API for task scheduling.
 
-```bash
-# Install pre-commit hooks
-pip install pre-commit
-pre-commit install
-```
+## Installation
 
-### Install development dependencies
+To install client tools:
 
 ```bash
-pip install -e ".[dev]"
+pip install labtasker
 ```
 
-### Format code
+or
 
 ```bash
-make format
+pip install git+https://github.com/fkcptlst/labtasker.git
 ```
 
-### Run linters
+## Documentation
 
-```bash
-make lint
-```
-
-### Run tests
-
-Unit tests (no extra dependencies)
-
-```bash
-make unit-test
-```
-
-Integration tests (requires a docker environment)
-
-```bash
-make integration-test
-```
+For extra information on tutorial, deployment, usage, please refer to the [documentation](https://fkcptlst.github.io/labtasker/).
