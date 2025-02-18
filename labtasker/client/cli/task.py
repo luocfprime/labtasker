@@ -30,7 +30,7 @@ app = typer.Typer()
 @app.command()
 @requires_client_config
 def submit(
-    task_name: str = typer.Option(..., help="Name of the task."),
+    task_name: Optional[str] = typer.Option(None, help="Name of the task."),
     args: Optional[str] = typer.Option(
         None,
         help='Arguments for the task as a python dict string (e.g., \'{"key": "value"}\').',
