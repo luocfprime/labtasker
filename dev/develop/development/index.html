@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../../best-practices/advanced/">
+        <link rel="prev" href="../../guide/advanced/">
       
       
-        <link rel="next" href="../deployment/">
+        <link rel="next" href="../documentation/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -250,16 +250,19 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../install/install/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../install/install/" class="md-tabs__link">
+          
   
     
   
   Installation
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -270,12 +273,12 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../best-practices/basic/" class="md-tabs__link">
+        <a href="../../guide/basic/" class="md-tabs__link">
           
   
     
   
-  Best Practices
+  User Guide
 
         </a>
       </li>
@@ -377,9 +380,33 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../install/install/" class="md-nav__link">
+    
+    
+      
         
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+    <a href="../../install/install/" class="md-nav__link">
+      
   
   <span class="md-ellipsis">
     Installation
@@ -387,7 +414,13 @@
   </span>
   
 
-      </a>
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
     </li>
   
 
@@ -423,11 +456,11 @@
         
   
   
-    <a href="../../best-practices/basic/" class="md-nav__link">
+    <a href="../../guide/basic/" class="md-nav__link">
       
   
   <span class="md-ellipsis">
-    Best Practices
+    User Guide
     
   </span>
   
@@ -583,6 +616,21 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Development utilities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development utilities">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#format-code" class="md-nav__link">
     <span class="md-ellipsis">
@@ -596,6 +644,30 @@
   <a href="#run-linters" class="md-nav__link">
     <span class="md-ellipsis">
       Run linters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tests
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-setups" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test setups
     </span>
   </a>
   
@@ -615,15 +687,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#documentation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Documentation
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -640,11 +703,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../deployment/" class="md-nav__link">
+      <a href="../documentation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Deployment
+    Documentation
     
   </span>
   
@@ -760,6 +823,21 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Development utilities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development utilities">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#format-code" class="md-nav__link">
     <span class="md-ellipsis">
@@ -778,6 +856,30 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tests
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-setups" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test setups
+    </span>
+  </a>
+  
+</li>
+        
           <li class="md-nav__item">
   <a href="#run-tests" class="md-nav__link">
     <span class="md-ellipsis">
@@ -789,15 +891,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#documentation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Documentation
-    </span>
-  </a>
   
 </li>
       
@@ -823,32 +916,65 @@
 <h1 id="development-guide">Development Guide<a class="headerlink" href="#development-guide" title="Permanent link">&para;</a></h1>
 <h2 id="development-setup">Development Setup<a class="headerlink" href="#development-setup" title="Permanent link">&para;</a></h2>
 <h3 id="pre-commit-hooks">Pre-commit hooks<a class="headerlink" href="#pre-commit-hooks" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Install pre-commit hooks</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Install pre-commit hooks for code formatting</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span>pre-commit
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pre-commit<span class="w"> </span>install
 </code></pre></div>
 <h3 id="install-development-dependencies">Install development dependencies<a class="headerlink" href="#install-development-dependencies" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
 </code></pre></div>
+<h2 id="development-utilities">Development utilities<a class="headerlink" href="#development-utilities" title="Permanent link">&para;</a></h2>
 <h3 id="format-code">Format code<a class="headerlink" href="#format-code" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>format
 </code></pre></div>
 <h3 id="run-linters">Run linters<a class="headerlink" href="#run-linters" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>lint
 </code></pre></div>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h2>
+<h3 id="test-setups">Test setups<a class="headerlink" href="#test-setups" title="Permanent link">&para;</a></h3>
+<p>Tests are divided into unit tests, integration tests, and end-to-end tests.
+Some test cases are shared between unit tests, integration tests and end-to-end tests.</p>
+<div class="admonition note">
+<p class="admonition-title">Test settings</p>
+<p>Testcases are marked with <code>pytest.mark.unit</code>, <code>pytest.mark.integration</code>, and <code>pytest.mark.e2e</code>.</p>
+<p>Different tests adopts the following setting:</p>
+<table>
+<thead>
+<tr>
+<th>Test type</th>
+<th>Database</th>
+<th>Server &amp; Client</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unit tests</td>
+<td>MongoMock</td>
+<td>TestClient &amp; ASGITransport, patched httpx client</td>
+</tr>
+<tr>
+<td>Integration tests</td>
+<td>docker mongodb service</td>
+<td>TestClient &amp; ASGITransport, patched httpx client</td>
+</tr>
+<tr>
+<td>End-to-end tests</td>
+<td>docker mongodb service</td>
+<td>docker fastapi service, httpx client to localhost</td>
+</tr>
+</tbody>
+</table>
+</div>
 <h3 id="run-tests">Run tests<a class="headerlink" href="#run-tests" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span><span class="nb">test</span>
+<p>Unit tests:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>unit-test
 </code></pre></div>
-<h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>mike<span class="w"> </span>serve
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># or use mkdocs to live-reload</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>mkdocs<span class="w"> </span>serve
+<p>Integration tests:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>make<span class="w"> </span>integration-test
 </code></pre></div>
-<p>Check list of versions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>list
+<p>End-to-end tests (quite time-consuming):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>e2e-test
 </code></pre></div>
-<p>Check other utilities in <code>Makefile</code>.</p>
 
 
 
