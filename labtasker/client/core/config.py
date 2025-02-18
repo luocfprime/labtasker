@@ -45,7 +45,7 @@ def requires_client_config(
     def decorator(function: Callable):
         @wraps(function)
         def wrapped(*args, **kwargs):
-            if not _config:
+            if not _config and not get_labtasker_client_config_path().exists():
                 stderr_console.print(
                     f"Configuration not initialized. "
                     f"Run `labtasker config` to initialize configuration."
