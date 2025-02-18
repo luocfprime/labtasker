@@ -78,7 +78,8 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: [".", ".."]  # code snippet base_path
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.betterem:

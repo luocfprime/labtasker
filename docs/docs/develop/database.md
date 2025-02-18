@@ -1,6 +1,6 @@
 # Database
 
-Each queue indentified by a unique queue_name, is responsible for managing:
+Each queue identified by a unique queue_name, is responsible for managing:
 
 1. A collection of tasks (task queue)
 2. A collection of workers to check worker status. If a worker crashes multiple times, the tasks will be no longer be assigned to it. (worker pool)
@@ -46,9 +46,6 @@ states:
 }
 ```
 
-- Create: ✅
-- Delete: ✅
-- Update: ✅
 
 ### Tasks Collection
 
@@ -78,10 +75,6 @@ states:
 }
 ```
 
-- Create: ✅
-- Update: ✅
-- Delete: ✅
-
 ### Workers Collection
 
 ```json
@@ -97,7 +90,3 @@ states:
     "last_modified": "2025-01-01T00:00:00Z"
 }
 ```
-
-- Create: ✅
-- Delete: ✅
-- Update: ✅

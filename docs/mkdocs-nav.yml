@@ -1,11 +1,13 @@
 nav:
   - About: index.md
-  - Installation: install/install.md
-  - Best Practices:
-    - Basic Practices: best-practices/basic.md
-    - Advanced Features: best-practices/advanced.md
+  - Installation:
+    - Install Tool: install/install.md
+    - Server Deployment: install/deployment.md
+  - User Guide:
+    - Basic Usage: guide/basic.md
+    - Advanced Features: guide/advanced.md
   - Development Guide:
     - Development: develop/development.md
-    - Deployment: develop/deployment.md
+    - Documentation: develop/documentation.md
     - Database: develop/database.md
     - RESTful API: develop/restful-api.md
