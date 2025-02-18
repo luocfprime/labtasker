@@ -16,6 +16,7 @@ from labtasker.client.core.context import (
     current_worker_id,
     set_current_worker_id,
     set_task_info,
+    task_info,
 )
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import log_to_file, logger
@@ -34,6 +35,11 @@ def dump_status(status: str):
             f,  # type: ignore
             indent=4,
         )
+
+
+def dump_task_info():
+    with open(get_labtasker_log_dir() / "task_info.json", "w") as f:
+        f.write(task_info().model_dump_json(indent=4))
 
 
 def loop(
@@ -114,6 +120,9 @@ def loop(
                         task_id=current_task_id(), set_env=True, overwrite=True
                     )
 
+                    # Dump task_info.json
+                    dump_task_info()
+
                     with log_to_file(file_path=get_labtasker_log_dir() / "run.log"):
                         start_heartbeat(task_id=current_task_id())
                         try:
@@ -149,12 +158,17 @@ def loop(
     return decorator
 
 
-def finish(status: str, summary: Optional[Dict[str, Any]] = None):
+def finish(
+    status: str,
+    summary: Optional[Dict[str, Any]] = None,
+    skip_if_no_labtasker: bool = True,
+):
     """
     Called when a task is finished. It writes status and summary to log dir, and reports to server.
     Args:
         status:
         summary:
+        skip_if_no_labtasker: If current job is not run by labtasker loop, skip the report. Otherwise, raise an error.
 
     Returns:
 
@@ -163,6 +177,15 @@ def finish(status: str, summary: Optional[Dict[str, Any]] = None):
         "success",
         "failed",
     ], f"Invalid status {status}, should be one of ['success', 'failed']"
+
+    if os.environ.get("LABTASKER_TASK_ID", None) is None:
+        if skip_if_no_labtasker:
+            return
+        else:
+            raise RuntimeError(
+                "Current job is not run by labtasker loop. "
+                "You can either use @labtasker.loop() decorator or labtasker loop cli to run job."
+            )
 
     summary_file_path = get_labtasker_log_dir() / "summary.json"
     if summary_file_path.exists():

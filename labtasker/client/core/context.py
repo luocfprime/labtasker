@@ -1,8 +1,10 @@
+import json
 import os
 from contextvars import ContextVar
 from typing import Optional
 
 from labtasker.api_models import Task
+from labtasker.client.core.paths import get_labtasker_log_dir
 
 _current_worker_id: ContextVar[Optional[str]] = ContextVar(
     "worker_id", default=os.environ.get("LABTASKER_WORKER_ID", None)
@@ -23,6 +25,16 @@ def current_task_id():
 
 def task_info() -> Task:
     """Get current task info"""
+    if _current_task_info.get() is None:  # perhaps called from a job subprocess
+        # Try to load it from run dir
+        try:
+            with open(get_labtasker_log_dir() / "task_info.json", "r") as f:
+                _current_task_info.set(Task(**json.load(f)))
+        except Exception as e:
+            raise RuntimeError(
+                "Could not load task info from run dir. This is likely because the task was not run by labtasker."
+            ) from e
+
     return _current_task_info.get()
 
 

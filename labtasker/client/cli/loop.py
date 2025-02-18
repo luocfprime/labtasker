@@ -72,6 +72,8 @@ def loop(
 
     required_fields = keys_to_query_dict(list(queried_keys))
 
+    logger.info(f"Got command: {cmd}")
+
     @loop_run(
         required_fields=required_fields,
         extra_filter=extra_filter,
@@ -83,7 +85,7 @@ def loop(
     def run_cmd(args):
         # Interpolate command
         interpolated_cmd, _ = cmd_interpolate(cmd, args)
-        logger.info(f"Running command: {cmd}")
+        logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")
 
         with subprocess.Popen(
             shlex.split(interpolated_cmd),
@@ -96,9 +98,9 @@ def loop(
                 error = process.stderr.readline()
 
                 if output:
-                    stdout_console(output.strip())
+                    stdout_console.print(output.strip())
                 if error:
-                    stderr_console(error.strip())
+                    stderr_console.print(error.strip())
 
                 # Break loop when process completes and streams are empty
                 if process.poll() is not None and not output and not error:
