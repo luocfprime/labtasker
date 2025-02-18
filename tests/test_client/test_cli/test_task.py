@@ -151,6 +151,14 @@ class TestLs:
         assert "task-0" not in result.output
         assert "task-2" not in result.output
 
+        result = runner.invoke(
+            app, ["task", "ls", "--extra-filter", '{"metadata.tag": "test-1"}']
+        )
+        assert result.exit_code == 0, result.output
+        assert "task-1" in result.output
+        assert "task-0" not in result.output
+        assert "task-2" not in result.output
+
     def test_ls_tasks_empty(self, db_fixture, cli_create_queue_from_config):
         result = runner.invoke(app, ["task", "ls"])
         assert result.exit_code == 0, result.output
