@@ -1,3 +1,4 @@
+import shlex
 from typing import Any, Dict, Set, Tuple
 
 from antlr4 import CommonTokenStream, InputStream, ParserRuleContext, ParseTreeWalker
@@ -15,6 +16,10 @@ _debug_print = False
 
 class CmdSyntaxError(Exception):
     pass
+
+
+def reverse_quotes(s: str) -> str:
+    return "".join(['"' if char == "'" else "'" if char == '"' else char for char in s])
 
 
 def print_tab(content, ctx, tabs):
@@ -151,7 +156,11 @@ class CmdListener(LabCmdListener):
         if self.variable is None:
             raise RuntimeError(f"Variable not found in context: {ctx.getText()}")
 
-        self.result_str += str(self.variable)
+        if isinstance(self.variable, dict):
+            # convert dict into bash string
+            self.result_str += shlex.quote(reverse_quotes(str(self.variable)))
+        else:
+            self.result_str += str(self.variable)
 
         self.variable = None
 
