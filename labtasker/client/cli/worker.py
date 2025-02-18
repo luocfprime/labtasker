@@ -68,7 +68,7 @@ def ls(
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
-        help='Optional filter as a JSON string (e.g., \'{"key": "value"}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
     paging: bool = typer.Option(
         False,

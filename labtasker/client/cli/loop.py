@@ -36,7 +36,7 @@ def loop(
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
-        help='Optional filter as a JSON string (e.g., \'{"key": "value"}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
     worker_id: Optional[str] = typer.Option(
         None,
