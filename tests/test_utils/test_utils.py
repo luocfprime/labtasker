@@ -9,6 +9,10 @@ from labtasker.utils import flatten_dict, get_timeout_delta, parse_timeout, risk
 @pytest.mark.unit
 def test_parse_timeout_single_unit():
     """Test parsing single unit timeouts."""
+    # Test direct seconds
+    assert parse_timeout("1") == 1
+    assert parse_timeout("60.5") == 60.5
+
     # Test hours
     assert parse_timeout("1h") == 3600
     assert parse_timeout("1.5h") == 5400
@@ -26,7 +30,7 @@ def test_parse_timeout_single_unit():
 
     # Test seconds
     assert parse_timeout("60s") == 60
-    assert parse_timeout("1.5s") == 2
+    assert parse_timeout("1.5s") == 1.5
     assert parse_timeout("3600s") == 3600
     assert parse_timeout("60 seconds") == 60
     assert parse_timeout("1 second") == 1

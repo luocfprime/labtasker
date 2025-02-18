@@ -9,10 +9,11 @@ from pydantic import TypeAdapter
 from starlette.status import HTTP_400_BAD_REQUEST
 
 
-def parse_timeout(timeout_str: str) -> int:
+def parse_timeout(timeout_str: str) -> float:
     """Convert timeout string to seconds.
 
     Supports formats:
+    - Timeout in seconds: "1.5", "60"
     - Single unit: "1.5h", "30m", "60s"
     - Multiple units: "1h30m", "5m30s", "1h30m15s"
     - Full words: "1 hour", "30 minutes", "1 hour, 30 minutes"
@@ -26,6 +27,12 @@ def parse_timeout(timeout_str: str) -> int:
     Raises:
         ValueError: If format is invalid
     """
+    try:
+        value = float(timeout_str)  # try directly as a number (in seconds)
+        return value
+    except (TypeError, ValueError):
+        pass
+
     if not timeout_str or not isinstance(timeout_str, str):
         raise ValueError("Timeout must be a non-empty string")
 
@@ -72,7 +79,7 @@ def parse_timeout(timeout_str: str) -> int:
 
         total_seconds += value * unit_map[unit]
 
-    return round(total_seconds)
+    return total_seconds
 
 
 def get_timeout_delta(timeout: Union[int, str]) -> timedelta:
