@@ -56,12 +56,15 @@ def loop(
         callback=eta_max_validation,
         help="Maximum ETA for the task. (e.g. '1h', '1h30m', '50s')",
     ),
-    heartbeat_timeout: float = typer.Option(
-        get_client_config().heartbeat_interval * 3,
+    heartbeat_timeout: Optional[float] = typer.Option(
+        None,
         help="Heartbeat timeout for the task in seconds.",
     ),
 ):
     extra_filter = parse_metadata(extra_filter)
+
+    if heartbeat_timeout is None:
+        heartbeat_timeout = get_client_config().heartbeat_interval * 3
 
     # Generate required fields dict
     dummy_variable_table = InfiniteDefaultDict()
