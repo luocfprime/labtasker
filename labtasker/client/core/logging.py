@@ -15,6 +15,26 @@ LOGGER_FORMAT = (
 )
 
 
+class TeeStream:
+    def __init__(self, original_stream, *streams):
+        self.original_stream = original_stream  # original stream (e.g. sys.stdout)
+        self.streams = streams  # other streams (e.g. open files)
+
+    def write(self, data):
+        self.original_stream.write(data)
+        for stream in self.streams:
+            stream.write(data)
+            stream.flush()
+
+    def flush(self):
+        self.original_stream.flush()
+        for stream in self.streams:
+            stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.original_stream, name)
+
+
 def reset_logger():
     logger.remove()
     logger.add(sys.stderr, format=LOGGER_FORMAT)
@@ -37,15 +57,14 @@ def log_to_file(
     """
     log_file = open(file_path, "a")
 
-    # Save original stdout and stderr
+    # Create tee streams for stdout and stderr
     original_stdout = sys.stdout
     original_stderr = sys.stderr
 
-    # Redirect stdout and stderr if requested
     if capture_stdout:
-        sys.stdout = log_file
+        sys.stdout = TeeStream(original_stdout, log_file)
     if capture_stderr:
-        sys.stderr = log_file
+        sys.stderr = TeeStream(original_stderr, log_file)
 
     # Add a loguru handler to the file
     handler_id = logger.add(log_file, **kwargs)
