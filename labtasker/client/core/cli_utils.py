@@ -24,13 +24,16 @@ def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
         raise typer.BadParameter(f"Invalid metadata: {e}")
 
 
-def eta_max_validation(value: str):
+def eta_max_validation(value: Optional[str]):
+    if value is None:
+        return None
     try:
         parse_timeout(value)
     except Exception:
         raise typer.BadParameter(
             "ETA max must be a valid duration string (e.g. '1h', '1h30m', '50s')"
         )
+    return value
 
 
 def ls_jsonl_format_iter(jsonl_iterator: Iterable[BaseModel], use_rich: bool = True):
