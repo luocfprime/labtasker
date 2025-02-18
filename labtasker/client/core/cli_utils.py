@@ -3,6 +3,7 @@ from typing import Any, Callable, Dict, Iterable, Optional
 
 import typer
 from pydantic import BaseModel
+from rich.console import Console
 from rich.json import JSON
 
 from labtasker.utils import parse_timeout
@@ -37,12 +38,16 @@ def eta_max_validation(value: Optional[str]):
 
 
 def ls_jsonl_format_iter(jsonl_iterator: Iterable[BaseModel], use_rich: bool = True):
+    console = Console()
     for item in jsonl_iterator:
         json_str = f"{item.model_dump_json(indent=4)}\n"
         if use_rich:
             yield JSON(json_str)
         else:
-            yield json_str
+            with console.capture() as capture:
+                console.print_json(json_str)
+            ansi_str = capture.get()
+            yield ansi_str
 
 
 def pager_iterator(

@@ -118,7 +118,7 @@ def ls(
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
     paging: bool = typer.Option(
-        False,
+        True,
         help="Enable pagination.",
     ),
     limit: int = typer.Option(
