@@ -1,12 +1,20 @@
 from ast import literal_eval
+from enum import Enum
 from typing import Any, Callable, Dict, Iterable, Optional
 
 import typer
+import yaml
 from pydantic import BaseModel
 from rich.console import Console
 from rich.json import JSON
+from rich.syntax import Syntax
 
 from labtasker.utils import parse_timeout
+
+
+class LsFmtChoices(str, Enum):
+    jsonl = "jsonl"
+    yaml = "yaml"
 
 
 def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
@@ -37,15 +45,29 @@ def eta_max_validation(value: Optional[str]):
     return value
 
 
-def ls_jsonl_format_iter(jsonl_iterator: Iterable[BaseModel], use_rich: bool = True):
+def ls_jsonl_format_iter(iterator: Iterable[BaseModel], use_rich: bool = True):
     console = Console()
-    for item in jsonl_iterator:
+    for item in iterator:
         json_str = f"{item.model_dump_json(indent=4)}\n"
         if use_rich:
             yield JSON(json_str)
         else:
             with console.capture() as capture:
                 console.print_json(json_str)
+            ansi_str = capture.get()
+            yield ansi_str
+
+
+def ls_yaml_format_iter(iterator: Iterable[BaseModel], use_rich: bool = True):
+    console = Console()
+    for item in iterator:
+        yaml_str = f"{yaml.dump([item.model_dump()], indent=2)}\n"
+        syntax = Syntax(yaml_str, "yaml")
+        if use_rich:
+            yield syntax
+        else:
+            with console.capture() as capture:
+                console.print(syntax)
             ansi_str = capture.get()
             yield ansi_str
 
@@ -75,3 +97,9 @@ def pager_iterator(
             yield item  # Yield each item
 
         offset += limit  # Increment offset for the next batch
+
+
+ls_format_iter = {
+    LsFmtChoices.jsonl: ls_jsonl_format_iter,
+    LsFmtChoices.yaml: ls_yaml_format_iter,
+}

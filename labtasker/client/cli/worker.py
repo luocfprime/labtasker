@@ -9,6 +9,7 @@ import click
 import typer
 from httpx import HTTPStatusError
 from pydantic import ValidationError
+from typing_extensions import Annotated
 
 from labtasker.client.core.api import (
     create_worker,
@@ -17,7 +18,8 @@ from labtasker.client.core.api import (
     report_worker_status,
 )
 from labtasker.client.core.cli_utils import (
-    ls_jsonl_format_iter,
+    LsFmtChoices,
+    ls_format_iter,
     pager_iterator,
     parse_metadata,
 )
@@ -82,6 +84,10 @@ def ls(
         0,
         help="Initial offset for pagination.",
     ),
+    fmt: LsFmtChoices = typer.Option(
+        "yaml",
+        help="Output format. One of `yaml`, `jsonl`.",
+    ),
 ):
     """
     List workers.
@@ -99,13 +105,13 @@ def ls(
     )
     if paging:
         click.echo_via_pager(
-            ls_jsonl_format_iter(
+            ls_format_iter[fmt](
                 page_iter,
                 use_rich=False,
             )
         )
     else:
-        for item in ls_jsonl_format_iter(
+        for item in ls_format_iter[fmt](
             page_iter,
             use_rich=True,
         ):

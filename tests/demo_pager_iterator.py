@@ -3,7 +3,7 @@ import argparse
 import click
 from pydantic import BaseModel
 
-from labtasker.client.core.cli_utils import ls_jsonl_format_iter, pager_iterator
+from labtasker.client.core.cli_utils import LsFmtChoices, ls_format_iter, pager_iterator
 
 
 class LSResponse(BaseModel):
@@ -44,9 +44,11 @@ def dummy_fetch_function(
     )
 
 
-def main(offset: int, limit: int) -> None:
+def main(offset: int, limit: int, mode: str) -> None:
+    assert mode in ["jsonl", "yaml"]
+
     click.echo_via_pager(
-        ls_jsonl_format_iter(
+        ls_format_iter[LsFmtChoices(mode)](
             pager_iterator(
                 fetch_function=dummy_fetch_function, offset=offset, limit=limit
             ),
@@ -60,9 +62,11 @@ if __name__ == "__main__":
     parser.add_argument("--lines", type=int, default=10)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--limit", type=int, default=3)
+    parser.add_argument("--mode", type=str, default="jsonl")
+
     args = parser.parse_args()
 
     total_items = args.lines
     items = [Entry(id=str(i), value=f"Item {i}") for i in range(total_items)]
 
-    main(offset=args.offset, limit=args.limit)
+    main(offset=args.offset, limit=args.limit, mode=args.mode)
