@@ -16,6 +16,7 @@ from labtasker.api_models import (
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
+    TaskUpdateRequest,
     WorkerCreateRequest,
     WorkerCreateResponse,
     WorkerLsRequest,
@@ -285,6 +286,21 @@ def ls_tasks(
         offset=offset,
     ).model_dump()
     response = client.post("/api/v1/queues/me/tasks/search", json=payload)
+    response.raise_for_status()
+    return TaskLsResponse(**response.json())
+
+
+def update_tasks(
+    task_updates: List[TaskUpdateRequest] = None,
+    reset_pending: bool = True,
+    client: Optional[httpx.Client] = None,
+) -> TaskLsResponse:
+    if client is None:
+        client = get_httpx_client()
+    payload = [task.model_dump(exclude_unset=True) for task in task_updates]
+    response = client.put(
+        "/api/v1/queues/me/tasks", json=payload, params={"reset_pending": reset_pending}
+    )
     response.raise_for_status()
     return TaskLsResponse(**response.json())
 

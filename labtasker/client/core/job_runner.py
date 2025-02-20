@@ -1,14 +1,17 @@
 import json
 import os
+import sys
 import traceback
 from functools import wraps
 from typing import Any, Dict, List, Optional, Union
 
+from labtasker.api_models import TaskUpdateRequest
 from labtasker.client.core.api import (
     WorkerSuspended,
     create_worker,
     fetch_task,
     report_task_status,
+    update_tasks,
 )
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.context import (
@@ -45,6 +48,7 @@ def dump_task_info():
 def loop(
     required_fields: Union[Dict[str, Any], List[str]] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
+    cmd: Optional[Union[str, List[str]]] = None,
     worker_id: Optional[str] = None,
     create_worker_kwargs: Optional[Dict[str, Any]] = None,
     eta_max: Optional[str] = None,
@@ -56,6 +60,7 @@ def loop(
     Args:
         required_fields: Fields required for task execution
         extra_filter: Additional filtering criteria for tasks
+        cmd: Command line arguments that runs current process. Default to sys.argv
         worker_id: Specific worker ID to use
         create_worker_kwargs: Arguments for default worker creation
         eta_max: Maximum ETA for task execution.
@@ -80,6 +85,9 @@ def loop(
     if current_worker_id() is None:
         new_worker_id = worker_id or create_worker(**(create_worker_kwargs or {}))
         set_current_worker_id(new_worker_id)
+
+    if cmd is None:
+        cmd = sys.argv
 
     def decorator(func):
         @wraps(func)
@@ -108,12 +116,18 @@ def loop(
                         )
                         break
 
+                    # update the "cmd" field of the current task, and get the updated task info
+                    task = update_tasks(
+                        [TaskUpdateRequest(task_id=resp.task.task_id, cmd=cmd)],  # noqa
+                        reset_pending=False,
+                    ).content[0]
+
                     logger.info(
-                        f"Prepared to run task {resp.task.task_id} with args {resp.task.args}."
+                        f"Prepared to run task {task.task_id} with args {task.args}."
                     )
 
                     # Set task info
-                    set_task_info(resp.task)
+                    set_task_info(task)
 
                     # Setup
                     set_labtasker_log_dir(
@@ -126,9 +140,7 @@ def loop(
                     with log_to_file(file_path=get_labtasker_log_dir() / "run.log"):
                         start_heartbeat(task_id=current_task_id())
                         try:
-                            func_args = (
-                                (resp.task.args, *args) if pass_args_dict else args
-                            )
+                            func_args = (task.args, *args) if pass_args_dict else args
                             func(*func_args, **kwargs)
 
                             # Default finish. Can be overridden by the user if called somewhere deep in the wrapped func().
