@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from starlette.status import (
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
+    HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
@@ -318,6 +319,14 @@ def update_tasks(
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
+    if len(task_updates) == 0:
+        return TaskLsResponse(found=False)
+    elif len(task_updates) > 1000:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Too many tasks to update. Maximum is 1000.",
+        )
+
     for task_update in task_updates:
         if not db.update_task(
             queue_id=queue["_id"],

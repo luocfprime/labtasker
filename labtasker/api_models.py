@@ -125,8 +125,8 @@ class TaskFetchResponse(BaseApiModel):
 
 
 class TaskLsRequest(BaseApiModel):
-    offset: int = 0
-    limit: int = 100
+    offset: int = Field(0, ge=0)
+    limit: int = Field(100, ge=0, le=1000)
     task_id: Optional[str] = None
     task_name: Optional[str] = None
     extra_filter: Optional[Dict[str, Any]] = None
@@ -162,8 +162,8 @@ class WorkerStatusUpdateRequest(BaseApiModel):
 
 
 class WorkerLsRequest(BaseApiModel):
-    offset: int = 0
-    limit: int = 100
+    offset: int = Field(0, ge=0)
+    limit: int = Field(100, ge=0, le=1000)
     worker_id: Optional[str] = None
     worker_name: Optional[str] = None
     extra_filter: Optional[Dict[str, Any]] = None
