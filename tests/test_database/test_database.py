@@ -391,27 +391,27 @@ def test_task_fsm_consistency(db_fixture, queue_args, get_task_args):
         ),
         "reset_pending": (
             TaskState.PENDING,
-            db_fixture.update_task_and_reset_pending,
+            db_fixture.update_task,
             TaskFSM.reset,
         ),
         "reset_running": (
             TaskState.RUNNING,
-            db_fixture.update_task_and_reset_pending,
+            db_fixture.update_task,
             TaskFSM.reset,
         ),
         "reset_failed": (
             TaskState.FAILED,
-            db_fixture.update_task_and_reset_pending,
+            db_fixture.update_task,
             TaskFSM.reset,
         ),
         "reset_success": (
             TaskState.SUCCESS,
-            db_fixture.update_task_and_reset_pending,
+            db_fixture.update_task,
             TaskFSM.reset,
         ),
         "reset_cancelled": (
             TaskState.CANCELLED,
-            db_fixture.update_task_and_reset_pending,
+            db_fixture.update_task,
             TaskFSM.reset,
         ),
     }

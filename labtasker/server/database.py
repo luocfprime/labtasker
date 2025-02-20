@@ -728,11 +728,12 @@ class DBService:
 
     @auth_required
     @validate_arg
-    def update_task_and_reset_pending(
+    def update_task(
         self,
         queue_id: str,
         task_id: str,
         task_setting_update: Optional[Dict[str, Any]] = None,
+        reset_pending: bool = True,
     ) -> bool:
         """
         Update task settings (optional) and set task status to PENDING.
@@ -742,6 +743,10 @@ class DBService:
             queue_id (str): The name of the queue to update the task in.
             task_id (str): The ID of the task to update.
             task_setting_update (Dict[str, Any], optional): A dictionary of task settings to update.
+            reset_pending (bool): reset state to pending after updating
+
+        Banned Fields from Updating: [_id, queue_id, created_at, last_modified]
+        Potentially Auto-Overwritten Fields: [status, retries]
         """
         with self.transaction() as session:
             # Update task settings
@@ -751,8 +756,10 @@ class DBService:
                 task_setting_update = {}
 
             task_setting_update["last_modified"] = get_current_time()
-            task_setting_update["status"] = TaskState.PENDING
-            task_setting_update["retries"] = 0
+
+            if reset_pending:
+                task_setting_update["status"] = TaskState.PENDING
+                task_setting_update["retries"] = 0
 
             update = {
                 "$set": {

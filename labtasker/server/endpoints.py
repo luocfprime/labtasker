@@ -24,6 +24,7 @@ from labtasker.api_models import (
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
+    TaskUpdateRequest,
     Worker,
     WorkerCreateRequest,
     WorkerCreateResponse,
@@ -304,6 +305,36 @@ def get_task(
     if not task:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Task not found")
     return parse_obj_as(Task, task)
+
+
+@app.put(
+    "/api/v1/queues/me/tasks",
+    response_model=TaskLsResponse,
+    response_model_by_alias=False,
+)
+def update_tasks(
+    task_updates: List[TaskUpdateRequest],
+    reset_pending: bool = True,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+    db: DBService = Depends(get_db),
+):
+    for task_update in task_updates:
+        if not db.update_task(
+            queue_id=queue["_id"],
+            task_id=task_update.task_id,
+            task_setting_update=task_update.model_dump(exclude_unset=True),
+            reset_pending=reset_pending,
+        ):
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail=f"Task {task_update.task_id} not found.",
+            )
+
+    tasks = []
+    for task in task_updates:
+        tasks.append(db.get_task(queue_id=queue["_id"], task_id=task.task_id))
+
+    return TaskLsResponse(found=True, content=parse_obj_as(List[Task], tasks))
 
 
 @app.delete("/api/v1/queues/me/tasks/{task_id}", status_code=HTTP_204_NO_CONTENT)

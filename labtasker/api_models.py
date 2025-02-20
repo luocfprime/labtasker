@@ -50,7 +50,9 @@ class QueueGetResponse(BaseApiModel):
 class TaskSubmitRequest(BaseApiModel):
     """Task submission request."""
 
-    task_name: Optional[str] = None
+    task_name: Optional[str] = Field(
+        None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
+    )
     args: Optional[Dict[str, Any]] = Field(default_factory=dict)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     cmd: Optional[Union[str, List[str]]] = None
@@ -85,9 +87,36 @@ class Task(BaseApiModel):
     priority: int
     metadata: Dict
     args: Dict
-    cmd: str
+    cmd: Union[str, List[str]]
     summary: Dict
     worker_id: Optional[str]
+
+
+class TaskUpdateRequest(BaseApiModel):
+    """This should be consistent with Task.
+    Fields that disallow manual update are commented out.
+    """
+
+    task_id: str = Field(alias="_id")  # Accepts "_id" as an input field
+    # queue_id: str
+    status: Optional[str] = None
+    task_name: Optional[str] = Field(
+        None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
+    )
+    # created_at: datetime
+    # start_time: Optional[datetime]
+    # last_heartbeat: Optional[datetime]
+    # last_modified: datetime
+    heartbeat_timeout: Optional[float] = None
+    task_timeout: Optional[int] = None
+    max_retries: Optional[int] = None
+    retries: Optional[int] = None
+    priority: Optional[int] = None
+    metadata: Optional[Dict] = None
+    args: Optional[Dict] = None
+    cmd: Optional[Union[str, List[str]]] = None
+    summary: Optional[Dict] = None
+    # worker_id: Optional[str]
 
 
 class TaskFetchResponse(BaseApiModel):
@@ -144,7 +173,9 @@ class Worker(BaseApiModel):
     worker_id: str = Field(alias="_id")
     queue_id: str
     status: str
-    worker_name: Optional[str]
+    worker_name: Optional[str] = Field(
+        None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
+    )
     metadata: Dict
     retries: int
     max_retries: int

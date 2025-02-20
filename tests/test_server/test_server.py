@@ -25,6 +25,7 @@ from labtasker.api_models import (
     TaskStatusUpdateRequest,
     TaskSubmitRequest,
     TaskSubmitResponse,
+    TaskUpdateRequest,
     Worker,
     WorkerCreateRequest,
     WorkerCreateResponse,
@@ -617,3 +618,103 @@ def test_report_task_status_with_unmatched_worker_id(
         ).model_dump(),
     )
     assert response.status_code == HTTP_200_OK, f"{response.json()}"
+
+
+class TestUpdateTasks:
+
+    def test_update_tasks_success(
+        self, test_app, setup_queue, auth_headers, task_submit_request
+    ):
+        # Submit a task first
+        response = test_app.post(
+            "/api/v1/queues/me/tasks",
+            json=task_submit_request.model_dump(),
+            headers=auth_headers,
+        )
+        assert response.status_code == HTTP_201_CREATED
+        task_id = response.json()["task_id"]
+
+        # Prepare update request
+        update_request = [
+            TaskUpdateRequest(_id=task_id, task_name="updated_task_name").model_dump(
+                exclude_unset=True
+            )
+        ]
+
+        # Update the task
+        response = test_app.put(
+            "/api/v1/queues/me/tasks",
+            headers=auth_headers,
+            json=update_request,
+        )
+        assert response.status_code == HTTP_200_OK
+        updated_tasks = TaskLsResponse(**response.json())
+        assert updated_tasks.found is True
+        assert updated_tasks.content[0].task_name == "updated_task_name"
+
+    def test_update_tasks_invalid_id(self, test_app, setup_queue, auth_headers):
+        # Prepare update request with an invalid task ID
+        update_request = [
+            TaskUpdateRequest(_id="invalid_task_id", task_name="new_name").model_dump(
+                exclude_unset=True
+            )
+        ]
+
+        # Attempt to update the task
+        response = test_app.put(
+            "/api/v1/queues/me/tasks",
+            headers=auth_headers,
+            json=update_request,
+        )
+        assert response.status_code == HTTP_404_NOT_FOUND
+
+    def test_update_tasks_no_changes(
+        self, test_app, setup_queue, auth_headers, task_submit_request
+    ):
+        # Submit a task first
+        response = test_app.post(
+            "/api/v1/queues/me/tasks",
+            json=task_submit_request.model_dump(),
+            headers=auth_headers,
+        )
+        assert response.status_code == HTTP_201_CREATED
+        task_id = response.json()["task_id"]
+
+        # Prepare update request with no changes
+        update_request = [TaskUpdateRequest(_id=task_id).model_dump(exclude_unset=True)]
+
+        # Update the task
+        response = test_app.put(
+            "/api/v1/queues/me/tasks",
+            headers=auth_headers,
+            json=update_request,
+        )
+        assert response.status_code == HTTP_200_OK
+        updated_tasks = TaskLsResponse(**response.json())
+        assert updated_tasks.found is True
+        assert (
+            updated_tasks.content[0].task_id == task_id
+        )  # Ensure the task ID remains the same
+
+    def test_update_tasks_invalid_name(
+        self, test_app, setup_queue, auth_headers, task_submit_request
+    ):
+        # Submit a task first
+        response = test_app.post(
+            "/api/v1/queues/me/tasks",
+            json=task_submit_request.model_dump(),
+            headers=auth_headers,
+        )
+        assert response.status_code == HTTP_201_CREATED
+        task_id = response.json()["task_id"]
+
+        # Prepare update request with an invalid name
+        update_request = [{"task_id": task_id, "task_name": "#$@"}]  # Invalid name
+
+        # Attempt to update the task
+        response = test_app.put(
+            "/api/v1/queues/me/tasks",
+            headers=auth_headers,
+            json=update_request,
+        )
+        assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
