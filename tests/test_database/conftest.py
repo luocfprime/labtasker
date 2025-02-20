@@ -19,6 +19,7 @@ def get_task_args():
     def wrapper(queue_id, override_fields=None, args_or_cmd="args"):
         """
         Args:
+            queue_id:
             override_fields: optionally override given fields
             args_or_cmd: either "args" or "cmd" must be provided for minimalistic task configuration
         """

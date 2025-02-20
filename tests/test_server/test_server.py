@@ -681,7 +681,9 @@ class TestUpdateTasks:
         task_id = response.json()["task_id"]
 
         # Prepare update request with no changes
-        update_request = [TaskUpdateRequest(_id=task_id).model_dump(exclude_unset=True)]
+        update_request = [
+            TaskUpdateRequest(_id=task_id).model_dump(exclude_unset=True)  # noqa
+        ]
 
         # Update the task
         response = test_app.put(
