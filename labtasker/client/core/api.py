@@ -292,7 +292,7 @@ def ls_tasks(
 
 def update_tasks(
     task_updates: List[TaskUpdateRequest] = None,
-    reset_pending: bool = True,
+    reset_pending: bool = False,
     client: Optional[httpx.Client] = None,
 ) -> TaskLsResponse:
     if client is None:
