@@ -9,7 +9,6 @@ import click
 import typer
 from httpx import HTTPStatusError
 from pydantic import ValidationError
-from typing_extensions import Annotated
 
 from labtasker.client.core.api import (
     create_worker,
