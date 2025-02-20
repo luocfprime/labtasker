@@ -18,18 +18,18 @@ from labtasker.client.core.api import (
 )
 from labtasker.client.core.cli_utils import (
     LsFmtChoices,
+    cli_utils_decorator,
     ls_format_iter,
     pager_iterator,
     parse_metadata,
 )
-from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.logging import stdout_console
 
 app = typer.Typer()
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def submit(
     task_name: Optional[str] = typer.Option(None, help="Name of the task."),
     args: Optional[str] = typer.Option(
@@ -81,7 +81,7 @@ def submit(
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def report(
     task_id: str = typer.Argument(..., help="ID of the task to update."),
     status: str = typer.Argument(
@@ -104,7 +104,7 @@ def report(
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def ls(
     task_id: Optional[str] = typer.Option(
         None,
@@ -116,6 +116,8 @@ def ls(
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
+        "--extra-filter",
+        "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
     paging: bool = typer.Option(
@@ -163,7 +165,31 @@ def ls(
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
+def update(
+    task_id: Optional[str] = typer.Option(
+        None,
+        help="Filter by task ID.",
+    ),
+    task_name: Optional[str] = typer.Option(
+        None,
+        help="Filter by task name.",
+    ),
+    extra_filter: Optional[str] = typer.Option(
+        None,
+        help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
+    ),
+    u: Optional[str] = typer.Option(
+        None,
+        "--update",
+        "-u",
+        help='Optional dict string for updated values of fields (e.g., \'{"task_name": "new_name"}\').',
+    ),
+): ...
+
+
+@app.command()
+@cli_utils_decorator
 def delete(
     task_id: str = typer.Argument(..., help="ID of the task to delete."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Confirm the operation."),

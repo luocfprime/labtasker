@@ -61,8 +61,8 @@ def requires_client_config(
 
     if func is None:
         return decorator
-    else:
-        return decorator(func)
+
+    return decorator(func)
 
 
 def init_config_with_default(disable_warning: bool = False):

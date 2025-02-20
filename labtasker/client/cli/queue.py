@@ -13,15 +13,15 @@ from labtasker.client.core.api import (
     get_queue,
     update_queue,
 )
-from labtasker.client.core.cli_utils import parse_metadata
-from labtasker.client.core.config import get_client_config, requires_client_config
+from labtasker.client.core.cli_utils import cli_utils_decorator, parse_metadata
+from labtasker.client.core.config import get_client_config
 from labtasker.client.core.logging import stdout_console
 
 app = typer.Typer()
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def create(
     queue_name: Annotated[
         str,
@@ -60,7 +60,7 @@ def create(
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def create_from_config(
     metadata: Optional[str] = typer.Option(
         None,
@@ -82,14 +82,14 @@ def create_from_config(
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def get():
     """Get current queue info."""
     stdout_console.print(get_queue())
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def update(
     new_queue_name: Optional[str] = typer.Option(
         None,
@@ -133,7 +133,7 @@ def update(
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def delete(
     cascade: bool = typer.Option(False, help="Delete all tasks in the queue."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Confirm the operation."),

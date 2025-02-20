@@ -12,9 +12,13 @@ import typer
 import labtasker
 import labtasker.client.core.context
 from labtasker.client.cli.cli import app
-from labtasker.client.core.cli_utils import eta_max_validation, parse_metadata
+from labtasker.client.core.cli_utils import (
+    cli_utils_decorator,
+    eta_max_validation,
+    parse_metadata,
+)
 from labtasker.client.core.cmd_parser import CmdSyntaxError, cmd_interpolate
-from labtasker.client.core.config import get_client_config, requires_client_config
+from labtasker.client.core.config import get_client_config
 from labtasker.client.core.job_runner import finish
 from labtasker.client.core.job_runner import loop as loop_run
 from labtasker.client.core.logging import logger, stderr_console, stdout_console
@@ -35,7 +39,7 @@ class InfiniteDefaultDict(defaultdict):
 
 
 @app.command()
-@requires_client_config
+@cli_utils_decorator
 def loop(
     cmd: str = typer.Option(
         ...,
