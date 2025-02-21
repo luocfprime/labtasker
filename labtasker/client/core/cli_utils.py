@@ -71,9 +71,7 @@ def ls_yaml_format_iter(
 ):
     console = Console()
     for item in iterator:
-        yaml_str = (
-            f"{yaml.dump([item.model_dump(exclude_unset=exclude_unset)], indent=2)}\n"
-        )
+        yaml_str = f"{yaml.dump([item.model_dump(exclude_unset=exclude_unset)], indent=2, sort_keys=False)}\n"
         syntax = Syntax(yaml_str, "yaml")
         if use_rich:
             yield syntax
