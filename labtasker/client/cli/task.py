@@ -246,6 +246,8 @@ def update(
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
+        "--extra-filter",
+        "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
     update_dict: Optional[str] = typer.Option(
@@ -322,6 +324,23 @@ def update(
             )
             raise typer.Abort()
 
+        # make sure the len match
+        if len(modified) != len(old_tasks_primitive):
+            stderr_console.print(
+                f"[bold red]Error:[/bold red] number of entries do not match. new {len(modified)} != old {len(old_tasks_primitive)}. "
+                f"Please check your modification. You should not change the order or make deletions to entries."
+            )
+            raise typer.Abort()
+
+        # make sure the order match
+        for i, (m, o) in enumerate(zip(modified, old_tasks_primitive)):
+            if m["task_id"] != o["task_id"]:
+                stderr_console.print(
+                    f"[bold red]Error:[/bold red] task_id {m['task_id']} should be {o['task_id']} at {i}th entry. "
+                    "You should not modify task_id or change the order of the entries."
+                )
+                raise typer.Abort()
+
         # get a list of update dict
         updates = diff(
             prev=old_tasks_primitive,
@@ -329,13 +348,13 @@ def update(
             skip_fields=list(readonly_fields),
         )
 
-        # filter out empty dict
-        updates = [u for u in updates if u]
     else:
         # populate if not using interactive mode to modify one by one
         updates = [update_dict] * len(old_tasks)
 
     for i, ud in enumerate(updates):  # ud: update dict list entry
+        if not ud:  # filter out empty update dict
+            continue
         task_updates.append(TaskUpdateRequest(_id=old_tasks[i].task_id, **ud))
 
     updated_tasks = update_tasks(task_updates=task_updates, reset_pending=reset_pending)
