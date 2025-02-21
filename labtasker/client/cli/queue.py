@@ -1,5 +1,5 @@
 """
-Implements `labtasker queue xxx`
+Task queue related CRUD operations.
 """
 
 from typing import Optional

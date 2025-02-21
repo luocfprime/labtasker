@@ -65,6 +65,10 @@ def loop(
         help="Heartbeat timeout for the task in seconds.",
     ),
 ):
+    """Run the wrapped job command in loop.
+    Job command follows a template string syntax: e.g. `python main.py --arg1 %(arg1) --arg2 %(arg2)`.
+    The argument inside %(...) will be autofilled by the task args fetched from task queue.
+    """
     extra_filter = parse_metadata(extra_filter)
 
     if heartbeat_timeout is None:

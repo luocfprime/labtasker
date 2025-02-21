@@ -1,5 +1,5 @@
 """
-Implements `labtasker worker xxx`
+Worker related CRUD operations.
 """
 
 from functools import partial
@@ -126,7 +126,7 @@ def report(
     ),
 ):
     """
-    Update the status of a worker.
+    Update the status of a worker. Can be used to revive crashed workers or manually suspend active workers.
     """
     try:
         report_worker_status(worker_id=worker_id, status=status)
@@ -146,7 +146,7 @@ def delete(
     yes: bool = typer.Option(False, "--yes", "-y", help="Confirm the operation."),
 ):
     """
-    Delete a worker.
+    Delete a worker by worker_id.
     """
     if not yes:
         typer.confirm(

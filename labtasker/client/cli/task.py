@@ -1,5 +1,5 @@
 """
-Implements `labtasker task xxx`
+Task related CRUD operations.
 """
 
 import io

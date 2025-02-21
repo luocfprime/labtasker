@@ -54,6 +54,7 @@ def config(
         ),
     ],
 ):
+    """Configure local client. Run `labtasker config` directly for step-by-step interactive configuration."""
     init_config_with_default(disable_warning=True)
 
     try:
