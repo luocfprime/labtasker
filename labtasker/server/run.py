@@ -4,6 +4,7 @@ import uvicorn
 
 from labtasker.server.config import get_server_config, init_server_config
 from labtasker.server.endpoints import app
+from labtasker.server.logging import log_config
 
 
 def parse_args():
@@ -17,5 +18,4 @@ if __name__ == "__main__":
     init_server_config(args.env_file)
 
     config = get_server_config()
-
-    uvicorn.run(app, host=config.api_host, port=config.api_port)
+    uvicorn.run(app, host=config.api_host, port=config.api_port, log_config=log_config)

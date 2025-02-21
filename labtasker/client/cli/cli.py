@@ -18,7 +18,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 def version_callback(value: bool):
     if value:
-        print(f"Labtasker Version: {__version__}")
+        stdout_console.print(f"Labtasker Version: {__version__}")
         raise typer.Exit()
 
 

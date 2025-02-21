@@ -36,6 +36,7 @@ from labtasker.api_models import (
 from labtasker.server.config import get_server_config
 from labtasker.server.database import DBService
 from labtasker.server.dependencies import get_db, get_verified_queue_dependency
+from labtasker.server.logging import logger
 from labtasker.utils import get_current_time, parse_obj_as
 
 
@@ -43,16 +44,16 @@ async def periodic_task(app: FastAPI, interval_seconds: float):
     """Run a periodic task at specified intervals."""
     while True:
         try:
-            # print(
+            # logger.info(
             #     f"now: {get_current_time()}, current_event_loop: {asyncio.get_running_loop().__hash__()}"
             # )
             db = get_db()
             transitioned_tasks = db.handle_timeouts()
             app.state.prev_polling = get_current_time().timestamp()
             if transitioned_tasks:
-                print(f"Transitioned {len(transitioned_tasks)} timed out tasks")
+                logger.info(f"Transitioned {len(transitioned_tasks)} timed out tasks")
         except Exception as e:
-            print(f"Error checking timeouts: {e}")
+            logger.info(f"Error checking timeouts: {e}")
         await asyncio.sleep(interval_seconds)
 
 

@@ -26,6 +26,7 @@ from labtasker.server.db_utils import (
     validate_arg,
 )
 from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
+from labtasker.server.logging import logger
 from labtasker.utils import (
     add_key_prefix,
     arg_match,
@@ -1000,9 +1001,7 @@ class DBService:
                         transitioned_tasks.append(task["_id"])
                 except Exception as e:
                     # Log error but continue processing other tasks
-                    print(
-                        f"Error handling timeout for task {task['_id']}: {e}"
-                    )  # TODO: log
+                    logger.info(f"Error handling timeout for task {task['_id']}: {e}")
 
             return transitioned_tasks
 
