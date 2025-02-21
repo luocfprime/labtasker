@@ -15,3 +15,6 @@ updates:
     commit-message:
       prefix: "(deps)"
     versioning-strategy: increase-if-necessary
+    groups:
+      python:
+        dependency-type: all
