@@ -1,6 +1,24 @@
-# Tutorial: Basic Practices
+# Tutorial: Basic Workflow
+
+!!! tip
+
+    **The code for this page is available on [GitHub](https://github.com/fkcptlst/labtasker/tree/main/demo).**
+
+    Labtasker supports 2 sets of client APIs:
+
+    - Python: Modify your Python code with a few lines of changes to support Labtasker.
+    - Bash: No modification to your Python code is required. Simply wrap your command with `labtasker loop ...`.
+
 
 ## Prerequisites
+
+**Make sure you have a deployed server.**
+
+You can follow the [Deployment](../install/deployment.md) guide to easily deploy a server.
+
+**Make sure you have installed client tools.**
+
+Following [Installation](../install/install.md).
 
 **Make sure you have configured client.**
 

@@ -57,6 +57,10 @@ Unit tests:
 make unit-test
 ```
 
+!!! danger "Do not run integration and e2e tests in production env"
+
+    Do not run integration and e2e tests in production env, as they will erase the database for testing.
+
 Integration tests:
 
 ```bash
