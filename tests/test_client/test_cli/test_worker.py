@@ -170,8 +170,8 @@ class TestLs:
         result = runner.invoke(app, ["worker", "ls"])
         assert result.exit_code == 0, result.output
 
-    def test_ls_workers_paging(self, db_fixture, setup_workers):
-        result = runner.invoke(app, ["worker", "ls", "--paging"])
+    def test_ls_workers_pager(self, db_fixture, setup_workers):
+        result = runner.invoke(app, ["worker", "ls", "--pager"])
         assert result.exit_code == 0, result.output
 
         # Check that the output contains the created workers

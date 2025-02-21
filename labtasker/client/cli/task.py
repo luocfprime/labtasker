@@ -189,7 +189,7 @@ def ls(
         "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
-    paging: bool = typer.Option(
+    pager: bool = typer.Option(
         True,
         help="Enable pagination.",
     ),
@@ -218,7 +218,7 @@ def ls(
         offset=offset,
         limit=limit,
     )
-    if paging:
+    if pager:
         click.echo_via_pager(
             ls_format_iter[fmt](
                 page_iter,
