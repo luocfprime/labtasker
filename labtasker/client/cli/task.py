@@ -15,7 +15,6 @@ import yaml
 from httpx import HTTPStatusError
 from pydantic import ValidationError
 from rich.syntax import Syntax
-from yaml.parser import ParserError
 
 from labtasker.api_models import Task, TaskUpdateRequest
 from labtasker.client.core.api import (
@@ -50,17 +49,16 @@ def add_eol_comment(d: ruamel.yaml.CommentedMap, fields: List[str], comment: str
             d.yaml_add_eol_comment(comment, key=key, column=50)
 
 
-def edit_and_reload(commented_seq: ruamel.yaml.CommentedSeq, editor: str):
-    with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as f:
-        y = ruamel.yaml.YAML()
-        y.indent(mapping=2, sequence=2, offset=0)
-        y.dump(commented_seq, f)
+def dump_commented_seq(commented_seq, f):
+    y = ruamel.yaml.YAML()
+    y.indent(mapping=2, sequence=2, offset=0)
+    y.dump(commented_seq, f)
 
-        click.edit(filename=f.name, editor=editor)
 
-        f.seek(0)
-        data = yaml.safe_load(f)
-
+def edit_and_reload(f, editor: str):
+    click.edit(filename=f.name, editor=editor)
+    f.seek(0)
+    data = yaml.safe_load(f)
     return data
 
 
@@ -316,13 +314,19 @@ def update(
             )
 
         # open an editor to allow interaction
-        try:
-            modified = edit_and_reload(commented_seq, editor=editor)
-        except yaml.parser.ParserError as e:
-            stderr_console.print(
-                "[bold red]Error:[/bold red] yaml parsing error.\n" f"Detail: {str(e)}"
-            )
-            raise typer.Abort()
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as f:
+            dump_commented_seq(commented_seq=commented_seq, f=f)
+
+            while True:  # continue to edit until no syntax error
+                try:
+                    modified = edit_and_reload(f=f, editor=editor)
+                    break  # if no error, break
+                except yaml.error.YAMLError as e:
+                    stderr_console.print(
+                        "[bold red]Error:[/bold red] error when parsing yaml.\n"
+                        f"Detail: {str(e)}"
+                    )
+                    typer.confirm("Continue to edit?", abort=True)
 
         # make sure the len match
         if len(modified) != len(old_tasks_primitive):
