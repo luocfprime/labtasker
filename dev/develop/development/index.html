@@ -969,6 +969,10 @@ Some test cases are shared between unit tests, integration tests and end-to-end 
 <p>Unit tests:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>unit-test
 </code></pre></div>
+<div class="admonition danger">
+<p class="admonition-title">Do not run integration and e2e tests in production env</p>
+<p>Do not run integration and e2e tests in production env, as they will erase the database for testing.</p>
+</div>
 <p>Integration tests:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>make<span class="w"> </span>integration-test
 </code></pre></div>

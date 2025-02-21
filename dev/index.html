@@ -701,70 +701,82 @@
 
 <h1 id="labtasker">Labtasker<a class="headerlink" href="#labtasker" title="Permanent link">&para;</a></h1>
 <h2 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">&para;</a></h2>
-<p>Labtasker is an easy-to-use task queue system designed for dispatching lab experiment tasks to user-defined workers.</p>
-<p>It enables users to submit various experiment arguments to a server-based task queue. Worker nodes can then retrieve and execute these tasks from the queue.</p>
-<p>Unlike traditional HPC resource management systems like SLURM, <mark><strong>Labtasker is tailored for users rather than system administrators.</strong></mark></p>
+<p>Labtasker is an easy-to-use task queue tool designed to manage and dispatch lab experiment tasks to user-defined workers.</p>
+<p>Integrating Labtasker into your existing experiment workflow requires just a few lines of boilerplate code.</p>
+<p>To get started, check out the quick <a href="guide/basic/">Tutorial</a> for an overview of the basic workflow.</p>
 <h2 id="motivation">Motivation<a class="headerlink" href="#motivation" title="Permanent link">&para;</a></h2>
 <h3 id="why-not-simple-bash-scripts">Why not simple bash scripts?<a class="headerlink" href="#why-not-simple-bash-scripts" title="Permanent link">&para;</a></h3>
-<p>Imagine you have several lab experiments to run on a single GPU, each with multiple parameters to configure.</p>
-<p>The simplest approach is to create a script for each experiment and execute them sequentially.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">for</span><span class="w"> </span>my_param_1<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>my_param_2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">        </span><span class="k">for</span><span class="w"> </span>my_param_3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">            </span>python<span class="w"> </span>run_my_experiment.py<span class="w"> </span>--param1<span class="w"> </span><span class="nv">$my_param_1</span><span class="w"> </span>--param2<span class="w"> </span><span class="nv">$my_param_2</span><span class="w"> </span>--param3<span class="w"> </span><span class="nv">$my_param_3</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">        </span><span class="k">done</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="k">done</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">done</span>
+<p>Imagine you have multiple lab experiment jobs to run on a single GPU, such as for tasks like prompt engineering or hyperparameter search.</p>
+<p>The simplest approach is to write a script for each experiment and execute them sequentially.</p>
+<div class="highlight"><span class="filename">run_job.sh</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">for</span><span class="w"> </span>arg1<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>arg2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">        </span><span class="k">for</span><span class="w"> </span>arg3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">            </span>python<span class="w"> </span>job_main.py<span class="w"> </span>--arg1<span class="w"> </span><span class="nv">$arg1</span><span class="w"> </span>--arg2<span class="w"> </span><span class="nv">$arg2</span><span class="w"> </span>--arg3<span class="w"> </span><span class="nv">$arg3</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">        </span><span class="k">done</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="k">done</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">done</span>
 </code></pre></div>
-<p>This method works, but what if you have more than one GPU?</p>
-<p>Let's say you have 4 GPUs. You can split the experiments into 4 groups and run them in parallel to make better use of the GPU resources.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Use my_param_1 to divide the experiments into 4 groups for 4 GPUs</span>
+<p>This method works, but what if you have more than one worker/GPU?</p>
+<p>Let's say you have 4 GPUs. You would probably split the experiments into 4 groups and run them in parallel to make better use of the resources.</p>
+<div class="grid">
+<div class="highlight"><span class="filename">run_job_1.sh</span><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="ch">#!/bin/bash</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># my_experiment_1.sh</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nv">my_param_1</span><span class="o">=</span><span class="m">1</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">for</span><span class="w"> </span>my_param_2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>my_param_3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span>python<span class="w"> </span>run_my_experiment.py<span class="w"> </span>--param1<span class="w"> </span><span class="nv">$my_param_1</span><span class="w"> </span>--param2<span class="w"> </span><span class="nv">$my_param_2</span><span class="w"> </span>--param3<span class="w"> </span><span class="nv">$my_param_3</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="k">done</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">done</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># my_experiment_2.sh</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nv">my_param_1</span><span class="o">=</span><span class="m">2</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="k">for</span><span class="w"> </span>my_param_2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>my_param_3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">        </span>python<span class="w"> </span>run_my_experiment.py<span class="w"> </span>--param1<span class="w"> </span><span class="nv">$my_param_1</span><span class="w"> </span>--param2<span class="w"> </span><span class="nv">$my_param_2</span><span class="w"> </span>--param3<span class="w"> </span><span class="nv">$my_param_3</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="k">done</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="k">done</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1"># my_experiment_3.sh</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="nv">my_param_1</span><span class="o">=</span><span class="m">3</span>
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="k">for</span><span class="w"> </span>my_param_2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>my_param_3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">        </span>python<span class="w"> </span>run_my_experiment.py<span class="w"> </span>--param1<span class="w"> </span><span class="nv">$my_param_1</span><span class="w"> </span>--param2<span class="w"> </span><span class="nv">$my_param_2</span><span class="w"> </span>--param3<span class="w"> </span><span class="nv">$my_param_3</span>
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span><span class="k">done</span>
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="k">done</span>
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>
-<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="c1"># my_experiment_4.sh</span>
-<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="nv">my_param_1</span><span class="o">=</span><span class="m">4</span>
-<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="k">for</span><span class="w"> </span>my_param_2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>my_param_3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">        </span>python<span class="w"> </span>run_my_experiment.py<span class="w"> </span>--param1<span class="w"> </span><span class="nv">$my_param_1</span><span class="w"> </span>--param2<span class="w"> </span><span class="nv">$my_param_2</span><span class="w"> </span>--param3<span class="w"> </span><span class="nv">$my_param_3</span>
-<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">    </span><span class="k">done</span>
-<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="k">done</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nv">arg1</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">for</span><span class="w"> </span>arg2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>arg3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span>python<span class="w"> </span>job_main.py<span class="w"> </span>--arg1<span class="w"> </span><span class="nv">$arg1</span><span class="w"> </span>--arg2<span class="w"> </span><span class="nv">$arg2</span><span class="w"> </span>--arg3<span class="w"> </span><span class="nv">$arg3</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="k">done</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="k">done</span>
 </code></pre></div>
-<p>However, this method can quickly become unwieldy and offers limited control over the experiments once the wrapper scripts are running.</p>
+<div class="highlight"><span class="filename">run_job_2.sh</span><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nv">arg1</span><span class="o">=</span><span class="m">2</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">for</span><span class="w"> </span>arg2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>arg3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">        </span>python<span class="w"> </span>job_main.py<span class="w"> </span>--arg1<span class="w"> </span><span class="nv">$arg1</span><span class="w"> </span>--arg2<span class="w"> </span><span class="nv">$arg2</span><span class="w"> </span>--arg3<span class="w"> </span><span class="nv">$arg3</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="k">done</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="k">done</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">run_job_3.sh</span><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">arg1</span><span class="o">=</span><span class="m">3</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">for</span><span class="w"> </span>arg2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>arg3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">        </span>python<span class="w"> </span>job_main.py<span class="w"> </span>--arg1<span class="w"> </span><span class="nv">$arg1</span><span class="w"> </span>--arg2<span class="w"> </span><span class="nv">$arg2</span><span class="w"> </span>--arg3<span class="w"> </span><span class="nv">$arg3</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="k">done</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">done</span>
+</code></pre></div>
+<div class="highlight"><span class="filename">run_job_4.sh</span><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nv">arg1</span><span class="o">=</span><span class="m">4</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">for</span><span class="w"> </span>arg2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>arg3<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">        </span>python<span class="w"> </span>job_main.py<span class="w"> </span>--arg1<span class="w"> </span><span class="nv">$arg1</span><span class="w"> </span>--arg2<span class="w"> </span><span class="nv">$arg2</span><span class="w"> </span>--arg3<span class="w"> </span><span class="nv">$arg3</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="k">done</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="k">done</span>
+</code></pre></div>
+</div>
+<p>However, this method can quickly become tedious and offers limited control over the experiments once the job scripts are running.</p>
+<div class="admonition question">
 <ul>
-<li>What if the parameters are difficult to divide, making it challenging to split the loop into multiple scripts?</li>
-<li>What if you realize some experiments are unnecessary while monitoring them live? You'd have to stop the script and modify it.</li>
-<li>What if you want to prioritize certain experiments after reviewing initial results? You'd have to stop the script and modify it.</li>
-<li>What if you want to add more experiments to the queue? You'd have to stop the script and modify it.</li>
-<li>What if some experiments fail? You'd need to create new scripts to restart them.</li>
+<li>How do you handle cases where the parameters are hard to divide evenly (e.g., 5x5x5 split across 3 GPUs), making it difficult to distribute the workload fairly?</li>
+<li>What if you realize some scheduled experiments are unnecessary after reviewing the results? <em>(Stopping the script isn't ideal, as it would kill running jobs and make it hard to track which experiments are complete.)</em></li>
+<li>What if you want to reprioritize certain experiments based on initial results? You’d face the same issue as above.</li>
+<li>How do you append extra experiment groups during script execution?</li>
+<li>What if some experiments fail midway? <em>It can be challenging to untangle nested loops and identify completed tasks.</em></li>
 </ul>
+</div>
 <p>Labtasker is designed to overcome these challenges.</p>
+<p>With Labtasker, you can submit a variety of experiment arguments to a server-based task queue. Worker nodes can then fetch and execute these tasks directly from the queue.</p>
 <h3 id="why-not-slurm">Why not SLURM?<a class="headerlink" href="#why-not-slurm" title="Permanent link">&para;</a></h3>
+<p>Unlike traditional HPC resource management systems like SLURM, <mark><strong>Labtasker is tailored for users rather than system administrators.</strong></mark></p>
 <p>Labtasker is designed to be a simple and easy-to-use.</p>
-<p>It disentangles task queue from resource management.
-It offers a versatile task queue system that can be used by anyone (not just system administrators), without the need for extensive configuration or knowledge of HPC systems.</p>
+<ul>
+<li>It disentangles task queue from resource management.</li>
+<li>It offers a versatile task queue system that can be used by anyone (not just system administrators), without the need for extensive configuration or knowledge of HPC systems.</li>
+</ul>
 <p>Here's are key conceptual differences between Labtasker and SLURM:</p>
 <table>
 <thead>
@@ -793,7 +805,7 @@ It offers a versatile task queue system that can be used by anyone (not just sys
 <tr>
 <td>Task Submission</td>
 <td>Jobs submitted as scripts with resource requirements</td>
-<td>Tasks submitted as argument groups (JSON dictionaries)</td>
+<td>Tasks submitted as argument groups (pythonic dictionaries)</td>
 </tr>
 <tr>
 <td>Resource Handling</td>
