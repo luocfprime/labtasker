@@ -63,9 +63,9 @@ doc = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/labtasker"
-Documentation = "https://labtasker.readthedocs.io"
-Repository = "https://github.com/yourusername/labtasker.git"
+Homepage = "https://github.com/fkcptlst/labtasker"
+Documentation = "https://fkcptlst.github.io/labtasker"
+Repository = "https://github.com/fkcptlst/labtasker.git"
 
 [project.scripts]
 labtasker = "labtasker.__main__:app"

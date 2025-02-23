@@ -1,1 +1,27 @@
 graft labtasker
+graft tests
+
+include tox.ini
+
+exclude build/*
+exclude dist/*
+exclude labtasker.egg-info/*
+
+exclude .venv/*
+exclude .tox/*
+exclude .benchmarks/*
+
+exclude Makefile
+exclude coverage.xml
+
+exclude poetry.lock
+exclude poetry.toml
+
+exclude .vscode/*
+exclude .github/*
+
+exclude plugins/*
+
+global-exclude *~ *.py[cod] *.so *.coverage
+
+prune __pycache__
