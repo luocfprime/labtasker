@@ -66,30 +66,36 @@ def edit_and_reload(f, editor: str):
 def diff(
     prev: List[Dict[str, Any]],
     modified: List[Dict[str, Any]],
-    skip_fields: Optional[List[str]] = None,
+    readonly_fields: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
 
     Args:
         prev:
         modified:
-        skip_fields:
+        readonly_fields:
 
     Returns: dict storing modified key values
 
     """
-    skip_fields = skip_fields or []
+    readonly_fields = readonly_fields or []
 
     updates = []
     for i, new_entry in enumerate(modified):
         u = dict()
         for k, v in new_entry.items():
-            if k in skip_fields:
+            if k in readonly_fields:
+                # if changed to readonly field, show a warning
+                if v != prev[i][k]:
+                    stderr_console.print(
+                        f"[bold orange1]Warning:[/bold orange1] Field '{k}' is readonly. You are not supposed to modify it. Your modification to this field will be ignored."
+                    )
+                    # the modified field will be ignored by the server
                 continue
-            elif v == prev[i][k]:  # unchanged
-                continue
-            else:
+            elif v != prev[i][k]:  # modified
                 u[k] = v
+            else:  # unchanged
+                continue
 
         updates.append(u)
 
@@ -272,11 +278,23 @@ def update(
     """Update tasks settings."""
     extra_filter = parse_metadata(extra_filter)
 
-    interactive = False
+    # readonly fields
+    readonly_fields: Set[str] = (
+        Task.model_fields.keys() - TaskUpdateRequest.model_fields.keys()  # type: ignore
+    )
+    readonly_fields.add("task_id")
+
+    if reset_pending:
+        # these fields will be overwritten internally: status: pending, retries: 0
+        readonly_fields.add("status")
+        readonly_fields.add("retries")
 
     update_dict = parse_metadata(update_dict)
+
     if not update_dict:  # if no update provided, enter interactive mode
         interactive = True
+    else:
+        interactive = False
 
     old_tasks = ls_tasks(
         task_id=task_id,
@@ -290,16 +308,6 @@ def update(
 
     # Opens a system text editor to allow modification
     if interactive:
-        readonly_fields: Set[str] = (
-            Task.model_fields.keys() - TaskUpdateRequest.model_fields.keys()  # type: ignore
-        )
-        readonly_fields.add("task_id")
-
-        if reset_pending:
-            # these fields will be overwritten internally: status: pending, retries: 0
-            readonly_fields.add("status")
-            readonly_fields.add("retries")
-
         old_tasks_primitive: List[Dict[str, Any]] = [t.model_dump() for t in old_tasks]
 
         commented_seq = commented_seq_from_dict_list(old_tasks_primitive)
@@ -350,7 +358,7 @@ def update(
         updates = diff(
             prev=old_tasks_primitive,
             modified=modified,
-            skip_fields=list(readonly_fields),
+            readonly_fields=list(readonly_fields),
         )
 
     else:
