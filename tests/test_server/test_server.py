@@ -110,7 +110,7 @@ class TestQueueEndpoints:
 
         # Verify queue is deleted by trying to get it
         get_response = test_app.get("/api/v1/queues/me", headers=auth_headers)
-        assert get_response.status_code == 401
+        assert get_response.status_code == HTTP_401_UNAUTHORIZED
 
     def test_delete_queue_with_cascade(
         self, test_app, queue_create_request, auth_headers, task_submit_request

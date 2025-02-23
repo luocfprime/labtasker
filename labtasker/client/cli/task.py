@@ -15,6 +15,7 @@ import yaml
 from httpx import HTTPStatusError
 from pydantic import ValidationError
 from rich.syntax import Syntax
+from starlette.status import HTTP_404_NOT_FOUND
 
 from labtasker.api_models import Task, TaskUpdateRequest
 from labtasker.client.core.api import (
@@ -417,7 +418,7 @@ def delete(
         delete_task(task_id=task_id)
         stdout_console.print(f"Task {task_id} deleted.")
     except HTTPStatusError as e:
-        if e.response.status_code == 404:
+        if e.response.status_code == HTTP_404_NOT_FOUND:
             raise typer.BadParameter("Task not found")
         else:
             raise e

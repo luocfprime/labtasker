@@ -1,5 +1,6 @@
 import pytest
 from fastapi import HTTPException
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
 from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 
@@ -113,7 +114,7 @@ class TestWorkerFSM:
             fsm = WorkerFSM(state, retries=0, max_retries=3)
             with pytest.raises(HTTPException) as exc:
                 fsm.suspend()
-            assert exc.value.status_code == 500
+            assert exc.value.status_code == HTTP_500_INTERNAL_SERVER_ERROR
             assert f"Cannot transition from {state} to suspended" in exc.value.detail
 
     def test_fail_retry_behavior(self):
@@ -137,5 +138,5 @@ class TestWorkerFSM:
             fsm = WorkerFSM(state, retries=0, max_retries=3)
             with pytest.raises(HTTPException) as exc:
                 fsm.fail()
-            assert exc.value.status_code == 500
+            assert exc.value.status_code == HTTP_500_INTERNAL_SERVER_ERROR
             assert f"Cannot fail worker in {state} state" in exc.value.detail

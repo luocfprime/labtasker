@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.json import JSON
 from rich.syntax import Syntax
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
@@ -159,7 +160,7 @@ def http_401_unauthorized_to_typer_err(func: Optional[Callable] = None, /):
             try:
                 return function(*args, **kwargs)
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == 401:
+                if e.response.status_code == HTTP_401_UNAUTHORIZED:
                     stderr_console.print(
                         "[bold red]Error:[/bold red] Invalid credentials. Please check your configuration."
                         f"Detail: {e}"

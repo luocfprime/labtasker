@@ -9,6 +9,7 @@ import click
 import typer
 from httpx import HTTPStatusError
 from pydantic import ValidationError
+from starlette.status import HTTP_404_NOT_FOUND
 
 from labtasker.client.core.api import (
     create_worker,
@@ -157,7 +158,7 @@ def delete(
         delete_worker(worker_id=worker_id, cascade_update=cascade_update)
         stdout_console.print(f"Worker {worker_id} deleted.")
     except HTTPStatusError as e:
-        if e.response.status_code == 404:
+        if e.response.status_code == HTTP_404_NOT_FOUND:
             raise typer.BadParameter("Worker not found")
         else:
             raise e
