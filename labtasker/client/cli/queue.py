@@ -68,7 +68,7 @@ def create_from_config(
     )
 ):
     """
-    Create a queue from config in `.labtasker/client.env`.
+    Create a queue from config in `.labtasker/client.toml`.
     """
     metadata = parse_metadata(metadata)
     config = get_client_config()

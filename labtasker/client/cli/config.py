@@ -2,87 +2,78 @@
 Implements `labtasker config`
 """
 
+import tempfile
+from typing import IO, Optional
+
+import click
+import pydantic
+import tomli
 import typer
-from pydantic import HttpUrl, SecretStr, ValidationError
-from typing_extensions import Annotated
 
 from labtasker.client.cli.cli import app
-from labtasker.client.core.config import (
-    dump_client_config,
-    gitignore_setup,
-    init_config_with_default,
-    update_client_config,
+from labtasker.client.core.config import ClientConfig, init_labtasker_root
+from labtasker.client.core.logging import stderr_console, stdout_console
+from labtasker.client.core.paths import (
+    get_labtasker_client_config_path,
+    get_labtasker_root,
 )
-from labtasker.client.core.logging import stderr_console
-from labtasker.client.core.paths import get_labtasker_client_config_path
 
 
 @app.command()
 def config(
-    api_base_url: Annotated[
-        str,
-        typer.Option(
-            prompt=True,
-            envvar="API_BASE_URL",
-            help="Base URL of the LabTasker API in http string.",
-        ),
-    ],
-    queue_name: Annotated[
-        str,
-        typer.Option(
-            prompt=True,
-            envvar="QUEUE_NAME",
-            help="Queue name for current experiment.",
-        ),
-    ],
-    password: Annotated[
-        str,
-        typer.Option(
-            prompt=True,
-            confirmation_prompt=True,
-            hide_input=True,
-            envvar="PASSWORD",
-            help="Password for current queue.",
-        ),
-    ],
-    heartbeat_interval: Annotated[
-        float,
-        typer.Option(
-            prompt=True,
-            envvar="HEARTBEAT_INTERVAL",
-            help="Hearbeat interval in seconds.",
-        ),
-    ],
+    editor: Optional[str] = typer.Option(
+        None,
+        help="Editor to use.",
+    ),
 ):
-    """Configure local client. Run `labtasker config` directly for step-by-step interactive configuration."""
-    init_config_with_default(disable_warning=True)
-
-    try:
-        update_client_config(
-            api_base_url=HttpUrl(api_base_url),
-            queue_name=queue_name,
-            password=SecretStr(password),
-            heartbeat_interval=heartbeat_interval,
-        )
-    except ValidationError as e:
-        stderr_console.print(
-            f"[bold red]Input validation error[/bold red], please check your input.\n"
-            f"[bold orange1]Detail[/bold orange1]: {e}"
-        )
-        raise typer.Exit(-1)
-
-    if not get_labtasker_client_config_path().exists():
+    """Configure local client. Run `labtasker config` which opens the configuration file using system configured editor"""
+    # 0. Check if labtasker root exists, if not, init
+    if not get_labtasker_root().exists():
         typer.confirm(
-            f"Configuration at {get_labtasker_client_config_path()} not found, create?",
+            "Labtasker root directory not found. Initializing with default template?",
             abort=True,
         )
+        init_labtasker_root()
 
-        get_labtasker_client_config_path().parent.mkdir(parents=True, exist_ok=True)
-        gitignore_setup()
-    else:
-        typer.confirm(
-            f"Configuration at {get_labtasker_client_config_path()} already exists, overwrite?",
-            abort=True,
-        )
+    # 1. Open editor and edit configuration in a temp file
+    with tempfile.NamedTemporaryFile(
+        "w+b",
+        prefix="labtasker.tmp.",
+        suffix=".toml",
+    ) as f:  # type: IO[bytes]
 
-    dump_client_config()
+        # 1.1 Copy existing config if exists
+        if get_labtasker_client_config_path().exists():
+            with open(get_labtasker_client_config_path(), "rb") as f_existing:
+                f.write(f_existing.read())
+
+        # 1.2 Edit
+        while True:
+            try:
+                # a. Edit
+                f.seek(0)
+                click.edit(filename=f.name, editor=editor)
+
+                # b. Reload and validate
+                f.seek(0)
+                ClientConfig.model_validate(tomli.load(f))
+
+                f.seek(0)
+                updated_content = f.read()
+
+                break
+            except (
+                tomli.TOMLDecodeError,
+                pydantic.ValidationError,
+            ) as e:
+                stderr_console.print(
+                    "[bold red]Error:[/bold red] error when parsing config.\n"
+                    f"Detail: {str(e)}"
+                )
+                typer.confirm("Continue to edit?", abort=True)
+
+    # 2. Save
+    with open(get_labtasker_client_config_path(), "wb") as f_existing:
+        f_existing.write(updated_content)
+
+    stdout_console.print("[bold green]Configuration updated successfully.[/bold green]")

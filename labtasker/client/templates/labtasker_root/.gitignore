@@ -1,0 +1,4 @@
+# config contains sensitive data
+*.toml
+
+logs

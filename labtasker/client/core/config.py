@@ -1,8 +1,10 @@
 from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Optional
+from shutil import copytree
+from typing import List, Optional
 
+import tomli
 import typer
 from pydantic import Field, HttpUrl, SecretStr, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,10 +13,19 @@ from labtasker.client.core.logging import logger, stderr_console
 from labtasker.client.core.paths import (
     get_labtasker_client_config_path,
     get_labtasker_root,
+    get_template_dir,
 )
 from labtasker.filtering import register_sensitive_text
 from labtasker.security import get_auth_headers
-from labtasker.utils import get_current_time
+
+
+class PluginConfig(BaseSettings):
+    default: str = Field(default="all", pattern=r"^(all|selected)$")
+
+    # if default is "all", loaded = all - excluded
+    # if default is "selected", loaded = selected
+    exclude: List[str] = Field(default=[])
+    include: List[str] = Field(default=[])
 
 
 class ClientConfig(BaseSettings):
@@ -22,15 +33,19 @@ class ClientConfig(BaseSettings):
     api_base_url: HttpUrl
 
     queue_name: str = Field(
-        ..., pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
+        ...,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+        min_length=1,
+        max_length=100,
     )
-    password: SecretStr = Field(None, min_length=1, max_length=100)
 
-    heartbeat_interval: float  # seconds
+    password: SecretStr = Field(..., min_length=1, max_length=100)
+
+    heartbeat_interval: float = 30.0  # seconds
+
+    cli_plugins: PluginConfig = Field(default_factory=PluginConfig)
 
     model_config = SettingsConfigDict(
-        env_file=get_labtasker_client_config_path(),
-        env_file_encoding="utf-8",
         case_sensitive=False,
         extra="allow",
     )
@@ -48,7 +63,7 @@ def requires_client_config(
             if not _config and not get_labtasker_client_config_path().exists():
                 stderr_console.print(
                     f"Configuration not initialized. "
-                    f"Run `labtasker config` to initialize configuration."
+                    f"Run [orange1]`labtasker config`[/orange1] to initialize configuration."
                 )
                 raise typer.Exit(-1)
 
@@ -65,35 +80,25 @@ def requires_client_config(
     return decorator(func)
 
 
-def init_config_with_default(disable_warning: bool = False):
-    global _config
-    if _config and not disable_warning:
-        logger.warning(
-            "ClientConfig already initialized. Initializing again with default would overwrite existing values. Please check if this is intended."
-        )
-    _config = ClientConfig(
-        api_base_url=HttpUrl("http://localhost:8080"),
-        queue_name=f"queue-{get_current_time().strftime('%Y-%m-%d-%H-%M-%S')}",
-        password=SecretStr("my-secret"),
-        heartbeat_interval=30,
-    )
-
-
 def load_client_config(
-    env_file: str = get_labtasker_client_config_path(),
+    toml_file: Optional[Path] = None,
     skip_if_loaded: bool = True,
     disable_warning: bool = False,
     **overwrite_fields,
 ):
+    if toml_file is None:
+        toml_file = get_labtasker_client_config_path()
+
     global _config
     if _config is not None:
         if skip_if_loaded:
             return
         if not disable_warning:
             logger.warning(
-                "ClientConfig already initialized. This would result a second time loading."
+                "ClientConfig already initialized. This would result in a second time loading."
             )
-    _config = ClientConfig(_env_file=env_file)  # noqa
+    with open(toml_file, "rb") as f:
+        _config = ClientConfig.model_validate(tomli.load(f))
 
     if overwrite_fields:
         update_client_config(**overwrite_fields)
@@ -107,32 +112,12 @@ def load_client_config(
 
 @requires_client_config(auto_load_config=False)
 @validate_call
-def update_client_config(
-    api_base_url: Optional[HttpUrl] = None,
-    queue_name: Optional[str] = None,
-    password: Optional[SecretStr] = None,
-    heartbeat_interval: Optional[float] = None,
-):
+def update_client_config(**kwargs):
     global _config
     new_config = _config.model_copy(update=locals())
     # validate config
     ClientConfig.model_validate(new_config)
     _config = new_config
-
-
-@requires_client_config(auto_load_config=False)
-def dump_client_config():
-    global _config
-    # Convert the configuration to a dictionary
-    config_dict = _config.model_dump()
-    # Ensure the password is stored as a string
-    config_dict["password"] = _config.password.get_secret_value()
-
-    # Write the configuration to the specified path in .env format
-    with open(get_labtasker_client_config_path(), "w", encoding="utf-8") as f:
-        for key, value in config_dict.items():
-            f.write(f"{key.upper()}={value}\n")
-    logger.info(f"Configuration saved to {get_labtasker_client_config_path()}")
 
 
 @requires_client_config
@@ -141,12 +126,16 @@ def get_client_config() -> ClientConfig:
     return _config
 
 
-def gitignore_setup():
-    """Setup .gitignore file to ignore labtasker_client_config.env"""
-    gitignore_path = Path(get_labtasker_root()) / ".gitignore"
+def init_labtasker_root(
+    labtasker_root: Path = get_labtasker_root(), exist_ok: bool = False
+):
+    labtasker_root_template = get_template_dir() / "labtasker_root"
 
-    # Ensure .gitignore exists and check if "*.env" is already present
-    if not gitignore_path.exists():
-        with open(gitignore_path, mode="a", encoding="utf-8") as f:
-            f.write("*.env\n")
-            f.write("logs\n")
+    if labtasker_root.exists() and not exist_ok:
+        raise RuntimeError("Labtasker root directory already exists.")
+
+    copytree(
+        src=labtasker_root_template,
+        dst=labtasker_root,
+        dirs_exist_ok=True,
+    )

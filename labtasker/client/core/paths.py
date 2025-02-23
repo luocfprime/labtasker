@@ -21,7 +21,7 @@ def get_labtasker_root() -> Path:
 
 
 def get_labtasker_client_config_path() -> Path:
-    return _LABTASKER_ROOT / "client.env"
+    return _LABTASKER_ROOT / "client.toml"
 
 
 def get_labtasker_log_root() -> Path:
@@ -55,3 +55,9 @@ def get_labtasker_log_dir() -> Path:
             "Labtasker log directory not set. Check if env var `LABTASKER_LOG_DIR` is not overwritten."
         )
     return _labtasker_log_dir.get()
+
+
+def get_template_dir() -> Path:
+    # __file__: labtasker/client/core/paths.py
+    # dst:      labtasker/client/templates
+    return Path(__file__).parent.parent / "templates"

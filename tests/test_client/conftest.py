@@ -1,10 +1,14 @@
 import os
 from pathlib import Path
-from shutil import copytree, rmtree
+from shutil import rmtree
 
 import pytest
 
-from labtasker.client.core.config import get_client_config, load_client_config
+from labtasker.client.core.config import (
+    get_client_config,
+    init_labtasker_root,
+    load_client_config,
+)
 from labtasker.security import get_auth_headers
 from tests.fixtures.server.sync_app import test_app
 
@@ -27,13 +31,9 @@ def patch_httpx_client(monkeypatch, test_type, test_app, client_config):
 @pytest.fixture(autouse=True)
 def labtasker_test_root(proj_root, monkeypatch):
     """Setup labtasker test root dir and default client config"""
-    labtasker_test_root = Path(os.path.join(proj_root, "tmp"))
-    # cp proj_root / .labtasker -> labtasker_test_root
-    copytree(
-        src=os.path.join(proj_root, ".labtasker"),
-        dst=labtasker_test_root,
-        dirs_exist_ok=True,
-    )
+    labtasker_test_root = Path(os.path.join(proj_root, "tmp", ".labtasker"))
+    init_labtasker_root(labtasker_root=labtasker_test_root, exist_ok=True)
+
     os.environ["LABTASKER_ROOT"] = str(labtasker_test_root)
 
     # Patch the constants
