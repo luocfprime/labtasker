@@ -14,6 +14,7 @@ from starlette.status import HTTP_404_NOT_FOUND
 from labtasker.client.core.api import (
     create_worker,
     delete_worker,
+    get_queue,
     ls_worker,
     report_worker_status,
 )
@@ -92,6 +93,8 @@ def ls(
     """
     List workers.
     """
+    get_queue()  # validate auth and queue existence, prevent err swallowed by pager
+
     extra_filter = parse_metadata(extra_filter)
     page_iter = pager_iterator(
         fetch_function=partial(

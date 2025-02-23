@@ -20,6 +20,7 @@ from starlette.status import HTTP_404_NOT_FOUND
 from labtasker.api_models import Task, TaskUpdateRequest
 from labtasker.client.core.api import (
     delete_task,
+    get_queue,
     ls_tasks,
     report_task_status,
     submit_task,
@@ -212,6 +213,8 @@ def ls(
     ),
 ):
     """List tasks in the queue."""
+    get_queue()  # validate auth and queue existence, prevent err swallowed by pager
+
     extra_filter = parse_metadata(extra_filter)
     page_iter = pager_iterator(
         fetch_function=partial(
