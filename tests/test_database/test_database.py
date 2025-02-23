@@ -1011,3 +1011,41 @@ def test_delete_worker_cascade_update(db_fixture, queue_args):
     )
     task = db_fixture._tasks.find_one({"_id": task_id})
     assert task["worker_id"] is None
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+def test_update_collection(db_fixture, queue_args):
+    """Test updating a collection document."""
+    # Create a queue first
+    queue_id = db_fixture.create_queue(**queue_args)
+    assert queue_id is not None
+
+    # Create a task to update
+    task_id = db_fixture.create_task(
+        queue_id=queue_id, task_name="test_task", cmd="echo hi"
+    )
+    assert task_id is not None
+
+    # Prepare update data
+    update_data = {
+        "$set": {
+            "task_name": "updated_task_name",
+            "priority": Priority.HIGH,
+        }
+    }
+
+    # Update the task
+    modified_count = db_fixture.update_collection(
+        queue_id=queue_id,
+        collection_name="tasks",
+        query={"task_name": "test_task"},
+        update=update_data,
+    )
+    assert modified_count == 1  # Ensure one document was modified
+
+    # Verify the update
+    updated_task = db_fixture._tasks.find_one({"_id": task_id})
+    assert updated_task is not None
+    assert updated_task["task_name"] == "updated_task_name"
+    assert updated_task["priority"] == Priority.HIGH

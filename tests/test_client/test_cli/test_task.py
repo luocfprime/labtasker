@@ -1,12 +1,21 @@
+import io
+import re
 from ast import literal_eval
 
 import pytest
 from typer.testing import CliRunner
 
 from labtasker.client.cli import app
+from labtasker.client.cli.task import (
+    add_eol_comment,
+    commented_seq_from_dict_list,
+    dump_commented_seq,
+)
 from tests.test_client.test_cli.test_queue import cli_create_queue_from_config
 
-runner = CliRunner()
+runner = CliRunner(
+    mix_stderr=False
+)  # mix_stderr must be set to False to access result.stderr
 
 # Mark the entire file as e2e, integration and unit tests
 pytestmark = [
@@ -136,8 +145,9 @@ class TestLs:
                 cmd="echo hello",
             )
 
-    def test_ls_tasks(self, db_fixture, setup_tasks):
-        result = runner.invoke(app, ["task", "ls"])
+    @pytest.mark.parametrize("fmt", ["jsonl", "yaml"])
+    def test_ls_tasks(self, db_fixture, setup_tasks, fmt):
+        result = runner.invoke(app, ["task", "ls", "--fmt", fmt])
         assert result.exit_code == 0, result.output
 
         # Check that the output contains the created tasks
@@ -177,4 +187,146 @@ class TestDelete:
     def test_delete_non_existent_task(self, db_fixture, cli_create_queue_from_config):
         result = runner.invoke(app, ["task", "delete", "non_existent_task_id", "--yes"])
         assert result.exit_code != 0, result.output
-        assert "Task not found" in result.output
+        assert "Task not found" in result.stderr
+
+
+class TestUpdate:
+    @pytest.fixture(autouse=True)
+    def auto_confirm(self, monkeypatch):
+        # confirm to see the final result output (pager -> stdout)
+        monkeypatch.setattr("typer.confirm", lambda x: True)
+
+    @pytest.mark.parametrize(
+        "query_mode",
+        ["task-id", "task-name", "extra-filter"],
+    )
+    def test_update_task_no_interactive(
+        self, db_fixture, setup_pending_task, query_mode
+    ):
+        task_id = setup_pending_task
+        update_dict = '{"task_name": "updated-test-task"}'
+
+        if query_mode == "task-id":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--task-id",
+                    task_id,
+                    "--update",
+                    update_dict,
+                ],
+            )
+        elif query_mode == "task-name":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--task-name",
+                    "test-task",
+                    "--update",
+                    update_dict,
+                ],
+            )
+        elif query_mode == "extra-filter":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--extra-filter",
+                    f'{{"_id": "{task_id}" }}',
+                    "--update",
+                    update_dict,
+                ],
+            )
+        else:
+            assert False
+
+        assert result.exit_code == 0, result.output
+
+        # check output
+        # should be something like:
+
+        # - task_id: b77bd500-e9dd-473c-9524-520743763b29
+        #   queue_id: d205ceed-3836-4940-84eb-caf1940d95f5
+        #   status: pending
+        #   task_name: updated-test-task                    # Modified
+        #   created_at: 2025-02-23 11:41:41.908000
+        #   start_time:
+        #   last_heartbeat:
+        #   last_modified: 2025-02-23 11:41:41.933000
+        #   heartbeat_timeout: 60.0
+        #   task_timeout: 300
+        #   max_retries: 3
+        #   retries: 0
+        #   priority: 10
+        #   metadata:
+        #     tag: test
+        #   args:
+        #     key: value
+        #   cmd: echo hello
+        #   summary: {}
+        #   worker_id:
+
+        # search for modified line
+        assert re.search(
+            r"task_name:\s+updated-test-task\s+#\s+Modified", result.output
+        ), result.output
+
+        # Verify the task is updated
+        task = db_fixture._tasks.find_one({"_id": task_id})
+        assert task is not None
+        assert task["task_name"] == "updated-test-task"
+
+    def test_update_task_readonly_field(self, capfd, db_fixture, setup_pending_task):
+        task_id = setup_pending_task
+        update_dict = '{"task_name": "updated-test-task"}'
+
+        # when --reset-pending is set,
+        # "status" becomes readonly field since it will be handled internally
+        result = runner.invoke(
+            app,
+            [
+                "task",
+                "update",
+                "--extra-filter",
+                f'{{"_id": "{task_id}", "status": "finished"}}',
+                "--update",
+                update_dict,
+                "--reset-pending",
+            ],
+        )
+
+        # the update would still be successful, only with the "status" field being ignored
+        assert result.exit_code == 0, result.output
+
+        # check if the warning showed up
+        assert result.stderr.find(
+            "You are not supposed to modify it. Your modification to this field will be ignored."
+        ), result.stderr
+
+        task = db_fixture._tasks.find_one({"_id": task_id})
+        assert task is not None
+        assert task["status"] == "pending"
+
+
+class TestUtilities:
+    def test_commented_seq_from_dict_list(self):
+        entries = [{"key1": "value1"}, {"key2": "value2"}]
+        result = commented_seq_from_dict_list(entries)
+        assert len(result) == 2
+        assert result[0]["key1"] == "value1"
+        assert result[1]["key2"] == "value2"
+
+    def test_dump_commented_yaml(self):
+        commented_seq = commented_seq_from_dict_list([{"key": "value"}])
+        s = io.StringIO()
+        for d in commented_seq:
+            add_eol_comment(d, fields=["key"], comment="This is a comment")
+        dump_commented_seq(commented_seq, s)
+        assert re.search(
+            r"- key: value\s+# This is a comment", s.getvalue()
+        ), s.getvalue()
