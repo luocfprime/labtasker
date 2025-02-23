@@ -118,6 +118,10 @@ def submit_task(
     """Submit a task to the queue."""
     if client is None:
         client = get_httpx_client()
+
+    if not cmd and not args:
+        raise ValueError("Either cmd or args must be specified.")
+
     payload = TaskSubmitRequest(
         task_name=task_name,
         args=args,
@@ -145,6 +149,10 @@ def fetch_task(
     """Fetch the next available task from the queue."""
     if client is None:
         client = get_httpx_client()
+
+    if not eta_max and not start_heartbeat:
+        raise ValueError("Either eta_max or start_heartbeat must be specified.")
+
     payload = TaskFetchRequest(
         worker_id=worker_id,
         eta_max=eta_max,
