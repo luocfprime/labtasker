@@ -1,31 +1,12 @@
-/.git/
-/.pytest_cache/
-/.dockerignore
-/.pre-commit-config.yaml
-/.coverage
-/tests/
-/.github/
-/.vscode/
-/.python-version
-/.tox/
-/docker-compose.yml
-/Dockerfile
-/.pytest.ini
-/.gitignore
-/.benchmarks/
-/.gitattributes
-/.labtasker/
-/coverage.xml
-/docs/
-/Makefile
-/PRIVACY.md
-/README.md
-/server.example.env
-/tox.ini
-/docker/
-**/*.egg-info
-**/*.swp
-**/__pycache__
-build
-demo
-assets
+# exclude all,
+**
+
+# except
+!pyproject.toml
+!MANIFEST.in
+!setup.cfg
+!setup.py
+!labtasker/
+
+# also exclude run caches
+**/__pycache__/
