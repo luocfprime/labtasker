@@ -117,7 +117,7 @@ def requires_server_connection(func: Optional[Callable] = None, /):
             try:
                 status = health_check()
                 assert status.status == "healthy"
-            except Exception as e:
+            except (AssertionError, httpx.HTTPStatusError, httpx.ConnectError) as e:
                 stderr_console.print(
                     "[bold red]Error:[/bold red] Server connection is not healthy. Please check your connection.\n"
                     f"Detail: {e}"
