@@ -1,0 +1,12 @@
+api_base_url = "http://localhost:8080/"  # change this to your server url
+
+queue_name = "test-queue"  # change this
+password = "test-password"  # change this
+
+heartbeat_interval = 10.0
+
+[cli-plugins]
+
+default = "all"
+include = []
+exclude = []
