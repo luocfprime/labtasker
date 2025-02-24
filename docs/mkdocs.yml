@@ -102,9 +102,3 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
-
-extra_css:
-  - stylesheets/asciinema-player.css
-
-extra_javascript:
-  - javascripts/asciinema-player.min.js
