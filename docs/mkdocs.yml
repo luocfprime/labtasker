@@ -61,10 +61,7 @@ theme:
 
 plugins:
   - search
-  - macros:
-      module_name: macros
-      on_error_fail: true
-      on_undefined: strict
+
 extra:
   version:
     provider: mike

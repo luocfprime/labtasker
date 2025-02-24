@@ -12,7 +12,7 @@ CLI plugins are particularly useful if you want to pack up your workflow and sha
 
     It creates a new custom command `labtasker task count`, which shows how many tasks are at each state.
 
-    {{ asciinema("/assets/casts/cli-plugin.cast") }}
+    <script src="https://asciinema.org/a/4bVEhCtHaDD4N7FCGxssoUMfE.js" id="asciicast-4bVEhCtHaDD4N7FCGxssoUMfE" async="true"></script>
 
 To install, simply install it like a python package:
 

@@ -12,7 +12,7 @@
 
 !!! note "demo step by step"
 
-    {{ asciinema("/assets/casts/demo-basic.cast") }}
+    <script src="https://asciinema.org/a/tRC0sFsoITjBr0Ik4e9DLXLEm.js" id="asciicast-tRC0sFsoITjBr0Ik4e9DLXLEm" async="true"></script>
 
 ## Prerequisites
 
