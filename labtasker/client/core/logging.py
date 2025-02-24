@@ -1,3 +1,4 @@
+import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -37,7 +38,11 @@ class TeeStream:
 
 def reset_logger():
     logger.remove()
-    logger.add(sys.stderr, format=LOGGER_FORMAT)
+    logger.add(
+        sys.stderr,
+        format=LOGGER_FORMAT,
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    )
 
 
 @contextmanager

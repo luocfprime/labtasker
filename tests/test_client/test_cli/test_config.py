@@ -1,11 +1,6 @@
 import pytest
-import tomli
-from pydantic import HttpUrl, SecretStr
 from typer.testing import CliRunner
 
-from labtasker.client.cli import app
-from labtasker.client.core.config import ClientConfig
-from labtasker.client.core.paths import get_labtasker_client_config_path
 from tests.fixtures.logging import silence_logger
 
 runner = CliRunner()

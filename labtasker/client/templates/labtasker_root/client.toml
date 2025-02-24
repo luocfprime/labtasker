@@ -5,7 +5,7 @@ password = "test-password"  # change this
 
 heartbeat_interval = 10.0
 
-[cli-plugins]
+[cli_plugins]
 
 default = "all"
 include = []

@@ -2,11 +2,12 @@ from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
 from shutil import copytree
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import tomli
 import typer
-from pydantic import Field, HttpUrl, SecretStr, validate_call
+from packaging.utils import canonicalize_name
+from pydantic import Field, HttpUrl, SecretStr, model_validator, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from labtasker.client.core.logging import logger, stderr_console
@@ -24,8 +25,21 @@ class PluginConfig(BaseSettings):
 
     # if default is "all", loaded = all - excluded
     # if default is "selected", loaded = selected
-    exclude: List[str] = Field(default=[])
-    include: List[str] = Field(default=[])
+    exclude: List[str] = Field(default_factory=list)
+    include: List[str] = Field(default_factory=list)
+
+    # plugin specific configs
+    configs: Dict[str, dict] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    def canonicalize_plugin_names(cls, values):
+        """Standardize the keys of the `configs` dictionary using `canonicalize_name`."""
+        if "configs" in values and isinstance(values["configs"], dict):
+            values["configs"] = {
+                canonicalize_name(key, validate=True): value
+                for key, value in values["configs"].items()
+            }
+        return values
 
 
 class ClientConfig(BaseSettings):

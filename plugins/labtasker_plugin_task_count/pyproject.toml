@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "labtasker-cli-task-count"
+name = "labtasker-plugin-task-count"
 version = "0.1.0"
 description = "A demo CLI plugin for Labtasker."
 authors = [{ name = "Your Name", email = "your.email@example.com" }]
@@ -24,7 +24,9 @@ classifiers = [
 ]
 
 dependencies = [
+    "labtasker"
 ]
 
 [project.entry-points."labtasker.client.cli"]
-labtasker-cli-task-count = "labtasker_cli_task_count.main"
+
+labtasker-plugin-task-count = "labtasker_plugin_task_count.main"
