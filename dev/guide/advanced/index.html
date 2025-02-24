@@ -46,6 +46,8 @@
       
     
     
+      <link rel="stylesheet" href="../../stylesheets/asciinema-player.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -517,6 +519,18 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Advanced Features
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -527,6 +541,58 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Plugins
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      CLI plugins
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-plugins-wip" class="md-nav__link">
+    <span class="md-ellipsis">
+      Workflow plugins [WIP]
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -615,6 +681,47 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Plugins
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      CLI plugins
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-plugins-wip" class="md-nav__link">
+    <span class="md-ellipsis">
+      Workflow plugins [WIP]
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -633,6 +740,26 @@
 
 
 <h1 id="advanced-features">Advanced Features<a class="headerlink" href="#advanced-features" title="Permanent link">&para;</a></h1>
+<h2 id="plugins">Plugins<a class="headerlink" href="#plugins" title="Permanent link">&para;</a></h2>
+<h3 id="cli-plugins">CLI plugins<a class="headerlink" href="#cli-plugins" title="Permanent link">&para;</a></h3>
+<p>CLI plugins are particularly useful if you want to pack up your workflow and share it with others.</p>
+<div class="admonition tip">
+<p class="admonition-title">Demo plugin</p>
+<p>There is a demo plugin at <code>/PROJECT_ROOT/plugins/labtasker_plugin_task_count</code>.</p>
+<p>It creates a new custom command <code>labtasker task count</code>, which shows how many tasks are at each state.</p>
+<p><div id="asciinema-8ff2485b-de96-4230-a898-e2a34c38e337" style="z-index: 1; position: relative;"></div><script>if (document.readyState === 'loading') {document.addEventListener('DOMContentLoaded', function() {AsciinemaPlayer.create('/assets/casts/cli-plugin.cast', document.getElementById('asciinema-8ff2485b-de96-4230-a898-e2a34c38e337'), {"autoPlay": true,"controls": false,"loop": true,});});} else {AsciinemaPlayer.create('/assets/casts/cli-plugin.cast', document.getElementById('asciinema-8ff2485b-de96-4230-a898-e2a34c38e337'), {"autoPlay": true,"controls": false,"loop": true,});}</script></p>
+</div>
+<p>To install, simply install it like a python package:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>plugins/labtasker_plugin_task_count
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span>.
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Behind the hood, it uses Typer command registry and setuptools entry points to implement custom CLI commands.</p>
+<p>To write your own CLI plugin, see <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">Setuptools Doc</a>
+and <a href="https://typer.tiangolo.com/tutorial/subcommands/nested-subcommands/">Typer Doc</a> for details.</p>
+</div>
+<h3 id="workflow-plugins-wip">Workflow plugins [WIP]<a class="headerlink" href="#workflow-plugins-wip" title="Permanent link">&para;</a></h3>
 
 
 
@@ -691,6 +818,8 @@
     
     
       <script src="../../assets/javascripts/bundle.f1b6f286.min.js"></script>
+      
+        <script src="../../javascripts/asciinema-player.min.js"></script>
       
     
   </body>
