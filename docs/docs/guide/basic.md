@@ -10,6 +10,10 @@
     - Bash: No modification to your Python code is required. Simply wrap your command with `labtasker loop ...`.
 
 
+!!! note "demo step by step"
+
+    {{ asciinema("/assets/casts/demo-basic.cast") }}
+
 ## Prerequisites
 
 **Make sure you have a deployed server.**

@@ -11,6 +11,7 @@ A easy-to-use task management tool for lab environments.
 - Easy configuration and setup.
 - Versatile and minimalistic design.
 - Supports both CLI and Python API for task scheduling.
+- Customizable plugin system.
 
 ## Installation
 
@@ -28,4 +29,4 @@ pip install git+https://github.com/fkcptlst/labtasker.git
 
 ## Documentation
 
-For extra information on tutorial, deployment, usage, please refer to the [documentation](https://fkcptlst.github.io/labtasker/).
+For extra information on demo, tutorial, deployment, usage, please refer to the [documentation](https://fkcptlst.github.io/labtasker/).

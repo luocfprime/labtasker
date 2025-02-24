@@ -1,123 +1,31 @@
 # Advanced Features
 
-[//]: # (## Database management)
+## Plugins
 
-[//]: # ()
-[//]: # (The backend uses MongoDB to store task data. The server itself does not preserve any state or data. This allows you to directly access the database using a database management tool to navigate and manage the tasks.)
+### CLI plugins
 
-[//]: # ()
-[//]: # (## Queue management)
+CLI plugins are particularly useful if you want to pack up your workflow and share it with others.
 
-[//]: # ()
-[//]: # (### Create queue)
+!!! tip "Demo plugin"
 
-[//]: # ()
-[//]: # (```bash)
+    There is a demo plugin at `/PROJECT_ROOT/plugins/labtasker_plugin_task_count`.
 
-[//]: # (labtasker create-queue --client-config ./my_client_config.env --queue-name my_queue_name)
+    It creates a new custom command `labtasker task count`, which shows how many tasks are at each state.
 
-[//]: # (```)
+    {{ asciinema("/assets/casts/cli-plugin.cast") }}
 
-[//]: # ()
-[//]: # (## Task management)
+To install, simply install it like a python package:
 
-[//]: # ()
-[//]: # (### Getting task list &#40;no pop&#41;)
+```bash
+cd plugins/labtasker_plugin_task_count
+pip install .
+```
 
-[//]: # ()
-[//]: # (```bash)
+!!! note
 
-[//]: # (# get a single task)
+    Behind the hood, it uses Typer command registry and setuptools entry points to implement custom CLI commands.
 
-[//]: # (labtasker ls-tasks --client-config ./my_client_config.env --task-id my_task_id)
+    To write your own CLI plugin, see [Setuptools Doc](https://setuptools.pypa.io/en/latest/userguide/entry_point.html)
+    and [Typer Doc](https://typer.tiangolo.com/tutorial/subcommands/nested-subcommands/) for details.
 
-[//]: # ()
-[//]: # (# get tasks by name)
-
-[//]: # (labtasker ls-tasks --client-config ./my_client_config.env --task-name my_task_name)
-
-[//]: # ()
-[//]: # (# get all tasks in a queue, specified in my_client_config.env)
-
-[//]: # (labtasker ls-tasks --client-config ./my_client_config.env)
-
-[//]: # (```)
-
-[//]: # ()
-[//]: # (### Adding metadata to tasks)
-
-[//]: # ()
-[//]: # (When submitting tasks, you can add metadata to the task. Metadata is a separate field from `args`. This allows for flexible task management and reporting.)
-
-[//]: # ()
-[//]: # (!!! example "Example: Tags implemented by metadata")
-
-[//]: # ()
-[//]: # (    You can implement tag feature using metadata.)
-
-[//]: # ()
-[//]: # (    === "Python")
-
-[//]: # ()
-[//]: # (        ```python)
-
-[//]: # (        import labtasker)
-
-[//]: # ()
-[//]: # (        tasker = labtasker.LabtaskerClient&#40;client_config="./my_client_config.env"&#41;)
-
-[//]: # ()
-[//]: # (        tasker.submit&#40;)
-
-[//]: # (            task_name="optional_task_name",)
-
-[//]: # (            args={"my_param_1": my_param_1, "my_param_2": my_param_2},)
-
-[//]: # (            metadata={"tags": ["my_tag_1", "my_tag_2"]})
-
-[//]: # (        &#41;)
-
-[//]: # (        ```)
-
-[//]: # ()
-[//]: # (    === "Bash")
-
-[//]: # ()
-[//]: # (        ```bash)
-
-[//]: # (        labtasker submit --client-config ./my_client_config.env \)
-
-[//]: # (        --task-name optional_task_name \)
-
-[//]: # (        --metadata '{"tags": ["my_tag_1", "my_tag_2"]}' \)
-
-[//]: # (        --args '{"my_param_1": $my_param_1, "my_param_2": $my_param_2}')
-
-[//]: # (        ```)
-
-[//]: # ()
-[//]: # (## Task settings)
-
-[//]: # ()
-[//]: # (### Priority)
-
-[//]: # ()
-[//]: # (### Timeout)
-
-[//]: # ()
-[//]: # (### Retries)
-
-[//]: # ()
-[//]: # (## Task filtering)
-
-[//]: # ()
-[//]: # (## Worker management)
-
-[//]: # ()
-[//]: # (### Suspend worker)
-
-[//]: # ()
-[//]: # (## Daemon in bash API)
-
-[//]: # ()
-[//]: # (### Heartbeat via bash)
+### Workflow plugins [WIP]

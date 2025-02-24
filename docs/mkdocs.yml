@@ -60,8 +60,11 @@ theme:
         name: Switch to system preference
 
 plugins:
-- search
-
+  - search
+  - macros:
+      module_name: macros
+      on_error_fail: true
+      on_undefined: strict
 extra:
   version:
     provider: mike
@@ -79,7 +82,7 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.snippets:
-      base_path: [".", ".."]  # code snippet base_path
+      base_path: [ ".", ".." ]  # code snippet base_path
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.betterem:
@@ -102,3 +105,9 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+
+extra_css:
+  - stylesheets/asciinema-player.css
+
+extra_javascript:
+  - javascripts/asciinema-player.min.js
