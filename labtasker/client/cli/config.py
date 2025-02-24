@@ -7,7 +7,8 @@ from typing import IO, Optional
 
 import click
 import pydantic
-import tomli
+import tomlkit
+import tomlkit.exceptions
 import typer
 
 from labtasker.client.cli.cli import app
@@ -56,14 +57,14 @@ def config(
 
                 # b. Reload and validate
                 f.seek(0)
-                ClientConfig.model_validate(tomli.load(f))
+                ClientConfig.model_validate(tomlkit.load(f))
 
                 f.seek(0)
                 updated_content = f.read()
 
                 break
             except (
-                tomli.TOMLDecodeError,
+                tomlkit.exceptions.ParseError,
                 pydantic.ValidationError,
             ) as e:
                 stderr_console.print(

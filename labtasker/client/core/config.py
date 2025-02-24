@@ -4,7 +4,7 @@ from pathlib import Path
 from shutil import copytree
 from typing import Dict, List, Optional
 
-import tomli
+import tomlkit
 import typer
 from packaging.utils import canonicalize_name
 from pydantic import Field, HttpUrl, SecretStr, model_validator, validate_call
@@ -112,7 +112,7 @@ def load_client_config(
                 "ClientConfig already initialized. This would result in a second time loading."
             )
     with open(toml_file, "rb") as f:
-        _config = ClientConfig.model_validate(tomli.load(f))
+        _config = ClientConfig.model_validate(tomlkit.load(f))
 
     if overwrite_fields:
         update_client_config(**overwrite_fields)
