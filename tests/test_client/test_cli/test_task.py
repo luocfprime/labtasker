@@ -192,9 +192,9 @@ class TestDelete:
 
 class TestUpdate:
     @pytest.fixture(autouse=True)
-    def auto_confirm(self, monkeypatch):
+    def auto_confirm_once(self, setup_confirm):
         # confirm to see the final result output (pager -> stdout)
-        monkeypatch.setattr("typer.confirm", lambda x: True)
+        setup_confirm.configure([True])
 
     @pytest.mark.parametrize(
         "query_mode",
@@ -272,6 +272,64 @@ class TestUpdate:
         #   worker_id:
 
         # search for modified line
+        assert re.search(
+            r"task_name:\s+updated-test-task\s+#\s+Modified", result.output
+        ), result.output
+
+        # Verify the task is updated
+        task = db_fixture._tasks.find_one({"_id": task_id})
+        assert task is not None
+        assert task["task_name"] == "updated-test-task"
+
+    @pytest.mark.parametrize(
+        "query_mode",
+        ["task-id", "task-name", "extra-filter"],
+    )
+    def test_update_task_interactive(
+        self, db_fixture, setup_pending_task, query_mode, setup_editor
+    ):
+        # mock editor
+        setup_editor.configure(
+            (r"task_name:\s*test-task", r"task_name: updated-test-task")
+        )
+
+        task_id = setup_pending_task
+
+        if query_mode == "task-id":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--task-id",
+                    task_id,
+                ],
+            )
+        elif query_mode == "task-name":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--task-name",
+                    "test-task",
+                ],
+            )
+        elif query_mode == "extra-filter":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--extra-filter",
+                    f'{{"_id": "{task_id}" }}',
+                ],
+            )
+        else:
+            assert False
+
+        assert result.exit_code == 0, result.output
+
         assert re.search(
             r"task_name:\s+updated-test-task\s+#\s+Modified", result.output
         ), result.output
