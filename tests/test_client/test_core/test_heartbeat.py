@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.status import HTTP_204_NO_CONTENT
 
+from labtasker.client.core.exceptions import LabtaskerRuntimeError
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.paths import set_labtasker_log_dir
 
@@ -57,7 +58,7 @@ def test_heartbeat(test_app):
     start_heartbeat("test_task_id", heartbeat_interval=0.1)
 
     # try to start again
-    with pytest.raises(RuntimeError):
+    with pytest.raises(LabtaskerRuntimeError):
         start_heartbeat("test_task_id", heartbeat_interval=0.1, raise_error=True)
 
     time.sleep(0.5)
@@ -67,5 +68,5 @@ def test_heartbeat(test_app):
     assert cnt.get() <= 6, cnt.get()
 
     # try to stop again
-    with pytest.raises(RuntimeError):
+    with pytest.raises(LabtaskerRuntimeError):
         end_heartbeat(raise_error=True)

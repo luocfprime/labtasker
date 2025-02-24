@@ -12,7 +12,6 @@ import rich
 import ruamel.yaml
 import typer
 import yaml
-from httpx import HTTPStatusError
 from pydantic import ValidationError
 from rich.syntax import Syntax
 from starlette.status import HTTP_404_NOT_FOUND
@@ -33,6 +32,7 @@ from labtasker.client.core.cli_utils import (
     pager_iterator,
     parse_metadata,
 )
+from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
 from labtasker.client.core.logging import stderr_console, stdout_console
 
 app = typer.Typer()
@@ -428,7 +428,7 @@ def delete(
     try:
         delete_task(task_id=task_id)
         stdout_console.print(f"Task {task_id} deleted.")
-    except HTTPStatusError as e:
+    except LabtaskerHTTPStatusError as e:
         if e.response.status_code == HTTP_404_NOT_FOUND:
             raise typer.BadParameter("Task not found")
         else:

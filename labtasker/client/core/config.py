@@ -10,6 +10,7 @@ from packaging.utils import canonicalize_name
 from pydantic import Field, HttpUrl, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from labtasker.client.core.exceptions import LabtaskerRuntimeError
 from labtasker.client.core.logging import logger, stderr_console
 from labtasker.client.core.paths import (
     get_labtasker_client_config_path,
@@ -146,7 +147,7 @@ def init_labtasker_root(
     labtasker_root_template = get_template_dir() / "labtasker_root"
 
     if labtasker_root.exists() and not exist_ok:
-        raise RuntimeError("Labtasker root directory already exists.")
+        raise LabtaskerRuntimeError("Labtasker root directory already exists.")
 
     copytree(
         src=labtasker_root_template,

@@ -4,7 +4,8 @@ from shlex import split
 
 import pytest
 
-from labtasker.client.core.cmd_parser import CmdSyntaxError, cmd_interpolate
+from labtasker.client.core.cmd_parser import cmd_interpolate
+from labtasker.client.core.exceptions import CmdParserError
 from labtasker.utils import keys_to_query_dict
 
 
@@ -51,7 +52,7 @@ class TestParseCmd:
 
     def test_missing_key(self, params):
         cmd = "python main.py --arg1 %()"
-        with pytest.raises(CmdSyntaxError):
+        with pytest.raises(CmdParserError):
             cmd_interpolate(cmd, params)
 
     def test_no_exist_key(self, params):
@@ -61,11 +62,11 @@ class TestParseCmd:
 
     def test_unmatch_parentheses(self, params):
         cmd = "python main.py --arg1 %(( arg1 )"
-        with pytest.raises(CmdSyntaxError):
+        with pytest.raises(CmdParserError):
             cmd_interpolate(cmd, params)
 
         cmd = "python main.py --arg1 %( arg1"
-        with pytest.raises(CmdSyntaxError):
+        with pytest.raises(CmdParserError):
             cmd_interpolate(cmd, params)
 
         cmd = "python main.py --arg1 ( %(arg1)"

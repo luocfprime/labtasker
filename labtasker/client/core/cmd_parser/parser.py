@@ -9,13 +9,15 @@ from rich.console import Console
 from labtasker.client.core.cmd_parser.LabCmd import LabCmd
 from labtasker.client.core.cmd_parser.LabCmdLexer import LabCmdLexer
 from labtasker.client.core.cmd_parser.LabCmdListener import LabCmdListener
+from labtasker.client.core.exceptions import (
+    CmdKeyError,
+    CmdParserError,
+    CmdSyntaxError,
+    CmdTypeError,
+)
 from labtasker.client.core.logging import stderr_console
 
 _debug_print = False
-
-
-class CmdSyntaxError(Exception):
-    pass
 
 
 def reverse_quotes(s: str) -> str:
@@ -185,7 +187,7 @@ class CmdListener(LabCmdListener):
                     error_line=get_line_from_ctx(ctx),
                     msg=msg,
                 )
-                raise KeyError(msg)
+                raise CmdKeyError(msg)
             self.variable = v
         except AttributeError as e:
             msg = f"Expected a dictionary-like object, but got '{type(self.variable).__name__}' for context '{ctx.getText()}'."
@@ -196,7 +198,7 @@ class CmdListener(LabCmdListener):
                 error_line=get_line_from_ctx(ctx),
                 msg=msg,
             )
-            raise TypeError(msg) from e
+            raise CmdTypeError(msg) from e
 
     # Exit a parse tree produced by LabCmd#argument.
     @exit_debug
@@ -258,7 +260,8 @@ def cmd_interpolate(
         listener = CmdListener(variable_table)
         walker = ParseTreeWalker()
         walker.walk(listener, tree)
-    except (CmdSyntaxError, KeyError, TypeError) as e:
+    except CmdParserError as e:
+        # cast to
         raise e.with_traceback(
             None
         )  # stop deep trace, since msg is handled with format_print_error

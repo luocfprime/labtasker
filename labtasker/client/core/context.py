@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from typing import Optional
 
 from labtasker.api_models import Task
+from labtasker.client.core.exceptions import LabtaskerRuntimeError
 from labtasker.client.core.paths import get_labtasker_log_dir
 
 _current_worker_id: ContextVar[Optional[str]] = ContextVar(
@@ -31,7 +32,7 @@ def task_info() -> Task:
             with open(get_labtasker_log_dir() / "task_info.json", "r") as f:
                 _current_task_info.set(Task(**json.load(f)))
         except Exception as e:
-            raise RuntimeError(
+            raise LabtaskerRuntimeError(
                 "Could not load task info from run dir. This is likely because the task was not run by labtasker."
             ) from e
 

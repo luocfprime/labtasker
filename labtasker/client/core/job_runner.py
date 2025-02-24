@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from labtasker.api_models import TaskUpdateRequest
 from labtasker.client.core.api import (
-    WorkerSuspended,
     create_worker,
     fetch_task,
     report_task_status,
@@ -20,6 +19,11 @@ from labtasker.client.core.context import (
     set_current_worker_id,
     set_task_info,
     task_info,
+)
+from labtasker.client.core.exceptions import (
+    LabtaskerRuntimeError,
+    LabtaskerValueError,
+    WorkerSuspended,
 )
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import log_to_file, logger
@@ -77,7 +81,7 @@ def loop(
         try:
             parse_timeout(eta_max)
         except ValueError:
-            raise ValueError(
+            raise LabtaskerValueError(
                 f"Invalid eta_max {eta_max}. ETA max must be a valid duration string (e.g. '1h', '1h30m', '50s')"
             )
 
@@ -194,7 +198,7 @@ def finish(
         if skip_if_no_labtasker:
             return
         else:
-            raise RuntimeError(
+            raise LabtaskerRuntimeError(
                 "Current job is not run by labtasker loop. "
                 "You can either use @labtasker.loop() decorator or labtasker loop cli to run job."
             )

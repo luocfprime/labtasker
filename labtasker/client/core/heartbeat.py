@@ -6,6 +6,7 @@ from typing import Optional
 
 from labtasker.client.core.api import refresh_task_heartbeat
 from labtasker.client.core.config import get_client_config
+from labtasker.client.core.exceptions import LabtaskerRuntimeError
 from labtasker.client.core.logging import logger
 from labtasker.client.core.paths import get_labtasker_log_dir
 
@@ -80,7 +81,7 @@ def start_heartbeat(
 ):
     if _current_heartbeat.get() is not None:
         if raise_error:
-            raise RuntimeError("Heartbeat already started.")
+            raise LabtaskerRuntimeError("Heartbeat already started.")
         return
 
     heartbeat_manager = Heartbeat(
@@ -96,7 +97,7 @@ def end_heartbeat(raise_error=True):
     heartbeat_manager = _current_heartbeat.get()
     if heartbeat_manager is None:
         if raise_error:
-            raise RuntimeError("Heartbeat not started properly.")
+            raise LabtaskerRuntimeError("Heartbeat not started properly.")
         return
     heartbeat_manager.stop()
     _current_heartbeat.set(None)

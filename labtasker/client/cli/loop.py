@@ -17,8 +17,9 @@ from labtasker.client.core.cli_utils import (
     eta_max_validation,
     parse_metadata,
 )
-from labtasker.client.core.cmd_parser import CmdSyntaxError, cmd_interpolate
+from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.config import get_client_config
+from labtasker.client.core.exceptions import CmdParserError
 from labtasker.client.core.job_runner import finish
 from labtasker.client.core.job_runner import loop as loop_run
 from labtasker.client.core.logging import logger, stderr_console, stdout_console
@@ -78,7 +79,7 @@ def loop(
     dummy_variable_table = InfiniteDefaultDict()
     try:
         _, queried_keys = cmd_interpolate(cmd, dummy_variable_table)
-    except (CmdSyntaxError, KeyError, TypeError) as e:
+    except (CmdParserError, KeyError, TypeError) as e:
         raise typer.BadParameter(f"Command error with exception {e}")
 
     required_fields = keys_to_query_dict(list(queried_keys))

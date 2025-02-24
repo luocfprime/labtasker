@@ -7,7 +7,6 @@ from typing import Optional
 
 import click
 import typer
-from httpx import HTTPStatusError
 from pydantic import ValidationError
 from starlette.status import HTTP_404_NOT_FOUND
 
@@ -25,6 +24,7 @@ from labtasker.client.core.cli_utils import (
     pager_iterator,
     parse_metadata,
 )
+from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
 from labtasker.client.core.logging import stdout_console
 
 app = typer.Typer()
@@ -160,7 +160,7 @@ def delete(
     try:
         delete_worker(worker_id=worker_id, cascade_update=cascade_update)
         stdout_console.print(f"Worker {worker_id} deleted.")
-    except HTTPStatusError as e:
+    except LabtaskerHTTPStatusError as e:
         if e.response.status_code == HTTP_404_NOT_FOUND:
             raise typer.BadParameter("Worker not found")
         else:

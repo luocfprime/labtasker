@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional, Union
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import httpx
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_409_CONFLICT
@@ -24,14 +25,35 @@ from labtasker.api_models import (
     WorkerStatusUpdateRequest,
 )
 from labtasker.client.core.config import get_client_config
+from labtasker.client.core.exceptions import (
+    LabtaskerHTTPStatusError,
+    LabtaskerRuntimeError,
+    LabtaskerValueError,
+    WorkerSuspended,
+)
 from labtasker.constants import Priority
 from labtasker.security import SecretStr, get_auth_headers
 
 _httpx_client: Optional[httpx.Client] = None
 
 
-class WorkerSuspended(Exception):
-    pass
+def cast_http_status_error(func: Optional[Callable] = None, /):
+    def decorator(function: Callable):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            try:
+                return function(*args, **kwargs)
+            except httpx.HTTPStatusError as e:
+                raise LabtaskerHTTPStatusError(
+                    message=str(e), request=e.request, response=e.response
+                ) from e
+
+        return wrapped
+
+    if func is not None:
+        return decorator(func)
+
+    return decorator
 
 
 def get_httpx_client() -> httpx.Client:
@@ -55,6 +77,7 @@ def close_httpx_client():
         _httpx_client = None
 
 
+@cast_http_status_error
 def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     """Check the health of the server."""
     if client is None:
@@ -64,6 +87,7 @@ def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     return HealthCheckResponse(**response.json())
 
 
+@cast_http_status_error
 def create_queue(
     queue_name: str,
     password: str,
@@ -83,6 +107,7 @@ def create_queue(
     return QueueCreateResponse(**response.json())
 
 
+@cast_http_status_error
 def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
     """Get queue information."""
     if client is None:
@@ -92,6 +117,7 @@ def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
     return QueueGetResponse(**response.json())
 
 
+@cast_http_status_error
 def delete_queue(
     cascade_delete: bool = True,
     client: Optional[httpx.Client] = None,
@@ -104,6 +130,7 @@ def delete_queue(
     response.raise_for_status()
 
 
+@cast_http_status_error
 def submit_task(
     task_name: Optional[str] = None,
     args: Optional[Dict[str, Any]] = None,
@@ -120,7 +147,7 @@ def submit_task(
         client = get_httpx_client()
 
     if not cmd and not args:
-        raise ValueError("Either cmd or args must be specified.")
+        raise LabtaskerValueError("Either cmd or args must be specified.")
 
     payload = TaskSubmitRequest(
         task_name=task_name,
@@ -137,6 +164,7 @@ def submit_task(
     return TaskSubmitResponse(**response.json())
 
 
+@cast_http_status_error
 def fetch_task(
     worker_id: Optional[str] = None,
     eta_max: Optional[str] = None,
@@ -151,7 +179,9 @@ def fetch_task(
         client = get_httpx_client()
 
     if not eta_max and not start_heartbeat:
-        raise ValueError("Either eta_max or start_heartbeat must be specified.")
+        raise LabtaskerValueError(
+            "Either eta_max or start_heartbeat must be specified."
+        )
 
     payload = TaskFetchRequest(
         worker_id=worker_id,
@@ -170,6 +200,7 @@ def fetch_task(
     return TaskFetchResponse(**response.json())
 
 
+@cast_http_status_error
 def report_task_status(
     task_id: str,
     status: str,
@@ -187,13 +218,14 @@ def report_task_status(
     ).model_dump()
     response = client.post(f"/api/v1/queues/me/tasks/{task_id}/status", json=payload)
     if response.status_code == HTTP_409_CONFLICT:
-        raise RuntimeError(
+        raise LabtaskerRuntimeError(
             "Current task is assigned to a different worker.\n"
             f"Detail: {response.text}"
         )
     response.raise_for_status()
 
 
+@cast_http_status_error
 def refresh_task_heartbeat(
     task_id: str,
     client: Optional[httpx.Client] = None,
@@ -205,6 +237,7 @@ def refresh_task_heartbeat(
     response.raise_for_status()
 
 
+@cast_http_status_error
 def create_worker(
     worker_name: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
@@ -224,6 +257,7 @@ def create_worker(
     return WorkerCreateResponse(**response.json()).worker_id
 
 
+@cast_http_status_error
 def ls_worker(
     worker_id: Optional[str] = None,
     worker_name: Optional[str] = None,
@@ -247,6 +281,7 @@ def ls_worker(
     return WorkerLsResponse(**response.json())
 
 
+@cast_http_status_error
 def report_worker_status(
     worker_id: str,
     status: str,
@@ -270,11 +305,14 @@ def report_worker_status(
         response.status_code == HTTP_400_BAD_REQUEST
         and "InvalidStateTransition" in response.text
     ):
-        raise RuntimeError(f"FSM invalid transition: \n" f"Detail: {response.text}")
+        raise LabtaskerRuntimeError(
+            f"FSM invalid transition: \n" f"Detail: {response.text}"
+        )
 
     response.raise_for_status()
 
 
+@cast_http_status_error
 def ls_tasks(
     task_id: Optional[str] = None,
     task_name: Optional[str] = None,
@@ -298,6 +336,7 @@ def ls_tasks(
     return TaskLsResponse(**response.json())
 
 
+@cast_http_status_error
 def update_tasks(
     task_updates: List[TaskUpdateRequest] = None,
     reset_pending: bool = False,
@@ -313,6 +352,7 @@ def update_tasks(
     return TaskLsResponse(**response.json())
 
 
+@cast_http_status_error
 def delete_task(
     task_id: str,
     client: Optional[httpx.Client] = None,
@@ -324,6 +364,7 @@ def delete_task(
     response.raise_for_status()
 
 
+@cast_http_status_error
 def update_queue(
     new_queue_name: Optional[str] = None,
     new_password: Optional[str] = None,
@@ -345,6 +386,7 @@ def update_queue(
     return QueueGetResponse(**response.json())
 
 
+@cast_http_status_error
 def delete_worker(
     worker_id: str,
     cascade_update: bool = True,
