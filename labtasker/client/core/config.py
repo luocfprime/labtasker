@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import tomlkit
 import typer
 from packaging.utils import canonicalize_name
-from pydantic import Field, HttpUrl, SecretStr, model_validator, validate_call
+from pydantic import Field, HttpUrl, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from labtasker.client.core.logging import logger, stderr_console
@@ -18,6 +18,26 @@ from labtasker.client.core.paths import (
 )
 from labtasker.filtering import register_sensitive_text
 from labtasker.security import get_auth_headers
+
+
+class EndpointConfig(BaseSettings):
+    # API settings
+    api_base_url: HttpUrl
+
+
+class QueueConfig(BaseSettings):
+    queue_name: str = Field(
+        ...,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+        min_length=1,
+        max_length=100,
+    )
+
+    password: SecretStr = Field(..., min_length=1, max_length=100)
+
+
+class TaskConfig(BaseSettings):
+    heartbeat_interval: float = 30.0  # seconds
 
 
 class PluginConfig(BaseSettings):
@@ -43,19 +63,11 @@ class PluginConfig(BaseSettings):
 
 
 class ClientConfig(BaseSettings):
-    # API settings
-    api_base_url: HttpUrl
+    endpoint: EndpointConfig
 
-    queue_name: str = Field(
-        ...,
-        pattern=r"^[a-zA-Z0-9_-]+$",
-        min_length=1,
-        max_length=100,
-    )
+    queue: QueueConfig
 
-    password: SecretStr = Field(..., min_length=1, max_length=100)
-
-    heartbeat_interval: float = 30.0  # seconds
+    task: TaskConfig = Field(default_factory=TaskConfig)
 
     cli_plugins: PluginConfig = Field(default_factory=PluginConfig)
 
@@ -98,7 +110,6 @@ def load_client_config(
     toml_file: Optional[Path] = None,
     skip_if_loaded: bool = True,
     disable_warning: bool = False,
-    **overwrite_fields,
 ):
     if toml_file is None:
         toml_file = get_labtasker_client_config_path()
@@ -114,24 +125,13 @@ def load_client_config(
     with open(toml_file, "rb") as f:
         _config = ClientConfig.model_validate(tomlkit.load(f))
 
-    if overwrite_fields:
-        update_client_config(**overwrite_fields)
-
     # register sensitive text
-    register_sensitive_text(_config.password.get_secret_value())
+    register_sensitive_text(_config.queue.password.get_secret_value())
     register_sensitive_text(
-        get_auth_headers(_config.queue_name, _config.password)["Authorization"]
+        get_auth_headers(_config.queue.queue_name, _config.queue.password)[
+            "Authorization"
+        ]
     )
-
-
-@requires_client_config(auto_load_config=False)
-@validate_call
-def update_client_config(**kwargs):
-    global _config
-    new_config = _config.model_copy(update=locals())
-    # validate config
-    ClientConfig.model_validate(new_config)
-    _config = new_config
 
 
 @requires_client_config

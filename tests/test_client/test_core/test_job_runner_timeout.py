@@ -25,8 +25,8 @@ TOTAL_TASKS = 5
 @pytest.fixture(autouse=True)
 def setup_queue(client_config):
     return create_queue(
-        queue_name=client_config.queue_name,
-        password=client_config.password.get_secret_value(),
+        queue_name=client_config.queue.queue_name,
+        password=client_config.queue.password.get_secret_value(),
         metadata={"tag": "test"},
     )
 

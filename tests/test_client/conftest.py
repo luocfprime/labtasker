@@ -5,6 +5,7 @@ from shutil import rmtree
 import pytest
 
 from labtasker.client.core.config import (
+    ClientConfig,
     get_client_config,
     init_labtasker_root,
     load_client_config,
@@ -18,7 +19,7 @@ def patch_httpx_client(monkeypatch, test_type, test_app, client_config):
     """Patch the httpx client"""
     if test_type in ["unit", "integration"]:
         auth_headers = get_auth_headers(
-            client_config.queue_name, client_config.password
+            client_config.queue.queue_name, client_config.queue.password
         )
         test_app.headers.update(
             {**auth_headers, "Content-Type": "application/json"},
@@ -48,6 +49,6 @@ def labtasker_test_root(proj_root, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def client_config(labtasker_test_root):
+def client_config(labtasker_test_root) -> ClientConfig:
     load_client_config(skip_if_loaded=False, disable_warning=True)  # reload client env
     return get_client_config()

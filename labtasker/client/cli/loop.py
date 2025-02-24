@@ -72,7 +72,7 @@ def loop(
     extra_filter = parse_metadata(extra_filter)
 
     if heartbeat_timeout is None:
-        heartbeat_timeout = get_client_config().heartbeat_interval * 3
+        heartbeat_timeout = get_client_config().task.heartbeat_interval * 3
 
     # Generate required fields dict
     dummy_variable_table = InfiniteDefaultDict()

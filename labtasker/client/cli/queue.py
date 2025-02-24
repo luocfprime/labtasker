@@ -74,8 +74,8 @@ def create_from_config(
     config = get_client_config()
     stdout_console.print(
         create_queue(
-            queue_name=config.queue_name,
-            password=config.password.get_secret_value(),
+            queue_name=config.queue.queue_name,
+            password=config.queue.password.get_secret_value(),
             metadata=metadata,
         )
     )

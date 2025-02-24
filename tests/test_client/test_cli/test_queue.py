@@ -4,6 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from labtasker.client.cli import app
+from labtasker.client.core.config import ClientConfig
 from labtasker.security import verify_password
 
 runner = CliRunner()
@@ -62,7 +63,7 @@ class TestCreate:
 
 
 @pytest.fixture
-def cli_create_queue_from_config(client_config):
+def cli_create_queue_from_config(client_config) -> ClientConfig:
     """
     Create a queue using client config and cli.
     This is for queue testing that requires creating a queue in advance.
@@ -73,9 +74,9 @@ def cli_create_queue_from_config(client_config):
             "queue",
             "create",
             "--queue-name",
-            client_config.queue_name,
+            client_config.queue.queue_name,
             "--password",
-            client_config.password.get_secret_value(),
+            client_config.queue.password.get_secret_value(),
             "--metadata",
             '{"tag": "test"}',  # TODO: hard-coded
         ],
@@ -90,7 +91,9 @@ class TestGet:
         # get queue
         result = runner.invoke(app, ["queue", "get"])
         assert result.exit_code == 0, result.output
-        assert cli_create_queue_from_config.queue_name in result.output, result.output
+        assert (
+            cli_create_queue_from_config.queue.queue_name in result.output
+        ), result.output
 
 
 @pytest.mark.dependency(depends=["TestCreate::test_create_no_metadata"])
@@ -141,7 +144,7 @@ class TestUpdate:
 
         # Verify the password is updated
         queue = db_fixture._queues.find_one(
-            {"queue_name": cli_create_queue_from_config.queue_name}
+            {"queue_name": cli_create_queue_from_config.queue.queue_name}
         )
         assert queue is not None
         assert verify_password(new_password, queue["password"])
@@ -161,7 +164,7 @@ class TestUpdate:
 
         # Verify the metadata is updated
         queue = db_fixture._queues.find_one(
-            {"queue_name": cli_create_queue_from_config.queue_name}
+            {"queue_name": cli_create_queue_from_config.queue.queue_name}
         )
         assert queue is not None
         for key, value in literal_eval(new_metadata).items():
@@ -179,11 +182,12 @@ class TestUpdate:
 
         # Verify no changes were made
         queue = db_fixture._queues.find_one(
-            {"queue_name": cli_create_queue_from_config.queue_name}
+            {"queue_name": cli_create_queue_from_config.queue.queue_name}
         )
         assert queue is not None
-        assert queue["queue_name"] == cli_create_queue_from_config.queue_name
+        assert queue["queue_name"] == cli_create_queue_from_config.queue.queue_name
         assert verify_password(
-            cli_create_queue_from_config.password.get_secret_value(), queue["password"]
+            cli_create_queue_from_config.queue.password.get_secret_value(),
+            queue["password"],
         )
         assert queue["metadata"] == literal_eval('{"tag": "test"}')  # TODO: hard-coded

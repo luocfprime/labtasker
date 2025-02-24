@@ -82,7 +82,7 @@ class TestSubmit:
 def setup_pending_task(db_fixture, cli_create_queue_from_config):
     """Set up a task in PENDING state in current queue."""
     queue_id = db_fixture._queues.find_one(
-        {"queue_name": cli_create_queue_from_config.queue_name}
+        {"queue_name": cli_create_queue_from_config.queue.queue_name}
     )["_id"]
     task_id = db_fixture.create_task(
         queue_id=queue_id,
@@ -101,7 +101,7 @@ def setup_pending_task(db_fixture, cli_create_queue_from_config):
 def setup_running_task(db_fixture, cli_create_queue_from_config):
     """Set up a task in RUNNING state in current queue."""
     queue_id = db_fixture._queues.find_one(
-        {"queue_name": cli_create_queue_from_config.queue_name}
+        {"queue_name": cli_create_queue_from_config.queue.queue_name}
     )["_id"]
     task_id = db_fixture.create_task(
         queue_id=queue_id,
@@ -133,7 +133,7 @@ class TestLs:
     @pytest.fixture
     def setup_tasks(self, db_fixture, cli_create_queue_from_config):
         queue_id = db_fixture._queues.find_one(
-            {"queue_name": cli_create_queue_from_config.queue_name}
+            {"queue_name": cli_create_queue_from_config.queue.queue_name}
         )["_id"]
         # Create multiple tasks for testing
         for i in range(5):

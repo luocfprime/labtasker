@@ -140,7 +140,7 @@ class TestLs:
     @pytest.fixture
     def setup_workers(self, db_fixture, cli_create_queue_from_config):
         queue_id = db_fixture._queues.find_one(
-            {"queue_name": cli_create_queue_from_config.queue_name}
+            {"queue_name": cli_create_queue_from_config.queue.queue_name}
         )["_id"]
         # Create multiple workers for testing
         for i in range(5):

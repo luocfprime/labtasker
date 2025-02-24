@@ -85,7 +85,8 @@ def start_heartbeat(
 
     heartbeat_manager = Heartbeat(
         task_id=task_id,
-        heartbeat_interval=heartbeat_interval or get_client_config().heartbeat_interval,
+        heartbeat_interval=heartbeat_interval
+        or get_client_config().task.heartbeat_interval,
     )
     heartbeat_manager.start()
     _current_heartbeat.set(heartbeat_manager)

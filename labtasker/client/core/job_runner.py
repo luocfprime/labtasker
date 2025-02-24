@@ -71,7 +71,7 @@ def loop(
         required_fields = keys_to_query_dict(required_fields)
 
     if heartbeat_timeout is None:
-        heartbeat_timeout = get_client_config().heartbeat_interval * 3
+        heartbeat_timeout = get_client_config().task.heartbeat_interval * 3
 
     if eta_max is not None:
         try:
