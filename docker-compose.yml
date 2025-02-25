@@ -33,6 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile
       network: host
+    image: ghcr.io/fkcptlst/labtasker-api
     container_name: labtasker-api
     environment:
       - DB_USER=${DB_USER}
