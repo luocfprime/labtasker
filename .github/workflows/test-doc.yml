@@ -1,0 +1,32 @@
+name: test-doc
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: configure git credentials
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+
+      - name: setup python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - run: pwd
+      - run: ls -la
+      - run: pip install -e ".[doc]"
+
+      - name: build dev doc
+        run: |
+          cd docs
+          mike deploy dev
