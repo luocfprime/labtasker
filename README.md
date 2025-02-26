@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/fkcptlst/labtasker/graph/badge.svg?token=KQFBV3QRPY)](https://codecov.io/gh/fkcptlst/labtasker)
 ![Python version](https://img.shields.io/badge/Python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12%20|%203.13-blue)
 
-A easy-to-use task management tool for lab environments.
+A easy-to-use task management tool for lab experiments.
 
 ## Features
 
