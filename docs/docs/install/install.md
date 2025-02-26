@@ -12,7 +12,6 @@ The client tools is a Python package that you can install on your local machine.
 === "From PyPI"
 
     ```bash
-    # TODO: to be updated
     pip install labtasker
     ```
 
