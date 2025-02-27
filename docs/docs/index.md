@@ -2,18 +2,53 @@
 
 ## Introduction
 
-Labtasker is an easy-to-use task queue tool designed to manage and dispatch lab experiment tasks to user-defined workers.
+Labtasker is an easy-to-use task queue tool designed to manage and dispatch lab experiment tasks to user-defined
+workers.
+
+!!! tip annotate "What *actually* is labtasker? When to use? What does it do?"
+
+    Feeling confused? Here is a quick takeaway:
+
+    **TLDR:** Replace `for` loops in your experiment *wrapper script* (1) with labtasker to unlock a variety of powerful features (2)
+    effortlessly.
+
+1. **What is a wrapper script?**
+    - A wrapper script is not part of your experiment's core logic.
+    - Instead, it organizes and passes the necessary arguments to your experiment's core script.
+    - For example:
+
+       ```bash
+       #!/bin/bash
+       # This is a typical wrapper bash script for many ML experiments.
+       for arg1 in {0..2}; do
+           for arg2 in {3..5}; do
+               # The for loops are what you should replace with Labtasker.
+               # Only this line is the actual core logic of your experiment.
+               python train_my_model.py --arg1 $arg1 --arg2 $arg2
+           done
+       done
+       ```
+
+2. Labtasker provides advanced features **with only 1 extra line of code:**
+    - Load balancing and script parallelism
+    - Dynamic task prioritization
+    - Dynamic task cancellation
+    - Failure auto-retry and worker suspension
+    - Metadata recording
+    - And much more!
 
 Integrating Labtasker into your existing experiment workflow requires just a few lines of boilerplate code.
 
 To get started, check out the quick [Tutorial](./guide/basic.md) for an overview of the basic workflow.
 
+To get an overview of the motivation of this tool, continue reading.
 
 ## Motivation
 
-### Why not simple bash scripts?
+### Why not simple bash wrapper scripts?
 
-Imagine you have multiple lab experiment jobs to run on a single GPU, such as for tasks like prompt engineering or hyperparameter search.
+Imagine you have multiple lab experiment jobs to run on a single GPU, such as for tasks like prompt engineering or
+hyperparameter search.
 
 The simplest approach is to write a script for each experiment and execute them sequentially.
 
@@ -31,7 +66,8 @@ done
 
 This method works, but what if you have more than one worker/GPU?
 
-Let's say you have 4 GPUs. You would probably split the experiments into 4 groups and run them in parallel to make better use of the resources.
+Let's say you have 4 GPUs. You would probably split the experiments into 4 groups and run them in parallel to make
+better use of the resources.
 
 <div class="grid" markdown>
 
@@ -81,7 +117,8 @@ done
 
 </div>
 
-However, this method can quickly become tedious and offers limited control over the experiments once the job scripts are running.
+However, this method can quickly become tedious and offers limited control over the experiments once the job scripts are
+running. Consider the following scenarios:
 
 !!! question ""
 
@@ -93,16 +130,19 @@ However, this method can quickly become tedious and offers limited control over 
 
 Labtasker is designed to overcome these challenges.
 
-With Labtasker, you can submit a variety of experiment arguments to a server-based task queue. Worker nodes can then fetch and execute these tasks directly from the queue.
+With Labtasker, you can submit a variety of experiment arguments to a server-based task queue. Worker nodes can then
+fetch and execute these tasks directly from the queue.
 
 ### Why not SLURM?
 
-Unlike traditional HPC resource management systems like SLURM, ==**Labtasker is tailored for users rather than system administrators.**==
+Unlike traditional HPC resource management systems like SLURM, ==**Labtasker is tailored for users rather than system
+administrators.**==
 
 Labtasker is designed to be a simple and easy-to-use.
 
 - It disentangles task queue from resource management.
-- It offers a versatile task queue system that can be used by anyone (not just system administrators), without the need for extensive configuration or knowledge of HPC systems.
+- It offers a versatile task queue system that can be used by anyone (not just system administrators), without the need
+  for extensive configuration or knowledge of HPC systems.
 
 Here's are key conceptual differences between Labtasker and SLURM:
 
