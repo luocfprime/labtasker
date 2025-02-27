@@ -19,6 +19,15 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Check if version match
+        if: ${{ github.ref_type == 'tag' }}
+        env:
+          GIT_TAG: ${{ github.ref_name }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install "."
+          python scripts/check_version.py --tag ${GIT_TAG}
+
       - name: Build release distributions
         run: |
           python -m pip install build
