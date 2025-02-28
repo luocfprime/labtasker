@@ -2,9 +2,10 @@
 Task queue related CRUD operations.
 """
 
-from typing import Optional
+from typing import Callable, Optional
 
 import typer
+from starlette.status import HTTP_409_CONFLICT
 from typing_extensions import Annotated
 
 from labtasker.client.core.api import (
@@ -13,15 +14,32 @@ from labtasker.client.core.api import (
     get_queue,
     update_queue,
 )
-from labtasker.client.core.cli_utils import cli_utils_decorator, parse_metadata
+from labtasker.client.core.cli_utils import (
+    cli_utils_decorator,
+    handle_http_err,
+    parse_metadata,
+)
 from labtasker.client.core.config import get_client_config
-from labtasker.client.core.logging import stdout_console
+from labtasker.client.core.logging import stderr_console, stdout_console
 
 app = typer.Typer()
 
 
+def handle_queue_create_conflict_err(func: Optional[Callable] = None, /):
+    """Handles queue create conflict and prints human-readable message."""
+
+    def error_409_handler(e):
+        stderr_console.print(f"[bold red]Error:[/bold red] Queue already exists.")
+        raise typer.Abort()
+
+    return handle_http_err(
+        func, status_code=HTTP_409_CONFLICT, err_handler=error_409_handler
+    )
+
+
 @app.command()
 @cli_utils_decorator
+@handle_queue_create_conflict_err
 def create(
     queue_name: Annotated[
         str,
@@ -61,6 +79,7 @@ def create(
 
 @app.command()
 @cli_utils_decorator
+@handle_queue_create_conflict_err
 def create_from_config(
     metadata: Optional[str] = typer.Option(
         None,

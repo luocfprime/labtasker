@@ -153,19 +153,21 @@ def validation_err_to_typer_err(func: Optional[Callable] = None, /):
     return decorator(func)
 
 
-def http_401_unauthorized_to_typer_err(func: Optional[Callable] = None, /):
+def handle_http_err(
+    func: Optional[Callable] = None,
+    /,
+    *,
+    status_code: int,
+    err_handler: Callable[[httpx.HTTPStatusError], None],
+):
     def decorator(function: Callable):
         @wraps(function)
         def wrapped(*args, **kwargs):
             try:
                 return function(*args, **kwargs)
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == HTTP_401_UNAUTHORIZED:
-                    stderr_console.print(
-                        "[bold red]Error:[/bold red] Invalid credentials. Please check your configuration."
-                        f"Detail: {e}"
-                    )
-                    raise typer.Abort()
+                if e.response.status_code == status_code:
+                    err_handler(e)
                 else:
                     raise e
 
@@ -222,7 +224,19 @@ def cli_utils_decorator(
         if enable_validation_err_to_typer_err:
             function = validation_err_to_typer_err(function)
         if enable_http_401_unauthorized_to_typer_err:
-            function = http_401_unauthorized_to_typer_err(function)
+
+            def error_401_handler(e):
+                stderr_console.print(
+                    f"[bold red]Error:[/bold red] Either invalid credentials or queue not created. "
+                    f"Please check your configuration. Detail: {e}"
+                )
+                raise typer.Abort()
+
+            function = handle_http_err(
+                function,
+                status_code=HTTP_401_UNAUTHORIZED,
+                err_handler=error_401_handler,
+            )
 
         return function
 
