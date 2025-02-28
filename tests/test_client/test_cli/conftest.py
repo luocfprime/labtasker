@@ -86,7 +86,7 @@ def mock_confirm():
             self.inputs = [inputs] if isinstance(inputs, bool) else inputs
             self.call_count = call_count
 
-        def confirm(self, text: str = "y", abort: bool = False) -> bool:
+        def confirm(self, text: str = "y", abort: bool = False, **kwargs) -> bool:
             """
             Mock typer.confirm with sequence of responses
 

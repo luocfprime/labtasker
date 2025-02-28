@@ -28,6 +28,7 @@ from labtasker.client.core.api import (
 from labtasker.client.core.cli_utils import (
     LsFmtChoices,
     cli_utils_decorator,
+    confirm,
     ls_format_iter,
     pager_iterator,
     parse_metadata,
@@ -195,6 +196,10 @@ def ls(
         "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
+    quiet: bool = typer.Option(
+        False,
+        help="Only show task IDs that match the query, rather than full entry. Useful when using in bash scripts.",
+    ),
     pager: bool = typer.Option(
         True,
         help="Enable pagination.",
@@ -213,6 +218,9 @@ def ls(
     ),
 ):
     """List tasks in the queue."""
+    if quiet and pager:
+        raise typer.BadParameter("--quiet and --pager cannot be used together.")
+
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
     extra_filter = parse_metadata(extra_filter)
@@ -226,6 +234,13 @@ def ls(
         offset=offset,
         limit=limit,
     )
+
+    if quiet:
+        for item in page_iter:
+            item: Task
+            stdout_console.print(item.task_id)
+        raise typer.Exit()  # exit directly without other printing
+
     if pager:
         click.echo_via_pager(
             ls_format_iter[fmt](
@@ -273,9 +288,13 @@ def update(
         False,
         help="Reset pending tasks to pending after updating.",
     ),
+    quiet: bool = typer.Option(
+        False,
+        help="Disable interactive mode and confirmations. Set this to true if you are using this in a bash script.",
+    ),
     editor: Optional[str] = typer.Option(
         None,
-        help="Editor to use for interactive update.",
+        help="Editor to use for modifying task data incase you didn't specify --update.",
     ),
 ):
     """Update tasks settings."""
@@ -294,10 +313,13 @@ def update(
 
     update_dict = parse_metadata(update_dict)
 
-    if not update_dict:  # if no update provided, enter interactive mode
-        interactive = True
+    if not update_dict:  # if no update provided, enter use_editor mode
+        use_editor = True
     else:
-        interactive = False
+        use_editor = False
+
+    if quiet and use_editor:
+        raise typer.BadParameter("You must specify --update when using --quiet.")
 
     old_tasks = ls_tasks(
         task_id=task_id,
@@ -310,7 +332,7 @@ def update(
     task_updates: List[TaskUpdateRequest] = []
 
     # Opens a system text editor to allow modification
-    if interactive:
+    if use_editor:
         old_tasks_primitive: List[Dict[str, Any]] = [t.model_dump() for t in old_tasks]
 
         commented_seq = commented_seq_from_dict_list(old_tasks_primitive)
@@ -365,7 +387,7 @@ def update(
         )
 
     else:
-        # populate if not using interactive mode to modify one by one
+        # populate if not using use_editor mode to modify one by one
         updates = [update_dict] * len(old_tasks)
 
     for i, ud in enumerate(updates):  # ud: update dict list entry
@@ -375,8 +397,10 @@ def update(
 
     updated_tasks = update_tasks(task_updates=task_updates, reset_pending=reset_pending)
 
-    if not typer.confirm(
-        f"Total {len(updated_tasks.content)} tasks updated complete. Do you want to see the updated result?"
+    if not confirm(
+        f"Total {len(updated_tasks.content)} tasks updated complete. Do you want to see the updated result?",
+        quiet=quiet,
+        default=False,
     ):
         raise typer.Exit()
 

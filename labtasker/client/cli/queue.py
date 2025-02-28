@@ -63,18 +63,21 @@ def create(
         None,
         help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
     ),
+    quiet: bool = typer.Option(
+        False,
+        help="Only show queue ID string, rather than full response. Useful when using in bash scripts.",
+    ),
 ):
     """
     Create a queue.
     """
     metadata = parse_metadata(metadata)
-    stdout_console.print(
-        create_queue(
-            queue_name=queue_name,
-            password=password,
-            metadata=metadata,
-        )
+    resp = create_queue(
+        queue_name=queue_name,
+        password=password,
+        metadata=metadata,
     )
+    stdout_console.print(resp.queue_id if quiet else resp)
 
 
 @app.command()
@@ -84,27 +87,33 @@ def create_from_config(
     metadata: Optional[str] = typer.Option(
         None,
         help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
-    )
+    ),
+    quiet: bool = typer.Option(
+        False,
+        help="Only show queue ID string, rather than full response. Useful when using in bash scripts.",
+    ),
 ):
     """
     Create a queue from config in `.labtasker/client.toml`.
     """
     metadata = parse_metadata(metadata)
     config = get_client_config()
-    stdout_console.print(
-        create_queue(
-            queue_name=config.queue.queue_name,
-            password=config.queue.password.get_secret_value(),
-            metadata=metadata,
-        )
+    resp = create_queue(
+        queue_name=config.queue.queue_name,
+        password=config.queue.password.get_secret_value(),
+        metadata=metadata,
     )
+    stdout_console.print(resp.queue_id if quiet else resp)
 
 
 @app.command()
 @cli_utils_decorator
-def get():
+def get(
+    quiet: bool = typer.Option(False, help="Only show queue ID string."),
+):
     """Get current queue info."""
-    stdout_console.print(get_queue())
+    resp = get_queue()
+    stdout_console.print(resp.queue_id if quiet else resp)
 
 
 @app.command()
@@ -126,6 +135,10 @@ def update(
         None,
         help='Optional metadata update as a python dict string (e.g., \'{"key": "value"}\').',
     ),
+    quiet: bool = typer.Option(
+        False,
+        help="Suppress the output. Execution result is only available via status code.",
+    ),
 ):
     """
     Update the current queue.
@@ -136,19 +149,22 @@ def update(
     parsed_metadata = parse_metadata(metadata)
 
     # Proceed with the update logic
-    stdout_console.print(
-        f"Updating queue with:\n"
-        f"  New Queue Name: {new_queue_name or 'No change'}\n"
-        f"  New Password: {'******' if new_password else 'No change'}\n"
-        f"  Metadata: {parsed_metadata or 'No change'}"
-    )
+    if not quiet:
+        stdout_console.print(
+            f"Updating queue with:\n"
+            f"  New Queue Name: {new_queue_name or 'No change'}\n"
+            f"  New Password: {'******' if new_password else 'No change'}\n"
+            f"  Metadata: {parsed_metadata or 'No change'}"
+        )
 
     updated_queue = update_queue(
         new_queue_name=new_queue_name,
         new_password=new_password,
         metadata_update=parsed_metadata,
     )
-    stdout_console.print(updated_queue)
+
+    if not quiet:
+        stdout_console.print(updated_queue)
 
 
 @app.command()

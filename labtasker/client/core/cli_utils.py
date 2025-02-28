@@ -52,6 +52,39 @@ def eta_max_validation(value: Optional[str]):
     return value
 
 
+def is_terminal():
+    return Console().is_terminal
+
+
+def confirm(
+    *args,
+    quiet: bool,
+    default: Optional[bool] = False,
+    **kwargs,
+) -> bool:
+    """
+    Wraps around
+    Args:
+        quiet:
+        *args:
+        default:
+        **kwargs:
+
+    Returns:
+
+    """
+    if not quiet:
+        return typer.confirm(*args, default=default, **kwargs)
+    else:  # non-interactive script mode
+        if default:  # "yes"
+            return True
+
+        # "no"
+        if kwargs.get("abort", False):
+            raise typer.Abort()
+        return False
+
+
 def ls_jsonl_format_iter(
     iterator: Iterable[BaseModel], exclude_unset: bool = False, use_rich: bool = True
 ):

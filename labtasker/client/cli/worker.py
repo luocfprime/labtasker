@@ -10,6 +10,7 @@ import typer
 from pydantic import ValidationError
 from starlette.status import HTTP_404_NOT_FOUND
 
+from labtasker.api_models import Worker
 from labtasker.client.core.api import (
     create_worker,
     delete_worker,
@@ -45,6 +46,10 @@ def create(
         3,
         help="Maximum number of retries for the worker.",
     ),
+    quiet: bool = typer.Option(
+        False,
+        help="Only show worker ID string, rather than full response. Useful when using in bash scripts.",
+    ),
 ):
     """
     Create a new worker.
@@ -55,7 +60,11 @@ def create(
         metadata=metadata,
         max_retries=max_retries,
     )
-    stdout_console.print(f"Worker created with ID: {worker_id}")
+
+    if quiet:
+        stdout_console.print(worker_id)
+    else:
+        stdout_console.print(f"Worker created with ID: {worker_id}")
 
 
 @app.command()
@@ -72,6 +81,10 @@ def ls(
     extra_filter: Optional[str] = typer.Option(
         None,
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
+    ),
+    quiet: bool = typer.Option(
+        False,
+        help="Only show worker IDs that match the query, rather than full entry. Useful when using in bash scripts.",
     ),
     pager: bool = typer.Option(
         True,
@@ -93,6 +106,9 @@ def ls(
     """
     List workers.
     """
+    if quiet and pager:
+        raise typer.BadParameter("--quiet and --pager cannot be used together.")
+
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
     extra_filter = parse_metadata(extra_filter)
@@ -106,6 +122,13 @@ def ls(
         offset=offset,
         limit=limit,
     )
+
+    if quiet:
+        for item in page_iter:
+            item: Worker
+            stdout_console.print(item.worker_id)
+        raise typer.Exit()  # exit directly without other printing
+
     if pager:
         click.echo_via_pager(
             ls_format_iter[fmt](

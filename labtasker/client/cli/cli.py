@@ -41,3 +41,4 @@ def health():
         stdout_console.print(health_check())
     except (httpx.ConnectError, httpx.HTTPStatusError) as e:
         stderr_console.print(e)
+        raise typer.Exit(-1)
