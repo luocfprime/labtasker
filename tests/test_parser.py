@@ -100,3 +100,12 @@ class TestParseCmd:
         assert split(parsed) == split(
             "python main.py $abc $@ $* $ $? $# --arg1 value1"
         ), f"got {parsed}"
+
+    def test_int_index_as_key(self):
+        """Test interpolation like %(1) %(2), useful when using interpolating positional arguments such as in `python main.py --foo %(foo) %(1) %(2)`"""
+        params = {"1": "positional_1", "foo": {"bar": "hello"}}
+        cmd = "python main.py --foo.bar %(foo.bar) %(1)"
+        parsed, _ = cmd_interpolate(cmd, params)
+        assert split(parsed) == split(
+            "python main.py --foo.bar hello positional_1"
+        ), f"got {parsed}"

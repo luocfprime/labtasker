@@ -9,6 +9,6 @@ variable: VARIABLE_START argumentList VARIABLE_END;
 
 argumentList: argument (DOT argument)*;
 
-argument: ID;
+argument: ID | INT;
 
 text: TEXT;

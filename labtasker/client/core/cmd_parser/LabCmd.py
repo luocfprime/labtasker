@@ -15,7 +15,7 @@ def serializedATN():
     return [
         4,
         1,
-        7,
+        8,
         36,
         2,
         0,
@@ -102,7 +102,11 @@ def serializedATN():
         6,
         8,
         0,
+        1,
+        1,
         0,
+        5,
+        6,
         33,
         0,
         14,
@@ -280,8 +284,8 @@ def serializedATN():
         0,
         31,
         32,
-        5,
-        5,
+        7,
+        0,
         0,
         0,
         32,
@@ -328,6 +332,7 @@ class LabCmd(Parser):
         "VARIABLE_END",
         "DOT",
         "ID",
+        "INT",
         "WS",
         "OTHERS",
     ]
@@ -346,8 +351,9 @@ class LabCmd(Parser):
     VARIABLE_END = 3
     DOT = 4
     ID = 5
-    WS = 6
-    OTHERS = 7
+    INT = 6
+    WS = 7
+    OTHERS = 8
 
     def __init__(self, input: TokenStream, output: TextIO = sys.stdout):
         super().__init__(input, output)
@@ -553,6 +559,9 @@ class LabCmd(Parser):
         def ID(self):
             return self.getToken(LabCmd.ID, 0)
 
+        def INT(self):
+            return self.getToken(LabCmd.INT, 0)
+
         def getRuleIndex(self):
             return LabCmd.RULE_argument
 
@@ -568,10 +577,16 @@ class LabCmd(Parser):
 
         localctx = LabCmd.ArgumentContext(self, self._ctx, self.state)
         self.enterRule(localctx, 6, self.RULE_argument)
+        self._la = 0  # Token type
         try:
             self.enterOuterAlt(localctx, 1)
             self.state = 31
-            self.match(LabCmd.ID)
+            _la = self._input.LA(1)
+            if not (_la == 5 or _la == 6):
+                self._errHandler.recoverInline(self)
+            else:
+                self._errHandler.reportMatch(self)
+                self.consume()
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
