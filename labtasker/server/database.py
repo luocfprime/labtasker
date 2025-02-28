@@ -36,6 +36,7 @@ from labtasker.utils import (
     risky,
     sanitize_dict,
     sanitize_update,
+    unflatten_dict,
 )
 
 _in_transaction = contextvars.ContextVar("in_transaction", default=False)
@@ -239,7 +240,7 @@ class DBService:
                     "password": hash_password(password),
                     "created_at": now,
                     "last_modified": now,
-                    "metadata": metadata or {},
+                    "metadata": unflatten_dict(metadata or {}),
                 }
                 result = self._queues.insert_one(queue, session=session)
                 return str(result.inserted_id)
@@ -293,8 +294,8 @@ class DBService:
                 "max_retries": max_retries,
                 "retries": 0,
                 "priority": priority,
-                "metadata": metadata or {},
-                "args": args or {},
+                "metadata": unflatten_dict(metadata or {}),
+                "args": unflatten_dict(args or {}),
                 "cmd": cmd or "",
                 "summary": {},
                 "worker_id": None,
@@ -320,7 +321,7 @@ class DBService:
                 "queue_id": queue_id,
                 "status": WorkerState.ACTIVE,
                 "worker_name": worker_name,
-                "metadata": metadata or {},
+                "metadata": unflatten_dict(metadata or {}),
                 "retries": 0,
                 "max_retries": max_retries,
                 "created_at": now,

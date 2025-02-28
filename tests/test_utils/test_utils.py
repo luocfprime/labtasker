@@ -3,7 +3,13 @@ from datetime import timedelta
 
 import pytest
 
-from labtasker.utils import flatten_dict, get_timeout_delta, parse_timeout, risky
+from labtasker.utils import (
+    flatten_dict,
+    get_timeout_delta,
+    parse_timeout,
+    risky,
+    unflatten_dict,
+)
 
 
 @pytest.mark.unit
@@ -182,6 +188,72 @@ def test_flatten_dict():
     prefix = "summary"
     expected = {"summary.a.b.c": 1}
     assert flatten_dict(nested_dict, parent_key=prefix) == expected
+
+
+@pytest.mark.unit
+def test_unflatten_dict():
+    """Test unflattening a dictionary with dot notation."""
+    # Test case 1: Simple flat dictionary
+    flat_dict = {
+        "status": "success",
+        "summary.field1": "value1",
+        "summary.nested.subfield1": "subvalue1",
+        "retries": 3,
+    }
+
+    expected = {
+        "status": "success",
+        "summary": {"field1": "value1", "nested": {"subfield1": "subvalue1"}},
+        "retries": 3,
+    }
+
+    assert unflatten_dict(flat_dict) == expected
+
+    # Test case 2: Empty dictionary
+    assert unflatten_dict({}) == {}
+
+    # Test case 3: Flat dictionary with no nested keys
+    flat_dict = {"a": 1, "b": 2, "c": 3}
+    assert unflatten_dict(flat_dict) == flat_dict
+
+    # Test case 4: Flat dictionary with custom separator
+    flat_dict = {"a/b/c": 1}
+    expected = {"a": {"b": {"c": 1}}}
+    assert unflatten_dict(flat_dict, sep="/") == expected
+
+    # Test case 5: Flat dictionary with mixed value types
+    flat_dict = {
+        "str": "string",
+        "num": 42,
+        "bool": True,
+        "none": None,
+        "nested.list": [1, 2, 3],
+        "nested.tuple": (4, 5, 6),
+    }
+    expected = {
+        "str": "string",
+        "num": 42,
+        "bool": True,
+        "none": None,
+        "nested": {
+            "list": [1, 2, 3],
+            "tuple": (4, 5, 6),
+        },
+    }
+    assert unflatten_dict(flat_dict) == expected
+
+    # Test case 6: Flat dictionary with prefix
+    flat_dict = {"summary.a.b.c": 1}
+    prefix = "summary"
+    expected = {"summary": {"a": {"b": {"c": 1}}}}
+    assert unflatten_dict(flat_dict) == expected
+
+    # Test case 7: Flat dictionary with conflicting keys
+    # Here we test a case where the flat dictionary might have conflicting keys
+    # e.g., {"a": 1, "a.b": 2} - This is invalid for unflattening and should raise an error
+    conflicting_flat_dict = {"a": 1, "a.b": 2}
+    with pytest.raises(ValueError):
+        unflatten_dict(conflicting_flat_dict)
 
 
 @risky("Test risky operation")

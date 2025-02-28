@@ -158,6 +158,61 @@ def flatten_dict(d, parent_key="", sep="."):
     return dict(items)
 
 
+def unflatten_dict(d, sep="."):
+    """
+    Unflattens a flattened dictionary into a nested dictionary.
+
+    Args:
+        d (dict): The flattened dictionary to unflatten.
+        sep (str, optional): The separator used for flattening keys. Defaults to '.'.
+
+    Returns:
+        dict: An unflattened dictionary where keys are represented in nested structures.
+
+    Raises:
+        ValueError: If there are conflicting keys, e.g., {"a": 1, "a.b": 2}.
+
+    Example:
+        >>> flattened_dict = {
+        ...     "status": "success",
+        ...     "summary.field1": "value1",
+        ...     "summary.nested.subfield1": "subvalue1",
+        ...     "retries": 3
+        ... }
+        >>> unflatten_dict(flattened_dict)
+        {
+            "status": "success",
+            "summary": {
+                "field1": "value1",
+                "nested": {
+                    "subfield1": "subvalue1"
+                }
+            },
+            "retries": 3
+        }
+    """
+    result = {}
+    for key, value in d.items():
+        keys = key.split(sep)  # Split the key by the separator
+        current = result
+        for part in keys[:-1]:  # Traverse/create nested dictionaries
+            if part not in current:
+                current[part] = {}
+            elif not isinstance(current[part], dict):
+                # Raise error if there's a conflict (e.g., {"a": 1, "a.b": 2})
+                raise ValueError(
+                    f"Conflict detected at key: {part}. Cannot merge nested and non-nested keys."
+                )
+            current = current[part]
+        if keys[-1] in current and isinstance(current[keys[-1]], dict):
+            # Raise error if there's a conflict (e.g., {"a.b": {}, "a.b.c": 1})
+            raise ValueError(
+                f"Conflict detected at key: {keys[-1]}. Cannot merge nested and non-nested keys."
+            )
+        current[keys[-1]] = value  # Set the final key to the value
+    return result
+
+
 def add_key_prefix(d: Dict[str, Any], prefix: str) -> Dict[str, Any]:
     """Add a prefix to all first level keys in a dictionary."""
     return {f"{prefix}{k}": v for k, v in d.items()}

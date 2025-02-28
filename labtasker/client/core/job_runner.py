@@ -62,7 +62,7 @@ def loop(
     """Run the wrapped job function in loop.
 
     Args:
-        required_fields: Fields required for task execution
+        required_fields: Fields required for task execution. Note: the dot-separated fields are default to be parsed into a nested dict structure. e.g. ["foo.bar"] will be parsed into {"foo": {"bar": None}}. The same applies for {"foo.bar": None} which will eventually be transformed into {"foo": {"bar": None}}
         extra_filter: Additional filtering criteria for tasks
         cmd: Command line arguments that runs current process. Default to sys.argv
         worker_id: Specific worker ID to use
@@ -73,6 +73,11 @@ def loop(
     """
     if isinstance(required_fields, list):
         required_fields = keys_to_query_dict(required_fields)
+
+    if not isinstance(required_fields, dict):
+        raise LabtaskerValueError(
+            "Invalid required_fields. Required fields must be a dict or a list of str keys."
+        )
 
     if heartbeat_timeout is None:
         heartbeat_timeout = get_client_config().task.heartbeat_interval * 3
