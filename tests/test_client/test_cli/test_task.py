@@ -314,6 +314,85 @@ class TestUpdate:
         "query_mode",
         ["task-id", "task-name", "extra-filter"],
     )
+    def test_update_task_no_interactive_positional_args(
+        self, db_fixture, setup_pending_task, query_mode
+    ):
+        task_id = setup_pending_task
+
+        update_positional_args = ["--task-name", "updated-test-task"]
+
+        if query_mode == "task-id":
+            result = runner.invoke(
+                app,
+                ["task", "update", "--task-id", task_id, "--", *update_positional_args],
+            )
+        elif query_mode == "task-name":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--task-name",
+                    "test-task",
+                    "--",
+                    *update_positional_args,
+                ],
+            )
+        elif query_mode == "extra-filter":
+            result = runner.invoke(
+                app,
+                [
+                    "task",
+                    "update",
+                    "--extra-filter",
+                    f'{{"_id": "{task_id}" }}',
+                    "--",
+                    *update_positional_args,
+                ],
+            )
+        else:
+            assert False
+
+        assert result.exit_code == 0, result.output
+
+        # check output
+        # should be something like:
+
+        # - task_id: b77bd500-e9dd-473c-9524-520743763b29
+        #   queue_id: d205ceed-3836-4940-84eb-caf1940d95f5
+        #   status: pending
+        #   task_name: updated-test-task                    # Modified
+        #   created_at: 2025-02-23 11:41:41.908000
+        #   start_time:
+        #   last_heartbeat:
+        #   last_modified: 2025-02-23 11:41:41.933000
+        #   heartbeat_timeout: 60.0
+        #   task_timeout: 300
+        #   max_retries: 3
+        #   retries: 0
+        #   priority: 10
+        #   metadata:
+        #     tag: test
+        #   args:
+        #     key: value
+        #   cmd: echo hello
+        #   summary: {}
+        #   worker_id:
+
+        # search for modified line
+        assert re.search(
+            r"task_name:\s+updated-test-task\s+#\s+Modified", result.output
+        ), result.output
+
+        # Verify the task is updated
+        task = db_fixture._tasks.find_one({"_id": task_id})
+        assert task is not None
+        assert task["task_name"] == "updated-test-task"
+
+    @pytest.mark.parametrize(
+        "query_mode",
+        ["task-id", "task-name", "extra-filter"],
+    )
     def test_update_task_interactive(
         self, db_fixture, setup_pending_task, query_mode, setup_editor
     ):

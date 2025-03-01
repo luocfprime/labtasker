@@ -92,7 +92,8 @@ def diff(
                 # if changed to readonly field, show a warning
                 if v != prev[i][k]:
                     stderr_console.print(
-                        f"[bold orange1]Warning:[/bold orange1] Field '{k}' is readonly. You are not supposed to modify it. Your modification to this field will be ignored."
+                        f"[bold orange1]Warning:[/bold orange1] Field '{k}' is readonly. "
+                        f"You are not supposed to modify it. Your modification to this field will be ignored."
                     )
                     # the modified field will be ignored by the server
                 continue
@@ -113,14 +114,16 @@ def submit(
         List[str],
         typer.Argument(
             ...,
-            help="Arguments for the task as positional argument. e.g. `labtasker task submit --task-name 'my-task' -- --arg1 foo --arg2 bar`",
+            help="Arguments for the task as positional argument. "
+            "e.g. `labtasker task submit --task-name 'my-task' -- --arg1 foo --arg2 bar`",
         ),
     ] = None,
     task_name: Optional[str] = typer.Option(None, help="Name of the task."),
     option_args: Optional[str] = typer.Option(
         None,
         "--args",
-        help='Arguments for the task as a python dict string in CLI option (e.g., --args \'{"key": "value"}\').',
+        help="Arguments for the task as a python dict string in CLI option "
+        '(e.g., --args \'{"key": "value"}\').',
     ),
     metadata: Optional[str] = typer.Option(
         None,
@@ -155,7 +158,8 @@ def submit(
     """
     if args and option_args:
         raise typer.BadParameter(
-            "You can only specify one of the [ARGS] or `--args`. That is, via positional argument or as an option."
+            "You can only specify one of the [ARGS] or `--args`. "
+            "That is, via positional argument or as an option."
         )
 
     args_dict = parse_metadata(option_args) if option_args else parse_extra_opt(args)
@@ -216,7 +220,8 @@ def ls(
     ),
     quiet: bool = typer.Option(
         False,
-        help="Only show task IDs that match the query, rather than full entry. Useful when using in bash scripts.",
+        help="Only show task IDs that match the query, rather than full entry. "
+        "Useful when using in bash scripts.",
     ),
     pager: bool = typer.Option(
         True,
@@ -277,6 +282,15 @@ def ls(
 @app.command()
 @cli_utils_decorator
 def update(
+    updates: Annotated[
+        List[str],
+        typer.Argument(
+            ...,
+            help="Optional CLI string for updated values of fields. "
+            "e.g. `labtasker task update --task-name 'my-task' -- --arg1 foo --arg2 bar` is the same as "
+            '`labtasker task update --task-name \'my-task\' --update \'{"arg1": "foo", "arg2":"bar"}\'`',
+        ),
+    ] = None,
     task_id: Optional[str] = typer.Option(
         None,
         help="Filter by task ID.",
@@ -291,7 +305,7 @@ def update(
         "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
-    update_dict: Optional[str] = typer.Option(
+    option_updates: Optional[str] = typer.Option(
         None,
         "--update",
         "-u",
@@ -316,6 +330,11 @@ def update(
     ),
 ):
     """Update tasks settings."""
+    if updates and option_updates:
+        raise typer.BadParameter(
+            "You can only specify one of the positional argument [UPDATES] or option --updates."
+        )
+
     extra_filter = parse_metadata(extra_filter)
 
     # readonly fields
@@ -329,7 +348,9 @@ def update(
         readonly_fields.add("status")
         readonly_fields.add("retries")
 
-    update_dict = parse_metadata(update_dict)
+    update_dict = (
+        parse_extra_opt(updates) if updates else parse_metadata(option_updates)
+    )
 
     if not update_dict:  # if no update provided, enter use_editor mode
         use_editor = True
