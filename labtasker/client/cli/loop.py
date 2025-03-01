@@ -5,9 +5,10 @@ Implements `labtasker loop xxx`
 import shlex
 import subprocess
 from collections import defaultdict
-from typing import Optional
+from typing import List, Optional
 
 import typer
+from typing_extensions import Annotated
 
 import labtasker
 import labtasker.client.core.context
@@ -42,11 +43,18 @@ class InfiniteDefaultDict(defaultdict):
 @app.command()
 @cli_utils_decorator
 def loop(
-    cmd: str = typer.Option(
-        ...,
+    cmd: Annotated[
+        List[str],
+        typer.Argument(
+            ...,
+            help="Command to run. Support argument auto interpolation, formatted like %(arg1). E.g. `labtasker loop -- python main.py %(arg1)`",
+        ),
+    ] = None,
+    option_cmd: str = typer.Option(
+        None,
         "--cmd",
         "-c",
-        help="Command to run. Support argument auto interpolation, formatted like %(arg1).",
+        help="Command to run. Support argument auto interpolation, formatted like %(arg1). Same as [CMD], except this can be passed as an option param.",
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
@@ -70,6 +78,17 @@ def loop(
     Job command follows a template string syntax: e.g. `python main.py --arg1 %(arg1) --arg2 %(arg2)`.
     The argument inside %(...) will be autofilled by the task args fetched from task queue.
     """
+    if cmd and option_cmd:
+        raise typer.BadParameter(
+            "Only one of [CMD] and [--cmd] can be specified. Please use one of them."
+        )
+
+    cmd = cmd if cmd else option_cmd
+    if not cmd:
+        raise typer.BadParameter(
+            "Command cannot be empty. Either specify via positional argument [CMD] or `--cmd`."
+        )
+
     extra_filter = parse_metadata(extra_filter)
 
     if heartbeat_timeout is None:
@@ -100,7 +119,11 @@ def loop(
         logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")
 
         with subprocess.Popen(
-            shlex.split(interpolated_cmd),
+            args=(
+                shlex.split(interpolated_cmd)
+                if isinstance(interpolated_cmd, str)
+                else interpolated_cmd
+            ),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

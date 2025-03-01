@@ -1,5 +1,5 @@
 import shlex
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple, Union
 
 from antlr4 import CommonTokenStream, InputStream, ParserRuleContext, ParseTreeWalker
 from antlr4.error.ErrorListener import ErrorListener
@@ -129,9 +129,11 @@ def format_print_error(
 
 
 class CmdListener(LabCmdListener):
-    def __init__(self, variable_table):
+    def __init__(self, variable_table, quote_dict: bool):
         super().__init__()
         self.variable_table = variable_table
+        self.quote_dict = quote_dict
+
         self.result_str = ""
         self.args = set()
         self.variable = None
@@ -160,7 +162,10 @@ class CmdListener(LabCmdListener):
 
         if isinstance(self.variable, dict):
             # convert dict into bash string
-            self.result_str += shlex.quote(reverse_quotes(str(self.variable)))
+            if self.quote_dict:
+                self.result_str += shlex.quote(reverse_quotes(str(self.variable)))
+            else:
+                self.result_str += reverse_quotes(str(self.variable))
         else:
             self.result_str += str(self.variable)
 
@@ -233,13 +238,33 @@ class CustomErrorListener(ErrorListener):
 
 
 def cmd_interpolate(
-    input_str: str, variable_table: Dict[str, Any]
+    cmd: Union[str, List[str]], variable_table: Dict[str, Any]
+) -> Tuple[Union[str, List[str]], Set[str]]:
+    if isinstance(cmd, str):
+        return interpolate_str(cmd, variable_table)
+    else:
+        # cmd is a list of str
+        interpolated_cmd = []
+        involved_keys = set()
+        for c in cmd:
+            interpolated_str, keys = interpolate_str(
+                c, variable_table, quote_dict=False
+            )
+            interpolated_cmd.append(interpolated_str)
+            involved_keys.update(keys)
+
+        return interpolated_cmd, involved_keys
+
+
+def interpolate_str(
+    input_str: str, variable_table: Dict[str, Any], quote_dict: bool = True
 ) -> Tuple[str, Set[str]]:
     """
 
     Args:
         input_str:
         variable_table:
+        quote_dict: quote dict string using shlex.quote
 
     Returns:
         interpolated str, involved keys
@@ -257,7 +282,7 @@ def cmd_interpolate(
     try:
         tree = parser.command()
         # Walk the parse tree with the custom listener
-        listener = CmdListener(variable_table)
+        listener = CmdListener(variable_table=variable_table, quote_dict=quote_dict)
         walker = ParseTreeWalker()
         walker.walk(listener, tree)
     except CmdParserError as e:

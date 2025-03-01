@@ -39,6 +39,16 @@ class TestParseCmd:
         assert split(parsed) == split(tgt_cmd), f"got {parsed}"
         assert len(split(parsed)) == 6, f"got {len(split(parsed))}"
 
+    def test_basic_list(self, params):
+        cmd = split("python main.py --arg1 %(arg1) --arg2 %(arg2)")
+        parsed, _ = cmd_interpolate(cmd, params)
+
+        tgt_cmd = split(
+            'python main.py --arg1 value1 --arg2 \'{"arg3": "value3", "arg4": {"arg5": "value5", "arg6": [0, 1, 2]}}\''
+        )
+        assert len(parsed) == 6, f"got {len(parsed)}"
+        assert parsed == tgt_cmd, f"got {parsed}"
+
     def test_keys_to_query_dict(self, params):
         cmd = "python main.py --arg1 %(arg1) --arg2 %( arg2.arg4.arg5)"
         parsed, keys = cmd_interpolate(cmd, params)
@@ -81,6 +91,10 @@ class TestParseCmd:
         cmd = ""
         parsed, _ = cmd_interpolate(cmd, params)
         assert parsed == "", "Command should remain empty"
+
+        cmd = []
+        parsed, _ = cmd_interpolate(cmd, params)
+        assert parsed == [], "Command should remain empty"
 
     def test_empty_params(self):
         cmd = "python main.py --arg1 %(arg1)"

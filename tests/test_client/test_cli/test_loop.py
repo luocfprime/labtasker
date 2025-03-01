@@ -66,3 +66,41 @@ class TestLoop:
         output_text = Text.from_ansi(result.output).plain
         for i in range(TOTAL_TASKS):
             assert f"Running task {i}" in output_text, output_text
+
+    def test_loop_positional_arg(self, setup_tasks, dummy_job_script_dir):
+        script_path = osp.join(dummy_job_script_dir, "job_1.py")
+        result = runner.invoke(
+            app,
+            [
+                "loop",
+                "--",
+                "python",
+                script_path,
+                "--arg1",
+                "%(arg1)",
+                "--arg2",
+                "%(arg2)",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        output_text = Text.from_ansi(result.output).plain
+        for i in range(TOTAL_TASKS):
+            assert f"Running task {i}" in output_text, output_text
+
+    def test_loop_positional_arg_equal_options(self, setup_tasks, dummy_job_script_dir):
+        script_path = osp.join(dummy_job_script_dir, "job_1.py")
+        result = runner.invoke(
+            app,
+            [
+                "loop",
+                "--",
+                "python",
+                script_path,
+                "--arg1=%(arg1)",
+                "--arg2=%(arg2)",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        output_text = Text.from_ansi(result.output).plain
+        for i in range(TOTAL_TASKS):
+            assert f"Running task {i}" in output_text, output_text
