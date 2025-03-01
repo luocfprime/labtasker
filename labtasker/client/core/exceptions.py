@@ -19,6 +19,12 @@ class LabtaskerValueError(LabtaskerError, ValueError):
     pass
 
 
+class LabtaskerTypeError(LabtaskerError, ValueError):
+    """General type error"""
+
+    pass
+
+
 class LabtaskerNetworkError(LabtaskerError):
     """General network error"""
 

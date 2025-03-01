@@ -15,6 +15,7 @@ from rich.json import JSON
 from rich.syntax import Syntax
 from starlette.status import HTTP_401_UNAUTHORIZED
 
+from labtasker import LabtaskerTypeError, LabtaskerValueError
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.logging import stderr_console
@@ -70,7 +71,7 @@ def parse_extra_opt(
     elif isinstance(args, list):
         tokens = args
     else:
-        raise TypeError("Invalid type for args. Must be a string or list.")
+        raise LabtaskerTypeError("Invalid type for args. Must be a string or list.")
 
     parsed_options = {}
 
@@ -141,7 +142,7 @@ def parse_extra_opt(
             continue
 
         # If none of the patterns match, raise an error
-        raise ValueError(f"Unexpected token: {token}")
+        raise LabtaskerValueError(f"Unexpected token: {token}")
 
     if decompose_dot_separated_options:
         parsed_options = unflatten_dict(parsed_options)
