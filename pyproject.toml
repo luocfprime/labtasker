@@ -71,7 +71,7 @@ Documentation = "https://fkcptlst.github.io/labtasker"
 Repository = "https://github.com/fkcptlst/labtasker.git"
 
 [project.scripts]
-labtasker = "labtasker.__main__:app"
+labtasker = "labtasker.__main__:main"
 
 [tool.setuptools]
 packages = ["labtasker"]

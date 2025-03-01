@@ -65,3 +65,39 @@ class TestSanitizeSensitiveTraceback:
         )
         assert dummy_password not in output
         assert placeholder(dummy_password) in output
+
+    def test_typer_single_exception(self):
+        result = subprocess.run(
+            "typer tests/test_filtering/exception_utils.py run typer-single-exception",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert dummy_password not in result.stderr
+        assert placeholder(dummy_password) in result.stderr
+
+    def test_typer_chained_exception(self):
+        result = subprocess.run(
+            "typer tests/test_filtering/exception_utils.py run typer-chained-exception",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert dummy_password not in result.stderr
+        assert placeholder(dummy_password) in result.stderr
+
+    def test_typer_fastapi_http_exception(self):
+        result = subprocess.run(
+            "typer tests/test_filtering/exception_utils.py run typer-fastapi-http-exception",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert dummy_password not in result.stderr
+        assert placeholder(dummy_password) in result.stderr

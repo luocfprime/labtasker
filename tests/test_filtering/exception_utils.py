@@ -1,3 +1,4 @@
+import typer
 from fastapi import HTTPException
 
 from labtasker.filtering import (
@@ -5,6 +6,8 @@ from labtasker.filtering import (
     register_sensitive_text,
     set_traceback_filter_hook,
 )
+
+app = typer.Typer()
 
 dummy_password = "mypassword"
 register_sensitive_text(dummy_password)
@@ -46,3 +49,26 @@ def raise_with_decorator():
 
 def raise_fastapi_http_exception():
     raise HTTPException(status_code=500, detail=f"password={dummy_password}")
+
+
+@app.command()
+def typer_single_exception():
+    raise_single_exception()
+
+
+@app.command()
+def typer_chained_exception():
+    raise_chained_exception()
+
+
+@app.command()
+def typer_fastapi_http_exception():
+    raise_fastapi_http_exception()
+
+
+def main():
+    return typer.main.get_command(app)()
+
+
+if __name__ == "__main__":
+    main()

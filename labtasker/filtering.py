@@ -1,8 +1,11 @@
+import os
 import sys
 from contextlib import contextmanager
-from typing import Set
+from types import TracebackType
+from typing import Optional, Set, Type
 
-from fastapi.exceptions import HTTPException
+from rich.traceback import Traceback
+from typer.main import console_stderr
 
 _registered_sensitive_texts: Set[str] = set()
 _hook_enabled = True
@@ -19,6 +22,22 @@ def sanitize_text(text: str):
     return text
 
 
+def sanitize_single_exception(exc_value):
+    # Sanitize sensitive information in exception args
+    sanitized_args = [
+        sanitize_text(arg) if isinstance(arg, str) else arg for arg in exc_value.args
+    ]
+
+    exc_value.args = tuple(sanitized_args)
+
+    # Sanitize sensitive information in exception strings
+    for k, v in getattr(exc_value, "__dict__", {}).items():
+        if isinstance(v, str):
+            setattr(exc_value, k, sanitize_text(v))
+
+    return exc_value
+
+
 def sanitize_exception_chain(exc):
     """
     Recursively sanitize exception messages in the exception chain, including
@@ -28,8 +47,7 @@ def sanitize_exception_chain(exc):
         return None
 
     # Sanitize the current exception message
-    sanitized_msg = sanitize_text(str(exc))
-    sanitized_exc = type(exc)(sanitized_msg)
+    sanitized_exc = sanitize_single_exception(exc)
 
     # Recursively sanitize __cause__ and __context__
     sanitized_exc.__cause__ = sanitize_exception_chain(exc.__cause__)
@@ -39,35 +57,52 @@ def sanitize_exception_chain(exc):
 
 
 def install_traceback_filter():
-    """Install a system-wide traceback filter for sensitive information"""
+    """Install a system-wide traceback filter with rich pretty-print support."""
     original_excepthook = sys.excepthook
 
-    def filtered_excepthook(exc_type, exc_value, exc_tb):
+    def filtered_excepthook(
+        exc_type: Type[BaseException],
+        exc_value: BaseException,
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         if not _hook_enabled:
             original_excepthook(exc_type, exc_value, exc_tb)
             return
 
-        sanitized_msg = sanitize_text(str(exc_value) if exc_value else "")
+        sanitized_exc = sanitize_exception_chain(exc_value)
 
-        if issubclass(exc_type, HTTPException):
-            # preserve http status code
-            sanitized_exc = HTTPException(
-                status_code=(
-                    exc_value.status_code if hasattr(exc_value, "status_code") else 500
-                ),
-                detail=sanitized_msg,
-                headers=getattr(exc_value, "headers", None),
+        # If the sanitized exception still contains sensitive content, print a warning and return
+        if sanitized_exc.__str__() != sanitize_text(
+            sanitized_exc.__str__()
+        ) or sanitized_exc.__repr__() != sanitize_text(sanitized_exc.__repr__()):
+            console_stderr.print(
+                "[bold orange1]Warning:[/bold orange1] Trackback sensitive content filtering failed. Traceback is intercepted and omitted from printing."
             )
-        else:
-            sanitized_exc = exc_type(sanitized_msg)
+            return
 
-        original_excepthook(exc_type, sanitized_exc, exc_tb)
+        # Paths to suppress from traceback output
+        suppress_internal_dir_names = [
+            os.path.dirname(__file__),
+        ]
 
+        # Use rich traceback for pretty output
+        rich_tb = Traceback.from_exception(
+            type(sanitized_exc),
+            sanitized_exc,
+            exc_tb,
+            show_locals=False,  # Do not show locals
+            suppress=suppress_internal_dir_names,
+            width=80,  # Set a default width
+        )
+        console_stderr.print(rich_tb)
+
+    # Install the custom excepthook
     sys.excepthook = filtered_excepthook
 
 
 @contextmanager
 def filter_exception():
+    """Remove the old exception chain, filters sensitive content."""
     try:
         yield
     except Exception as e:

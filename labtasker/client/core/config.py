@@ -66,6 +66,9 @@ class PluginConfig(BaseSettings):
 class ClientConfig(BaseSettings):
     endpoint: EndpointConfig
 
+    # whether to filter sensitive content from traceback via excepthook
+    enable_traceback_filter: bool = True
+
     queue: QueueConfig
 
     task: TaskConfig = Field(default_factory=TaskConfig)
