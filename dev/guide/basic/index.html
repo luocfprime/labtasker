@@ -791,8 +791,10 @@ you can create one from the previously configured config.</strong></p>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>arg2<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="o">{</span><span class="m">3</span>..5<span class="o">}</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">        </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Submitting with arg1=</span><span class="nv">$arg1</span><span class="s2">, arg2=</span><span class="nv">$arg2</span><span class="s2">&quot;</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">        </span>labtasker<span class="w"> </span>task<span class="w"> </span>submit<span class="w"> </span>--args<span class="w"> </span><span class="s1">&#39;{&quot;arg1&quot;: &#39;</span><span class="nv">$arg1</span><span class="s1">&#39;, &quot;arg2&quot;: &#39;</span><span class="nv">$arg2</span><span class="s1">&#39;}&#39;</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="k">done</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">done</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">        </span><span class="c1"># Also a simpler equivalent fashion using -- as delimiter</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">        </span><span class="c1"># labtasker task submit -- --arg1 $arg1 --arg2 $arg2</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="k">done</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="k">done</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
@@ -818,6 +820,9 @@ you can create one from the previously configured config.</strong></p>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># This script run jobs in loop by calling python job_main.py via labtasker loop</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># The argument can be automatically injected into the command line via %(...) syntax</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;python demo/bash_demo/job_main.py --arg1 %(arg1) --arg2 %(arg2)&#39;</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Also a simpler fashion:</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># labtasker loop -- python demo/bash_demo/job_main.py --arg1 &#39;%(arg1)&#39; --arg2 &#39;%(arg2)&#39;</span>
 </code></pre></div>
 <p>where</p>
 <div class="highlight"><span class="filename">demo/bash_demo/job_main.py</span><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="s2">&quot;&quot;&quot;</span>
