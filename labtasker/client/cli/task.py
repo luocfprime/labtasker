@@ -15,6 +15,7 @@ import yaml
 from pydantic import ValidationError
 from rich.syntax import Syntax
 from starlette.status import HTTP_404_NOT_FOUND
+from typing_extensions import Annotated
 
 from labtasker.api_models import Task, TaskUpdateRequest
 from labtasker.client.core.api import (
@@ -31,6 +32,7 @@ from labtasker.client.core.cli_utils import (
     confirm,
     ls_format_iter,
     pager_iterator,
+    parse_extra_opt,
     parse_metadata,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
@@ -107,10 +109,18 @@ def diff(
 @app.command()
 @cli_utils_decorator
 def submit(
+    args: Annotated[
+        List[str],
+        typer.Argument(
+            ...,
+            help="Arguments for the task as positional argument. e.g. `labtasker task submit --task-name 'my-task' -- --arg1 foo --arg2 bar`",
+        ),
+    ] = None,
     task_name: Optional[str] = typer.Option(None, help="Name of the task."),
-    args: Optional[str] = typer.Option(
+    option_args: Optional[str] = typer.Option(
         None,
-        help='Arguments for the task as a python dict string (e.g., \'{"key": "value"}\').',
+        "--args",
+        help='Arguments for the task as a python dict string in CLI option (e.g., --args \'{"key": "value"}\').',
     ),
     metadata: Optional[str] = typer.Option(
         None,
@@ -118,7 +128,10 @@ def submit(
     ),
     cmd: Optional[str] = typer.Option(
         None,
-        help="Command to execute for the task.",
+        help="The command intended to execute the task. "
+        "It is better to use task arguments instead of cmd, "
+        "as cmd is rarely used in the task dispatch workflow "
+        "and may be overwritten during task loop execution.",
     ),
     heartbeat_timeout: Optional[float] = typer.Option(
         60,
@@ -140,7 +153,12 @@ def submit(
     """
     Submit a new task to the queue.
     """
-    args_dict = parse_metadata(args) if args else {}
+    if args and option_args:
+        raise typer.BadParameter(
+            "You can only specify one of the [ARGS] or `--args`. That is, via positional argument or as an option."
+        )
+
+    args_dict = parse_metadata(option_args) if option_args else parse_extra_opt(args)
     metadata_dict = parse_metadata(metadata) if metadata else {}
 
     task_id = submit_task(

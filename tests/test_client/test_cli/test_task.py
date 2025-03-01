@@ -77,6 +77,35 @@ class TestSubmit:
         assert task["args"] == {"key": "value"}
         assert task["metadata"] == {}
 
+    def test_submit_task_positional_args(
+        self, db_fixture, cli_create_queue_from_config
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "task",
+                "submit",
+                # options
+                "--task-name",
+                "new-test-task",
+                "--metadata",
+                '{"tag": "test"}',
+                "--",  # delimiter
+                # positional args after "--"
+                "--foo.bar",
+                "hello",
+                "--foo.foo",
+                "hi",
+            ],
+        )
+        assert result.exit_code == 0, result.output + result.stderr
+
+        # Verify task is created
+        task = db_fixture._tasks.find_one({"task_name": "new-test-task"})
+        assert task is not None
+        assert task["args"] == {"foo": {"bar": "hello", "foo": "hi"}}
+        assert task["metadata"] == literal_eval('{"tag": "test"}')
+
 
 @pytest.fixture
 def setup_pending_task(db_fixture, cli_create_queue_from_config):

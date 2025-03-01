@@ -1,7 +1,9 @@
+import re
+import shlex
 from ast import literal_eval
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, Iterable, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import httpx
 import pydantic
@@ -16,7 +18,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.logging import stderr_console
-from labtasker.utils import parse_timeout
+from labtasker.utils import parse_timeout, unflatten_dict
 
 
 class LsFmtChoices(str, Enum):
@@ -38,6 +40,139 @@ def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
         return parsed
     except (ValueError, SyntaxError) as e:
         raise typer.BadParameter(f"Invalid metadata: {e}")
+
+
+def parse_extra_opt(
+    args: Union[List[str], str],
+    *,
+    ignore_flag_options: bool = True,
+    to_primitive: bool = True,
+    decompose_dot_separated_options: bool = True,
+    normalize_dash: bool = True,
+) -> Dict[str, Any]:
+    """
+    Parses CLI options using shlex for tokenization and regex for pattern matching.
+
+    Args:
+        args: A string of CLI options (e.g., "--arg1 foo --arg2 bar -v -abc --flag").
+        ignore_flag_options: When set to True, skip flag options (e.g. --verbose, -abc).
+                             If False, treat options without values as flags (boolean True).
+        to_primitive: Cast the parsed value to Python primitive using ast.literal_eval.
+        decompose_dot_separated_options: Decompose dot separated options into nested dict. e.g. --foo.bar hi -> {"foo": {"bar": "hi}}
+        normalize_dash: Replace '-' with '_'. E.g. --foo-bar -> 'foo_bar'
+
+    Returns:
+        A parsed nested data dict.
+    """
+    # Tokenize the input string using shlex
+    if isinstance(args, str):
+        tokens = shlex.split(args)
+    elif isinstance(args, list):
+        tokens = args
+    else:
+        raise TypeError("Invalid type for args. Must be a string or list.")
+
+    parsed_options = {}
+
+    # Regex patterns for different types of arguments
+    long_option_pattern = (
+        r"^--([a-zA-Z0-9_.-]+)(?:=(.*))?$"
+        # Matches --key=value or --key, supports mixed case, dots, underscores, and dashes
+    )
+    short_option_pattern = r"^-(\w)$"  # Matches -a
+    grouped_short_pattern = r"^-(\w{2,})$"  # Matches -abc
+
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+
+        # Match long options (e.g., --foo.bar=value or --foo.bar)
+        long_match = re.match(long_option_pattern, token)
+        if long_match:
+            key, value = long_match.groups()
+            if value is None:  # Case: --foo.bar value or --foo.bar
+                if i + 1 < len(tokens) and not tokens[i + 1].startswith("-"):
+                    value = tokens[i + 1]
+                    i += 1  # Skip the value token
+                else:
+                    # Handle flags like --foo.bar
+                    if ignore_flag_options:
+                        i += 1
+                        continue
+                    value = True
+
+            # Optionally convert the value to a Python primitive type
+            if to_primitive and isinstance(value, str):
+                try:
+                    value = literal_eval(value)
+                except (ValueError, SyntaxError):
+                    pass
+
+            if normalize_dash:
+                key = key.replace("-", "_")
+
+            parsed_options[key] = value
+            i += 1
+            continue
+
+        # Match single short options (e.g., -a)
+        short_match = re.match(short_option_pattern, token)
+        if short_match:
+            key = short_match.group(1)
+            if i + 1 < len(tokens) and not tokens[i + 1].startswith("-"):
+                value = tokens[i + 1]
+                i += 1  # Skip the value token
+            else:
+                if ignore_flag_options:
+                    i += 1
+                    continue
+                value = True
+            parsed_options[key] = value
+            i += 1
+            continue
+
+        # Match grouped short options (e.g., -abc)
+        grouped_match = re.match(grouped_short_pattern, token)
+        if grouped_match:
+            for char in grouped_match.group(1):
+                if not ignore_flag_options:
+                    parsed_options[char] = True
+            i += 1
+            continue
+
+        # If none of the patterns match, raise an error
+        raise ValueError(f"Unexpected token: {token}")
+
+    if decompose_dot_separated_options:
+        parsed_options = unflatten_dict(parsed_options)
+
+    return parsed_options
+
+
+def split_end_of_options(argv: List[str]) -> Tuple[List[str], str]:
+    """
+    Split the input list by the first occurrence of '--', and join the parts
+    after '--' as a string. Returns the split result as a tuple of two parts:
+    (before '--' as a list, after '--' as a string).
+
+    Args:
+        argv (List[str]): A list of command-line arguments.
+
+    Returns:
+        Tuple[List[str], str]: A tuple where the first element is the part of
+        the list before '--', and the second element is a string containing
+        the joined arguments after '--'. If '--' is not found, the second
+        element is an empty string.
+    """
+    if "--" in argv:
+        index = argv.index("--")
+        before_options = argv[:index]
+        after_options = " ".join(argv[index + 1 :])
+    else:
+        before_options = argv
+        after_options = ""
+
+    return before_options, after_options
 
 
 def eta_max_validation(value: Optional[str]):

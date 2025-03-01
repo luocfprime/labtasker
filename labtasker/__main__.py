@@ -6,7 +6,8 @@ from labtasker.client.cli import app
 
 
 def main():
-    return typer.main.get_command(app)()
+    # Use this to invoke command to prevent typer overriding exception hook
+    return typer.main.get_command(app).main()
 
 
 if __name__ == "__main__":
