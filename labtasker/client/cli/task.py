@@ -352,7 +352,7 @@ def update(
             "You can only specify one of the positional argument [UPDATES] or option --update."
         )
 
-    updates = updates if updates else shlex.split(option_updates)
+    updates = updates if updates else shlex.split(option_updates or "")
 
     extra_filter = parse_metadata(extra_filter)
 
