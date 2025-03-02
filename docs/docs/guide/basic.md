@@ -6,11 +6,13 @@
 
     Labtasker supports 2 sets of client APIs:
 
-    - Python: Modify your Python code with a few lines of changes to support Labtasker.
-    - Bash: No modification to your Python code is required. Simply wrap your command with `labtasker loop ...`.
+    - Python Demo: Modify your Python Demo code with a few lines of changes to support Labtasker.
+    - Bash Demo: No modification to your Python Demo code is required. Simply wrap your command with `labtasker loop ...`.
 
 
 !!! note "demo step by step"
+
+    This is a step-by-step demo of the basic workflow described in this page.
 
     <script src="https://asciinema.org/a/tRC0sFsoITjBr0Ik4e9DLXLEm.js" id="asciicast-tRC0sFsoITjBr0Ik4e9DLXLEm" async="true"></script>
 
@@ -43,23 +45,31 @@ you can create one from the previously configured config.**
 labtasker queue create-from-config
 ```
 
-## Step 1. Submit job arguments via Python or CLI tool
+!!! tip ""
 
-=== "Bash"
+    See more details in [Queue Manual#create](./manual_queue.md#create).
+
+## Step 1. Submit job arguments via Python Demo or CLI tool
+
+=== "Bash Demo"
 
     ```bash title="demo/bash_demo/submit_job.sh"
     --8<-- "demo/bash_demo/submit_job.sh"
     ```
 
-=== "Python"
+=== "Python Demo"
 
     ```python title="demo/python_demo/submit_job.py"
     --8<-- "demo/python_demo/submit_job.py"
     ```
 
+!!! tip ""
+
+    See more details in [Task Manual#submit-tasks](./manual_task.md#submit-tasks).
+
 ## Step 2. Run job
 
-=== "Bash"
+=== "Bash Demo"
 
     ```bash title="demo/bash_demo/run_job.sh"
     --8<-- "demo/bash_demo/run_job.sh"
@@ -71,7 +81,7 @@ labtasker queue create-from-config
     --8<-- "demo/bash_demo/job_main.py"
     ```
 
-=== "Python"
+=== "Python Demo"
 
     ```python title="demo/python_demo/run_job.py"
     --8<-- "demo/python_demo/run_job.py"
@@ -90,3 +100,7 @@ labtasker queue create-from-config
     ```bash
     labtasker task ls --extra-filter '{"status": "running"}'
     ```
+
+!!! tip ""
+
+    See more details in [Loop Manual#create](./manual_loop.md).

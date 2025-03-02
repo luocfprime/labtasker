@@ -4,8 +4,13 @@ nav:
     - Install Tool: install/install.md
     - Server Deployment: install/deployment.md
   - User Guide:
-    - Basic Usage: guide/basic.md
-    - Advanced Features: guide/advanced.md
+    - Tutorial:
+      - Basic Workflow: guide/basic.md
+      - Advanced Features: guide/advanced.md
+    - Manual:
+      - queue: guide/manual_queue.md
+      - task: guide/manual_task.md
+      - loop (run job): guide/manual_loop.md
   - Development Guide:
     - Development: develop/development.md
     - Documentation: develop/documentation.md
