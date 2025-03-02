@@ -233,7 +233,7 @@ class TestUpdate:
         self, db_fixture, setup_pending_task, query_mode
     ):
         task_id = setup_pending_task
-        update = "task_name=updated-test-task cmd='echo hi'"
+        updates = ["task_name=updated-test-task", "cmd='echo hi'"]
 
         if query_mode == "task-id":
             result = runner.invoke(
@@ -243,8 +243,10 @@ class TestUpdate:
                     "update",
                     "--task-id",
                     task_id,
-                    "--update",
-                    update,
+                    "-u",
+                    updates[0],
+                    "-u",
+                    updates[1],
                 ],
             )
         elif query_mode == "task-name":
@@ -255,8 +257,10 @@ class TestUpdate:
                     "update",
                     "--task-name",
                     "test-task",
-                    "--update",
-                    update,
+                    "-u",
+                    updates[0],
+                    "-u",
+                    updates[1],
                 ],
             )
         elif query_mode == "extra-filter":
@@ -267,8 +271,10 @@ class TestUpdate:
                     "update",
                     "--extra-filter",
                     f'{{"_id": "{task_id}" }}',
-                    "--update",
-                    update,
+                    "-u",
+                    updates[0],
+                    "-u",
+                    updates[1],
                 ],
             )
         else:
@@ -461,7 +467,7 @@ class TestUpdate:
                 "update",
                 "--extra-filter",
                 f'{{"_id": "{task_id}", "status": "finished"}}',
-                "--update",
+                "-u",
                 update,
                 "--reset-pending",
             ],

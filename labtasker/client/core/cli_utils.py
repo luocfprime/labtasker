@@ -180,7 +180,8 @@ def parse_updates(
             key, value = match.groups()
             if value is None:
                 raise LabtaskerValueError(
-                    f"Invalid update: {update}. Got {match.groups()}"
+                    f"Invalid update: {update}. Got {match.groups()} "
+                    f"Updates: {updates}"
                 )
 
             if normalize_dash:
@@ -209,10 +210,13 @@ def parse_updates(
                     parsed_updates[toplevel][subfields] = value
                 else:
                     raise LabtaskerValueError(
-                        f"Invalid update: {update}. {toplevel} is not in top_level_fields {top_level_fields}."
+                        f"Invalid update: {update}. {toplevel} is not in top_level_fields {top_level_fields}. "
+                        f"Updates: {updates}"
                     )
         else:
-            raise LabtaskerValueError(f"Invalid update: {update}, no matching pattern.")
+            raise LabtaskerValueError(
+                f"Invalid update: {update}, no matching pattern. " f"Updates: {updates}"
+            )
 
     return replace_fields, parsed_updates
 

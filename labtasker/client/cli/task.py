@@ -3,7 +3,6 @@ Task related CRUD operations.
 """
 
 import io
-import shlex
 import tempfile
 from functools import partial
 from typing import Any, Dict, List, Optional, Set
@@ -158,7 +157,7 @@ def submit(
     ),
     priority: Optional[int] = typer.Option(
         Priority.MEDIUM,
-        help="Priority of the task.",
+        help="Priority of the task. The larger the number, the higher the priority.",
     ),
 ):
     """
@@ -301,7 +300,7 @@ def update(
         typer.Argument(
             ...,
             help="Updated values of fields (recommended over --update option). "
-            "e.g. `labtasker task update --task-name 'my-task' -- args.arg1=1.20 metadata.label='test'`",
+            "e.g. `labtasker task update --task-name 'my-task' -- args.arg1=1.20 metadata.label=test`",
         ),
     ] = None,
     task_id: Optional[str] = typer.Option(
@@ -322,11 +321,12 @@ def update(
         "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\').',
     ),
-    option_updates: Optional[str] = typer.Option(
+    option_updates: Optional[List[str]] = typer.Option(
         None,
         "--update",
         "-u",
-        help="Updated values of fields. E.g. `labtasker task update --update args.arg1 foo metadata.tag test`",
+        help="Updated values of fields. Specify multiple options via repeating `-u`. "
+        "E.g. `labtasker task update -u args.arg1=foo -u metadata.tag=test`",
     ),
     offset: int = typer.Option(
         0,
@@ -352,7 +352,7 @@ def update(
             "You can only specify one of the positional argument [UPDATES] or option --update."
         )
 
-    updates = updates if updates else shlex.split(option_updates or "")
+    updates = updates if updates else option_updates
 
     extra_filter = parse_metadata(extra_filter)
 
@@ -456,7 +456,6 @@ def update(
         update_dicts = [update_dict] * len(old_tasks)
         replace_fields_list = [replace_fields] * len(old_tasks)
 
-    print(update_dicts)
     for i, (ud, replace_fields) in enumerate(
         zip(update_dicts, replace_fields_list)
     ):  # ud: update dict list entry
