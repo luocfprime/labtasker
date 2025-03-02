@@ -121,7 +121,12 @@ def submit(
             "e.g. `labtasker task submit --task-name 'my-task' -- --arg1 foo --arg2 bar`",
         ),
     ] = None,
-    task_name: Optional[str] = typer.Option(None, help="Name of the task."),
+    task_name: Optional[str] = typer.Option(
+        None,
+        "--task-name",
+        "--name",
+        help="Name of the task.",
+    ),
     option_args: Optional[str] = typer.Option(
         None,
         "--args",
@@ -211,10 +216,14 @@ def report(
 def ls(
     task_id: Optional[str] = typer.Option(
         None,
+        "--task-id",
+        "--id",
         help="Filter by task ID.",
     ),
     task_name: Optional[str] = typer.Option(
         None,
+        "--task-name",
+        "--name",
         help="Filter by task name.",
     ),
     extra_filter: Optional[str] = typer.Option(
@@ -297,10 +306,14 @@ def update(
     ] = None,
     task_id: Optional[str] = typer.Option(
         None,
+        "--task-id",
+        "--id",
         help="Filter by task ID.",
     ),
     task_name: Optional[str] = typer.Option(
         None,
+        "--task-name",
+        "--name",
         help="Filter by task name.",
     ),
     extra_filter: Optional[str] = typer.Option(

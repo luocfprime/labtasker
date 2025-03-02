@@ -36,6 +36,8 @@ app = typer.Typer()
 def create(
     worker_name: Optional[str] = typer.Option(
         None,
+        "--worker-name",
+        "--name",
         help="Name of the worker.",
     ),
     metadata: Optional[str] = typer.Option(
@@ -72,10 +74,14 @@ def create(
 def ls(
     worker_id: Optional[str] = typer.Option(
         None,
+        "--worker-id",
+        "--id",
         help="Filter by worker ID.",
     ),
     worker_name: Optional[str] = typer.Option(
         None,
+        "--worker-name",
+        "--name",
         help="Filter by worker name.",
     ),
     extra_filter: Optional[str] = typer.Option(
