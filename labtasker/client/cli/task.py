@@ -39,6 +39,7 @@ from labtasker.client.core.cli_utils import (
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
 from labtasker.client.core.logging import stderr_console, stdout_console
+from labtasker.constants import Priority
 
 app = typer.Typer()
 
@@ -151,7 +152,7 @@ def submit(
         help="Maximum number of retries for the task.",
     ),
     priority: Optional[int] = typer.Option(
-        1,
+        Priority.MEDIUM,
         help="Priority of the task.",
     ),
 ):
@@ -289,7 +290,7 @@ def update(
         typer.Argument(
             ...,
             help="Updated values of fields (recommended over --update option). "
-            "e.g. `labtasker task update --task-name 'my-task' -- args.arg1=foo metadata.label=test`",
+            "e.g. `labtasker task update --task-name 'my-task' -- args.arg1=1.20 metadata.label='test'`",
         ),
     ] = None,
     task_id: Optional[str] = typer.Option(
@@ -304,7 +305,7 @@ def update(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 0}]}\').',  # TODO: check priority
     ),
     option_updates: Optional[str] = typer.Option(
         None,
