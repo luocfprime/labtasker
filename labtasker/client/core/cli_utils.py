@@ -1,6 +1,7 @@
 import re
 import shlex
 from ast import literal_eval
+from collections import defaultdict
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
@@ -60,7 +61,7 @@ def parse_extra_opt(
                              If False, treat options without values as flags (boolean True).
         to_primitive: Cast the parsed value to Python primitive using ast.literal_eval.
         decompose_dot_separated_options: Decompose dot separated options into nested dict. e.g. --foo.bar hi -> {"foo": {"bar": "hi}}
-        normalize_dash: Replace '-' with '_'. E.g. --foo-bar -> 'foo_bar'
+        normalize_dash: Replace '-' with '_' in the field names. E.g. --foo-bar -> 'foo_bar'
 
     Returns:
         A parsed nested data dict.
@@ -148,6 +149,60 @@ def parse_extra_opt(
         parsed_options = unflatten_dict(parsed_options)
 
     return parsed_options
+
+
+def parse_updates(
+    updates: List[str],
+    top_level_fields: List[str],
+    *,
+    normalize_dash: bool = True,
+) -> Tuple[List[str], Dict[str, Any]]:
+    """
+
+    Args:
+        updates: List of string parsed using shlex. Syntax: e.g. ["args.arg1=0", "metadata.label='foo'"]
+        top_level_fields: List of string indicating top level field names.
+        normalize_dash: Turn dash in field names into underscore. E.g. ["args.arg-foo=0"] -> ["args.arg_foo=0"]
+
+    Returns:
+        replace_fields: whether fields should be replaced from root
+        update_dict: a dict to form TaskUpdateRequest
+    """
+    parsed_updates = {}
+    replace_fields = []
+
+    assign_pattern = r"^(?!-)([a-zA-Z0-9_.-]+)(?:=(.*))?$"  # does not start with '-'
+
+    for update in updates:
+        match = re.match(assign_pattern, update)
+        if match:
+            key, value = match.groups()
+            if value is None:
+                raise LabtaskerValueError(
+                    f"Invalid update: {update}. Got {match.groups()}"
+                )
+
+            if normalize_dash:
+                key = key.replace("-", "_")
+
+            if key in top_level_fields:
+                # updates like args={}, that means to replace the whole args
+                parsed_updates[key] = value
+                replace_fields.append(key)
+            else:  # try to split via '.' e.g. args.foo.bar = 0 -> {"args": {"foo.bar" : 0}}
+                toplevel, subfields = key.split(".", 1)
+                if toplevel in top_level_fields:
+                    if toplevel not in parsed_updates:
+                        parsed_updates[toplevel] = {}
+                    parsed_updates[toplevel][subfields] = value
+                else:
+                    raise LabtaskerValueError(
+                        f"Invalid update: {update}. {toplevel} is not in top_level_fields {top_level_fields}."
+                    )
+        else:
+            raise LabtaskerValueError(f"Invalid update: {update}, no matching pattern.")
+
+    return replace_fields, parsed_updates
 
 
 def split_end_of_options(argv: List[str]) -> Tuple[List[str], str]:

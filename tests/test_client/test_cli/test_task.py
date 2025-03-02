@@ -233,7 +233,7 @@ class TestUpdate:
         self, db_fixture, setup_pending_task, query_mode
     ):
         task_id = setup_pending_task
-        update_dict = '{"task_name": "updated-test-task"}'
+        update = "task_name=updated-test-task cmd='echo hi'"
 
         if query_mode == "task-id":
             result = runner.invoke(
@@ -244,7 +244,7 @@ class TestUpdate:
                     "--task-id",
                     task_id,
                     "--update",
-                    update_dict,
+                    update,
                 ],
             )
         elif query_mode == "task-name":
@@ -256,7 +256,7 @@ class TestUpdate:
                     "--task-name",
                     "test-task",
                     "--update",
-                    update_dict,
+                    update,
                 ],
             )
         elif query_mode == "extra-filter":
@@ -268,7 +268,7 @@ class TestUpdate:
                     "--extra-filter",
                     f'{{"_id": "{task_id}" }}',
                     "--update",
-                    update_dict,
+                    update,
                 ],
             )
         else:
@@ -296,7 +296,7 @@ class TestUpdate:
         #     tag: test
         #   args:
         #     key: value
-        #   cmd: echo hello
+        #   cmd: echo hi                    # Modified
         #   summary: {}
         #   worker_id:
 
@@ -304,6 +304,7 @@ class TestUpdate:
         assert re.search(
             r"task_name:\s+updated-test-task\s+#\s+Modified", result.output
         ), result.output
+        assert re.search(r"cmd:\s+echo hi\s+#\s+Modified", result.output), result.output
 
         # Verify the task is updated
         task = db_fixture._tasks.find_one({"_id": task_id})
@@ -319,7 +320,7 @@ class TestUpdate:
     ):
         task_id = setup_pending_task
 
-        update_positional_args = ["--task-name", "updated-test-task"]
+        update_positional_args = ["task-name=updated-test-task", "cmd=echo hi"]
 
         if query_mode == "task-id":
             result = runner.invoke(
@@ -436,7 +437,7 @@ class TestUpdate:
         else:
             assert False
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, result.output + result.stderr
 
         assert re.search(
             r"task_name:\s+updated-test-task\s+#\s+Modified", result.output
@@ -447,9 +448,9 @@ class TestUpdate:
         assert task is not None
         assert task["task_name"] == "updated-test-task"
 
-    def test_update_task_readonly_field(self, capfd, db_fixture, setup_pending_task):
+    def test_update_task_readonly_field(self, db_fixture, setup_pending_task):
         task_id = setup_pending_task
-        update_dict = '{"task_name": "updated-test-task"}'
+        update = "task_name=updated-test-task"
 
         # when --reset-pending is set,
         # "status" becomes readonly field since it will be handled internally
@@ -461,13 +462,13 @@ class TestUpdate:
                 "--extra-filter",
                 f'{{"_id": "{task_id}", "status": "finished"}}',
                 "--update",
-                update_dict,
+                update,
                 "--reset-pending",
             ],
         )
 
         # the update would still be successful, only with the "status" field being ignored
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, result.output + result.stderr
 
         # check if the warning showed up
         assert result.stderr.find(

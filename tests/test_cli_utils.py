@@ -1,7 +1,12 @@
 import pytest
 import typer
 
-from labtasker.client.core.cli_utils import parse_extra_opt, parse_metadata
+from labtasker import LabtaskerValueError
+from labtasker.client.core.cli_utils import (
+    parse_extra_opt,
+    parse_metadata,
+    parse_updates,
+)
 
 
 @pytest.mark.unit
@@ -145,3 +150,82 @@ class TestParseExtraOpt:
         result = parse_extra_opt(args, ignore_flag_options=True)
         expected = {}
         assert result == expected
+
+
+@pytest.mark.unit
+class TestParseUpdates:
+    def test_valid_updates_with_normalization(self):
+        updates = ["args.arg-foo=42", "metadata.label='test'"]
+        top_level_fields = ["args", "metadata"]
+        replace_fields, update_dict = parse_updates(
+            updates, top_level_fields, normalize_dash=True
+        )
+
+        assert replace_fields == []
+        assert update_dict == {
+            "args": {"arg_foo": "42"},
+            "metadata": {"label": "'test'"},
+        }
+
+    def test_valid_updates_without_normalization(self):
+        updates = ["args.arg-foo=42", "metadata.label='test'"]
+        top_level_fields = ["args", "metadata"]
+        replace_fields, update_dict = parse_updates(
+            updates, top_level_fields, normalize_dash=False
+        )
+
+        assert replace_fields == []
+        assert update_dict == {
+            "args": {"arg-foo": "42"},
+            "metadata": {"label": "'test'"},
+        }
+
+    def test_invalid_update_missing_value(self):
+        updates = ["args.arg-foo"]
+        top_level_fields = ["args"]
+        with pytest.raises(
+            LabtaskerValueError, match=r"Invalid update: args.arg-foo. Got \(.*\)"
+        ):
+            parse_updates(updates, top_level_fields)
+
+    def test_invalid_update_no_matching_pattern(self):
+        updates = ["-args.arg-foo=42"]
+        top_level_fields = ["args"]
+        with pytest.raises(LabtaskerValueError):
+            parse_updates(updates, top_level_fields)
+
+    def test_replace_top_level_field(self):
+        updates = ["args=42", "metadata='test'"]
+        top_level_fields = ["args", "metadata"]
+        replace_fields, update_dict = parse_updates(updates, top_level_fields)
+
+        assert replace_fields == ["args", "metadata"]
+        assert update_dict == {"args": "42", "metadata": "'test'"}
+
+    def test_subfields_update(self):
+        updates = ["args.foo.bar=42"]
+        top_level_fields = ["args"]
+        replace_fields, update_dict = parse_updates(updates, top_level_fields)
+
+        assert replace_fields == []
+        assert update_dict == {"args": {"foo.bar": "42"}}
+
+    def test_invalid_top_level_field(self):
+        updates = ["invalid.field=42"]
+        top_level_fields = ["args"]
+        with pytest.raises(LabtaskerValueError):
+            parse_updates(updates, top_level_fields)
+
+    def test_edge_case_empty_updates(self):
+        updates = []
+        top_level_fields = ["args", "metadata"]
+        replace_fields, update_dict = parse_updates(updates, top_level_fields)
+
+        assert replace_fields == []
+        assert update_dict == {}
+
+    def test_edge_case_empty_top_level_fields(self):
+        updates = ["args.arg-foo=42"]
+        top_level_fields = []
+        with pytest.raises(LabtaskerValueError):
+            parse_updates(updates, top_level_fields)

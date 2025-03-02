@@ -208,13 +208,27 @@ def report_task_status(
     worker_id: Optional[str] = None,
     client: Optional[httpx.Client] = None,
 ) -> None:
-    """Report the status of a task."""
+    """Report the status of a task.
+
+    Args:
+        task_id:
+        status:
+        summary: The summary update.
+            1. If summary is None, no changes to summary will be made.
+            2. If summary is set to {}, it will set the entire summary to a empty dict.
+            3. If summary is like {"foo": "bar"},
+        worker_id:
+        client:
+
+    Returns:
+
+    """
     if client is None:
         client = get_httpx_client()
     payload = TaskStatusUpdateRequest(
         status=status,
         worker_id=worker_id,
-        summary=summary if summary else {},
+        summary=summary,
     ).model_dump()
     response = client.post(f"/api/v1/queues/me/tasks/{task_id}/status", json=payload)
     if response.status_code == HTTP_409_CONFLICT:
@@ -378,7 +392,7 @@ def update_queue(
     update_request = QueueUpdateRequest(
         new_queue_name=new_queue_name,
         new_password=SecretStr(new_password) if new_password else None,
-        metadata_update=metadata_update or {},
+        metadata_update=metadata_update,
     )
 
     response = client.put("/api/v1/queues/me", json=update_request.to_request_dict())

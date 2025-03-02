@@ -3,6 +3,7 @@ Task related CRUD operations.
 """
 
 import io
+import shlex
 import tempfile
 from functools import partial
 from typing import Any, Dict, List, Optional, Set
@@ -34,6 +35,7 @@ from labtasker.client.core.cli_utils import (
     pager_iterator,
     parse_extra_opt,
     parse_metadata,
+    parse_updates,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
 from labtasker.client.core.logging import stderr_console, stdout_console
@@ -286,9 +288,8 @@ def update(
         List[str],
         typer.Argument(
             ...,
-            help="Optional CLI string for updated values of fields. "
-            "e.g. `labtasker task update --task-name 'my-task' -- --arg1 foo --arg2 bar` is the same as "
-            '`labtasker task update --task-name \'my-task\' --update \'{"arg1": "foo", "arg2":"bar"}\'`',
+            help="Updated values of fields (recommended over --update option). "
+            "e.g. `labtasker task update --task-name 'my-task' -- args.arg1=foo metadata.label=test`",
         ),
     ] = None,
     task_id: Optional[str] = typer.Option(
@@ -309,7 +310,7 @@ def update(
         None,
         "--update",
         "-u",
-        help='Optional dict string for updated values of fields (e.g., \'{"task_name": "new_name"}\').',
+        help="Updated values of fields. E.g. `labtasker task update --update args.arg1 foo metadata.tag test`",
     ),
     offset: int = typer.Option(
         0,
@@ -332,8 +333,10 @@ def update(
     """Update tasks settings."""
     if updates and option_updates:
         raise typer.BadParameter(
-            "You can only specify one of the positional argument [UPDATES] or option --updates."
+            "You can only specify one of the positional argument [UPDATES] or option --update."
         )
+
+    updates = updates if updates else shlex.split(option_updates)
 
     extra_filter = parse_metadata(extra_filter)
 
@@ -348,11 +351,7 @@ def update(
         readonly_fields.add("status")
         readonly_fields.add("retries")
 
-    update_dict = (
-        parse_extra_opt(updates) if updates else parse_metadata(option_updates)
-    )
-
-    if not update_dict:  # if no update provided, enter use_editor mode
+    if not updates:  # if no update provided, enter use_editor mode
         use_editor = True
     else:
         use_editor = False
@@ -419,20 +418,40 @@ def update(
                 raise typer.Abort()
 
         # get a list of update dict
-        updates = diff(
+        update_dicts = diff(
             prev=old_tasks_primitive,
             modified=modified,
             readonly_fields=list(readonly_fields),
         )
 
+        # for editor mode, all modified field values are suppose to **replace** the original task field values entirely
+        replace_fields_list = []
+        for ud in update_dicts:
+            modified_fields = [k for k, v in ud.items() if k not in readonly_fields]
+            replace_fields_list.append(modified_fields)
     else:
-        # populate if not using use_editor mode to modify one by one
-        updates = [update_dict] * len(old_tasks)
+        # parse the updates
+        replace_fields, update_dict = parse_updates(
+            updates=updates,
+            top_level_fields=list(TaskUpdateRequest.model_fields.keys()),  # type: ignore
+        )
 
-    for i, ud in enumerate(updates):  # ud: update dict list entry
+        # populate if not using use_editor mode to modify one by one
+        update_dicts = [update_dict] * len(old_tasks)
+        replace_fields_list = [replace_fields] * len(old_tasks)
+
+    print(update_dicts)
+    for i, (ud, replace_fields) in enumerate(
+        zip(update_dicts, replace_fields_list)
+    ):  # ud: update dict list entry
         if not ud:  # filter out empty update dict
             continue
-        task_updates.append(TaskUpdateRequest(_id=old_tasks[i].task_id, **ud))
+
+        task_updates.append(
+            TaskUpdateRequest(
+                _id=old_tasks[i].task_id, replace_fields=replace_fields, **ud
+            )
+        )
 
     updated_tasks = update_tasks(task_updates=task_updates, reset_pending=reset_pending)
 
@@ -452,7 +471,7 @@ def update(
         commented_seq.yaml_set_comment_before_after_key(key=i + 1, before="\n")
 
     # add "modified" comment
-    for d, ud in zip(commented_seq, updates):
+    for d, ud in zip(commented_seq, update_dicts):
         add_eol_comment(
             d,
             fields=list(ud.keys()),

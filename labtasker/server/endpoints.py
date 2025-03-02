@@ -37,7 +37,7 @@ from labtasker.server.config import get_server_config
 from labtasker.server.database import DBService
 from labtasker.server.dependencies import get_db, get_verified_queue_dependency
 from labtasker.server.logging import logger
-from labtasker.utils import get_current_time, parse_obj_as
+from labtasker.utils import get_current_time, parse_obj_as, unflatten_dict
 
 
 async def periodic_task(app: FastAPI, interval_seconds: float):
@@ -255,7 +255,13 @@ def report_task_status(
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
-    """Report task status (success, failed, cancelled)"""
+    """Report task status (success, failed, cancelled)
+    The if-else is to prevent the following conflicting scenario:
+       1. task foo assigned to worker A.
+       2. worker A timed out while running.
+       3. task foo reassigned to worker B.
+       4. worker A report task status, but the task is actually run by worker B, which leads to confusion.
+    """
     if update.worker_id is not None:
         done = db.worker_report_task_status(
             queue_id=queue["_id"],
@@ -329,10 +335,40 @@ def update_tasks(
         )
 
     for task_update in task_updates:
+        update = {}
+        replace_fields = task_update.replace_fields
+        # to convert it into a dict of {"field_a.sub_field_a": "value"}}
+        # e.g. {"args": {"arg1": 0}, "metadata": {"label": "test"}} ->
+        # {"args.arg1": 0, "metadata.label": "test"}
+        # we need to flatten by 1-level and add prefix
+        for key, value in task_update.model_dump(
+            exclude_unset=True, by_alias=True
+        ).items():
+            if key == "replace_fields":
+                continue
+            if key in replace_fields:  # replace root field
+                if isinstance(value, dict):
+                    # prevent {"args": {"foo.bar": 0}} case. (this can cause trouble for updating,
+                    # because if {"foo.bar": 0} is assigned to args (i.e. ["args"]["foo.bar"]),
+                    # updating args.foo.bar later would actually update the value of ["args"]["foo"]["bar"]
+                    # rather than the existing db entry ["args"]["foo.bar"]
+                    # therefore, only format like {"args": {"foo":{"bar": 0}}} should be allowed.
+                    update[key] = unflatten_dict(value)
+                else:
+                    update[key] = value
+            else:
+                if isinstance(value, dict):  # only update sub-fields
+                    # in this case, {"args": {"foo.bar": 0}} is allowed
+                    # since it will be transformed to {"args.foo.bar": 0} for updating
+                    for sub_key, sub_value in value.items():
+                        update[f"{key}.{sub_key}"] = sub_value
+                else:  # for non-dict, just overwrite the field
+                    update[key] = value
+
         if not db.update_task(
             queue_id=queue["_id"],
             task_id=task_update.task_id,
-            task_setting_update=task_update.model_dump(exclude_unset=True),
+            task_setting_update=update,
             reset_pending=reset_pending,
         ):
             raise HTTPException(

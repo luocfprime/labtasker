@@ -133,7 +133,9 @@ def update(
     ),
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata update as a python dict string (e.g., \'{"key": "value"}\').',
+        help='Optional metadata update as a python dict string (e.g., \'{"label": "test"}\'). '
+        "The updated metadata will be merged with the oringinal metadata."
+        "If you want to unset the metadata entirely, specify via `--metadata '{}'`",
     ),
     quiet: bool = typer.Option(
         False,
@@ -150,11 +152,18 @@ def update(
 
     # Proceed with the update logic
     if not quiet:
+        if metadata is None:
+            metadata_update_mode = "No change"
+        elif metadata == {}:
+            metadata_update_mode = "Reset to {}"
+        else:
+            metadata_update_mode = "Update"
+
         stdout_console.print(
             f"Updating queue with:\n"
             f"  New Queue Name: {new_queue_name or 'No change'}\n"
             f"  New Password: {'******' if new_password else 'No change'}\n"
-            f"  Metadata: {parsed_metadata or 'No change'}"
+            f"  Metadata ({metadata_update_mode}): {parsed_metadata}",
         )
 
     updated_queue = update_queue(

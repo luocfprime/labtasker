@@ -24,7 +24,7 @@ class QueueCreateRequest(BaseApiModel):
         ..., pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
     password: SecretStr = Field(..., min_length=1, max_length=100)
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: Optional[Dict[str, Any]] = None
 
     def to_request_dict(self):
         """
@@ -53,8 +53,8 @@ class TaskSubmitRequest(BaseApiModel):
     task_name: Optional[str] = Field(
         None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
-    args: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    args: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
     cmd: Optional[Union[str, List[str]]] = None
     heartbeat_timeout: Optional[float] = None
     task_timeout: Optional[int] = None
@@ -97,6 +97,17 @@ class TaskUpdateRequest(BaseApiModel):
     Fields that disallow manual update are commented out.
     """
 
+    # replace_fields: fields that should be overwritten from root fields entirely.
+    # Example: When replace_fields = ["args"],
+    # suppose the original task.args = {"foo": "bar"}
+    # TaskUpdateRequest(args={"a": 1}) will replace the entire args field.
+    # The resulting task.args will be task.args = {"a": 1}.
+    # If replace_fields = [],
+    # TaskUpdateRequest(args={"a": 1}) will only update the args field.
+    # The resulting task.args will be task.args = {"foo": "bar", "a": 1}.
+    replace_fields: List[str] = Field(default_factory=list)
+
+    # reference from Task
     task_id: str = Field(alias="_id")  # Accepts "_id" as an input field
     # queue_id: str
     status: Optional[str] = None
@@ -144,12 +155,12 @@ class TaskSubmitResponse(BaseApiModel):
 class TaskStatusUpdateRequest(BaseApiModel):
     status: str = Field(..., pattern=r"^(success|failed|cancelled)$")
     worker_id: Optional[str] = None
-    summary: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    summary: Optional[Dict[str, Any]] = None
 
 
 class WorkerCreateRequest(BaseApiModel):
     worker_name: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: Optional[Dict[str, Any]] = None
     max_retries: Optional[int] = 3
 
 
@@ -193,7 +204,7 @@ class QueueUpdateRequest(BaseApiModel):
         None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
     new_password: Optional[SecretStr] = Field(None, min_length=1, max_length=100)
-    metadata_update: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata_update: Optional[Dict[str, Any]] = None
 
     def to_request_dict(self):
         """

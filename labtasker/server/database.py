@@ -444,11 +444,13 @@ class DBService:
             if new_password:
                 update_dict["password"] = hash_password(new_password)
 
-            if metadata_update:
+            if metadata_update is None:
+                metadata_update = {}
+            elif metadata_update == {}:  # set the metadata root field to empty dict
+                metadata_update = {"metadata": {}}
+            else:
                 metadata_update = sanitize_dict(metadata_update)
                 metadata_update = add_key_prefix(metadata_update, prefix="metadata.")
-            else:
-                metadata_update = {}
 
             # Update queue settings
             update = {
@@ -640,6 +642,7 @@ class DBService:
                     detail=f"Task {task_id} is assigned to worker {task['worker_id']}",
                 )
 
+            # The worker status update is also handled by _report_task_status
             return self._report_task_status(
                 queue_id=queue_id,
                 task=task,
@@ -708,11 +711,13 @@ class DBService:
                 session=session,
             )
 
-        if summary_update:
+        if summary_update is None:
+            summary_update = {}
+        elif summary_update == {}:  # set the summary root field to empty dict
+            summary_update = {"summary": {}}
+        else:
             summary_update = sanitize_dict(summary_update)
             summary_update = add_key_prefix(summary_update, prefix="summary.")
-        else:
-            summary_update = {}
 
         update = {
             "$set": {
@@ -753,7 +758,19 @@ class DBService:
         with self.transaction() as session:
             # Update task settings
             if task_setting_update:
-                task_setting_update = sanitize_update(task_setting_update)
+                # disallow mongodb operators
+                task_setting_update = sanitize_dict(task_setting_update)
+                task_setting_update_keys = list(task_setting_update.keys())
+                # ignore disallowed fields
+                BANNED_FIELDS = [
+                    "_id",
+                    "queue_id",
+                    "created_at",
+                    "last_modified",
+                ]
+                for k in task_setting_update_keys:
+                    if k.split(".")[0] in BANNED_FIELDS:
+                        del task_setting_update[k]
             else:
                 task_setting_update = {}
 
