@@ -165,7 +165,9 @@ def submit(
             "That is, via positional argument or as an option."
         )
 
-    args_dict = parse_metadata(option_args) if option_args else parse_extra_opt(args)
+    args_dict = (
+        parse_metadata(option_args) if option_args else parse_extra_opt(args or [])
+    )
     metadata_dict = parse_metadata(metadata) if metadata else {}
 
     task_id = submit_task(
@@ -219,7 +221,7 @@ def ls(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\').',
     ),
     quiet: bool = typer.Option(
         False,
@@ -305,7 +307,7 @@ def update(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 0}]}\').',  # TODO: check priority
+        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\').',
     ),
     option_updates: Optional[str] = typer.Option(
         None,
