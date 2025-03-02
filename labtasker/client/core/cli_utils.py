@@ -1,7 +1,6 @@
 import re
 import shlex
 from ast import literal_eval
-from collections import defaultdict
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
@@ -155,6 +154,7 @@ def parse_updates(
     updates: List[str],
     top_level_fields: List[str],
     *,
+    to_primitive: bool = True,
     normalize_dash: bool = True,
 ) -> Tuple[List[str], Dict[str, Any]]:
     """
@@ -162,6 +162,7 @@ def parse_updates(
     Args:
         updates: List of string parsed using shlex. Syntax: e.g. ["args.arg1=0", "metadata.label='foo'"]
         top_level_fields: List of string indicating top level field names.
+        to_primitive: Cast the parsed value to Python primitive using ast.literal_eval.
         normalize_dash: Turn dash in field names into underscore. E.g. ["args.arg-foo=0"] -> ["args.arg_foo=0"]
 
     Returns:
@@ -187,14 +188,16 @@ def parse_updates(
 
             if key in top_level_fields:
                 # updates like args={}, that means to replace the whole args
-                parsed_updates[key] = value
+                parsed_updates[key] = literal_eval(value) if to_primitive else value
                 replace_fields.append(key)
             else:  # try to split via '.' e.g. args.foo.bar = 0 -> {"args": {"foo.bar" : 0}}
                 toplevel, subfields = key.split(".", 1)
                 if toplevel in top_level_fields:
                     if toplevel not in parsed_updates:
                         parsed_updates[toplevel] = {}
-                    parsed_updates[toplevel][subfields] = value
+                    parsed_updates[toplevel][subfields] = (
+                        literal_eval(value) if to_primitive else value
+                    )
                 else:
                     raise LabtaskerValueError(
                         f"Invalid update: {update}. {toplevel} is not in top_level_fields {top_level_fields}."
