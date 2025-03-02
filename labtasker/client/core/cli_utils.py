@@ -107,7 +107,7 @@ def parse_extra_opt(
                 try:
                     value = literal_eval(value)
                 except (ValueError, SyntaxError):
-                    pass
+                    pass  # consider it as a string if it fails to parse as a literal. e.g. "--foo.bar=some-string"
 
             if normalize_dash:
                 key = key.replace("-", "_")
@@ -188,16 +188,25 @@ def parse_updates(
 
             if key in top_level_fields:
                 # updates like args={}, that means to replace the whole args
-                parsed_updates[key] = literal_eval(value) if to_primitive else value
+                if to_primitive and isinstance(value, str):
+                    try:
+                        value = literal_eval(value)
+                    except (ValueError, SyntaxError):
+                        pass  # consider it as a string if it fails to parse as a literal. e.g. "args.foo=test"
+                parsed_updates[key] = value
                 replace_fields.append(key)
             else:  # try to split via '.' e.g. args.foo.bar = 0 -> {"args": {"foo.bar" : 0}}
                 toplevel, subfields = key.split(".", 1)
                 if toplevel in top_level_fields:
                     if toplevel not in parsed_updates:
                         parsed_updates[toplevel] = {}
-                    parsed_updates[toplevel][subfields] = (
-                        literal_eval(value) if to_primitive else value
-                    )
+
+                    if to_primitive and isinstance(value, str):
+                        try:
+                            value = literal_eval(value)
+                        except (ValueError, SyntaxError):
+                            pass  # consider it as a string if it fails to parse as a literal. e.g. "args.foo=test"
+                    parsed_updates[toplevel][subfields] = value
                 else:
                     raise LabtaskerValueError(
                         f"Invalid update: {update}. {toplevel} is not in top_level_fields {top_level_fields}."

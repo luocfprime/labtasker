@@ -155,7 +155,7 @@ class TestParseExtraOpt:
 @pytest.mark.unit
 class TestParseUpdates:
     def test_valid_updates_with_normalization(self):
-        updates = ["args.arg-foo=42", "metadata.label='test'"]
+        updates = ["args.arg-foo=42", "metadata.label=test"]
         top_level_fields = ["args", "metadata"]
         replace_fields, update_dict = parse_updates(
             updates, top_level_fields, normalize_dash=True
@@ -163,12 +163,12 @@ class TestParseUpdates:
 
         assert replace_fields == []
         assert update_dict == {
-            "args": {"arg_foo": "42"},
-            "metadata": {"label": "'test'"},
+            "args": {"arg_foo": 42},
+            "metadata": {"label": "test"},
         }
 
     def test_valid_updates_without_normalization(self):
-        updates = ["args.arg-foo=42", "metadata.label='test'"]
+        updates = ["args.arg-foo=42", "metadata.label=test"]
         top_level_fields = ["args", "metadata"]
         replace_fields, update_dict = parse_updates(
             updates, top_level_fields, normalize_dash=False
@@ -176,8 +176,8 @@ class TestParseUpdates:
 
         assert replace_fields == []
         assert update_dict == {
-            "args": {"arg-foo": "42"},
-            "metadata": {"label": "'test'"},
+            "args": {"arg-foo": 42},
+            "metadata": {"label": "test"},
         }
 
     def test_invalid_update_missing_value(self):
@@ -195,12 +195,12 @@ class TestParseUpdates:
             parse_updates(updates, top_level_fields)
 
     def test_replace_top_level_field(self):
-        updates = ["args=42", "metadata='test'"]
+        updates = ["args=42", "metadata=test"]
         top_level_fields = ["args", "metadata"]
         replace_fields, update_dict = parse_updates(updates, top_level_fields)
 
         assert replace_fields == ["args", "metadata"]
-        assert update_dict == {"args": "42", "metadata": "'test'"}
+        assert update_dict == {"args": 42, "metadata": "test"}
 
     def test_subfields_update(self):
         updates = ["args.foo.bar=42"]
@@ -208,7 +208,7 @@ class TestParseUpdates:
         replace_fields, update_dict = parse_updates(updates, top_level_fields)
 
         assert replace_fields == []
-        assert update_dict == {"args": {"foo.bar": "42"}}
+        assert update_dict == {"args": {"foo.bar": 42}}
 
     def test_invalid_top_level_field(self):
         updates = ["invalid.field=42"]
@@ -229,3 +229,28 @@ class TestParseUpdates:
         top_level_fields = []
         with pytest.raises(LabtaskerValueError):
             parse_updates(updates, top_level_fields)
+
+    def test_no_to_primitive(self):
+        updates = ["args.arg-foo=42"]
+        top_level_fields = ["args"]
+        replace_fields, update_dict = parse_updates(
+            updates, top_level_fields, to_primitive=False
+        )
+        assert replace_fields == []
+        assert update_dict == {"args": {"arg_foo": "42"}}
+
+    def test_no_normalize_dash(self):
+        updates = ["args.arg-foo=42"]
+        top_level_fields = ["args"]
+        replace_fields, update_dict = parse_updates(
+            updates, top_level_fields, normalize_dash=False
+        )
+        assert replace_fields == []
+        assert update_dict == {"args": {"arg-foo": 42}}
+
+    def test_string_with_quotes(self):
+        updates = ["args.arg-str='test'"]
+        top_level_fields = ["args"]
+        replace_fields, update_dict = parse_updates(updates, top_level_fields)
+        assert replace_fields == []
+        assert update_dict == {"args": {"arg_str": "test"}}
