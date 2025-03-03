@@ -13,7 +13,7 @@ from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.logging import stderr_console, stdout_console
 
-app = typer.Typer()
+app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 
 
 def version_callback(value: bool):
