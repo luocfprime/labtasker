@@ -123,12 +123,13 @@ running. Consider the following scenarios:
 !!! question ""
 
     - How do you handle cases where the parameters are hard to divide evenly (e.g., 5x5x5 split across 3 GPUs), making it difficult to distribute the workload fairly?
+    - What if your script crashes halfway and you have no idea of which experiments are complete?
     - What if you realize some scheduled experiments are unnecessary after reviewing the results? *(Stopping the script isn't ideal, as it would kill running jobs and make it hard to track which experiments are complete.)*
     - What if you want to reprioritize certain experiments based on initial results? You’d face the same issue as above.
     - How do you append extra experiment groups during script execution?
     - What if some experiments fail midway? *It can be challenging to untangle nested loops and identify completed tasks.*
 
-Labtasker is designed to overcome these challenges.
+Labtasker is designed to tackle these challenges elegantly, with minimal disruption to your existing workflow.
 
 With Labtasker, you can submit a variety of experiment arguments to a server-based task queue. Worker nodes can then
 fetch and execute these tasks directly from the queue.
