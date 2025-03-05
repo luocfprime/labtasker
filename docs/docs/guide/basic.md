@@ -47,7 +47,7 @@ labtasker queue create-from-config
 
 !!! tip ""
 
-    See more details in [Queue Manual#create](./manual_queue.md#create).
+    See more details in [Queue Manual#create-queue](./manual_queue.md#create-queue).
 
 ## Step 1. Submit job arguments via Python Demo or CLI tool
 

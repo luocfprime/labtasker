@@ -9,6 +9,10 @@
 
 The client tools is a Python package that you can install on your local machine.
 
+!!! warning "System Requirements"
+
+    Currently Labtasker only support Linux and MacOS.
+
 === "From PyPI"
 
     ```bash
