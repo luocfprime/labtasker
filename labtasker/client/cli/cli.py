@@ -22,15 +22,26 @@ def version_callback(value: bool):
         raise typer.Exit()
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def callback(
+    ctx: typer.Context,
     version: Annotated[
         Optional[bool],
         typer.Option(
             ..., "--version", callback=version_callback, help="Print Labtasker version."
         ),
     ] = None,
-): ...
+):
+    if not ctx.invoked_subcommand:
+        stdout_console.print(ctx.get_help())
+        raise typer.Exit()
+
+
+@app.command()
+def help(ctx: typer.Context):
+    """Print help."""
+    stdout_console.print(ctx.parent.get_help())
+    raise typer.Exit()
 
 
 @app.command()

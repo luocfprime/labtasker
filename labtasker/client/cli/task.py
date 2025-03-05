@@ -109,6 +109,15 @@ def diff(
     return updates
 
 
+@app.callback(invoke_without_command=True)
+def callback(
+    ctx: typer.Context,
+):
+    if not ctx.invoked_subcommand:
+        stdout_console.print(ctx.get_help())
+        raise typer.Exit()
+
+
 @app.command()
 @cli_utils_decorator
 def submit(
