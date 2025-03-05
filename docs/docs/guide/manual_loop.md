@@ -106,6 +106,21 @@ It does the following steps (mainly):
     Therefore, the **"No More, No Less"** rule ensures tasks are fetched with exactly
     the right fields—no extra or missing ones—to avoid errors and inconsistencies.
 
+    ---
+
+    **Can this be bypassed?**
+
+    What if you still want to fetch tasks with extra fields, even though it might have drawbacks? Is it possible?
+
+    The answer is yes, and there’s a simple workaround:
+
+    ```bash
+    echo %(guidance_scale) > /dev/null && labtasker loop -- python job.py %(prompt)
+    ```
+
+    This trick makes Labtasker think you’ve used the extra field. However, it’s always better to be explicit.
+    If you want to ignore extra fields, make sure to do it intentionally.
+
 ### Use filter to get only the task you want
 
 Similar to the `labtasker task ls` command, loop also supports filtering using MongoDB syntax queries
