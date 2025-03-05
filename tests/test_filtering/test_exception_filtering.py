@@ -1,3 +1,4 @@
+import os.path as osp
 import subprocess
 
 import pytest
@@ -6,9 +7,11 @@ from tests.test_filtering.exception_utils import dummy_password
 
 
 def run_fn_in_subprocess(package_name, fn_name):
-    cmd = f"python -c 'import {package_name}; {package_name}.{fn_name}()'"
     result = subprocess.run(
-        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        ["python", "-c", f"import {package_name}; {package_name}.{fn_name}()"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
     return str(result.stdout) + str(result.stderr)
 
@@ -68,7 +71,7 @@ class TestSanitizeSensitiveTraceback:
 
     def test_typer_single_exception(self):
         result = subprocess.run(
-            "typer tests/test_filtering/exception_utils.py run typer-single-exception",
+            f"typer {osp.join('tests', 'test_filtering', 'exception_utils.py')} run typer-single-exception",
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -80,7 +83,7 @@ class TestSanitizeSensitiveTraceback:
 
     def test_typer_chained_exception(self):
         result = subprocess.run(
-            "typer tests/test_filtering/exception_utils.py run typer-chained-exception",
+            f"typer {osp.join('tests', 'test_filtering', 'exception_utils.py')} run typer-chained-exception",
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -92,7 +95,7 @@ class TestSanitizeSensitiveTraceback:
 
     def test_typer_fastapi_http_exception(self):
         result = subprocess.run(
-            "typer tests/test_filtering/exception_utils.py run typer-fastapi-http-exception",
+            f"typer {osp.join('tests', 'test_filtering', 'exception_utils.py')} run typer-fastapi-http-exception",
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
