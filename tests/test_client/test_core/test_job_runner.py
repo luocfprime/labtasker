@@ -10,9 +10,9 @@ pytestmark = [
     pytest.mark.unit,
     pytest.mark.integration,
     pytest.mark.e2e,
-    # pytest.mark.usefixtures(
-    #     "silence_logger"
-    # ),  # silence logger in testcases of this module
+    pytest.mark.usefixtures(
+        "silence_logger"
+    ),  # silence logger in testcases of this module
 ]
 
 TOTAL_TASKS = 3
