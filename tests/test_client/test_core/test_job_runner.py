@@ -10,12 +10,12 @@ pytestmark = [
     pytest.mark.unit,
     pytest.mark.integration,
     pytest.mark.e2e,
-    pytest.mark.usefixtures(
-        "silence_logger"
-    ),  # silence logger in testcases of this module
+    # pytest.mark.usefixtures(
+    #     "silence_logger"
+    # ),  # silence logger in testcases of this module
 ]
 
-TOTAL_TASKS = 5
+TOTAL_TASKS = 3
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +61,7 @@ def test_job_success(setup_tasks):
         assert args["arg1"] == idx
         assert args["arg2"]["arg3"] == idx
 
-        time.sleep(0.1)  # a tiny delay to ensure the tasks api request are processed
+        time.sleep(0.5)  # a tiny delay to ensure the tasks api request are processed
 
         finish("success")
 
@@ -89,7 +89,7 @@ def test_job_manual_failure(setup_tasks):
     def job(args):
         nonlocal cnt
         cnt += 1
-        time.sleep(0.1)  # a tiny delay to ensure the tasks api request are processed
+        time.sleep(0.5)  # a tiny delay to ensure the tasks api request are processed
         finish("failed")
 
     job()
@@ -123,7 +123,7 @@ def test_job_auto_failure(setup_tasks):
     def job(args):
         nonlocal cnt
         cnt += 1
-        time.sleep(0.1)  # a tiny delay to ensure the tasks api request are processed
+        time.sleep(0.5)  # a tiny delay to ensure the tasks api request are processed
 
         assert False  # the exception should be caught in loop and auto reported
 

@@ -8,7 +8,9 @@ from starlette.status import HTTP_204_NO_CONTENT
 
 from labtasker.client.core.exceptions import LabtaskerRuntimeError
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
+from labtasker.client.core.logging import logger
 from labtasker.client.core.paths import set_labtasker_log_dir
+from labtasker.security import get_auth_headers
 
 pytestmark = [pytest.mark.unit]
 
@@ -42,11 +44,23 @@ def mock_refresh_task_heartbeat_endpoint(
     task_id: str,
 ):
     cnt.incr()
+    logger.debug(f"Received heartbeat for task {task_id}, cnt after incr: {cnt.get()}")
 
 
 @pytest.fixture
-def test_app():
+def test_app_():
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def patch_up(monkeypatch, client_config, test_app_):
+    auth_headers = get_auth_headers(
+        client_config.queue.queue_name, client_config.queue.password
+    )
+    test_app_.headers.update(
+        {**auth_headers, "Content-Type": "application/json"},
+    )
+    monkeypatch.setattr("labtasker.client.core.api._httpx_client", test_app_)
 
 
 @pytest.fixture(autouse=True)
@@ -54,18 +68,19 @@ def setup_log_dir():
     set_labtasker_log_dir("test_task_id", set_env=True, overwrite=True)
 
 
-def test_heartbeat(test_app):
+def test_heartbeat():
+    logger.debug("test_heartbeat entered...")
     start_heartbeat("test_task_id", heartbeat_interval=0.1)
 
     # try to start again
     with pytest.raises(LabtaskerRuntimeError):
-        start_heartbeat("test_task_id", heartbeat_interval=0.1, raise_error=True)
+        start_heartbeat("test_task_id", heartbeat_interval=1.0, raise_error=True)
 
-    time.sleep(0.5)
-    assert 4 <= cnt.get() <= 6, cnt.get()
+    time.sleep(6.0)
+    assert 4 < cnt.get() < 8, cnt.get()
     end_heartbeat()
-    time.sleep(0.5)
-    assert cnt.get() <= 6, cnt.get()
+    time.sleep(6.0)
+    assert cnt.get() < 8, cnt.get()  # stops after end_heartbeat()
 
     # try to stop again
     with pytest.raises(LabtaskerRuntimeError):

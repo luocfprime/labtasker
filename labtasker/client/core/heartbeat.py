@@ -79,6 +79,7 @@ _current_heartbeat: ContextVar[Optional[Heartbeat]] = ContextVar(
 def start_heartbeat(
     task_id, heartbeat_interval: Optional[float] = None, raise_error=True
 ):
+    logger.debug("Try starting heartbeat.")
     if _current_heartbeat.get() is not None:
         if raise_error:
             raise LabtaskerRuntimeError("Heartbeat already started.")
@@ -91,9 +92,11 @@ def start_heartbeat(
     )
     heartbeat_manager.start()
     _current_heartbeat.set(heartbeat_manager)
+    logger.debug("Heartbeat started.")
 
 
 def end_heartbeat(raise_error=True):
+    logger.debug("Try ending heartbeat.")
     heartbeat_manager = _current_heartbeat.get()
     if heartbeat_manager is None:
         if raise_error:
@@ -101,3 +104,4 @@ def end_heartbeat(raise_error=True):
         return
     heartbeat_manager.stop()
     _current_heartbeat.set(None)
+    logger.debug("Heartbeat ended.")
