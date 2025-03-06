@@ -91,16 +91,16 @@ def test_heartbeat():
     #     )
 
     logger.debug("test_heartbeat entered...")
-    start_heartbeat("test_task_id", heartbeat_interval=0.1)
+    start_heartbeat("test_task_id", heartbeat_interval=0.2)
 
     # try to start again
     with pytest.raises(LabtaskerRuntimeError):
-        start_heartbeat("test_task_id", heartbeat_interval=0.1, raise_error=True)
+        start_heartbeat("test_task_id", heartbeat_interval=0.2, raise_error=True)
 
-    high_precision_sleep(0.5)
+    high_precision_sleep(1.0)
     assert 4 <= cnt.get() <= 6, cnt.get()
     end_heartbeat()
-    high_precision_sleep(0.5)
+    high_precision_sleep(1.0)
     assert cnt.get() <= 6, cnt.get()  # should stops after end_heartbeat()
 
     # try to stop again

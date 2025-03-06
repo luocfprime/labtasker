@@ -39,6 +39,7 @@ class Heartbeat:
         self._thread.start()
 
     def delay(self, interval: float) -> bool:
+        slice = 0.05  # check for stop event
         start_time = time.perf_counter()
         while True:
             elapsed_time = time.perf_counter() - start_time
@@ -52,7 +53,10 @@ class Heartbeat:
 
             if remaining_time > 0.02:
                 time.sleep(
-                    max(remaining_time / 2, 0.0001)
+                    min(
+                        max(remaining_time / 2, 0.0001),
+                        slice,
+                    )
                 )  # Sleep for a fraction of remaining time
             else:
                 pass  # Busy-wait for very short intervals
