@@ -37,8 +37,8 @@ def callback(
         raise typer.Exit()
 
 
-@app.command()
-def help(ctx: typer.Context):
+@app.command(name="help")
+def help_(ctx: typer.Context):
     """Print help."""
     stdout_console.print(ctx.parent.get_help())
     raise typer.Exit()
