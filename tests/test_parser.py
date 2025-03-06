@@ -36,26 +36,35 @@ def _split(cmd: str) -> List[str]:
 
 @pytest.mark.unit
 class TestParseCmd:
-
     def test_basic(self, params):
         cmd = _split("python main.py --arg1 %(arg1) --arg2 %(arg2)")
         parsed, _ = cmd_interpolate(cmd, params)
 
-        tgt_cmd = _split(
-            'python main.py --arg1 value1 --arg2 \'{"arg3": "value3", "arg4": {"arg5": "value5", "arg6": [0, 1, 2]}}\''
-        )
-        assert parsed == tgt_cmd, f"got {parsed}"
+        tgt_cmd = [
+            "python",
+            "main.py",
+            "--arg1",
+            "value1",
+            "--arg2",
+            '{"arg3": "value3", "arg4": {"arg5": "value5", "arg6": [0, 1, 2]}}',
+        ]
+        assert parsed == tgt_cmd, f"expected {tgt_cmd}, got {parsed}"
         assert len(parsed) == 6, f"got {len(parsed)}"
 
     def test_basic_list(self, params):
         cmd = _split("python main.py --arg1 %(arg1) --arg2 %(arg2)")
         parsed, _ = cmd_interpolate(cmd, params)
 
-        tgt_cmd = _split(
-            'python main.py --arg1 value1 --arg2 \'{"arg3": "value3", "arg4": {"arg5": "value5", "arg6": [0, 1, 2]}}\''
-        )
+        tgt_cmd = [
+            "python",
+            "main.py",
+            "--arg1",
+            "value1",
+            "--arg2",
+            '{"arg3": "value3", "arg4": {"arg5": "value5", "arg6": [0, 1, 2]}}',
+        ]
         assert len(parsed) == 6, f"got {len(parsed)}"
-        assert parsed == tgt_cmd, f"got {parsed}"
+        assert parsed == tgt_cmd, f"expected {tgt_cmd}, got {parsed}"
 
     def test_keys_to_query_dict(self, params):
         cmd = _split("python main.py --arg1 %(arg1) --arg2 %(arg2.arg4.arg5)")
