@@ -1,4 +1,3 @@
-import os
 import threading
 import time
 
@@ -48,6 +47,21 @@ def mock_refresh_task_heartbeat_endpoint(
     logger.debug(f"Received heartbeat for task {task_id}, cnt after incr: {cnt.get()}")
 
 
+def high_precision_sleep(duration):
+    start_time = time.perf_counter()
+    while True:
+        elapsed_time = time.perf_counter() - start_time
+        remaining_time = duration - elapsed_time
+        if remaining_time <= 0:
+            break
+        if remaining_time > 0.02:  # Sleep for 5ms if remaining time is greater
+            time.sleep(
+                max(remaining_time / 2, 0.0001)
+            )  # Sleep for the remaining time or minimum sleep interval
+        else:
+            pass
+
+
 @pytest.fixture
 def test_app_():
     return TestClient(app)
@@ -71,10 +85,10 @@ def setup_log_dir():
 
 
 def test_heartbeat():
-    if os.environ.get("GITHUB_ACTIONS", False):
-        pytest.skip(
-            "Skipping test_heartbeat on Github Actions because of slow CI (which leads to false alarms)."
-        )
+    # if os.environ.get("GITHUB_ACTIONS", False):
+    #     pytest.skip(
+    #         "Skipping test_heartbeat on Github Actions because of slow CI (which leads to false alarms)."
+    #     )
 
     logger.debug("test_heartbeat entered...")
     start_heartbeat("test_task_id", heartbeat_interval=0.1)
@@ -83,10 +97,10 @@ def test_heartbeat():
     with pytest.raises(LabtaskerRuntimeError):
         start_heartbeat("test_task_id", heartbeat_interval=0.1, raise_error=True)
 
-    time.sleep(0.5)
+    high_precision_sleep(0.5)
     assert 4 <= cnt.get() <= 6, cnt.get()
     end_heartbeat()
-    time.sleep(0.5)
+    high_precision_sleep(0.5)
     assert cnt.get() <= 6, cnt.get()  # should stops after end_heartbeat()
 
     # try to stop again

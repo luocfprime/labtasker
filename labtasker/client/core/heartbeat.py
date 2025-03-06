@@ -39,13 +39,24 @@ class Heartbeat:
         self._thread.start()
 
     def delay(self, interval: float) -> bool:
-        spin_interval = 0.01
-        cycles = int(interval // spin_interval)
-        for _ in range(cycles):
-            time.sleep(spin_interval)
-            # check if heartbeat should stop
+        start_time = time.perf_counter()
+        while True:
+            elapsed_time = time.perf_counter() - start_time
+            remaining_time = interval - elapsed_time
+
+            if remaining_time <= 0:
+                break
+
             if self._stop_event.is_set() or not os.path.exists(self._lockfile):
                 return False
+
+            if remaining_time > 0.02:
+                time.sleep(
+                    max(remaining_time / 2, 0.0001)
+                )  # Sleep for a fraction of remaining time
+            else:
+                pass  # Busy-wait for very short intervals
+
         return True
 
     def _heartbeat(self):
