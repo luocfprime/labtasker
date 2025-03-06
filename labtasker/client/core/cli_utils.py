@@ -1,10 +1,11 @@
 import os
 import re
 import shlex
+import warnings
 from ast import literal_eval
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import httpx
 import pydantic
@@ -45,7 +46,7 @@ def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
 
 
 def parse_extra_opt(
-    args: Union[List[str], str],
+    args: List[str],
     *,
     ignore_flag_options: bool = True,
     to_primitive: bool = True,
@@ -68,6 +69,10 @@ def parse_extra_opt(
     """
     # Tokenize the input string using shlex
     if isinstance(args, str):
+        warnings.warn(
+            "Using a string for 'args' is deprecated. Please pass a list of arguments instead.",
+            DeprecationWarning,
+        )
         tokens = shlex.split(args, posix=os.name == "posix")
     elif isinstance(args, list):
         tokens = args
