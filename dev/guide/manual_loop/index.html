@@ -1108,6 +1108,14 @@ a required field is not provided. This is why all required fields must be presen
 <hr />
 <p>Therefore, the <strong>"No More, No Less"</strong> rule ensures tasks are fetched with exactly
 the right fields—no extra or missing ones—to avoid errors and inconsistencies.</p>
+<hr />
+<p><strong>Can this be bypassed?</strong></p>
+<p>What if you still want to fetch tasks with extra fields, even though it might have drawbacks? Is it possible?</p>
+<p>The answer is yes, and there’s a simple workaround:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">echo</span><span class="w"> </span>%<span class="o">(</span>guidance_scale<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>labtasker<span class="w"> </span>loop<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span>%<span class="o">(</span>prompt<span class="o">)</span>
+</code></pre></div>
+<p>This trick makes Labtasker think you’ve used the extra field. However, it’s always better to be explicit.
+If you want to ignore extra fields, make sure to do it intentionally.</p>
 </details>
 <h3 id="use-filter-to-get-only-the-task-you-want">Use filter to get only the task you want<a class="headerlink" href="#use-filter-to-get-only-the-task-you-want" title="Permanent link">&para;</a></h3>
 <p>Similar to the <code>labtasker task ls</code> command, loop also supports filtering using MongoDB syntax queries
@@ -1115,17 +1123,17 @@ to fetch only the task you want to run.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Bash Usage</label><label for="__tabbed_2_2">Python Usage</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># example to execute task with tags &quot;experimental&quot; or &quot;diffusion&quot;</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>--extra-filter<span class="w"> </span><span class="s1">&#39;{&quot;metadata.tags&quot;: {&quot;$in&quot;: [&quot;experimental&quot;, &quot;diffusion&quot;]}}&#39;</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span>%<span class="o">(</span>prompt<span class="o">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># example to execute task with tags &quot;experimental&quot; or &quot;diffusion&quot;</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>--extra-filter<span class="w"> </span><span class="s1">&#39;{&quot;metadata.tags&quot;: {&quot;$in&quot;: [&quot;experimental&quot;, &quot;diffusion&quot;]}}&#39;</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span>%<span class="o">(</span>prompt<span class="o">)</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">(</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">required_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;prompt&quot;</span><span class="p">],</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">extra_filter</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;metadata.tags&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;experimental&quot;</span><span class="p">,</span> <span class="s2">&quot;diffusion&quot;</span><span class="p">]}}</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">)</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="c1"># your job code here</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">(</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">required_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;prompt&quot;</span><span class="p">],</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">extra_filter</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;metadata.tags&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;experimental&quot;</span><span class="p">,</span> <span class="s2">&quot;diffusion&quot;</span><span class="p">]}}</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="c1"># your job code here</span>
 </code></pre></div>
 </div>
 </div>

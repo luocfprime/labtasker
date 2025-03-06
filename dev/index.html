@@ -824,13 +824,14 @@ running. Consider the following scenarios:</p>
 <div class="admonition question">
 <ul>
 <li>How do you handle cases where the parameters are hard to divide evenly (e.g., 5x5x5 split across 3 GPUs), making it difficult to distribute the workload fairly?</li>
+<li>What if your script crashes halfway and you have no idea of which experiments are complete?</li>
 <li>What if you realize some scheduled experiments are unnecessary after reviewing the results? <em>(Stopping the script isn't ideal, as it would kill running jobs and make it hard to track which experiments are complete.)</em></li>
 <li>What if you want to reprioritize certain experiments based on initial results? You’d face the same issue as above.</li>
 <li>How do you append extra experiment groups during script execution?</li>
 <li>What if some experiments fail midway? <em>It can be challenging to untangle nested loops and identify completed tasks.</em></li>
 </ul>
 </div>
-<p>Labtasker is designed to overcome these challenges.</p>
+<p>Labtasker is designed to tackle these challenges elegantly, with minimal disruption to your existing workflow.</p>
 <p>With Labtasker, you can submit a variety of experiment arguments to a server-based task queue. Worker nodes can then
 fetch and execute these tasks directly from the queue.</p>
 <h3 id="why-not-slurm">Why not SLURM?<a class="headerlink" href="#why-not-slurm" title="Permanent link">&para;</a></h3>
