@@ -1,0 +1,45 @@
+name: Bug Report
+description: Report an issue or unexpected behavior in the project.
+title: "[Bug]: "
+labels: [ "bug" ]
+body:
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before submitting this issue, I confirm that...
+      description: Please ensure you have reviewed the following before submitting the issue.
+      options:
+        - label: I have searched the existing issues for duplicates.
+          required: true
+        - label: I have read the documentation to confirm this is not expected behavior.
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behavior. What did you expect to happen instead? Are there any screenshots?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Copy and paste any relevant log output here. It will automatically be formatted as code.
+      render: shell
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: >
+        Provide details about the environment, including:
+          - The application version (e.g., `labtasker --version`).
+          - Where did you install the application? (Github main? PyPI?)
+          - The client operating system version.
+          - The Python version.
+          - The python requirements.txt or lock files (if applicable).
+          - The server operating system version, Docker setups (if applicable).
+    validations:
+      required: true
