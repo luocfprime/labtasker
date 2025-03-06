@@ -2,8 +2,10 @@
 Implements `labtasker config`
 """
 
+import os
 import tempfile
-from typing import IO, Optional
+from pathlib import Path
+from typing import Optional
 
 import click
 import pydantic
@@ -23,58 +25,71 @@ from labtasker.client.core.paths import (
 @app.command()
 def config(
     editor: Optional[str] = typer.Option(
-        None,
-        help="Editor to use.",
+        None, help="Editor to use for editing the configuration file."
     ),
 ):
-    """Configure local client. Run `labtasker config` which opens the configuration file using system configured editor"""
-    # 0. Check if labtasker root exists, if not, init
+    """
+    Configure the local client. Opens the configuration file for editing using the specified or system-configured editor.
+    """
+    # 0. Check if Labtasker root exists, if not, initialize it
     if not get_labtasker_root().exists():
         typer.confirm(
-            "Labtasker root directory not found. Initializing with default template?",
+            "Labtasker root directory not found. Would you like to initialize it with default templates?",
             abort=True,
         )
         init_labtasker_root()
 
-    # 1. Open editor and edit configuration in a temp file
-    with tempfile.NamedTemporaryFile(
-        "w+b",
-        prefix="labtasker.tmp.",
-        suffix=".toml",
-    ) as f:  # type: IO[bytes]
+    # 1. Create a temporary file and prepare it for editing
+    temp_file_path = None
+    try:
+        # Create a temporary file
+        fd, temp_file_path = tempfile.mkstemp(prefix="labtasker.tmp.", suffix=".toml")
+        os.close(fd)  # Close the file descriptor to avoid locking issues
+        temp_file_path = Path(temp_file_path)
 
-        # 1.1 Copy existing config if exists
-        if get_labtasker_client_config_path().exists():
-            with open(get_labtasker_client_config_path(), "rb") as f_existing:
-                f.write(f_existing.read())
+        # 1.1 Copy existing configuration to the temporary file (if it exists)
+        config_path = get_labtasker_client_config_path()
+        if config_path.exists():
+            with open(config_path, "rb") as existing_config, open(
+                temp_file_path, "wb"
+            ) as temp_file:
+                temp_file.write(existing_config.read())
 
-        # 1.2 Edit
+        # 1.2 Open the temporary file in the editor and validate changes
         while True:
             try:
-                # a. Edit
-                f.seek(0)
-                click.edit(filename=f.name, editor=editor)
+                # a. Open the file in the specified or system-configured editor
+                click.edit(filename=str(temp_file_path), editor=editor)
 
-                # b. Reload and validate
-                f.seek(0)
-                ClientConfig.model_validate(tomlkit.load(f))
+                # b. Reload and validate the updated configuration
+                with open(temp_file_path, "r", encoding="utf-8") as temp_file:
+                    updated_config = tomlkit.load(temp_file)
+                    ClientConfig.model_validate(updated_config)
 
-                f.seek(0)
-                updated_content = f.read()
+                # If validation passes, read the updated content
+                with open(temp_file_path, "rb") as temp_file:
+                    updated_content = temp_file.read()
 
-                break
-            except (
-                tomlkit.exceptions.ParseError,
-                pydantic.ValidationError,
-            ) as e:
+                break  # Exit the loop when editing and validation succeed
+
+            except (tomlkit.exceptions.ParseError, pydantic.ValidationError) as e:
+                # Handle errors during parsing or validation
                 stderr_console.print(
-                    "[bold red]Error:[/bold red] error when parsing config.\n"
-                    f"Detail: {str(e)}"
+                    f"[bold red]Error:[/bold red] Invalid configuration file.\n"
+                    f"Details: {str(e)}"
                 )
-                typer.confirm("Continue to edit?", abort=True)
+                if not typer.confirm("Would you like to continue editing?", abort=True):
+                    raise typer.Abort()
 
-    # 2. Save
-    with open(get_labtasker_client_config_path(), "wb") as f_existing:
-        f_existing.write(updated_content)
+        # 2. Save the updated configuration back to the original file
+        with open(config_path, "wb") as config_file:
+            config_file.write(updated_content)
 
-    stdout_console.print("[bold green]Configuration updated successfully.[/bold green]")
+        stdout_console.print(
+            "[bold green]Configuration updated successfully.[/bold green]"
+        )
+
+    finally:
+        # Cleanup: Delete the temporary file
+        if temp_file_path and temp_file_path.exists():
+            temp_file_path.unlink()

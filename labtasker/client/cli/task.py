@@ -3,8 +3,10 @@ Task related CRUD operations.
 """
 
 import io
+import os
 import tempfile
 from functools import partial
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 import click
@@ -62,11 +64,41 @@ def dump_commented_seq(commented_seq, f):
     y.dump(commented_seq, f)
 
 
-def edit_and_reload(f, editor: str):
-    click.edit(filename=f.name, editor=editor)
-    f.seek(0)
-    data = yaml.safe_load(f)
-    return data
+# def edit_and_reload(f, editor: str):
+#     """Edit a file and reload its contents.
+
+#     Args:
+#         f: File object to edit
+#         editor: Editor to use
+
+#     Returns:
+#         The loaded YAML data from the edited file
+#     """
+#     # Create a temporary file
+#     temp_file_path = None
+#     try:
+#         # Create a temporary file
+#         fd, temp_file_path = tempfile.mkstemp(prefix="labtasker.tmp.", suffix=".yaml")
+#         os.close(fd)  # Close the file descriptor to avoid locking issues
+#         temp_file_path = Path(temp_file_path)
+
+#         # Copy content from the original file to the temporary file
+#         f.seek(0)
+#         with open(temp_file_path, "wb") as temp_file:
+#             temp_file.write(f.read())
+
+#         # Open the file in the editor
+#         click.edit(filename=str(temp_file_path), editor=editor)
+
+#         # Read the edited content
+#         with open(temp_file_path, "r", encoding="utf-8") as temp_file:
+#             data = yaml.safe_load(temp_file)
+
+#         return data
+#     finally:
+#         # Cleanup: Delete the temporary file
+#         if temp_file_path and Path(temp_file_path).exists():
+#             Path(temp_file_path).unlink()
 
 
 def diff(
@@ -411,19 +443,39 @@ def update(
             )
 
         # open an editor to allow interaction
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as f:
-            dump_commented_seq(commented_seq=commented_seq, f=f)
+        temp_file_path = None
+        try:
+            # Create a temporary file
+            fd, temp_file_path = tempfile.mkstemp(
+                prefix="labtasker.tmp.", suffix=".yaml"
+            )
+            os.close(fd)  # Close the file descriptor to avoid locking issues
+            temp_file_path = Path(temp_file_path)
+
+            # Write the content to the temporary file
+            with open(temp_file_path, "w", encoding="utf-8") as temp_file:
+                dump_commented_seq(commented_seq=commented_seq, f=temp_file)
 
             while True:  # continue to edit until no syntax error
                 try:
-                    modified = edit_and_reload(f=f, editor=editor)
+                    # Open the file in the editor
+                    click.edit(filename=str(temp_file_path), editor=editor)
+
+                    # Read the edited content
+                    with open(temp_file_path, "r", encoding="utf-8") as temp_file:
+                        modified = yaml.safe_load(temp_file)
                     break  # if no error, break
                 except yaml.error.YAMLError as e:
                     stderr_console.print(
                         "[bold red]Error:[/bold red] error when parsing yaml.\n"
                         f"Detail: {str(e)}"
                     )
-                    typer.confirm("Continue to edit?", abort=True)
+                    if not typer.confirm("Continue to edit?", abort=True):
+                        raise typer.Abort()
+        finally:
+            # Cleanup: Delete the temporary file
+            if temp_file_path and temp_file_path.exists():
+                temp_file_path.unlink()
 
         # make sure the len match
         if len(modified) != len(old_tasks_primitive):

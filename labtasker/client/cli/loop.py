@@ -2,6 +2,7 @@
 Implements `labtasker loop xxx`
 """
 
+import os
 import shlex
 import subprocess
 from collections import defaultdict
@@ -83,7 +84,7 @@ def loop(
             "Only one of [CMD] and [--cmd] can be specified. Please use one of them."
         )
 
-    cmd = cmd if cmd else option_cmd
+    cmd = cmd if cmd else shlex.split(option_cmd, posix=(os.name == "posix"))
     if not cmd:
         raise typer.BadParameter(
             "Command cannot be empty. Either specify via positional argument [CMD] or `--cmd`."
@@ -115,15 +116,17 @@ def loop(
     )
     def run_cmd(args):
         # Interpolate command
-        interpolated_cmd, _ = cmd_interpolate(cmd, args)
+        (
+            interpolated_cmd,  # type: List[str]
+            _,
+        ) = cmd_interpolate(
+            cmd,  # type: List[str]
+            args,
+        )
         logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")
 
         with subprocess.Popen(
-            args=(
-                shlex.split(interpolated_cmd)
-                if isinstance(interpolated_cmd, str)
-                else interpolated_cmd
-            ),
+            args=interpolated_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
