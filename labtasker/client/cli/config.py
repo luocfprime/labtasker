@@ -5,7 +5,7 @@ Implements `labtasker config`
 import os
 import tempfile
 from pathlib import Path
-from typing import IO, Optional
+from typing import Optional
 
 import click
 import pydantic

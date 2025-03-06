@@ -1,3 +1,4 @@
+import os
 import re
 import shlex
 from ast import literal_eval
@@ -67,7 +68,7 @@ def parse_extra_opt(
     """
     # Tokenize the input string using shlex
     if isinstance(args, str):
-        tokens = shlex.split(args)
+        tokens = shlex.split(args, posix=os.name == "posix")
     elif isinstance(args, list):
         tokens = args
     else:

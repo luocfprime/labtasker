@@ -240,6 +240,20 @@ class CustomErrorListener(ErrorListener):
 def cmd_interpolate(
     cmd: Union[str, List[str]], variable_table: Dict[str, Any]
 ) -> Tuple[Union[str, List[str]], Set[str]]:
+    """
+    Interpolate the command string %(...) with the given variable table.
+
+    Notes:
+        When cmd is a list of str, it will interpolate each str in the list and return a list of str.
+        The behavior is somewhat broken on Windows if the command contains quotes. Therefore, it is recommended to input list of str only.
+
+    Args:
+        cmd:
+        variable_table:
+
+    Returns:
+
+    """
     if isinstance(cmd, str):
         return interpolate_str(cmd, variable_table)
     else:
