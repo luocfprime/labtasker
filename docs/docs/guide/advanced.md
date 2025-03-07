@@ -14,11 +14,24 @@ CLI plugins are particularly useful if you want to pack up your workflow and sha
 
     <script src="https://asciinema.org/a/4bVEhCtHaDD4N7FCGxssoUMfE.js" id="asciicast-4bVEhCtHaDD4N7FCGxssoUMfE" async="true"></script>
 
-To install, simply install it like a python package:
+To install officially bundled plugins:
+
+=== "PyPI"
+
+    ```bash
+    pip install 'labtasker[plugins]'
+    ```
+
+=== "GitHub"
+
+    ```bash
+    pip install 'labtasker[plugins] @ git+https://github.com/fkcptlst/labtasker.git'
+    ```
+
+To install other plugins, simply install it like a regular Python package.
 
 ```bash
-cd plugins/labtasker_plugin_task_count
-pip install .
+pip install labtasker-plugin-task-count
 ```
 
 !!! note
