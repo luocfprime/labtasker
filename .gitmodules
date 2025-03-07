@@ -1,0 +1,3 @@
+[submodule "plugins/labtasker_plugin_task_count"]
+	path = plugins/labtasker_plugin_task_count
+	url = https://github.com/fkcptlst/labtasker-plugin-task-count.git
