@@ -274,6 +274,8 @@ def ls(
     ),
     quiet: bool = typer.Option(
         False,
+        "--quiet",
+        "-q",
         help="Only show task IDs that match the query, rather than full entry. "
         "Useful when using in bash scripts.",
     ),
@@ -380,6 +382,8 @@ def update(
     ),
     quiet: bool = typer.Option(
         False,
+        "--quiet",
+        "-q",
         help="Disable interactive mode and confirmations. Set this to true if you are using this in a bash script.",
     ),
     editor: Optional[str] = typer.Option(

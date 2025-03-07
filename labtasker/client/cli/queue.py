@@ -74,6 +74,8 @@ def create(
     ),
     quiet: bool = typer.Option(
         False,
+        "--quiet",
+        "-q",
         help="Only show queue ID string, rather than full response. Useful when using in bash scripts.",
     ),
 ):
@@ -99,6 +101,8 @@ def create_from_config(
     ),
     quiet: bool = typer.Option(
         False,
+        "--quiet",
+        "-q",
         help="Only show queue ID string, rather than full response. Useful when using in bash scripts.",
     ),
 ):
@@ -118,7 +122,9 @@ def create_from_config(
 @app.command()
 @cli_utils_decorator
 def get(
-    quiet: bool = typer.Option(False, help="Only show queue ID string."),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help="Only show queue ID string."
+    ),
 ):
     """Get current queue info."""
     resp = get_queue()
@@ -148,6 +154,8 @@ def update(
     ),
     quiet: bool = typer.Option(
         False,
+        "--quiet",
+        "-q",
         help="Suppress the output. Execution result is only available via status code.",
     ),
 ):

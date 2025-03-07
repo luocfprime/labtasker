@@ -59,6 +59,8 @@ def create(
     ),
     quiet: bool = typer.Option(
         False,
+        "--quiet",
+        "-q",
         help="Only show worker ID string, rather than full response. Useful when using in bash scripts.",
     ),
 ):
@@ -95,10 +97,14 @@ def ls(
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
+        "--extra-filter",
+        "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
     quiet: bool = typer.Option(
         False,
+        "--quiet",
+        "-q",
         help="Only show worker IDs that match the query, rather than full entry. Useful when using in bash scripts.",
     ),
     pager: bool = typer.Option(

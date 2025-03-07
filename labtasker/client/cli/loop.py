@@ -59,6 +59,8 @@ def loop(
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
+        "--extra-filter",
+        "-f",
         help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
     ),
     worker_id: Optional[str] = typer.Option(
