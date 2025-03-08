@@ -165,144 +165,120 @@ def resolve_args_partial(
     func, /, param_metas: Dict[str, ParamMeta], pass_args_dict: bool
 ):
     """
-    Takes in task_args, apply custom type_caster if available, fill in the args and kwargs for the required fields, and return the wrapped function
+    Process function parameter injection, supporting automatic filling of parameters annotated with Required
+
     Args:
-        func:
-        param_metas:
-        pass_args_dict: Whether to pass the fetched task args dict as the first positional argument of the job function
-
-    Returns:
-
+        func: Original function
+        param_metas: Dictionary of parameter metadata
+        pass_args_dict: Whether to pass task_args as the first positional argument
     """
-
-    required = {
-        param_meta.name: param_meta.default
-        for param_meta in param_metas.values()
-        if isinstance(param_meta.default, Required)
-    }
-
-    type_casters = {}
-    for name, r in required.items():
-        field_name = r.alias or name
-        if r.type_caster is not None:
-            type_casters[name] = (field_name, r.type_caster)
-        else:
-            type_casters[name] = (field_name, lambda x: x)  # identity function
+    # Collect all params marked with Required(...)
+    required_params = {}
+    for name, param_meta in param_metas.items():
+        if isinstance(param_meta.default, Required):
+            required_params[name] = param_meta.default
 
     @wraps(func)
     def wrapped(task_args, /, *job_fn_args, **job_fn_kwargs):
-        """
-        1. Use type_casters to convert sub-fields of task_args to the required types
-        2. Construct the positional and keyword arguments that should be passed into the func
+        # 1. Preprocess task_args and extract required values
+        task_args_flat = flatten_dict(task_args)
+        injected_values = {}
 
-        Args:
-            task_args:
-            *job_fn_args:
-            **job_fn_kwargs:
+        for name, req in required_params.items():
+            field_name = req.alias or name
+            type_caster = req.type_caster or (lambda x: x)
 
-        Returns:
-
-        """
-        task_args_flattened = flatten_dict(task_args)
-        # 1. resolve args and kwargs
-        resolved_args = {}
-        for name, (field_name, caster) in type_casters.items():
             try:
-                resolved_args[name] = caster(task_args_flattened[field_name])
+                injected_values[name] = type_caster(task_args_flat[field_name])
             except KeyError as e:
                 raise LabtaskerRuntimeError(
-                    f"Required field {name!r} is not found in task args"
+                    f"Required field {name!r} not found in task args"
                 ) from e
             except Exception as e:
                 raise LabtaskerRuntimeError(
-                    f"Failed to resolve field {name!r} with type caster {caster!r}"
+                    f"Failed to process field {name!r} with type caster"
                 ) from e
 
-        # 2. construct the partial function
-
-        # Scan left to right along each parameter to determine whether to fill in as positional or keyword arguments
-        how_to_fill = {}
-
-        kwargs_only = False  # scan left to right, after the first keyword argument, no positional arguments should follow
-        for param_meta in param_metas.values():
-            name = param_meta.name
-
-            if name in job_fn_kwargs:
-                # if it is provided as a keyword argument, it should be filled in as a keyword argument
-                # and every parameter after it should be filled in as a keyword argument
-                if param_meta.kind == inspect.Parameter.POSITIONAL_ONLY:
-                    raise LabtaskerRuntimeError(
-                        f"Required field {name!r} got some positional-only arguments passed as keyword arguments."
-                    )
-                kwargs_only = True
-                how_to_fill[name] = "keyword"
-                continue
-
-            if (
-                param_meta.kind == inspect.Parameter.POSITIONAL_ONLY
-                or param_meta.kind == inspect.Parameter.VAR_POSITIONAL
-            ):
-                how_to_fill[param_meta.name] = "positional"
-                if kwargs_only:
-                    raise LabtaskerRuntimeError(
-                        f"Required field {name!r} positional argument follows a keyword argument."
-                    )
-            elif param_meta.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
-                # prioritize positional argument over keyword argument to allow more flexibility
-                how_to_fill[name] = "keyword" if kwargs_only else "positional"
-            elif (
-                param_meta.kind == inspect.Parameter.KEYWORD_ONLY
-                or param_meta.kind == inspect.Parameter.VAR_KEYWORD
-            ):
-                how_to_fill[name] = "keyword"
-                kwargs_only = True
-            else:  # pragma: no cover
-                raise LabtaskerRuntimeError(
-                    f"Unknown parameter kind {param_meta.kind!r} for field {name!r}"
-                )
-
-        # Fill in the args and kwargs
-        job_fn_args_idx = 0  # a pointer to the job_fn_args
-        args = [task_args] if pass_args_dict else []
+        # 2. Prepare arguments
+        args = []
         kwargs = {}
 
-        def _get_arg(name):
-            # check for conflict
-            if name in job_fn_kwargs and name in resolved_args:
-                raise LabtaskerValueError(
-                    f"Field {name} should be left blank and filled by labtasker, because you have specified it via Required(...). "
-                    f"Yet you have provided with keyword argument with value {name}={job_fn_kwargs[name]}."
-                )
+        # If task_args should be passed as the first parameter
+        if pass_args_dict:
+            job_fn_args = [task_args] + list(job_fn_args)
 
+        # Check for conflicts between injected parameters and user-provided parameters
+        conflicts = set(injected_values) & set(job_fn_kwargs)
+        if conflicts:
+            conflicting = next(iter(conflicts))
+            raise LabtaskerValueError(
+                f"Field {conflicting} should be left blank and filled by labtasker. "
+                f"Yet you provided it as keyword argument with value: {job_fn_kwargs[conflicting]}"
+            )
+
+        # 3. Build parameter list in order
+        available_positionals = list(job_fn_args)  # Copy because we'll modify it
+
+        for name, param_meta in param_metas.items():
+            # Determine if this parameter should be passed as positional or keyword argument
+            # Handle special parameter types
+            if param_meta.kind == inspect.Parameter.VAR_POSITIONAL:
+                args.extend(available_positionals)
+                available_positionals = []
+                continue
+            elif param_meta.kind == inspect.Parameter.VAR_KEYWORD:
+                # Handle **kwargs parameter: add remaining user-provided keyword arguments to kwargs
+                for k, v in job_fn_kwargs.items():
+                    if k not in kwargs:
+                        kwargs[k] = v
+                continue
+
+            # Determine the value for this parameter
             if name in job_fn_kwargs:
-                return job_fn_kwargs[name]
-            elif name in resolved_args:
-                return resolved_args[name]
+                # User provided this parameter as a keyword argument
+                kwargs[name] = job_fn_kwargs[name]
+                # Once we have a keyword argument, subsequent regular parameters must also be passed as keywords
+                if available_positionals:
+                    raise LabtaskerValueError(
+                        f"Got extra positional arguments {available_positionals} after a keyword argument: {name}={kwargs[name]}"
+                    )
+            elif name in injected_values:
+                # This is a parameter that needs to be injected
+                if not available_positionals or param_meta.kind in (
+                    inspect.Parameter.KEYWORD_ONLY,
+                    inspect.Parameter.VAR_KEYWORD,
+                ):
+                    # If no positional arguments are available or the parameter is keyword-only, add as keyword
+                    kwargs[name] = injected_values[name]
+                else:
+                    # Otherwise add as positional argument
+                    args.append(injected_values[name])
+            elif available_positionals:
+                # Use a user-provided positional argument
+                args.append(available_positionals.pop(0))
+            elif param_meta.default is not inspect.Parameter.empty:
+                # Use default value
+                continue  # No need to explicitly add, Python will handle it automatically
             else:
+                # No value available
                 raise LabtaskerRuntimeError(
-                    f"Field {name!r} is not filled in by labtasker and you have not specified it via keyword argument."
+                    f"Required parameter {name!r} not provided and not injected"
                 )
 
-        for name, how in how_to_fill.items():
-            if how == "positional":
-                if name in resolved_args:
-                    args.append(resolved_args[name])
-                else:
-                    # not specified by Required(...), use the next user provided positional argument
-                    if job_fn_args_idx >= len(job_fn_args):
-                        raise LabtaskerRuntimeError(
-                            f"Required field {name!r} is not filled in by labtasker and you have not specified it via positional argument.\n"
-                            f"You may have provided less args than required.\n"
-                            f"Context: currently filled args: {args}, user provided positional args: {job_fn_args}"
-                        )
-                    args.append(job_fn_args[job_fn_args_idx])
-                    job_fn_args_idx += 1
-            elif how == "keyword":
-                kwargs[name] = _get_arg(name)
-            else:  # pragma: no cover
-                raise LabtaskerRuntimeError(
-                    f"Unknown how to fill {name!r} with value {how!r}"
-                )
+        # Check if there are unused positional arguments
+        if available_positionals:
+            raise LabtaskerValueError(
+                f"Too many positional arguments provided. "
+                f"Filled: {args}, remaining: {available_positionals}"
+            )
+
+        # Check if there are unused keyword arguments
+        used_kwargs = set(kwargs.keys())
+        unused_kwargs = set(job_fn_kwargs.keys()) - used_kwargs
+        if unused_kwargs and not any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in param_metas.values()
+        ):
+            raise LabtaskerValueError(f"Unexpected keyword arguments: {unused_kwargs}")
 
         return func(*args, **kwargs)
 
