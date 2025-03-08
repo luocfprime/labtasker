@@ -498,6 +498,8 @@ class DBService:
 
         required_fields = required_fields or []
 
+        allow_arbitrary_args = "*" in required_fields
+
         if not start_heartbeat and not task_timeout:
             raise HTTPException(
                 status_code=HTTP_400_BAD_REQUEST,
@@ -525,15 +527,18 @@ class DBService:
             # Fetch task
             now = get_current_time()
 
-            required_fields_no_less = keys_to_query_dict(
-                required_fields, mode="deepest"
-            )
-            required_fields_filter = (
+            if not allow_arbitrary_args:
                 # "no less" of the "no more, no less" principle
-                query_dict_to_mongo_filter(required_fields_no_less, parent_key="args")
-                if required_fields
-                else None
-            )
+                required_fields_filter = (
+                    query_dict_to_mongo_filter(
+                        keys_to_query_dict(required_fields, mode="deepest"),
+                        parent_key="args",
+                    )
+                    if required_fields
+                    else None
+                )
+            else:
+                required_fields_filter = None
 
             combined_filter = merge_filter(
                 required_fields_filter, extra_filter, logical_op="and"
@@ -577,8 +582,10 @@ class DBService:
             )
             for task in tasks:
                 if task:
-                    if required_fields_no_more and not arg_match(
-                        required_fields_no_more, task["args"]
+                    if (
+                        not allow_arbitrary_args
+                        and required_fields_no_more
+                        and not arg_match(required_fields_no_more, task["args"])
                     ):
                         continue  # Skip to the next task if it doesn't match
 

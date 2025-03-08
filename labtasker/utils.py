@@ -280,3 +280,13 @@ def risky(description: str):
 
 def parse_obj_as(dst_type: Type[Any], obj: Any) -> Any:
     return TypeAdapter(dst_type).validate_python(obj)
+
+
+def validate_required_fields(keys):
+    allowed_pattern = r"^(\*|([a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*))$"
+    if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+        raise TypeError("Input must be a list of strings.")
+    if not all(re.match(allowed_pattern, k) for k in keys):
+        raise ValueError(
+            "Keys must be valid dot-separated strings or a single '*' for matching everything."
+        )

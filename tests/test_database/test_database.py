@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from functools import partial
 
+import fastapi.exceptions
 import pytest
 from fastapi import HTTPException
 from freezegun import freeze_time
@@ -928,6 +929,82 @@ class TestTaskRequiredFieldFetching:
         assert task is not None
         # Check if it fetched the one with the highest priority
         assert task["task_name"] == "task_match_2"
+
+    def test_fetch_star_matching(self, db_fixture, queue_args):
+        """Test posing no constraint on the task args by setting '*' as required_fields"""
+        queue_id = db_fixture.create_queue(**queue_args)
+
+        # Create tasks
+        task_args = [
+            {
+                "queue_id": queue_id,
+                "task_name": "task_1",
+                "args": {"arg2": {"arg21": 1}},
+                "priority": Priority.LOW,
+            },
+            {
+                "queue_id": queue_id,
+                "task_name": "task_2",
+                "args": {"foo": 0},
+                "priority": Priority.LOW,
+            },
+            {
+                "queue_id": queue_id,
+                "task_name": "task_3",
+                "args": {"bar": {"baz": 1}, "boo": False},
+                "priority": Priority.LOW,
+            },
+        ]
+
+        for args in task_args:
+            db_fixture.create_task(**args)
+
+        # Define required fields
+        required_fields = ["*"]
+
+        # Fetch task and assert
+        for i in range(3):
+            task = db_fixture.fetch_task(
+                queue_id=queue_id, required_fields=required_fields
+            )
+            assert task is not None
+
+        task = db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
+        assert task is None, "There should not be any more tasks left."
+
+    def test_fetch_with_incorrect_format(self, db_fixture, queue_args):
+        queue_id = db_fixture.create_queue(**queue_args)
+
+        # Create tasks
+        task_args = [
+            {
+                "queue_id": queue_id,
+                "task_name": "task_match_1",
+                "args": {"arg1": "value1", "arg2": {"arg21": 1}},
+                "priority": Priority.LOW,
+            },
+            {
+                "queue_id": queue_id,
+                "task_name": "task_match_2",
+                "args": {"arg1": "value1", "arg2": {"arg21": 1}},
+                "priority": Priority.HIGH,
+            },
+        ]
+
+        for args in task_args:
+            db_fixture.create_task(**args)
+
+        required_fields = [".arg1", ".arg2.arg21"]
+        with pytest.raises(fastapi.exceptions.HTTPException):
+            db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
+
+        required_fields = [""]
+        with pytest.raises(fastapi.exceptions.HTTPException):
+            db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
+
+        required_fields = ["."]
+        with pytest.raises(fastapi.exceptions.HTTPException):
+            db_fixture.fetch_task(queue_id=queue_id, required_fields=required_fields)
 
 
 @pytest.mark.unit

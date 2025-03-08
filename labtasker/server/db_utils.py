@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError, validate_call
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
 
-from labtasker.utils import flatten_dict
+from labtasker.utils import flatten_dict, validate_required_fields
 
 
 def validate_arg(func):
@@ -136,8 +136,7 @@ def keys_to_query_dict(keys: List[str], mode: str):
     """
     assert mode in ["deepest", "topmost"], "Mode must be 'deepest' or 'topmost'."
 
-    if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
-        raise TypeError("Input must be a list of strings.")
+    validate_required_fields(keys)
 
     query_dict = {}
     keys = sorted(set(keys), key=len)  # Sort by length for topmost mode processing
