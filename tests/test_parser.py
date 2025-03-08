@@ -8,7 +8,6 @@ import pytest
 
 from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.exceptions import CmdParserError
-from labtasker.utils import keys_to_query_dict
 
 
 @pytest.fixture(autouse=True)
@@ -66,16 +65,14 @@ class TestParseCmd:
         assert len(parsed) == 6, f"got {len(parsed)}"
         assert parsed == tgt_cmd, f"expected {tgt_cmd}, got {parsed}"
 
-    def test_keys_to_query_dict(self, params):
+    def test_get_keys(self, params):
         cmd = _split("python main.py --arg1 %(arg1) --arg2 %(arg2.arg4.arg5)")
         parsed, keys = cmd_interpolate(cmd, params)
-        query_dict = keys_to_query_dict(list(keys))
 
         tgt_cmd = _split("python main.py --arg1 value1 --arg2 value5")
-        tgt_query_dict = {"arg1": None, "arg2": {"arg4": {"arg5": None}}}
 
         assert parsed == tgt_cmd, f"got {parsed}"
-        assert query_dict == tgt_query_dict, f"got {query_dict}"
+        assert set(keys) == {"arg1", "arg2.arg4.arg5"}
 
     def test_missing_key(self, params):
         cmd = _split("python main.py --arg1 %()")

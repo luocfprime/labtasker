@@ -2,11 +2,9 @@ import os
 import re
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, Type, Union
 
-from fastapi import HTTPException
 from pydantic import TypeAdapter
-from starlette.status import HTTP_400_BAD_REQUEST
 
 
 def parse_timeout(timeout_str: str) -> float:
@@ -266,22 +264,6 @@ def risky(description: str):
     return decorator
 
 
-def auth_required(func):
-    """
-    A decorator to mark a function as requiring authentication.
-    This does not enforce authentication but serves as a marker.
-    """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # Just call the original function without enforcing anything
-        return func(*args, **kwargs)
-
-    # Add a marker attribute to the function
-    wrapper.auth_required = True
-    return wrapper
-
-
 # _api_usage_log = defaultdict(int)
 
 # TODO: implement with logging for developers
@@ -296,113 +278,15 @@ def auth_required(func):
 #     return decorator
 
 
-def arg_match(required, provided):
-    """
-    Check if all required arguments are provided in the provided arguments.
-    Principle: No more, no less.
-    """
-    if required is None:  # Base case for recursion
-        return True
-    if provided is None:
-        return False
-
-    try:
-        # Check if any required key is missing in provided (vice versa)
-        if set(required.keys()) != set(provided.keys()):  # "No more, no less"
-            return False
-    except AttributeError:  # one of them is not dict
-        return False
-
-    # Recursively check each key and value pair
-    for key, value in required.items():
-        if not arg_match(value, provided[key]):
-            return False
-
-    return True
-
-
-def keys_to_query_dict(keys):
-    """
-    Converts a list of dot-separated keys into a nested dictionary.
-    Leaf node values are set to None.
-
-    Args:
-        keys (list): List of strings, where each string is a dot-separated key path.
-
-    Returns:
-        dict: Nested dictionary representation of the keys.
-    """
-    if not isinstance(keys, list):
-        raise TypeError("Input must be a list of strings.")
-
-    query_dict = {}
-
-    for key in keys:
-        if not isinstance(key, str):
-            raise TypeError(f"Invalid key '{key}': Keys must be strings.")
-
-        parts = key.split(".")  # Split the key into its parts
-        current = query_dict
-
-        for part in parts[:-1]:  # Traverse or create intermediate levels
-            if (
-                part not in current
-                or current[part] is None  # leaf node exists: extend depth
-            ):
-                current[part] = {}
-            current = current[part]
-
-        if parts[-1] not in current:
-            current[parts[-1]] = None  # Set the leaf node to None
-
-    return query_dict
-
-
-def sanitize_update(
-    update: Dict[str, Any],
-    banned_fields: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-    """Ban update on certain fields."""
-
-    if banned_fields is None:
-        banned_fields = ["_id", "queue_id", "created_at", "last_modified"]
-
-    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
-        for k, v in d.items():
-            if k in banned_fields:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail=f"Field {k} is not allowed to be updated",
-                )
-            elif isinstance(v, dict):
-                d[k] = _recr_sanitize(v)
-        return d
-
-    return _recr_sanitize(update)
-
-
-def sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
-    """Sanitize a dictionary so that it does not contain any MongoDB operators."""
-
-    def _recr_sanitize(d: Dict[str, Any]) -> Dict[str, Any]:
-        for k, v in d.items():
-            if isinstance(k, str):
-                if re.match(r"^\$", k):  # Match those starting with $
-                    raise HTTPException(
-                        status_code=HTTP_400_BAD_REQUEST,
-                        detail=f"MongoDB operators are not allowed in field names: {k}",
-                    )
-                if k.startswith("."):
-                    raise HTTPException(
-                        status_code=HTTP_400_BAD_REQUEST,
-                        detail=f"Field names starting with `.` are not allowed: {k}",
-                    )
-            if isinstance(v, dict):
-                d[k] = _recr_sanitize(v)
-        return d
-
-    return _recr_sanitize(dic)
-
-
 def parse_obj_as(dst_type: Type[Any], obj: Any) -> Any:
     return TypeAdapter(dst_type).validate_python(obj)
+
+
+def validate_required_fields(keys):
+    allowed_pattern = r"^(\*|([a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*))$"
+    if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+        raise TypeError("Input must be a list of strings.")
+    if not all(re.match(allowed_pattern, k) for k in keys):
+        raise ValueError(
+            "Keys must be valid dot-separated strings or a single '*' for matching everything."
+        )

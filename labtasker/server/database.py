@@ -20,22 +20,23 @@ from labtasker.constants import Priority
 from labtasker.security import hash_password
 from labtasker.server.config import get_server_config
 from labtasker.server.db_utils import (
+    arg_match,
+    auth_required,
+    keys_to_query_dict,
     merge_filter,
     query_dict_to_mongo_filter,
+    sanitize_dict,
     sanitize_query,
+    sanitize_update,
     validate_arg,
 )
 from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
 from labtasker.server.logging import logger
 from labtasker.utils import (
     add_key_prefix,
-    arg_match,
-    auth_required,
     get_current_time,
     parse_timeout,
     risky,
-    sanitize_dict,
-    sanitize_update,
     unflatten_dict,
 )
 
@@ -473,7 +474,7 @@ class DBService:
         eta_max: Optional[str] = None,
         heartbeat_timeout: Optional[float] = None,
         start_heartbeat: bool = True,
-        required_fields: Optional[Dict[str, Any]] = None,
+        required_fields: Optional[List[str]] = None,
         extra_filter: Optional[Dict[str, Any]] = None,
     ) -> Optional[Mapping[str, Any]]:
         """
@@ -490,10 +491,14 @@ class DBService:
             eta_max (str, optional): The optional task execution timeout override. Recommended using when start_heartbeat is False.
             heartbeat_timeout (float, optional): The optional heartbeat timeout interval in seconds.
             start_heartbeat (bool): Whether to start heartbeat.
-            required_fields (dict, optional): Which fields are required. If None, no constraint is put on which fields should exist in args dict.
+            required_fields (list, optional): Which fields are required. If None, no constraint is put on which fields should exist in args dict.
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
         """
         task_timeout = parse_timeout(eta_max) if eta_max else None
+
+        required_fields = required_fields or []
+
+        allow_arbitrary_args = "*" in required_fields
 
         if not start_heartbeat and not task_timeout:
             raise HTTPException(
@@ -522,11 +527,18 @@ class DBService:
             # Fetch task
             now = get_current_time()
 
-            required_fields_filter = (
-                query_dict_to_mongo_filter(required_fields, parent_key="args")
-                if required_fields
-                else None
-            )
+            if not allow_arbitrary_args:
+                # "no less" of the "no more, no less" principle
+                required_fields_filter = (
+                    query_dict_to_mongo_filter(
+                        keys_to_query_dict(required_fields, mode="deepest"),
+                        parent_key="args",
+                    )
+                    if required_fields
+                    else None
+                )
+            else:
+                required_fields_filter = None
 
             combined_filter = merge_filter(
                 required_fields_filter, extra_filter, logical_op="and"
@@ -564,9 +576,17 @@ class DBService:
                 sort=[("priority", -1), ("last_modified", 1), ("created_at", 1)],
             )
 
+            # "no more" of the "no more, no less" principle
+            required_fields_no_more = keys_to_query_dict(
+                required_fields, mode="topmost"
+            )
             for task in tasks:
                 if task:
-                    if required_fields and not arg_match(required_fields, task["args"]):
+                    if (
+                        not allow_arbitrary_args
+                        and required_fields_no_more
+                        and not arg_match(required_fields_no_more, task["args"])
+                    ):
                         continue  # Skip to the next task if it doesn't match
 
                     updated_task = self._tasks.find_one_and_update(

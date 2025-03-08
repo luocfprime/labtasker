@@ -24,7 +24,6 @@ from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import CmdParserError
 from labtasker.client.core.job_runner import finish, loop_run
 from labtasker.client.core.logging import logger, stderr_console, stdout_console
-from labtasker.utils import keys_to_query_dict
 
 
 class InfiniteDefaultDict(defaultdict):
@@ -103,7 +102,7 @@ def loop(
     except (CmdParserError, KeyError, TypeError) as e:
         raise typer.BadParameter(f"Command error with exception {e}")
 
-    required_fields = keys_to_query_dict(list(queried_keys))
+    required_fields = list(queried_keys)
 
     logger.info(f"Got command: {cmd}")
 

@@ -170,7 +170,7 @@ def fetch_task(
     eta_max: Optional[str] = None,
     heartbeat_timeout: Optional[float] = None,
     start_heartbeat: bool = True,
-    required_fields: Optional[Dict[str, Any]] = None,
+    required_fields: Optional[List[str]] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
 ) -> TaskFetchResponse:

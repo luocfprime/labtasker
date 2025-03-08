@@ -28,7 +28,7 @@ from labtasker.client.core.exceptions import (
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import log_to_file, logger
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
-from labtasker.utils import keys_to_query_dict, parse_timeout
+from labtasker.utils import parse_timeout
 
 __all__ = ["loop_run", "finish"]
 
@@ -50,7 +50,7 @@ def dump_task_info():
 
 
 def loop_run(
-    required_fields: Union[Dict[str, Any], List[str]] = None,
+    required_fields: List[str] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
     worker_id: Optional[str] = None,
@@ -62,7 +62,7 @@ def loop_run(
     """Run the wrapped job function in loop.
 
     Args:
-        required_fields: Fields required for task execution. Note: the dot-separated fields are default to be parsed into a nested dict structure. e.g. ["foo.bar"] will be parsed into {"foo": {"bar": None}}. The same applies for {"foo.bar": None} which will eventually be transformed into {"foo": {"bar": None}}
+        required_fields: Fields required for task execution in a dot-separated manner. E.g. ["arg1.arg11", "arg2.arg22"]
         extra_filter: Additional filtering criteria for tasks
         cmd: Command line arguments that runs current process. Default to sys.argv
         worker_id: Specific worker ID to use
@@ -71,12 +71,9 @@ def loop_run(
         heartbeat_timeout: Heartbeat timeout in seconds. Default to 3 times the send interval.
         pass_args_dict: If True, passes task_info().args as first argument
     """
-    if isinstance(required_fields, list):
-        required_fields = keys_to_query_dict(required_fields)
-
-    if not isinstance(required_fields, dict):
+    if not isinstance(required_fields, list):
         raise LabtaskerValueError(
-            "Invalid required_fields. Required fields must be a dict or a list of str keys."
+            "Invalid required_fields. Required fields must be a list of str keys."
         )
 
     if heartbeat_timeout is None:

@@ -11,6 +11,8 @@ prune .venv
 prune .tox
 prune .benchmarks
 
+prune plugins
+
 exclude Makefile
 exclude coverage.xml
 

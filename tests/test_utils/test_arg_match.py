@@ -1,6 +1,6 @@
 import pytest
 
-from labtasker.utils import arg_match
+from labtasker.server.db_utils import arg_match
 
 
 @pytest.mark.unit
@@ -56,6 +56,20 @@ def test_nested_structure_match():
     required = {"arg1": None, "arg2": {"arg21": {"arg211": None}}}
     provided = {"arg1": "value1", "arg2": {"arg21": {"arg211": "value3"}}}
     assert arg_match(required, provided)
+
+
+@pytest.mark.unit
+def test_nested_multiple_field_match():
+    """Test nested structures when required and provided match."""
+    required = {"arg1": None, "arg2": {"arg21": {"arg211": None}}}
+    provided = {
+        "arg1": "value1",
+        "arg2": {
+            "arg21": {"arg211": "value3"},
+            "arg22": "value4",  # should not be covered by required
+        },
+    }
+    assert not arg_match(required, provided)
 
 
 @pytest.mark.unit
