@@ -1,6 +1,7 @@
 import pytest
 
-from labtasker.utils import flatten_dict, keys_to_query_dict
+from labtasker.server.db_utils import keys_to_query_dict
+from labtasker.utils import flatten_dict
 
 
 @pytest.mark.unit
@@ -20,7 +21,7 @@ def test_keys_to_query_dict_with_flatten_dict():
     keys = list(flattened.keys())
 
     # Step 2: Use keys_to_query_dict to reconstruct the dictionary
-    reconstructed_dict = keys_to_query_dict(keys)
+    reconstructed_dict = keys_to_query_dict(keys, mode="deepest")
 
     # Step 3: Define the expected dictionary with all leaf values set to None
     expected_dict = {
@@ -62,16 +63,16 @@ def test_keys_to_query_dict_edge_cases(keys, expected_dict):
     """
     Test keys_to_query_dict with various edge cases.
     """
-    assert keys_to_query_dict(keys) == expected_dict
+    assert keys_to_query_dict(keys, mode="deepest") == expected_dict
 
 
 @pytest.mark.unit
 def test_input_not_list():
     with pytest.raises(TypeError, match="Input must be a list of strings."):
-        keys_to_query_dict("arg1.arg11")  # type: ignore
+        keys_to_query_dict("arg1.arg11", mode="deepest")  # type: ignore
 
 
 @pytest.mark.unit
 def test_non_string_elements():
-    with pytest.raises(TypeError, match="Invalid key '123': Keys must be strings."):
-        keys_to_query_dict(["arg1", 123])
+    with pytest.raises(TypeError, match="Input must be a list of strings."):
+        keys_to_query_dict(["arg1", 123], mode="deepest")
