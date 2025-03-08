@@ -30,7 +30,7 @@ from labtasker.client.core.logging import log_to_file, logger
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
 from labtasker.utils import keys_to_query_dict, parse_timeout
 
-__all__ = ["loop", "finish"]
+__all__ = ["loop_run", "finish"]
 
 
 def dump_status(status: str):
@@ -49,7 +49,7 @@ def dump_task_info():
         f.write(task_info().model_dump_json(indent=4))
 
 
-def loop(
+def loop_run(
     required_fields: Union[Dict[str, Any], List[str]] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     cmd: Optional[Union[str, List[str]]] = None,

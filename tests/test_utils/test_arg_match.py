@@ -13,8 +13,23 @@ def test_exact_match():
 
     # non-leaf match
     required = {"arg1": None, "arg2": None}
-    provided = {"arg1": "value1", "arg2": "value2"}
+    provided = {"arg1": "value1", "arg2": {"arg21": "value2"}}
     assert arg_match(required, provided)
+
+
+@pytest.mark.unit
+def test_non_leaf_match():
+    """Test when required and provided structures are exactly the same."""
+    # non-leaf match
+    required = {"arg1": None, "arg2": None}  # match from arg2 root
+    provided = {"arg1": "value1", "arg2": {"arg21": "value2", "arg22": "value3"}}
+    assert arg_match(required, provided)
+
+    required = {
+        "arg1": None,
+        "arg2": {"arg22": None},
+    }  # arg21 in provided, but not in required
+    assert not arg_match(required, provided)
 
 
 @pytest.mark.unit

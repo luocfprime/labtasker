@@ -46,7 +46,10 @@ def test_keys_to_query_dict_with_flatten_dict():
         # Test case 3: Nested keys
         (["arg1.arg11.arg111"], {"arg1": {"arg11": {"arg111": None}}}),
         # Test case 4: Overlapping keys
-        (["arg1", "arg1.arg11"], {"arg1": {"arg11": None}}),
+        (
+            ["arg1", "arg1.arg11"],
+            {"arg1": {"arg11": None}},
+        ),  # FIXME: should be {"arg1": None}
         # Test case 5: Empty input
         ([], {}),
         # Test case 6: Deep nesting
@@ -55,6 +58,11 @@ def test_keys_to_query_dict_with_flatten_dict():
         (
             ["arg1", "arg2.arg21", "arg2.arg22", "arg2.arg21.arg211"],
             {"arg1": None, "arg2": {"arg21": {"arg211": None}, "arg22": None}},
+        ),
+        # Test case 8: Duplicate keys
+        (
+            ["arg1", "arg1.arg11.arg111", "arg1.arg11.arg111"],
+            {"arg1": {"arg11": {"arg111": None}}},
         ),
     ],
 )

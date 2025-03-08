@@ -22,8 +22,7 @@ from labtasker.client.core.cli_utils import (
 from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import CmdParserError
-from labtasker.client.core.job_runner import finish
-from labtasker.client.core.job_runner import loop as loop_run
+from labtasker.client.core.job_runner import finish, loop_run
 from labtasker.client.core.logging import logger, stderr_console, stdout_console
 from labtasker.utils import keys_to_query_dict
 
