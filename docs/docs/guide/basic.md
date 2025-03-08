@@ -9,7 +9,6 @@
     - Python Demo: Modify your Python Demo code with a few lines of changes to support Labtasker.
     - Bash Demo: No modification to your Python Demo code is required. Simply wrap your command with `labtasker loop ...`.
 
-
 !!! note "demo step by step"
 
     This is a step-by-step demo of the basic workflow described in this page.
@@ -53,14 +52,14 @@ labtasker queue create-from-config
 
 === "Bash Demo"
 
-    ```bash title="demo/bash_demo/submit_job.sh"
-    --8<-- "demo/bash_demo/submit_job.sh"
+    ```bash title="demo/basic/bash_demo/submit_job.sh"
+    --8<-- "demo/basic/bash_demo/submit_job.sh"
     ```
 
 === "Python Demo"
 
-    ```python title="demo/python_demo/submit_job.py"
-    --8<-- "demo/python_demo/submit_job.py"
+    ```python title="demo/basic/python_demo/submit_job.py"
+    --8<-- "demo/basic/python_demo/submit_job.py"
     ```
 
 !!! tip ""
@@ -71,20 +70,20 @@ labtasker queue create-from-config
 
 === "Bash Demo"
 
-    ```bash title="demo/bash_demo/run_job.sh"
-    --8<-- "demo/bash_demo/run_job.sh"
+    ```bash title="demo/basic/bash_demo/run_job.sh"
+    --8<-- "demo/basic/bash_demo/run_job.sh"
     ```
 
     where
 
-    ```bash title="demo/bash_demo/job_main.py"
-    --8<-- "demo/bash_demo/job_main.py"
+    ```bash title="demo/basic/bash_demo/job_main.py"
+    --8<-- "demo/basic/bash_demo/job_main.py"
     ```
 
 === "Python Demo"
 
-    ```python title="demo/python_demo/run_job.py"
-    --8<-- "demo/python_demo/run_job.py"
+    ```python title="demo/basic/python_demo/run_job.py"
+    --8<-- "demo/basic/python_demo/run_job.py"
     ```
 
 ## Check pending/running jobs
