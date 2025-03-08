@@ -811,6 +811,22 @@ MarkupSafe = ">=2.0"
 i18n = ["Babel (>=2.7)"]
 
 [[package]]
+name = "labtasker-plugin-task-count"
+version = "0.1.0"
+description = "A demo CLI plugin for Labtasker."
+optional = true
+python-versions = "<4.0,>=3.8.1"
+groups = ["main"]
+markers = "extra == \"plugins\""
+files = [
+    {file = "labtasker_plugin_task_count-0.1.0-py3-none-any.whl", hash = "sha256:344eb7cf4679986d359f7a7991c455445c351dd2f6336b32c8d169d8befed8d2"},
+    {file = "labtasker_plugin_task_count-0.1.0.tar.gz", hash = "sha256:6cf55d98c5d3d9ec02fe1235f2b632186d26ce83846a7b20011bc5383835ea28"},
+]
+
+[package.dependencies]
+labtasker = "*"
+
+[[package]]
 name = "loguru"
 version = "0.7.3"
 description = "Python logging made (stupidly) simple"
@@ -2785,8 +2801,9 @@ type = ["pytest-mypy"]
 [extras]
 dev = ["asgi-lifespan", "black", "flake8", "freezegun", "isort", "mongomock", "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-benchmark", "pytest-cov", "pytest-dependency", "pytest-docker", "tox"]
 doc = ["mike", "mkdocs-material"]
+plugins = ["labtasker-plugin-task-count"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "461e43c44b4675830cbbaddcee8d5059e23258a775db45ae603bf653fe04ad62"
+content-hash = "be03ec0081e3cbe6c876eb51a4cd4abf1f7ed6581b8f5f2780f48cc4e2812e57"

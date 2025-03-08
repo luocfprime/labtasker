@@ -14,6 +14,7 @@ __all__ = [
     # python job runner api
     "loop",
     "finish",
+    "Required",
     # context api
     "task_info",
     "current_task_id",
@@ -65,7 +66,8 @@ def loop(
 
     """
     try:
-        validate_required_fields(required_fields)
+        if required_fields is not None:
+            validate_required_fields(required_fields)
     except ValueError as e:
         raise LabtaskerValueError(str(e)) from e
     except TypeError as e:

@@ -13,11 +13,11 @@ class Required(ParameterInfo):
         self,
         *,
         alias: Optional[str] = None,
-        type_caster: Optional[Callable[[Any], Any]] = None,
+        resolver: Optional[Callable[[Any], Any]] = None,
     ):
         super().__init__()
         self.alias = alias
-        self.type_caster = type_caster
+        self.resolver = resolver
 
 
 class ParamMeta:

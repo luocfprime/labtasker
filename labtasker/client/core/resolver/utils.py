@@ -14,7 +14,6 @@ from labtasker.client.core.exceptions import (
     LabtaskerValueError,
 )
 from labtasker.client.core.resolver.models import ParameterInfo, ParamMeta, Required
-from labtasker.utils import flatten_dict
 
 
 def _param_type_to_user_string(param_type: Type[ParameterInfo]) -> str:
@@ -161,6 +160,38 @@ def get_required_fields(
     return list(required_fields)
 
 
+def get_nested_value(data, path):
+    """Retrieve a value from nested dictionary structure.
+    Works with both direct keys and dot-notation paths.
+
+    Args:
+        data: The dictionary to search in
+        path: A string path (can be a simple key or dot-separated path)
+
+    Returns:
+        The value at the specified path
+
+    Raises:
+        KeyError: If the path doesn't exist in the data
+    """
+    # First try direct access (handles both simple keys and
+    # cases where the exact key with dots exists)
+    if path in data:
+        return data[path]
+
+    # Try as a dot-separated path
+    parts = path.split(".")
+    current = data
+
+    try:
+        for part in parts:
+            current = current[part]
+        return current
+    except (KeyError, TypeError):
+        # If we can't traverse the path or the structure isn't as expected
+        raise KeyError(f"Cannot find path '{path}' in data")
+
+
 def resolve_args_partial(
     func, /, param_metas: Dict[str, ParamMeta], pass_args_dict: bool
 ):
@@ -181,15 +212,15 @@ def resolve_args_partial(
     @wraps(func)
     def wrapped(task_args, /, *job_fn_args, **job_fn_kwargs):
         # 1. Preprocess task_args and extract required values
-        task_args_flat = flatten_dict(task_args)
         injected_values = {}
 
         for name, req in required_params.items():
             field_name = req.alias or name
-            type_caster = req.type_caster or (lambda x: x)
+            type_caster = req.resolver or (lambda x: x)
 
             try:
-                injected_values[name] = type_caster(task_args_flat[field_name])
+                value = get_nested_value(task_args, field_name)
+                injected_values[name] = type_caster(value)
             except KeyError as e:
                 raise LabtaskerRuntimeError(
                     f"Required field {name!r} not found in task args"

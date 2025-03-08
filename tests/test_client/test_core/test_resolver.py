@@ -212,7 +212,7 @@ class TestResolveArgsPartial:
             return int(x) * 2
 
         def target_func(
-            a: Annotated[int, Required(type_caster=type_caster)], b: str = "default"
+            a: Annotated[int, Required(resolver=type_caster)], b: str = "default"
         ):
             return a, b
 
@@ -393,7 +393,7 @@ class TestResolveArgsPartial:
             return int(x)  # Will fail if x is not convertible to int
 
         def target_func(
-            a: Annotated[int, Required(type_caster=type_caster)], b: str = "default"
+            a: Annotated[int, Required(resolver=type_caster)], b: str = "default"
         ):
             return a, b
 
