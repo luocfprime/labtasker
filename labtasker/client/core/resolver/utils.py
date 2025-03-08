@@ -14,7 +14,7 @@ from labtasker.client.core.exceptions import (
     LabtaskerValueError,
 )
 from labtasker.client.core.resolver.models import ParameterInfo, ParamMeta, Required
-from labtasker.utils import flatten_dict, keys_to_query_dict
+from labtasker.utils import flatten_dict
 
 
 def _param_type_to_user_string(param_type: Type[ParameterInfo]) -> str:
@@ -132,8 +132,8 @@ def get_params_from_function(func: Callable[..., Any]) -> Dict[str, ParamMeta]:
 
 def get_required_fields(
     param_metas: Dict[str, ParamMeta] = None,
-    extra_required_fields: Union[Dict[str, Any], List[str]] = None,
-) -> Dict[str, Any]:
+    extra_required_fields: List[str] = None,
+) -> List[str]:
     """
     Get required fields from function ParamMeta
     Args:
@@ -153,18 +153,12 @@ def get_required_fields(
                 required_fields.add(meta.name)
 
     if extra_required_fields:
-        if isinstance(extra_required_fields, dict):
-            extra_required_fields_ = set(flatten_dict(extra_required_fields))
-        else:
-            extra_required_fields_ = set(extra_required_fields)
+        extra_required_fields = set(extra_required_fields)
 
         # merge required_fields together
-        required_fields = required_fields | extra_required_fields_
+        required_fields = required_fields | extra_required_fields
 
-    # parse required_fields into a tree structure (as a dict)
-    required_fields_ = keys_to_query_dict(list(required_fields))
-
-    return required_fields_
+    return list(required_fields)
 
 
 def resolve_args_partial(

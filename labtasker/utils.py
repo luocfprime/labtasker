@@ -6,6 +6,8 @@ from typing import Any, Dict, Type, Union
 
 from pydantic import TypeAdapter
 
+from labtasker.constants import DOT_SEPARATED_KEY_PATTERN
+
 
 def parse_timeout(timeout_str: str) -> float:
     """Convert timeout string to seconds.
@@ -283,10 +285,10 @@ def parse_obj_as(dst_type: Type[Any], obj: Any) -> Any:
 
 
 def validate_required_fields(keys):
-    allowed_pattern = r"^(\*|([a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*))$"
+    allowed_pattern = DOT_SEPARATED_KEY_PATTERN
     if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
         raise TypeError("Input must be a list of strings.")
-    if not all(re.match(allowed_pattern, k) for k in keys):
+    if not "*" in keys and not all(re.match(allowed_pattern, k) for k in keys):
         raise ValueError(
             "Keys must be valid dot-separated strings or a single '*' for matching everything."
         )

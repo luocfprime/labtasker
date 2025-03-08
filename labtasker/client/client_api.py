@@ -1,6 +1,14 @@
 from labtasker.client.core.api import *
 from labtasker.client.core.context import current_task_id, current_worker_id, task_info
+from labtasker.client.core.exceptions import LabtaskerTypeError
 from labtasker.client.core.job_runner import finish, loop_run
+from labtasker.client.core.resolver import (
+    Required,
+    get_params_from_function,
+    get_required_fields,
+    resolve_args_partial,
+)
+from labtasker.utils import validate_required_fields
 
 __all__ = [
     # python job runner api
@@ -29,15 +37,9 @@ __all__ = [
     "report_task_status",
 ]
 
-from labtasker.client.core.resolver import get_params_from_function
-from labtasker.client.core.resolver.utils import (
-    get_required_fields,
-    resolve_args_partial,
-)
-
 
 def loop(
-    required_fields: Union[Dict[str, Any], List[str]] = None,
+    required_fields: List[str] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
     worker_id: Optional[str] = None,
@@ -49,7 +51,7 @@ def loop(
     """Run the wrapped job function in loop.
 
     Args:
-        required_fields: Fields required for task execution. Note: the dot-separated fields are default to be parsed into a nested dict structure. e.g. ["foo.bar"] will be parsed into {"foo": {"bar": None}}. The same applies for {"foo.bar": None} which will eventually be transformed into {"foo": {"bar": None}}
+        required_fields: Fields required for task execution in a dot-separated manner. E.g. ["arg1.arg11", "arg2.arg22"]
         extra_filter: Additional filtering criteria for tasks
         cmd: Command line arguments that runs current process. Default to sys.argv
         worker_id: Specific worker ID to use
@@ -62,6 +64,12 @@ def loop(
         The decorated function
 
     """
+    try:
+        validate_required_fields(required_fields)
+    except ValueError as e:
+        raise LabtaskerValueError(str(e)) from e
+    except TypeError as e:
+        raise LabtaskerTypeError(str(e)) from e
 
     def decorator(func):
         """

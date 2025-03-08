@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
+from labtasker.client.core.utils import validate_dict_keys
 from labtasker.constants import Priority
 
 
@@ -14,12 +15,39 @@ class BaseApiModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class MetadataKeyValidateMixin:
+
+    @field_validator("metadata")
+    def validate_keys(cls, v, field):
+        if v:
+            validate_dict_keys(v)
+        return v
+
+
+class ArgsKeyValidateMixin:
+
+    @field_validator("args")
+    def validate_keys(cls, v, field):
+        if v:
+            validate_dict_keys(v)
+        return v
+
+
+class SummaryKeyValidateMixin:
+
+    @field_validator("summary")
+    def validate_keys(cls, v, field):
+        if v:
+            validate_dict_keys(v)
+        return v
+
+
 class HealthCheckResponse(BaseApiModel):
     status: str = Field(..., pattern=r"^(healthy|unhealthy)$")
     database: str
 
 
-class QueueCreateRequest(BaseApiModel):
+class QueueCreateRequest(BaseApiModel, MetadataKeyValidateMixin):
     queue_name: str = Field(
         ..., pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
@@ -39,7 +67,7 @@ class QueueCreateResponse(BaseApiModel):
     queue_id: str
 
 
-class QueueGetResponse(BaseApiModel):
+class QueueGetResponse(BaseApiModel, MetadataKeyValidateMixin):
     queue_id: str = Field(alias="_id")
     queue_name: str
     created_at: datetime
@@ -47,7 +75,12 @@ class QueueGetResponse(BaseApiModel):
     metadata: Dict[str, Any]
 
 
-class TaskSubmitRequest(BaseApiModel):
+class TaskSubmitRequest(
+    BaseApiModel,
+    ArgsKeyValidateMixin,
+    MetadataKeyValidateMixin,
+    SummaryKeyValidateMixin,
+):
     """Task submission request."""
 
     task_name: Optional[str] = Field(
@@ -71,7 +104,12 @@ class TaskFetchRequest(BaseApiModel):
     extra_filter: Optional[Dict[str, Any]] = None
 
 
-class Task(BaseApiModel):
+class Task(
+    BaseApiModel,
+    ArgsKeyValidateMixin,
+    MetadataKeyValidateMixin,
+    SummaryKeyValidateMixin,
+):
     task_id: str = Field(alias="_id")  # Accepts "_id" as an input field
     queue_id: str
     status: str
@@ -92,7 +130,12 @@ class Task(BaseApiModel):
     worker_id: Optional[str]
 
 
-class TaskUpdateRequest(BaseApiModel):
+class TaskUpdateRequest(
+    BaseApiModel,
+    ArgsKeyValidateMixin,
+    MetadataKeyValidateMixin,
+    SummaryKeyValidateMixin,
+):
     """This should be consistent with Task.
     Fields that disallow manual update are commented out.
     """
@@ -158,7 +201,7 @@ class TaskStatusUpdateRequest(BaseApiModel):
     summary: Optional[Dict[str, Any]] = None
 
 
-class WorkerCreateRequest(BaseApiModel):
+class WorkerCreateRequest(BaseApiModel, MetadataKeyValidateMixin):
     worker_name: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     max_retries: Optional[int] = 3
@@ -180,7 +223,7 @@ class WorkerLsRequest(BaseApiModel):
     extra_filter: Optional[Dict[str, Any]] = None
 
 
-class Worker(BaseApiModel):
+class Worker(BaseApiModel, MetadataKeyValidateMixin):
     worker_id: str = Field(alias="_id")
     queue_id: str
     status: str

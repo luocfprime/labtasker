@@ -2,8 +2,9 @@ import time
 
 import pytest
 
-from labtasker import create_queue, finish, loop, ls_tasks, submit_task, task_info
+from labtasker import create_queue, finish, ls_tasks, submit_task, task_info
 from labtasker.client.core.context import set_current_worker_id
+from labtasker.client.core.job_runner import loop_run
 from tests.fixtures.logging import silence_logger
 
 pytestmark = [
@@ -52,7 +53,7 @@ def test_job_success(setup_tasks):
 
     idx = -1
 
-    @loop(required_fields=["arg1", "arg2"], eta_max="1h", pass_args_dict=True)
+    @loop_run(required_fields=["arg1", "arg2"], eta_max="1h", pass_args_dict=True)
     def job(args):
         nonlocal idx
         idx += 1
@@ -80,7 +81,7 @@ def test_job_manual_failure(setup_tasks):
 
     max_retries = 3
 
-    @loop(
+    @loop_run(
         required_fields=["arg1", "arg2"],
         eta_max="1h",
         create_worker_kwargs={"max_retries": max_retries},
@@ -114,7 +115,7 @@ def test_job_auto_failure(setup_tasks):
 
     max_retries = 3
 
-    @loop(
+    @loop_run(
         required_fields=["arg1", "arg2"],
         eta_max="1h",
         create_worker_kwargs={"max_retries": max_retries},
