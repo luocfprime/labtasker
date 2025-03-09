@@ -42,3 +42,26 @@ pip install labtasker-plugin-task-count
     and [Typer Doc](https://typer.tiangolo.com/tutorial/subcommands/nested-subcommands/) for details.
 
 ### Workflow plugins [WIP]
+
+## Custom Resolvers
+
+Sometimes after we fetched task args from the server, we need to convert it into other types (such as dataclasses) for
+further processing.
+
+Suppose you have a set of tasks submitted like this:
+
+```python title="demo/advanced/custom_resolver/submit_job.py"
+--8<-- "demo/advanced/custom_resolver/submit_job.py"
+```
+
+You can manually specify the `required_fields` and convert them into your own dataclass manually:
+
+```python title="demo/advanced/custom_resolver/wo.py"
+--8<-- "demo/advanced/custom_resolver/wo.py"
+```
+
+Now, you can achieve a more elegant solution by using a custom resolver:
+
+```python title="demo/advanced/custom_resolver/w.py"
+--8<-- "demo/advanced/custom_resolver/w.py"
+```
