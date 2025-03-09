@@ -52,7 +52,7 @@ def loop(
     """Run the wrapped job function in loop.
 
     Args:
-        required_fields: Fields required for task execution in a dot-separated manner. E.g. ["arg1.arg11", "arg2.arg22"]
+        required_fields: Fields (or extra fields other than specified using Required(...)) required for task execution in a dot-separated manner. E.g. ["arg1.arg11", "arg2.arg22"]
         extra_filter: Additional filtering criteria for tasks
         cmd: Command line arguments that runs current process. Default to sys.argv
         worker_id: Specific worker ID to use
