@@ -1,4 +1,4 @@
 # config contains sensitive data
 *.toml
-
+.last-version-check
 logs

@@ -19,7 +19,7 @@ app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 def version_callback(value: bool):
     if value:
         stdout_console.print(f"Labtasker Version: {__version__}")
-        check_pypi_status(blocking=True)
+        check_pypi_status(force_check=True, blocking=True)
         raise typer.Exit()
 
 
