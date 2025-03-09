@@ -7,5 +7,5 @@ class Priority(int, Enum):
     HIGH = 20
 
 
-KEY_PATTERN = r"^[a-zA-Z_][a-zA-Z0-9_-]*$"  # start with letter or underscore
-DOT_SEPARATED_KEY_PATTERN = r"^[a-zA-Z_][a-zA-Z0-9_-]*(\.[a-zA-Z_][a-zA-Z0-9_-]*)*$"
+KEY_PATTERN = r"^[a-zA-Z0-9_-]+$"
+DOT_SEPARATED_KEY_PATTERN = r"^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)*$"
