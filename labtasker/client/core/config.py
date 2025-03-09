@@ -68,6 +68,12 @@ class ClientConfig(BaseSettings):
 
     # whether to filter sensitive content from traceback via excepthook
     enable_traceback_filter: bool = True
+    display_server_notifications_level: str = Field(
+        "medium", pattern=r"^(low|medium|high|none)$"  # none to disable
+    )
+
+    # check for new version or obsolete versions
+    version_check: bool = True
 
     queue: QueueConfig
 

@@ -1,12 +1,12 @@
 import pytest
 import typer
 
-from labtasker import LabtaskerValueError
 from labtasker.client.core.cli_utils import (
     parse_extra_opt,
     parse_metadata,
     parse_updates,
 )
+from labtasker.client.core.exceptions import LabtaskerValueError
 
 
 @pytest.mark.unit

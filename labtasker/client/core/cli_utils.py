@@ -17,9 +17,9 @@ from rich.json import JSON
 from rich.syntax import Syntax
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from labtasker import LabtaskerTypeError, LabtaskerValueError
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
+from labtasker.client.core.exceptions import LabtaskerTypeError, LabtaskerValueError
 from labtasker.client.core.logging import stderr_console
 from labtasker.utils import parse_timeout, unflatten_dict
 

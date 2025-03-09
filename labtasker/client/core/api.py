@@ -1,5 +1,4 @@
-from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_409_CONFLICT
@@ -26,34 +25,39 @@ from labtasker.api_models import (
 )
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import (
-    LabtaskerHTTPStatusError,
     LabtaskerRuntimeError,
     LabtaskerValueError,
     WorkerSuspended,
+)
+from labtasker.client.core.utils import (
+    cast_http_status_error,
+    display_server_notifications,
 )
 from labtasker.constants import Priority
 from labtasker.security import SecretStr, get_auth_headers
 
 _httpx_client: Optional[httpx.Client] = None
 
-
-def cast_http_status_error(func: Optional[Callable] = None, /):
-    def decorator(function: Callable):
-        @wraps(function)
-        def wrapped(*args, **kwargs):
-            try:
-                return function(*args, **kwargs)
-            except httpx.HTTPStatusError as e:
-                raise LabtaskerHTTPStatusError(
-                    message=str(e), request=e.request, response=e.response
-                ) from e
-
-        return wrapped
-
-    if func is not None:
-        return decorator(func)
-
-    return decorator
+__all__ = [
+    "get_httpx_client",
+    "close_httpx_client",
+    "health_check",
+    "create_queue",
+    "get_queue",
+    "delete_queue",
+    "submit_task",
+    "fetch_task",
+    "report_task_status",
+    "refresh_task_heartbeat",
+    "create_worker",
+    "ls_worker",
+    "report_worker_status",
+    "ls_tasks",
+    "update_tasks",
+    "delete_task",
+    "update_queue",
+    "delete_worker",
+]
 
 
 def get_httpx_client() -> httpx.Client:
@@ -77,6 +81,7 @@ def close_httpx_client():
         _httpx_client = None
 
 
+@display_server_notifications
 @cast_http_status_error
 def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     """Check the health of the server."""
@@ -87,6 +92,7 @@ def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     return HealthCheckResponse(**response.json())
 
 
+@display_server_notifications
 @cast_http_status_error
 def create_queue(
     queue_name: str,
@@ -107,6 +113,7 @@ def create_queue(
     return QueueCreateResponse(**response.json())
 
 
+@display_server_notifications
 @cast_http_status_error
 def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
     """Get queue information."""
@@ -130,6 +137,7 @@ def delete_queue(
     response.raise_for_status()
 
 
+@display_server_notifications
 @cast_http_status_error
 def submit_task(
     task_name: Optional[str] = None,
@@ -164,6 +172,7 @@ def submit_task(
     return TaskSubmitResponse(**response.json())
 
 
+@display_server_notifications
 @cast_http_status_error
 def fetch_task(
     worker_id: Optional[str] = None,
@@ -271,6 +280,7 @@ def create_worker(
     return WorkerCreateResponse(**response.json()).worker_id
 
 
+@display_server_notifications
 @cast_http_status_error
 def ls_worker(
     worker_id: Optional[str] = None,
@@ -326,6 +336,7 @@ def report_worker_status(
     response.raise_for_status()
 
 
+@display_server_notifications
 @cast_http_status_error
 def ls_tasks(
     task_id: Optional[str] = None,
@@ -350,6 +361,7 @@ def ls_tasks(
     return TaskLsResponse(**response.json())
 
 
+@display_server_notifications
 @cast_http_status_error
 def update_tasks(
     task_updates: List[TaskUpdateRequest] = None,
@@ -378,6 +390,7 @@ def delete_task(
     response.raise_for_status()
 
 
+@display_server_notifications
 @cast_http_status_error
 def update_queue(
     new_queue_name: Optional[str] = None,

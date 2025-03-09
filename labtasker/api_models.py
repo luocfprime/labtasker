@@ -1,10 +1,12 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
+from packaging.version import Version
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
-from labtasker.client.core.utils import validate_dict_keys
+from labtasker import __version__
 from labtasker.constants import Priority
+from labtasker.utils import validate_dict_keys
 
 
 class BaseApiModel(BaseModel):
@@ -13,6 +15,28 @@ class BaseApiModel(BaseModel):
     """
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class BaseRequestModel(BaseApiModel):
+    client_version: str = __version__
+
+    @field_validator("client_version")
+    def validate_client_version(cls, v, field):
+        # make sure it is a valid version
+        Version(v)
+        return v
+
+
+class Notification(BaseModel):
+    """Server notification such as compatibility warning etc."""
+
+    type: str = Field(..., pattern=r"^(info|warning|error)$")
+    level: str = Field(..., pattern=r"^(low|medium|high)$")
+    details: Union[str, Dict[str, Any]]
+
+
+class BaseResponseModel(BaseApiModel):
+    notification: Optional[List[Notification]] = None
 
 
 class MetadataKeyValidateMixin:
@@ -42,12 +66,12 @@ class SummaryKeyValidateMixin:
         return v
 
 
-class HealthCheckResponse(BaseApiModel):
+class HealthCheckResponse(BaseResponseModel):
     status: str = Field(..., pattern=r"^(healthy|unhealthy)$")
     database: str
 
 
-class QueueCreateRequest(BaseApiModel, MetadataKeyValidateMixin):
+class QueueCreateRequest(BaseRequestModel, MetadataKeyValidateMixin):
     queue_name: str = Field(
         ..., pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
@@ -63,11 +87,11 @@ class QueueCreateRequest(BaseApiModel, MetadataKeyValidateMixin):
         return result
 
 
-class QueueCreateResponse(BaseApiModel):
+class QueueCreateResponse(BaseResponseModel):
     queue_id: str
 
 
-class QueueGetResponse(BaseApiModel, MetadataKeyValidateMixin):
+class QueueGetResponse(BaseResponseModel, MetadataKeyValidateMixin):
     queue_id: str = Field(alias="_id")
     queue_name: str
     created_at: datetime
@@ -76,7 +100,7 @@ class QueueGetResponse(BaseApiModel, MetadataKeyValidateMixin):
 
 
 class TaskSubmitRequest(
-    BaseApiModel,
+    BaseRequestModel,
     ArgsKeyValidateMixin,
     MetadataKeyValidateMixin,
     SummaryKeyValidateMixin,
@@ -95,7 +119,7 @@ class TaskSubmitRequest(
     priority: int = Priority.MEDIUM
 
 
-class TaskFetchRequest(BaseApiModel):
+class TaskFetchRequest(BaseRequestModel):
     worker_id: Optional[str] = None
     eta_max: Optional[str] = None
     heartbeat_timeout: Optional[float] = None
@@ -131,7 +155,7 @@ class Task(
 
 
 class TaskUpdateRequest(
-    BaseApiModel,
+    BaseRequestModel,
     ArgsKeyValidateMixin,
     MetadataKeyValidateMixin,
     SummaryKeyValidateMixin,
@@ -173,12 +197,12 @@ class TaskUpdateRequest(
     # worker_id: Optional[str]
 
 
-class TaskFetchResponse(BaseApiModel):
+class TaskFetchResponse(BaseResponseModel):
     found: bool = False
     task: Optional[Task] = None
 
 
-class TaskLsRequest(BaseApiModel):
+class TaskLsRequest(BaseRequestModel):
     offset: int = Field(0, ge=0)
     limit: int = Field(100, ge=0, le=1000)
     task_id: Optional[str] = None
@@ -186,36 +210,36 @@ class TaskLsRequest(BaseApiModel):
     extra_filter: Optional[Dict[str, Any]] = None
 
 
-class TaskLsResponse(BaseApiModel):
+class TaskLsResponse(BaseResponseModel):
     found: bool = False
     content: List[Task] = Field(default_factory=list)
 
 
-class TaskSubmitResponse(BaseApiModel):
+class TaskSubmitResponse(BaseResponseModel):
     task_id: str
 
 
-class TaskStatusUpdateRequest(BaseApiModel):
+class TaskStatusUpdateRequest(BaseRequestModel):
     status: str = Field(..., pattern=r"^(success|failed|cancelled)$")
     worker_id: Optional[str] = None
     summary: Optional[Dict[str, Any]] = None
 
 
-class WorkerCreateRequest(BaseApiModel, MetadataKeyValidateMixin):
+class WorkerCreateRequest(BaseRequestModel, MetadataKeyValidateMixin):
     worker_name: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     max_retries: Optional[int] = 3
 
 
-class WorkerCreateResponse(BaseApiModel):
+class WorkerCreateResponse(BaseResponseModel):
     worker_id: str
 
 
-class WorkerStatusUpdateRequest(BaseApiModel):
+class WorkerStatusUpdateRequest(BaseRequestModel):
     status: str = Field(..., pattern=r"^(active|suspended|failed)$")
 
 
-class WorkerLsRequest(BaseApiModel):
+class WorkerLsRequest(BaseRequestModel):
     offset: int = Field(0, ge=0)
     limit: int = Field(100, ge=0, le=1000)
     worker_id: Optional[str] = None
@@ -237,12 +261,12 @@ class Worker(BaseApiModel, MetadataKeyValidateMixin):
     last_modified: datetime
 
 
-class WorkerLsResponse(BaseApiModel):
+class WorkerLsResponse(BaseResponseModel):
     found: bool = False
     content: List[Worker] = Field(default_factory=list)
 
 
-class QueueUpdateRequest(BaseApiModel):
+class QueueUpdateRequest(BaseRequestModel):
     new_queue_name: Optional[str] = Field(
         None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
