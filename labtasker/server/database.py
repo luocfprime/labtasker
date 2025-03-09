@@ -499,6 +499,8 @@ class DBService:
         required_fields = required_fields or []
 
         allow_arbitrary_args = "*" in required_fields
+        if allow_arbitrary_args:  # prevent "*" messing with constructed mongodb query
+            required_fields.remove("*")
 
         if not start_heartbeat and not task_timeout:
             raise HTTPException(
@@ -527,18 +529,18 @@ class DBService:
             # Fetch task
             now = get_current_time()
 
-            if not allow_arbitrary_args:
-                # "no less" of the "no more, no less" principle
-                required_fields_filter = (
-                    query_dict_to_mongo_filter(
-                        keys_to_query_dict(required_fields, mode="deepest"),
-                        parent_key="args",
-                    )
-                    if required_fields
-                    else None
+            # "no less" of the "no more, no less" principle, user demanded fields must
+            # exist in task args
+            # even if allow_arbitrary_args==True, this principle should still be followed
+            # else it may lead to unexpected missing keys.
+            required_fields_filter = (
+                query_dict_to_mongo_filter(
+                    keys_to_query_dict(required_fields, mode="deepest"),
+                    parent_key="args",
                 )
-            else:
-                required_fields_filter = None
+                if required_fields
+                else None
+            )
 
             combined_filter = merge_filter(
                 required_fields_filter, extra_filter, logical_op="and"
