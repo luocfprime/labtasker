@@ -46,7 +46,7 @@ app = typer.Typer()
 
 
 def commented_seq_from_dict_list(
-    entries: List[Dict[str, Any]]
+    entries: List[Dict[str, Any]],
 ) -> ruamel.yaml.CommentedSeq:
     return ruamel.yaml.CommentedSeq([ruamel.yaml.CommentedMap(e) for e in entries])
 
