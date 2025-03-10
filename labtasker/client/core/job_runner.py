@@ -145,12 +145,11 @@ def loop_run(
 
                     with log_to_file(file_path=get_labtasker_log_dir() / "run.log"):
                         start_heartbeat(task_id=current_task_id())
+                        success_flag = False
                         try:
                             func_args = (task.args, *args) if pass_args_dict else args
                             func(*func_args, **kwargs)
-
-                            # Default finish. Can be overridden by the user if called somewhere deep in the wrapped func().
-                            finish(status="success", summary={})
+                            success_flag = True
                         except BaseException as e:
                             logger.exception(f"Task {current_task_id()} failed")
                             finish(
@@ -164,6 +163,9 @@ def loop_run(
                                 },
                             )
                         finally:
+                            if success_flag:
+                                # Default finish. Can be overridden by the user if called somewhere deep in the wrapped func().
+                                finish(status="success")
                             end_heartbeat()
                 except WorkerSuspended:
                     logger.info("Worker suspended.")
@@ -225,5 +227,5 @@ def finish(
     report_task_status(
         task_id=current_task_id(),
         status=status,
-        summary=summary if summary else {},
+        summary=summary,
     )
