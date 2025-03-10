@@ -6,6 +6,7 @@ import sys
 import threading
 import warnings
 from pathlib import Path
+from typing import Iterable, List, Optional, Union
 
 from loguru import logger  # noqa
 from rich.console import Console
@@ -42,6 +43,7 @@ class TeeStream(io.TextIOBase):
     """
 
     def __init__(self, original_stream, outputs_var):
+        super().__init__()
         self.original_stream = original_stream
         self.outputs_var = outputs_var
         self.lock = threading.RLock()
@@ -82,7 +84,99 @@ class TeeStream(io.TextIOBase):
                         if "I/O operation on closed file" not in str(e):
                             raise
 
-    # Forward all other attributes to the original stream
+    # Standard file methods proxied to original stream
+    def close(self) -> None:
+        return self.original_stream.close()
+
+    def fileno(self) -> int:
+        return self.original_stream.fileno()
+
+    def isatty(self) -> bool:
+        return self.original_stream.isatty()
+
+    def readable(self) -> bool:
+        return self.original_stream.readable()
+
+    def read(self, size: int = -1) -> str:
+        return self.original_stream.read(size)
+
+    def readlines(self, hint: int = -1) -> List[str]:
+        return self.original_stream.readlines(hint)
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self.original_stream.seek(offset, whence)
+
+    def seekable(self) -> bool:
+        return self.original_stream.seekable()
+
+    def tell(self) -> int:
+        return self.original_stream.tell()
+
+    def truncate(self, size: Optional[int] = None) -> int:
+        if size is None:
+            return self.original_stream.truncate()
+        return self.original_stream.truncate(size)
+
+    def writable(self) -> bool:
+        return self.original_stream.writable()
+
+    def writelines(self, lines: Iterable[str]) -> None:
+        # First write to original stream
+        self.original_stream.writelines(lines)
+
+        # Then write to all tee outputs
+        with self.lock:
+            for output in self.outputs_var.get():
+                if output != self.original_stream:
+                    try:
+                        output.writelines(lines)
+                    except ValueError as e:
+                        if "I/O operation on closed file" in str(e):
+                            warnings.warn(
+                                "Attempted to write to a closed file",
+                                RuntimeWarning,
+                            )
+                        else:
+                            raise
+
+    def readline(self, size: Optional[int] = -1) -> str:
+        return self.original_stream.readline(size)
+
+    def __del__(self) -> None:
+        # Don't close the original stream when this object is deleted
+        # The original stream's lifecycle should be managed externally
+        pass
+
+    @property
+    def closed(self) -> bool:
+        return self.original_stream.closed
+
+    def _checkClosed(self) -> None:
+        if self.closed:
+            raise ValueError("I/O operation on closed file")
+
+    # Additional TextIOBase attributes that may be needed
+    @property
+    def encoding(self) -> str:
+        return getattr(self.original_stream, "encoding", None)
+
+    @property
+    def errors(self) -> Optional[str]:
+        return getattr(self.original_stream, "errors", None)
+
+    @property
+    def newlines(self) -> Optional[Union[str, tuple]]:
+        return getattr(self.original_stream, "newlines", None)
+
+    @property
+    def buffer(self):
+        return getattr(self.original_stream, "buffer", None)
+
+    @property
+    def line_buffering(self) -> bool:
+        return getattr(self.original_stream, "line_buffering", False)
+
+    # Forward any other attributes to the original stream
     def __getattr__(self, name):
         return getattr(self.original_stream, name)
 
