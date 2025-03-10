@@ -58,11 +58,10 @@ def patch_up(monkeypatch, client_config, test_app_):
     monkeypatch.setattr("labtasker.client.core.api._httpx_client", test_app_)
 
 
-def test_server_notifications(capsys):
+def test_server_notifications(capture_output):
     health_check()
 
-    out, err = capsys.readouterr()
-    assert "Test notification info." in out
+    assert "Test notification info." in capture_output.stdout
 
 
 def test_server_get_client_version():
