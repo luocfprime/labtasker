@@ -3,12 +3,15 @@ import os
 import sys
 import traceback
 from functools import wraps
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
+
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from labtasker.api_models import TaskUpdateRequest
 from labtasker.client.core.api import (
     create_worker,
     fetch_task,
+    get_queue,
     report_task_status,
     update_tasks,
 )
@@ -21,16 +24,24 @@ from labtasker.client.core.context import (
     task_info,
 )
 from labtasker.client.core.exceptions import (
+    LabtaskerHTTPStatusError,
     LabtaskerRuntimeError,
     LabtaskerValueError,
     WorkerSuspended,
 )
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
-from labtasker.client.core.logging import log_to_file, logger
+from labtasker.client.core.logging import log_to_file, logger, stderr_console
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
 from labtasker.utils import parse_timeout
 
 __all__ = ["loop_run", "finish"]
+
+_loop_internal_error_handler = lambda e: None
+
+
+def set_loop_internal_error_handler(handler: Callable[[Exception], None]):
+    global _loop_internal_error_handler
+    _loop_internal_error_handler = handler
 
 
 def dump_status(status: str):
@@ -86,6 +97,19 @@ def loop_run(
             raise LabtaskerValueError(
                 f"Invalid eta_max {eta_max}. ETA max must be a valid duration string (e.g. '1h', '1h30m', '50s')"
             )
+
+    # Check connection and authentication
+    try:
+        get_queue()
+    except LabtaskerHTTPStatusError as e:
+        if e.response.status_code == HTTP_401_UNAUTHORIZED:
+            msg = (
+                f"Either invalid credentials or queue not created. "
+                f"Please check your configuration. Detail: {e}"
+            )
+            stderr_console.print(f"[bold red]Error:[/bold red] {msg}")
+            logger.critical(msg)
+        raise e
 
     # Create worker if not exists
     if current_worker_id() is None:

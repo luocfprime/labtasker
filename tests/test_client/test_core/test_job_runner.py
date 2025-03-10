@@ -2,7 +2,15 @@ import time
 
 import pytest
 
-from labtasker import create_queue, finish, ls_tasks, submit_task, task_info
+from labtasker import (
+    LabtaskerHTTPStatusError,
+    create_queue,
+    finish,
+    get_queue,
+    ls_tasks,
+    submit_task,
+    task_info,
+)
 from labtasker.client.core.context import set_current_worker_id
 from labtasker.client.core.job_runner import loop_run
 from tests.fixtures.logging import silence_logger
@@ -44,6 +52,18 @@ def setup_tasks(db_fixture):
 @pytest.fixture(autouse=True)
 def reset_worker_id():
     set_current_worker_id(None)
+
+
+def test_no_auth(db_fixture, capture_output):
+    db_fixture.erase()  # wipe the db so that the queue is not created
+    with pytest.raises(LabtaskerHTTPStatusError):
+        get_queue()  # should trigger a http 401 error
+
+    with pytest.raises(LabtaskerHTTPStatusError):
+        loop_run(required_fields=["*"])(lambda: None)
+        assert (
+            "Either invalid credentials or queue not created." in capture_output.stderr
+        )
 
 
 def test_job_success(setup_tasks):

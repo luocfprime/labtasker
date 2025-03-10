@@ -1,4 +1,6 @@
 import os
+import sys
+from io import StringIO
 from pathlib import Path
 from shutil import rmtree
 
@@ -60,3 +62,55 @@ def reset_heartbeat():
     """Reset heartbeat manager after each testcase. So that some crashed test does not affect others."""
     yield
     end_heartbeat(raise_error=False)
+
+
+@pytest.fixture
+def capture_output(monkeypatch):
+    """
+    Fixture that captures stdout and stderr without displaying
+    anything in the console during tests.
+
+    Usage:
+    def test_example(capture_output):
+        print("normal output")  # Won't show in console
+        print("error output", file=sys.stderr)  # Won't show in console
+
+        assert "normal output" in capture_output.stdout
+        assert "error output" in capture_output.stderr
+    """
+    # Capture buffers
+    stdout_buffer = StringIO()
+    stderr_buffer = StringIO()
+
+    # Redirect standard output and error
+    monkeypatch.setattr(sys, "stdout", stdout_buffer)
+    monkeypatch.setattr(sys, "stderr", stderr_buffer)
+
+    # Create a handle class with access to captured outputs
+    class OutputCapture:
+        @property
+        def stdout(self):
+            """Get captured standard output"""
+            return stdout_buffer.getvalue()
+
+        @property
+        def stderr(self):
+            """Get captured standard error"""
+            return stderr_buffer.getvalue()
+
+        def clear_all(self):
+            """Clear all capture buffers"""
+            self.clear_stdout()
+            self.clear_stderr()
+
+        def clear_stdout(self):
+            """Clear only stdout buffer"""
+            stdout_buffer.truncate(0)
+            stdout_buffer.seek(0)
+
+        def clear_stderr(self):
+            """Clear only stderr buffer"""
+            stderr_buffer.truncate(0)
+            stderr_buffer.seek(0)
+
+    return OutputCapture()
