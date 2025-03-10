@@ -1,5 +1,4 @@
 import threading
-import time
 
 import pytest
 from fastapi import FastAPI
@@ -11,6 +10,7 @@ from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import logger
 from labtasker.client.core.paths import set_labtasker_log_dir
 from labtasker.security import get_auth_headers
+from tests.utils import high_precision_sleep
 
 pytestmark = [pytest.mark.unit]
 
@@ -45,21 +45,6 @@ def mock_refresh_task_heartbeat_endpoint(
 ):
     cnt.incr()
     logger.debug(f"Received heartbeat for task {task_id}, cnt after incr: {cnt.get()}")
-
-
-def high_precision_sleep(duration):
-    start_time = time.perf_counter()
-    while True:
-        elapsed_time = time.perf_counter() - start_time
-        remaining_time = duration - elapsed_time
-        if remaining_time <= 0:
-            break
-        if remaining_time > 0.02:  # Sleep for 5ms if remaining time is greater
-            time.sleep(
-                max(remaining_time / 2, 0.0001)
-            )  # Sleep for the remaining time or minimum sleep interval
-        else:
-            pass
 
 
 @pytest.fixture

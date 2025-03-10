@@ -111,7 +111,7 @@ def test_job_manual_failure(setup_tasks):
         nonlocal cnt
         cnt += 1
         time.sleep(0.5)  # a tiny delay to ensure the tasks api request are processed
-        finish("failed")
+        finish("failed", summary={"reason": "manual failure"})
 
     job()
 
@@ -126,6 +126,9 @@ def test_job_manual_failure(setup_tasks):
         # since the most recently failed task will join at the end
         assert task.status == "pending"
         total_retries += task.retries
+
+        if task.retries > 0:
+            assert task.summary == {"reason": "manual failure"}
 
     assert total_retries == max_retries, total_retries
 

@@ -64,6 +64,6 @@ def test_server_notifications(capture_output):
     assert "Test notification info." in capture_output.stdout
 
 
-def test_server_get_client_version():
+def test_server_get_client_version(capture_output):
     resp = create_queue(queue_name="test-queue-name", password="test-password")
     assert resp.notification[0].details == __version__, resp
