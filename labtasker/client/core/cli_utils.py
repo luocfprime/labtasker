@@ -332,7 +332,7 @@ def ls_jsonl_format_iter(
 ):
     console = Console()
     for item in iterator:
-        json_str = f"{item.model_dump_json(indent=4, exclude_unset=exclude_unset)}\n"
+        json_str = item.model_dump_json(indent=4, exclude_unset=exclude_unset) + "\n"
         if use_rich:
             yield JSON(json_str)
         else:
@@ -347,7 +347,16 @@ def ls_yaml_format_iter(
 ):
     console = Console()
     for item in iterator:
-        yaml_str = f"{yaml.dump([item.model_dump(exclude_unset=exclude_unset)], indent=2, sort_keys=False)}\n"
+        yaml_str = (
+            yaml.dump(
+                [item.model_dump(exclude_unset=exclude_unset)],
+                indent=2,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+            + "\n"
+        )
+
         syntax = Syntax(yaml_str, "yaml")
         if use_rich:
             yield syntax
