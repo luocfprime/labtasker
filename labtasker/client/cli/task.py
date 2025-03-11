@@ -34,8 +34,8 @@ from labtasker.client.core.cli_utils import (
     confirm,
     ls_format_iter,
     pager_iterator,
+    parse_dict,
     parse_extra_opt,
-    parse_metadata,
     parse_updates,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
@@ -210,10 +210,8 @@ def submit(
             "That is, via positional argument or as an option."
         )
 
-    args_dict = (
-        parse_metadata(option_args) if option_args else parse_extra_opt(args or [])
-    )
-    metadata_dict = parse_metadata(metadata) if metadata else {}
+    args_dict = parse_dict(option_args) if option_args else parse_extra_opt(args or [])
+    metadata_dict = parse_dict(metadata) if metadata else {}
 
     task_id = submit_task(
         task_name=task_name,
@@ -244,7 +242,7 @@ def report(
     Report the status of a task.
     """
     try:
-        summary = parse_metadata(summary)
+        summary = parse_dict(summary)
         report_task_status(task_id=task_id, status=status, summary=summary)
     except ValidationError as e:
         raise typer.BadParameter(e)
@@ -302,7 +300,7 @@ def ls(
 
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
-    extra_filter = parse_metadata(extra_filter)
+    extra_filter = parse_dict(extra_filter)
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_tasks,
@@ -399,7 +397,7 @@ def update(
 
     updates = updates if updates else option_updates
 
-    extra_filter = parse_metadata(extra_filter)
+    extra_filter = parse_dict(extra_filter)
 
     # readonly fields
     readonly_fields: Set[str] = (

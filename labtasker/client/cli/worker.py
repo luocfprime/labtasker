@@ -23,6 +23,7 @@ from labtasker.client.core.cli_utils import (
     cli_utils_decorator,
     ls_format_iter,
     pager_iterator,
+    parse_dict,
     parse_metadata,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
@@ -132,7 +133,7 @@ def ls(
 
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
-    extra_filter = parse_metadata(extra_filter)
+    extra_filter = parse_dict(extra_filter)
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_worker,

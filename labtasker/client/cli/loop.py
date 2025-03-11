@@ -17,7 +17,7 @@ from labtasker.client.cli.cli import app
 from labtasker.client.core.cli_utils import (
     cli_utils_decorator,
     eta_max_validation,
-    parse_metadata,
+    parse_dict,
 )
 from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.config import get_client_config
@@ -90,7 +90,7 @@ def loop(
             "Command cannot be empty. Either specify via positional argument [CMD] or `--cmd`."
         )
 
-    extra_filter = parse_metadata(extra_filter)
+    extra_filter = parse_dict(extra_filter)
 
     if heartbeat_timeout is None:
         heartbeat_timeout = get_client_config().task.heartbeat_interval * 3
