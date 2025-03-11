@@ -17,10 +17,12 @@ from rich.json import JSON
 from rich.syntax import Syntax
 from starlette.status import HTTP_401_UNAUTHORIZED
 
+from labtasker import QueryTranspilerError
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.exceptions import LabtaskerTypeError, LabtaskerValueError
 from labtasker.client.core.logging import stderr_console
+from labtasker.client.core.query_transpiler import transpile_query
 from labtasker.utils import parse_timeout, unflatten_dict
 
 
@@ -51,6 +53,25 @@ def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
     Raise typer.BadParameter if the input is invalid.
     """
     return parse_dict(d_str=metadata)
+
+
+def parse_filter(filter_str: str) -> Optional[Dict[str, Any]]:
+    """
+    1. If provided is a dict, eval it into a python dict mongodb filter using literal_eval
+    2. Else, try transpile the string Python expression into mongodb filter
+    Args:
+        filter_str:
+
+    Returns:
+
+    """
+    try:
+        return parse_dict(d_str=filter_str)
+    except typer.BadParameter:
+        try:
+            return transpile_query(query_str=filter_str)
+        except QueryTranspilerError as e:
+            raise typer.BadParameter(f"Invalid filter str: {e}") from e
 
 
 def parse_extra_opt(

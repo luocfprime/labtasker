@@ -23,7 +23,7 @@ from labtasker.client.core.cli_utils import (
     cli_utils_decorator,
     ls_format_iter,
     pager_iterator,
-    parse_dict,
+    parse_filter,
     parse_metadata,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
@@ -100,7 +100,8 @@ def ls(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\'). '
+        'Or a Python expression (e.g. \'metadata.tag in ["a", "b"] and priority == 10\')',
     ),
     quiet: bool = typer.Option(
         False,
@@ -133,7 +134,7 @@ def ls(
 
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
-    extra_filter = parse_dict(extra_filter)
+    extra_filter = parse_filter(extra_filter)
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_worker,

@@ -36,6 +36,8 @@ from labtasker.client.core.cli_utils import (
     pager_iterator,
     parse_dict,
     parse_extra_opt,
+    parse_filter,
+    parse_metadata,
     parse_updates,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
@@ -211,7 +213,7 @@ def submit(
         )
 
     args_dict = parse_dict(option_args) if option_args else parse_extra_opt(args or [])
-    metadata_dict = parse_dict(metadata) if metadata else {}
+    metadata_dict = parse_metadata(metadata) if metadata else {}
 
     task_id = submit_task(
         task_name=task_name,
@@ -268,7 +270,8 @@ def ls(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\'). '
+        'Or a Python expression (e.g. \'metadata.tag in ["a", "b"] and priority == 10\')',
     ),
     quiet: bool = typer.Option(
         False,
@@ -300,7 +303,7 @@ def ls(
 
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
-    extra_filter = parse_dict(extra_filter)
+    extra_filter = parse_filter(extra_filter)
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_tasks,
@@ -360,7 +363,8 @@ def update(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\'). '
+        'Or a Python expression (e.g. \'metadata.tag in ["a", "b"] and priority == 10\')',
     ),
     option_updates: Optional[List[str]] = typer.Option(
         None,
@@ -397,7 +401,7 @@ def update(
 
     updates = updates if updates else option_updates
 
-    extra_filter = parse_dict(extra_filter)
+    extra_filter = parse_filter(extra_filter)
 
     # readonly fields
     readonly_fields: Set[str] = (

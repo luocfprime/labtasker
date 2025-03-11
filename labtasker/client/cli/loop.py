@@ -17,7 +17,7 @@ from labtasker.client.cli.cli import app
 from labtasker.client.core.cli_utils import (
     cli_utils_decorator,
     eta_max_validation,
-    parse_dict,
+    parse_filter,
 )
 from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.config import get_client_config
@@ -59,7 +59,8 @@ def loop(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"key": "value"}\').',
+        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\'). '
+        'Or a Python expression (e.g. \'metadata.tag in ["a", "b"] and priority == 10\')',
     ),
     worker_id: Optional[str] = typer.Option(
         None,
@@ -90,7 +91,7 @@ def loop(
             "Command cannot be empty. Either specify via positional argument [CMD] or `--cmd`."
         )
 
-    extra_filter = parse_dict(extra_filter)
+    extra_filter = parse_filter(extra_filter)
 
     if heartbeat_timeout is None:
         heartbeat_timeout = get_client_config().task.heartbeat_interval * 3
