@@ -49,7 +49,7 @@ class CmdParserError(LabtaskerError):
     pass
 
 
-class CmdSyntaxError(CmdParserError):
+class CmdSyntaxError(CmdParserError, SyntaxError):
     pass
 
 
@@ -58,4 +58,16 @@ class CmdKeyError(CmdParserError, KeyError):
 
 
 class CmdTypeError(CmdParserError, TypeError):
+    pass
+
+
+class QueryTranspilerError(LabtaskerError):
+    pass
+
+
+class QueryTranspilerSyntaxError(QueryTranspilerError, SyntaxError):
+    pass
+
+
+class QueryTranspilerValueError(QueryTranspilerError, ValueError):
     pass
