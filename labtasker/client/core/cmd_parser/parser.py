@@ -122,7 +122,7 @@ def format_print_error(
     # Build the error message using Rich's Text for styling
     error_message = f"""Error when parsing command at line {line}, column {column + 1}:
 [bold orange1]Err context:[/bold orange1] {context_line}
-            {pointer}  <-- [bold red]Error here[/bold red] (Column: {column + 1})
+             {pointer}  <-- [bold red]Error here[/bold red] (Column: {column + 1})
 [bold red]Error:[/bold red] {msg}
 """
     # Print the error message using the console
