@@ -34,7 +34,10 @@ class TestQueryTranspiler:
 
     @pytest.mark.parametrize(
         "query_str",
-        ["foo[bar] == 42"],
+        [
+            "foo[bar] == 42",
+            "foo[-1] == 0",  # negative indexing is not supported
+        ],
     )
     def test_invalid_field_conversion(self, query_str):
         """Test invalid conversion of dot separated fields and subscript."""
@@ -611,6 +614,199 @@ class TestExprQueries:
                             ]
                         },
                         {"discount": {"$gt": 10}},
+                    ]
+                },
+            ),
+            # Simple negation with field and constant
+            (
+                "a < -10",
+                {"a": {"$lt": -10}},
+            ),
+            (
+                "-10 > a",
+                {"a": {"$lt": -10}},
+            ),
+            # Negation with field reference
+            (
+                "a < -b",
+                {
+                    "$and": [
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {"$expr": {"$lt": ["$a", {"$multiply": [-1, "$b"]}]}},
+                    ]
+                },
+            ),
+            # Negation with expression
+            (
+                "a < -(b + c)",
+                {
+                    "$and": [
+                        {"c": {"$exists": True}},
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$lt": [
+                                    "$a",
+                                    {"$multiply": [-1, {"$add": ["$b", "$c"]}]},
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Double negation
+            (
+                "a > -(-b)",
+                {
+                    "$and": [
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    "$a",
+                                    {"$multiply": [-1, {"$multiply": [-1, "$b"]}]},
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Negation with arithmetic operation on right side
+            (
+                "total > -(price * quantity)",
+                {
+                    "$and": [
+                        {"quantity": {"$exists": True}},
+                        {"price": {"$exists": True}},
+                        {"total": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    "$total",
+                                    {
+                                        "$multiply": [
+                                            -1,
+                                            {"$multiply": ["$price", "$quantity"]},
+                                        ]
+                                    },
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Negation on left side
+            (
+                "-a > b",
+                {
+                    "$and": [
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {"$expr": {"$gt": [{"$multiply": [-1, "$a"]}, "$b"]}},
+                    ]
+                },
+            ),
+            # Negation on both sides
+            (
+                "-a < -b",
+                {
+                    "$and": [
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$lt": [
+                                    {"$multiply": [-1, "$a"]},
+                                    {"$multiply": [-1, "$b"]},
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Negative constant in an expression
+            (
+                "a + (-5) > b",
+                {
+                    "$and": [
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {"$expr": {"$gt": [{"$add": ["$a", -5]}, "$b"]}},
+                    ]
+                },
+            ),
+            # Complex expression with negation
+            (
+                "a + b > -(c * d)",
+                {
+                    "$and": [
+                        {"d": {"$exists": True}},
+                        {"c": {"$exists": True}},
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {"$add": ["$a", "$b"]},
+                                    {"$multiply": [-1, {"$multiply": ["$c", "$d"]}]},
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Logical operators with negated expressions
+            (
+                "a > -b and c < -d",
+                {
+                    "$and": [
+                        {
+                            "$and": [
+                                {"b": {"$exists": True}},
+                                {"a": {"$exists": True}},
+                                {"$expr": {"$gt": ["$a", {"$multiply": [-1, "$b"]}]}},
+                            ]
+                        },
+                        {
+                            "$and": [
+                                {"d": {"$exists": True}},
+                                {"c": {"$exists": True}},
+                                {"$expr": {"$lt": ["$c", {"$multiply": [-1, "$d"]}]}},
+                            ]
+                        },
+                    ]
+                },
+            ),
+            # Negation with more complex arithmetic
+            (
+                "total > -(base + tax) * rate",
+                {
+                    "$and": [
+                        {"rate": {"$exists": True}},
+                        {"tax": {"$exists": True}},
+                        {"base": {"$exists": True}},
+                        {"total": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    "$total",
+                                    {
+                                        "$multiply": [
+                                            {
+                                                "$multiply": [
+                                                    -1,
+                                                    {"$add": ["$base", "$tax"]},
+                                                ]
+                                            },
+                                            "$rate",
+                                        ]
+                                    },
+                                ]
+                            }
+                        },
                     ]
                 },
             ),

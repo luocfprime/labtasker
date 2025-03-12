@@ -110,6 +110,18 @@ def _is_literal(n):
     )
 
 
+def _is_unary_sub(n: ast.expr):
+    return isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub)
+
+
+def _is_negative_constant(n: ast.expr):
+    return (
+        isinstance(n, ast.UnaryOp)
+        and isinstance(n.op, ast.USub)
+        and isinstance(n.operand, ast.Constant)
+    )
+
+
 class QueryTranspiler(ast.NodeVisitor):
     """Parses logical expression strings into MongoDB queries, supporting various operators"""
 
@@ -408,8 +420,20 @@ class QueryTranspiler(ast.NodeVisitor):
         self, node: ast.Compare, left: ast.expr, op: ast.cmpop, right: ast.expr
     ) -> Dict[str, Any]:
         """Handle standard comparison operators (>, >=, <, <=, ==, !=)"""
+        # Handle constant negative values without using $expr
+        if _is_negative_constant(right) and _is_field(left):
+            # For cases like a < -1, we can use a regular comparison without $expr
+            return self._handle_standard_comparison(node, left, op, right)
+
+        if _is_negative_constant(left) and _is_field(right):
+            # For cases like -1 < a, we can use a swapped comparison without $expr
+            return self._handle_swapped_comparison(node, left, op, right)
+
         # Check for complex expressions requiring $expr. E.g. foo > bar + 1
-        if isinstance(left, ast.BinOp) or isinstance(right, ast.BinOp):
+        # or negative field expressions like -foo < 0
+        if isinstance(left, (ast.BinOp, ast.UnaryOp)) or isinstance(
+            right, (ast.BinOp, ast.UnaryOp)
+        ):
             return self._handle_expr_comparison(left, op, right)  # type: ignore
 
         # Handle field-to-field comparisons, e.g. foo > bar
@@ -423,14 +447,49 @@ class QueryTranspiler(ast.NodeVisitor):
         # Handle regular comparisons between a field and a value
         return self._handle_standard_comparison(node, left, op, right)
 
+    def _get_constant_value(self, node: ast.expr) -> Any:
+        """Extract the value from a constant expression, handling negative constants specially"""
+        if _is_negative_constant(node):
+            # For negative constants like -1, directly compute the negative value
+            return -self.visit(node.operand)  # type: ignore
+        else:
+            # Regular constant or other expression
+            return self.visit(node)
+
+    def _handle_field_value_comparison(
+        self,
+        node: ast.Compare,
+        field_expr: ast.expr,
+        op_type: type,
+        value_expr: ast.expr,
+    ) -> Dict[str, Any]:
+        """Handle comparison between a field and a value with the given operator type"""
+        field_name = self.visit(field_expr)
+        value = self._get_constant_value(value_expr)
+
+        if op_type == ast.Eq:
+            # Simplify equality comparisons
+            return {field_name: value}
+        elif op_type in self.COMPARE_OP_MAP:
+            mongo_op = self.COMPARE_OP_MAP[op_type]  # type: ignore
+            return {field_name: {mongo_op: value}}
+        else:
+            self._report_error(
+                node=node,
+                msg=f"Unsupported comparison operator: {op_type}",
+                exception=QueryTranspilerValueError,
+            )
+
+    def _handle_standard_comparison(
+        self, node: ast.Compare, left: ast.expr, op: ast.cmpop, right: ast.expr
+    ) -> Dict[str, Any]:
+        """Handle regular comparisons between a field and a value"""
+        return self._handle_field_value_comparison(node, left, type(op), right)
+
     def _handle_swapped_comparison(
         self, node: ast.Compare, left: ast.expr, op: ast.cmpop, right: ast.expr
     ) -> Dict[str, Any]:
         """Handle cases where constant is on left and field is on right (swapping them)"""
-        field_name = self.visit(right)
-        constant_value = self.visit(left)
-
-        # Get the inverted operator type
         op_type = type(op)
         if op_type not in self.INVERTED_OP_MAP:
             self._report_error(
@@ -440,36 +499,7 @@ class QueryTranspiler(ast.NodeVisitor):
             )
 
         inverted_op_type = self.INVERTED_OP_MAP[op_type]  # type: ignore
-
-        # Use the standard field-value comparison with inverted operator
-        if inverted_op_type == ast.Eq:
-            # Simplify equality comparisons
-            return {field_name: constant_value}
-        else:
-            mongo_op = self.COMPARE_OP_MAP[inverted_op_type]
-            return {field_name: {mongo_op: constant_value}}
-
-    def _handle_standard_comparison(
-        self, node: ast.Compare, left: ast.expr, op: ast.cmpop, right: ast.expr
-    ) -> Dict[str, Any]:
-        """Handle regular comparisons between a field and a value"""
-        left_value = self.visit(left)
-        right_value = self.visit(right)
-        op_type = type(op)
-
-        if op_type in self.COMPARE_OP_MAP:
-            mongo_op = self.COMPARE_OP_MAP[op_type]  # type: ignore
-            # Simplify equality comparisons
-            if op_type == ast.Eq:
-                return {left_value: right_value}
-            else:
-                return {left_value: {mongo_op: right_value}}
-
-        self._report_error(
-            node=node,
-            msg=f"Unsupported comparison operator: {op_type}",
-            exception=QueryTranspilerValueError,
-        )
+        return self._handle_field_value_comparison(node, right, inverted_op_type, left)
 
     def _handle_expr_comparison(
         self, left: ast.expr, op: ast.cmpop, right: ast.expr
@@ -572,6 +602,21 @@ class QueryTranspiler(ast.NodeVisitor):
             # Python: a + b
             # MongoDB: {$add: ["$a", "$b"]}
             return self.visit_BinOp_expr(node)
+        elif isinstance(node, ast.UnaryOp):
+            # Handle unary operations in expressions
+            # Python: -b
+            # MongoDB: -value or {$multiply: [-1, "$b"]}
+            if isinstance(node.op, ast.USub):  # Negative sign
+                operand = self._convert_to_expr(node.operand)
+                if isinstance(
+                    operand, (int, float)
+                ):  # If constant, directly apply negative sign
+                    return -operand
+                # If field reference or other expression, use $multiply
+                return {"$multiply": [-1, operand]}
+            else:
+                # Handle other unary operators or report error
+                return self.visit(node)
         elif isinstance(node, ast.Call):
             # Process function calls in expressions
             # Python: function(args)
