@@ -607,7 +607,7 @@ class QueryTranspiler(ast.NodeVisitor):
             # Python: -b
             # MongoDB: -value or {$multiply: [-1, "$b"]}
             if isinstance(node.op, ast.USub):  # Negative sign
-                operand = self._convert_to_expr(node.operand)
+                operand = self._convert_to_expr(node.operand)  # type: ignore
                 if isinstance(
                     operand, (int, float)
                 ):  # If constant, directly apply negative sign
@@ -716,7 +716,8 @@ class QueryTranspiler(ast.NodeVisitor):
                     return f"{value}.{index}"
                 else:
                     self._report_error(
-                        node=node.slice.value,  # More specific node location
+                        # More specific node location
+                        node=node.slice.value,  # type: ignore
                         msg=f"Only string and integer subscripts are supported, got: {type(index).__name__} with value {repr(index)}",
                         exception=QueryTranspilerValueError,
                     )
@@ -735,13 +736,15 @@ class QueryTranspiler(ast.NodeVisitor):
                     pass
 
                 self._report_error(
-                    node=node.slice.value,  # More specific node location
+                    # More specific node location
+                    node=node.slice.value,  # type: ignore
                     msg=f"Negative indexing is not supported{operand_info}",
                     exception=QueryTranspilerValueError,
                 )
             else:
                 self._report_error(
-                    node=node.slice.value,  # More specific node location
+                    # More specific node location
+                    node=node.slice.value,  # type: ignore
                     msg=f"Unsupported index value type: {type(node.slice.value).__name__}",
                     exception=QueryTranspilerValueError,
                 )
@@ -756,7 +759,8 @@ class QueryTranspiler(ast.NodeVisitor):
                 return f"{value}.{index}"
             else:
                 self._report_error(
-                    node=node.slice,  # More specific node location
+                    # More specific node location
+                    node=node.slice,  # type: ignore
                     msg=f"Only string and integer subscripts are supported, got: {type(index).__name__} with value {repr(index)}",
                     exception=QueryTranspilerValueError,
                 )
@@ -775,20 +779,23 @@ class QueryTranspiler(ast.NodeVisitor):
                 pass
 
             self._report_error(
-                node=node.slice,  # More specific node location
+                # More specific node location
+                node=node.slice,  # type: ignore
                 msg=f"Negative indexing is not supported{operand_info}",
                 exception=QueryTranspilerValueError,
             )
         elif isinstance(node.slice, ast.Name):
             # Variable subscript access, not supported in MongoDB queries
             self._report_error(
-                node=node.slice,  # More specific node location
+                # More specific node location
+                node=node.slice,  # type: ignore
                 msg=f"Variable subscript is not supported in MongoDB queries: {node.slice.id}",
                 exception=QueryTranspilerValueError,
             )
         else:
             self._report_error(
-                node=node.slice,  # More specific node location
+                # More specific node location
+                node=node.slice,  # type: ignore
                 msg=f"Unsupported subscript type: {type(node.slice).__name__}",
                 exception=QueryTranspilerValueError,
             )
