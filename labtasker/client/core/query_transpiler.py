@@ -506,15 +506,10 @@ class QueryTranspiler(ast.NodeVisitor):
         fields = set()
 
         def extract_fields(node):
-            if isinstance(node, ast.Name):
-                fields.add(node.id)
-            elif isinstance(node, ast.Attribute):
-                # For dot notation like 'person.age', we need the full path
-                if isinstance(node.value, ast.Name):
-                    fields.add(f"{node.value.id}.{node.attr}")
-                elif isinstance(node.value, ast.Attribute):
-                    base = self.visit(node.value)
-                    fields.add(f"{base}.{node.attr}")
+            # Use our visitor method to get the full field path
+            if _is_field(node):
+                field_path = self.visit(node)
+                fields.add(field_path)
 
             # Recursively process child nodes
             for child in ast.iter_child_nodes(node):
@@ -523,7 +518,18 @@ class QueryTranspiler(ast.NodeVisitor):
         for node in nodes:
             extract_fields(node)
 
-        return [{field: {"$exists": True}} for field in fields]
+        # Remove fields that are prefixes of longer fields
+        # (i.e., if we check for "user.address.city", we don't need to check for "user" or "user.address")
+        filtered_fields = set()
+        for field in fields:
+            if not any(
+                other_field.startswith(field + ".")
+                for other_field in fields
+                if field != other_field
+            ):
+                filtered_fields.add(field)
+
+        return [{field: {"$exists": True}} for field in filtered_fields]
 
     def _convert_to_expr(self, node: ast.AST) -> Any:
         """
@@ -531,11 +537,12 @@ class QueryTranspiler(ast.NodeVisitor):
         Python: Various node types (field, constant, operation)
         MongoDB: "$field", value, or {$operation: [...]} formats
         """
-        if isinstance(node, ast.Name):
-            # Convert field name to MongoDB field reference format
-            # Python: field
-            # MongoDB: "$field"
-            return f"${node.id}"
+        if _is_field(node):
+            # Handle any type of field reference (Name, Attribute, Subscript)
+            # Python: field, person.age, items[0], user['name']
+            # MongoDB: "$field", "$person.age", "$items.0", "$user.name"
+            field_path = self.visit(node)
+            return f"${field_path}"
         elif isinstance(node, ast.Constant):
             # Keep literal values as they are
             # Python: 42, "text"
@@ -552,12 +559,6 @@ class QueryTranspiler(ast.NodeVisitor):
             # MongoDB: Result of the function call processor
             result = self.visit(node)
             return result
-        elif isinstance(node, ast.Attribute):
-            # Convert attribute access to MongoDB field reference format
-            # Python: person.age
-            # MongoDB: "$person.age"
-            base = self.visit(node)
-            return f"${base}"
         else:
             # Handle other node types
             return self.visit(node)
@@ -617,12 +618,11 @@ class QueryTranspiler(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute) -> str:
         """
         Process attribute access (dot notation)
-        Python: person.address.city
-        MongoDB: "person.address.city" (as a field reference)
+        Python: person.address.city, inventory.items[0].price
+        MongoDB: "person.address.city", "inventory.items.0.price" (as field references)
         """
-        if isinstance(node.value, ast.Name) or isinstance(
-            node.value, ast.Attribute
-        ):  # foo.bar or foo.bar.baz
+        # Handle Name, Attribute, Subscript as valid base objects
+        if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
             base = self.visit(node.value)
             return f"{base}.{node.attr}"
         else:  # could be Call, foo.bar().baz(), which is not supported

@@ -22,6 +22,10 @@ class TestQueryTranspiler:
             ("foo.bar == 42", {"foo.bar": 42}),
             ("foo['bar'] == 42", {"foo.bar": 42}),
             ("foo[0] == 42", {"foo.0": 42}),
+            ("foo['bar']['baz'] == 42", {"foo.bar.baz": 42}),
+            ("foo.bar[0] == 42", {"foo.bar.0": 42}),
+            ("foo.bar[0]['baz'] == 42", {"foo.bar.0.baz": 42}),
+            ("foo[0].bar == 42", {"foo.0.bar": 42}),
         ],
     )
     def test_field_conversion(self, query_str, expected_result):
@@ -58,8 +62,6 @@ class TestQueryTranspiler:
                 {
                     "$and": [
                         {"bar.b": {"$exists": True}},
-                        {"foo": {"$exists": True}},
-                        {"bar": {"$exists": True}},
                         {"foo.a": {"$exists": True}},
                         {"$expr": {"$gt": ["$foo.a", "$bar.b"]}},
                     ]
@@ -344,132 +346,456 @@ class TestQueryTranspiler:
         assert are_filters_equivalent(transpile_query(query_str), expected_result)
 
 
-# class TestExprQueries:
-#     """Test class for MongoDB $expr expression queries"""
-#
-#     def test_basic_arithmetic_operations(self):
-#         """Test basic arithmetic operations in expressions"""
-#         # Addition
-#         assert transpile_query("a + b > c") == {
-#             "$expr": {"$gt": [{"$add": ["$a", "$b"]}, "$c"]}
-#         }
-#
-#         # Subtraction
-#         assert transpile_query("price - discount < maxPrice") == {
-#             "$expr": {"$lt": [{"$subtract": ["$price", "$discount"]}, "$maxPrice"]}
-#         }
-#
-#         # Multiplication
-#         assert transpile_query("quantity * price > 1000") == {
-#             "$expr": {"$gt": [{"$multiply": ["$quantity", "$price"]}, 1000]}
-#         }
-#
-#         # Division
-#         assert transpile_query("total / count < 50") == {
-#             "$expr": {"$lt": [{"$divide": ["$total", "$count"]}, 50]}
-#         }
-#
-#         # Modulo
-#         assert transpile_query("value % 10 == 0") == {
-#             "$expr": {"$eq": [{"$mod": ["$value", 10]}, 0]}
-#         }
-#
-#     def test_nested_operations(self):
-#         """Test nested arithmetic operations with parentheses"""
-#         assert transpile_query("(a + b) * c > 100") == {
-#             "$expr": {"$gt": [{"$multiply": [{"$add": ["$a", "$b"]}, "$c"]}, 100]}
-#         }
-#
-#         assert transpile_query("price + (tax * 0.1) > totalBudget") == {
-#             "$expr": {
-#                 "$gt": [
-#                     {"$add": ["$price", {"$multiply": ["$tax", 0.1]}]},
-#                     "$totalBudget",
-#                 ]
-#             }
-#         }
-#
-#     def test_comparison_variations(self):
-#         """Test different comparison operators with expressions"""
-#         # Equal
-#         assert transpile_query("a + b == c") == {
-#             "$expr": {"$eq": [{"$add": ["$a", "$b"]}, "$c"]}
-#         }
-#
-#         # Not equal
-#         assert transpile_query("x + y != z") == {
-#             "$expr": {"$ne": [{"$add": ["$x", "$y"]}, "$z"]}
-#         }
-#
-#         # Greater than or equal
-#         assert transpile_query("p + q >= r") == {
-#             "$expr": {"$gte": [{"$add": ["$p", "$q"]}, "$r"]}
-#         }
-#
-#         # Less than or equal
-#         assert transpile_query("m + n <= o") == {
-#             "$expr": {"$lte": [{"$add": ["$m", "$n"]}, "$o"]}
-#         }
-#
-#     def test_mixed_with_constants(self):
-#         """Test expressions with field names and constants"""
-#         assert transpile_query("field + 10 > threshold") == {
-#             "$expr": {"$gt": [{"$add": ["$field", 10]}, "$threshold"]}
-#         }
-#
-#         assert transpile_query("price * 1.2 < maxPrice") == {
-#             "$expr": {"$lt": [{"$multiply": ["$price", 1.2]}, "$maxPrice"]}
-#         }
-#
-#     def test_multiple_operations(self):
-#         """Test expressions with multiple operations"""
-#         assert transpile_query("a + b * c / d > threshold") == {
-#             "$expr": {
-#                 "$gt": [
-#                     {
-#                         "$add": [
-#                             "$a",
-#                             {"$divide": [{"$multiply": ["$b", "$c"]}, "$d"]},
-#                         ]
-#                     },
-#                     "$threshold",
-#                 ]
-#             }
-#         }
-#
-#     def test_logical_operators(self):
-#         """Test expressions combined with logical operators"""
-#         assert transpile_query("a + b > c and x + y < z") == {
-#             "$and": [
-#                 {"$expr": {"$gt": [{"$add": ["$a", "$b"]}, "$c"]}},
-#                 {"$expr": {"$lt": [{"$add": ["$x", "$y"]}, "$z"]}},
-#             ]
-#         }
-#
-#         assert transpile_query("price * quantity > budget or discount > 10") == {
-#             "$or": [
-#                 {"$expr": {"$gt": [{"$multiply": ["$price", "$quantity"]}, "$budget"]}},
-#                 {"discount": {"$gt": 10}},
-#             ]
-#         }
-#
-#     def test_invalid_expressions(self):
-#         """Test invalid expressions that should raise errors"""
-#         # Binary operation outside of comparison
-#         with pytest.raises(LabtaskerValueError):
-#             transpile_query("a + b")
-#
-#         # Unsupported binary operator
-#         with pytest.raises(LabtaskerValueError):
-#             transpile_query("a ** b > c")  # Power operator not supported
-#
-#     def test_mixed_expr_and_regular_queries(self):
-#         """Test mixing $expr queries with regular field queries"""
-#         assert transpile_query(
-#             "(price + tax > 100) and (category == 'electronics')"
-#         ) == {
-#             "$and": [
-#                 {"$expr": {"$gt": [{"$add": ["$price", "$tax"]}, 100]}},
-#                 {"category": "electronics"},
-#             ]
-#         }
+class TestExprQueries:
+    """Test class for MongoDB $expr expression queries
+    Notes: For $expr, it is essential to make sure keys exist before evaluating.
+    Otherwise, it may lead to (foo.bar >= foo.baz) returning True even if foo.bar and foo.baz may not exist.
+    """
+
+    @pytest.mark.parametrize(
+        "query_str, expected_result",
+        [
+            # Addition with $exists checks
+            (
+                "a + b > c",
+                {
+                    "$and": [
+                        {"c": {"$exists": True}},
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {"$expr": {"$gt": [{"$add": ["$a", "$b"]}, "$c"]}},
+                    ]
+                },
+            ),
+            # Subtraction with $exists checks
+            (
+                "price - discount < maxPrice",
+                {
+                    "$and": [
+                        {"maxPrice": {"$exists": True}},
+                        {"discount": {"$exists": True}},
+                        {"price": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$lt": [
+                                    {"$subtract": ["$price", "$discount"]},
+                                    "$maxPrice",
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Multiplication with $exists checks
+            (
+                "quantity * price > 1000",
+                {
+                    "$and": [
+                        {"price": {"$exists": True}},
+                        {"quantity": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [{"$multiply": ["$quantity", "$price"]}, 1000]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Division with $exists checks
+            (
+                "total / count < 50",
+                {
+                    "$and": [
+                        {"count": {"$exists": True}},
+                        {"total": {"$exists": True}},
+                        {"$expr": {"$lt": [{"$divide": ["$total", "$count"]}, 50]}},
+                    ]
+                },
+            ),
+            # Modulo with $exists check
+            (
+                "value % 10 == 0",
+                {
+                    "$and": [
+                        {"value": {"$exists": True}},
+                        {"$expr": {"$eq": [{"$mod": ["$value", 10]}, 0]}},
+                    ]
+                },
+            ),
+            # Nested operations with $exists checks
+            (
+                "(a + b) * c > 100",
+                {
+                    "$and": [
+                        {"c": {"$exists": True}},
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {"$multiply": [{"$add": ["$a", "$b"]}, "$c"]},
+                                    100,
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            (
+                "price + (tax * 0.1) > totalBudget",
+                {
+                    "$and": [
+                        {"totalBudget": {"$exists": True}},
+                        {"tax": {"$exists": True}},
+                        {"price": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {"$add": ["$price", {"$multiply": ["$tax", 0.1]}]},
+                                    "$totalBudget",
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Equal comparison with $exists checks
+            (
+                "a + b == c",
+                {
+                    "$and": [
+                        {"c": {"$exists": True}},
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {"$expr": {"$eq": [{"$add": ["$a", "$b"]}, "$c"]}},
+                    ]
+                },
+            ),
+            # Greater than or equal comparison with $exists checks
+            (
+                "p + q >= r",
+                {
+                    "$and": [
+                        {"r": {"$exists": True}},
+                        {"q": {"$exists": True}},
+                        {"p": {"$exists": True}},
+                        {"$expr": {"$gte": [{"$add": ["$p", "$q"]}, "$r"]}},
+                    ]
+                },
+            ),
+            # Less than or equal comparison with $exists checks
+            (
+                "m + n <= o",
+                {
+                    "$and": [
+                        {"o": {"$exists": True}},
+                        {"n": {"$exists": True}},
+                        {"m": {"$exists": True}},
+                        {"$expr": {"$lte": [{"$add": ["$m", "$n"]}, "$o"]}},
+                    ]
+                },
+            ),
+            # Mixed with constants and $exists checks
+            (
+                "field + 10 > threshold",
+                {
+                    "$and": [
+                        {"threshold": {"$exists": True}},
+                        {"field": {"$exists": True}},
+                        {"$expr": {"$gt": [{"$add": ["$field", 10]}, "$threshold"]}},
+                    ]
+                },
+            ),
+            (
+                "price * 1.2 < maxPrice",
+                {
+                    "$and": [
+                        {"maxPrice": {"$exists": True}},
+                        {"price": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$lt": [{"$multiply": ["$price", 1.2]}, "$maxPrice"]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Multiple operations with $exists checks
+            (
+                "a + b * c / d > threshold",
+                {
+                    "$and": [
+                        {"threshold": {"$exists": True}},
+                        {"d": {"$exists": True}},
+                        {"c": {"$exists": True}},
+                        {"b": {"$exists": True}},
+                        {"a": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$add": [
+                                            "$a",
+                                            {
+                                                "$divide": [
+                                                    {"$multiply": ["$b", "$c"]},
+                                                    "$d",
+                                                ]
+                                            },
+                                        ]
+                                    },
+                                    "$threshold",
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Logical operators with expressions and $exists checks
+            (
+                "a + b > c and x + y < z",
+                {
+                    "$and": [
+                        {
+                            "$and": [
+                                {"c": {"$exists": True}},
+                                {"b": {"$exists": True}},
+                                {"a": {"$exists": True}},
+                                {"$expr": {"$gt": [{"$add": ["$a", "$b"]}, "$c"]}},
+                            ]
+                        },
+                        {
+                            "$and": [
+                                {"z": {"$exists": True}},
+                                {"y": {"$exists": True}},
+                                {"x": {"$exists": True}},
+                                {"$expr": {"$lt": [{"$add": ["$x", "$y"]}, "$z"]}},
+                            ]
+                        },
+                    ]
+                },
+            ),
+            # Mixed expr and regular queries with $exists checks
+            (
+                "(price + tax > 100) and (category == 'electronics')",
+                {
+                    "$and": [
+                        {
+                            "$and": [
+                                {"price": {"$exists": True}},
+                                {"tax": {"$exists": True}},
+                                {"$expr": {"$gt": [{"$add": ["$price", "$tax"]}, 100]}},
+                            ]
+                        },
+                        {"category": "electronics"},
+                    ]
+                },
+            ),
+            (
+                "price * quantity > budget or discount > 10",
+                {
+                    "$or": [
+                        {
+                            "$and": [
+                                {"budget": {"$exists": True}},
+                                {"quantity": {"$exists": True}},
+                                {"price": {"$exists": True}},
+                                {
+                                    "$expr": {
+                                        "$gt": [
+                                            {"$multiply": ["$price", "$quantity"]},
+                                            "$budget",
+                                        ]
+                                    }
+                                },
+                            ]
+                        },
+                        {"discount": {"$gt": 10}},
+                    ]
+                },
+            ),
+        ],
+    )
+    def test_expr_queries(self, query_str, expected_result):
+        """Test queries involving MongoDB $expr operator with $exists conditions"""
+        assert are_filters_equivalent(transpile_query(query_str), expected_result)
+
+    @pytest.mark.parametrize(
+        "query_str, expected_result",
+        [
+            # Basic field access with dot notation
+            (
+                "foo.bar > foo.baz",
+                {
+                    "$and": [
+                        {"foo.baz": {"$exists": True}},
+                        {"foo.bar": {"$exists": True}},
+                        {"$expr": {"$gt": ["$foo.bar", "$foo.baz"]}},
+                    ]
+                },
+            ),
+            # Arithmetic with nested fields
+            (
+                "user.profile.age + 5 > user.settings.ageLimit",
+                {
+                    "$and": [
+                        {"user.settings.ageLimit": {"$exists": True}},
+                        {"user.profile.age": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {"$add": ["$user.profile.age", 5]},
+                                    "$user.settings.ageLimit",
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Bracket notation for field access
+            (
+                "foo['bar'] == foo['baz']",
+                {
+                    "$and": [
+                        {"foo.baz": {"$exists": True}},
+                        {"foo.bar": {"$exists": True}},
+                        {"$expr": {"$eq": ["$foo.bar", "$foo.baz"]}},
+                    ]
+                },
+            ),
+            # Mixed dot and bracket notation
+            (
+                "inventory.items[0].price * inventory.items[0].quantity > 500",
+                {
+                    "$and": [
+                        {"inventory.items.0.quantity": {"$exists": True}},
+                        {"inventory.items.0.price": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$multiply": [
+                                            "$inventory.items.0.price",
+                                            "$inventory.items.0.quantity",
+                                        ]
+                                    },
+                                    500,
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Nested arrays with multiple indexing
+            (
+                "orders[0].items[1].price < orders[1].items[0].price",
+                {
+                    "$and": [
+                        {"orders.1.items.0.price": {"$exists": True}},
+                        {"orders.0.items.1.price": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$lt": [
+                                    "$orders.0.items.1.price",
+                                    "$orders.1.items.0.price",
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Complex nested field access in expressions
+            (
+                "customer.orders[0].total + customer.credits > customer.limits.spending",
+                {
+                    "$and": [
+                        {"customer.limits.spending": {"$exists": True}},
+                        {"customer.credits": {"$exists": True}},
+                        {"customer.orders.0.total": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$add": [
+                                            "$customer.orders.0.total",
+                                            "$customer.credits",
+                                        ]
+                                    },
+                                    "$customer.limits.spending",
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Multiple level nesting with operations
+            (
+                "data.metrics.current / data.metrics.previous > data.thresholds.growth",
+                {
+                    "$and": [
+                        {"data.thresholds.growth": {"$exists": True}},
+                        {"data.metrics.previous": {"$exists": True}},
+                        {"data.metrics.current": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$divide": [
+                                            "$data.metrics.current",
+                                            "$data.metrics.previous",
+                                        ]
+                                    },
+                                    "$data.thresholds.growth",
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # String literal keys in bracket notation
+            (
+                "product['sale-price'] < product['original-price'] * 0.7",
+                {
+                    "$and": [
+                        {"product.original-price": {"$exists": True}},
+                        {"product.sale-price": {"$exists": True}},
+                        {
+                            "$expr": {
+                                "$lt": [
+                                    "$product.sale-price",
+                                    {"$multiply": ["$product.original-price", 0.7]},
+                                ]
+                            }
+                        },
+                    ]
+                },
+            ),
+            # Nested field access combined with logical operators
+            (
+                "(user.stats.score > 100) and (user.profile.level >= 5)",
+                {
+                    "$and": [
+                        {"user.stats.score": {"$gt": 100}},
+                        {"user.profile.level": {"$gte": 5}},
+                    ]
+                },
+            ),
+        ],
+    )
+    def test_field_access_in_expr(self, query_str, expected_result):
+        """Test field access patterns with dot notation and bracket notation in $expr queries"""
+        assert are_filters_equivalent(transpile_query(query_str), expected_result)
+
+    @pytest.mark.parametrize(
+        "invalid_query",
+        [
+            # Binary operation outside of comparison
+            "a + b",
+            # Unsupported binary operator
+            "a ** b > c",  # Power operator not supported
+        ],
+    )
+    def test_invalid_expr_queries(self, invalid_query):
+        """Test invalid expressions that should raise errors"""
+        with pytest.raises(QueryTranspilerValueError):
+            transpile_query(invalid_query)
