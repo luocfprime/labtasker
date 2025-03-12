@@ -6,6 +6,7 @@ from antlr4 import CommonTokenStream, InputStream, ParserRuleContext, ParseTreeW
 from antlr4.error.ErrorListener import ErrorListener
 from rich import print
 from rich.console import Console
+from rich.text import Text
 
 from labtasker.client.core.cmd_parser.LabCmd import LabCmd
 from labtasker.client.core.cmd_parser.LabCmdLexer import LabCmdLexer
@@ -117,16 +118,34 @@ def format_print_error(
     pointer_offset = (
         column - start + (3 if start > 0 else 0)
     )  # Adjust for "..." at the start
-    pointer = f"{' ' * pointer_offset}[bright_red]^[/bright_red]"
+    pointer = " " * pointer_offset + "^"
 
-    # Build the error message using Rich's Text for styling
-    error_message = f"""Error when parsing command at line {line}, column {column + 1}:
-[bold orange1]Err context:[/bold orange1] {context_line}
-             {pointer}  <-- [bold red]Error here[/bold red] (Column: {column + 1})
-[bold red]Error:[/bold red] {msg}
-"""
-    # Print the error message using the console
-    console.print(error_message)
+    # Use Rich's Text objects instead of f-strings to avoid markup parsing issues
+    error_title = Text(
+        f"Error when parsing cmd line at line {line}, column {column + 1}:",
+        style="bold red",
+    )
+
+    context_header = Text("Err context: ", style="bold orange1")
+    context_content = Text(context_line)
+    context_line_display = Text.assemble(context_header, context_content)
+
+    pointer_line = Text(
+        f"{' ' * len(context_header)}{pointer}  <-- Error here (Column: {column + 1})"
+    )
+    pointer_line.stylize("bright_red", pointer_offset + 11, pointer_offset + 12)
+    pointer_line.stylize("bold red", pointer_offset + 15, len(pointer_line))
+
+    error_msg_header = Text("Error: ", style="bold red")
+    error_msg_content = Text(msg)
+    error_msg_display = Text.assemble(error_msg_header, error_msg_content)
+
+    # Print the complete error message
+    console.print(error_title)
+    console.print(context_line_display)
+    console.print(pointer_line)
+    console.print(error_msg_display)
+    console.print()  # Add a blank line for better readability
 
 
 class CmdListener(LabCmdListener):
