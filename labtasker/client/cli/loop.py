@@ -2,6 +2,7 @@
 Implements `labtasker loop xxx`
 """
 
+import json
 import os
 import shlex
 import subprocess
@@ -23,7 +24,13 @@ from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import CmdParserError
 from labtasker.client.core.job_runner import finish, loop_run
-from labtasker.client.core.logging import logger, stderr_console, stdout_console
+from labtasker.client.core.logging import (
+    logger,
+    set_verbose,
+    stderr_console,
+    stdout_console,
+    verbose_print,
+)
 
 
 class InfiniteDefaultDict(defaultdict):
@@ -75,6 +82,14 @@ def loop(
         None,
         help="Heartbeat timeout for the task in seconds.",
     ),
+    verbose: bool = typer.Option(  # noqa
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+        callback=set_verbose,
+        is_eager=True,
+    ),
 ):
     """Run the wrapped job command in loop.
     Job command follows a template string syntax: e.g. `python main.py --arg1 %(arg1) --arg2 %(arg2)`.
@@ -92,6 +107,7 @@ def loop(
         )
 
     extra_filter = parse_filter(extra_filter)
+    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
 
     if heartbeat_timeout is None:
         heartbeat_timeout = get_client_config().task.heartbeat_interval * 3

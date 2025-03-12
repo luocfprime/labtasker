@@ -2,6 +2,7 @@
 Worker related CRUD operations.
 """
 
+import json
 from functools import partial
 from typing import Optional
 
@@ -27,7 +28,7 @@ from labtasker.client.core.cli_utils import (
     parse_metadata,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
-from labtasker.client.core.logging import stdout_console
+from labtasker.client.core.logging import set_verbose, stdout_console, verbose_print
 
 app = typer.Typer()
 
@@ -125,16 +126,26 @@ def ls(
         "yaml",
         help="Output format. One of `yaml`, `jsonl`.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+        callback=set_verbose,
+        is_eager=True,
+    ),
 ):
     """
     List workers.
     """
-    if quiet and pager:
+    if quiet and (pager or verbose):
         raise typer.BadParameter("--quiet and --pager cannot be used together.")
 
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
     extra_filter = parse_filter(extra_filter)
+    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
+
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_worker,

@@ -20,6 +20,14 @@ LOGGER_FORMAT = (
     " - <level>{message}</level>"
 )
 
+DEBUG_LOGGER_FORMAT = (
+    "<green>[{time:YYYY-MM-DD HH:mm:ss.SSS}]</green>"
+    "[<level>{level: <8}</level>]"
+    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+)
+
+_verbose = False
+_logger_handle = None
 
 # Context variable for original stdout/stderr
 original_stdout_var = contextvars.ContextVar("original_stdout", default=sys.stdout)
@@ -181,13 +189,39 @@ class TeeStream(io.TextIOBase):
         return getattr(self.original_stream, name)
 
 
-def reset_logger():
-    logger.remove()
-    logger.add(
+def reset_logger(reset_all: bool = False, debug: bool = False):
+    """
+    Reset logger configuration.
+
+    Args:
+        reset_all: If True, removes all logger handlers
+        debug: If True, sets logger to DEBUG level with DEBUG format
+    """
+    global _logger_handle
+
+    if _logger_handle:
+        try:
+            logger.remove(_logger_handle)
+        except ValueError:  # _logger_handle not exist (could be removed by user)
+            _logger_handle = None
+
+    if reset_all:
+        logger.remove()
+
+    if debug:
+        log_format = DEBUG_LOGGER_FORMAT
+        log_level = "DEBUG"
+    else:
+        log_format = LOGGER_FORMAT
+        log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+
+    _logger_handle = logger.add(
         sys.stderr,
-        format=LOGGER_FORMAT,
-        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format=log_format,
+        level=log_level,
     )
+
+    return _logger_handle
 
 
 def _ensure_tee_streams_setup():
@@ -274,10 +308,22 @@ def log_to_file(
             pass  # File might already be closed
 
 
-def setup():
+def _setup():
     """Initialize logger and tee stream. The order of execution cannot be reversed."""
     _ensure_tee_streams_setup()
-    reset_logger()
+    reset_logger(reset_all=True, debug=False)  # remove default loguru logger
 
 
-setup()
+def set_verbose(verbose: bool):
+    global _logger_handle, _verbose
+    _verbose = verbose
+    reset_logger(debug=verbose)
+
+
+def verbose_print(t, stderr: bool = False):
+    if _verbose:
+        console = stderr_console if stderr else stdout_console
+        console.print(t)
+
+
+_setup()

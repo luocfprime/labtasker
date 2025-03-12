@@ -3,6 +3,7 @@ Task related CRUD operations.
 """
 
 import io
+import json
 import os
 import tempfile
 from functools import partial
@@ -41,7 +42,12 @@ from labtasker.client.core.cli_utils import (
     parse_updates,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
-from labtasker.client.core.logging import stderr_console, stdout_console
+from labtasker.client.core.logging import (
+    set_verbose,
+    stderr_console,
+    stdout_console,
+    verbose_print,
+)
 from labtasker.constants import Priority
 
 app = typer.Typer()
@@ -259,14 +265,25 @@ def ls(
         "yaml",
         help="Output format. One of `yaml`, `jsonl`.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+        callback=set_verbose,
+        is_eager=True,
+    ),
 ):
     """List tasks in the queue."""
-    if quiet and pager:
-        raise typer.BadParameter("--quiet and --pager cannot be used together.")
+    if quiet and (pager or verbose):
+        raise typer.BadParameter(
+            "--quiet and --pager / --verbose cannot be used together."
+        )
 
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
     extra_filter = parse_filter(extra_filter)
+    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_tasks,
@@ -354,6 +371,14 @@ def update(
         None,
         help="Editor to use for modifying task data incase you didn't specify --update.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+        callback=set_verbose,
+        is_eager=True,
+    ),
 ):
     """Update tasks settings."""
     if updates and option_updates:
@@ -361,9 +386,15 @@ def update(
             "You can only specify one of the positional argument [UPDATES] or option --update."
         )
 
+    if verbose and quiet:
+        raise typer.BadParameter(
+            "You can only specify one of the options --verbose and --quiet."
+        )
+
     updates = updates if updates else option_updates
 
     extra_filter = parse_filter(extra_filter)
+    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
 
     # readonly fields
     readonly_fields: Set[str] = (
