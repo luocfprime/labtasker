@@ -2,6 +2,7 @@ import ast
 from typing import Any, Dict, List, NoReturn, Optional, Type
 
 from rich.console import Console
+from rich.text import Text
 
 from labtasker.client.core.exceptions import (
     QueryTranspilerError,
@@ -49,16 +50,34 @@ def format_print_error(
     pointer_offset = (
         column - start + (3 if start > 0 else 0)
     )  # Adjust for "..." at the start
-    pointer = f"{' ' * pointer_offset}[bright_red]^[/bright_red]"
+    pointer = " " * pointer_offset + "^"
 
-    # Build the error message using Rich's Text for styling
-    error_message = f"""Error when parsing query at line {line}, column {column + 1}:
-[bold orange1]Err context:[/bold orange1] {context_line}
-             {pointer}  <-- [bold red]Error here[/bold red] (Column: {column + 1})
-[bold red]Error:[/bold red] {msg}
-"""
-    # Print the error message using the console
-    console.print(error_message)
+    # Use Rich's Text objects instead of f-strings to avoid markup parsing issues
+    error_title = Text(
+        f"Error when parsing query at line {line}, column {column + 1}:",
+        style="bold red",
+    )
+
+    context_header = Text("Err context: ", style="bold orange1")
+    context_content = Text(context_line)
+    context_line_display = Text.assemble(context_header, context_content)
+
+    pointer_line = Text(
+        f"{' ' * len(context_header)}{pointer}  <-- Error here (Column: {column + 1})"
+    )
+    pointer_line.stylize("bright_red", pointer_offset + 11, pointer_offset + 12)
+    pointer_line.stylize("bold red", pointer_offset + 15, len(pointer_line))
+
+    error_msg_header = Text("Error: ", style="bold red")
+    error_msg_content = Text(msg)
+    error_msg_display = Text.assemble(error_msg_header, error_msg_content)
+
+    # Print the complete error message
+    console.print(error_title)
+    console.print(context_line_display)
+    console.print(pointer_line)
+    console.print(error_msg_display)
+    console.print()  # Add a blank line for better readability
 
 
 def _is_field(n):
@@ -652,14 +671,33 @@ class QueryTranspiler(ast.NodeVisitor):
                     return f"{value}.{index}"
                 else:
                     self._report_error(
-                        node=node,
-                        msg=f"Only string and integer subscripts are supported, got: {type(index).__name__}",
+                        node=node.slice.value,  # More specific node location
+                        msg=f"Only string and integer subscripts are supported, got: {type(index).__name__} with value {repr(index)}",
                         exception=QueryTranspilerValueError,
                     )
+            # Handle negative indexing with unary operations
+            elif isinstance(node.slice.value, ast.UnaryOp) and isinstance(
+                node.slice.value.op, ast.USub
+            ):
+                # Get the operand value if possible
+                operand_info = ""
+                try:
+                    if isinstance(node.slice.value.operand, ast.Constant):
+                        operand_info = f" (value: -{node.slice.value.operand.value})"
+                    elif isinstance(node.slice.value.operand, ast.Name):
+                        operand_info = f" (variable: -{node.slice.value.operand.id})"
+                except AttributeError:
+                    pass
+
+                self._report_error(
+                    node=node.slice.value,  # More specific node location
+                    msg=f"Negative indexing is not supported{operand_info}",
+                    exception=QueryTranspilerValueError,
+                )
             else:
                 self._report_error(
-                    node=node,
-                    msg=f"Unsupported index value type: {type(node.slice.value)}",
+                    node=node.slice.value,  # More specific node location
+                    msg=f"Unsupported index value type: {type(node.slice.value).__name__}",
                     exception=QueryTranspilerValueError,
                 )
 
@@ -673,21 +711,40 @@ class QueryTranspiler(ast.NodeVisitor):
                 return f"{value}.{index}"
             else:
                 self._report_error(
-                    node=node,
-                    msg=f"Only string and integer subscripts are supported, got: {type(index).__name__}",
+                    node=node.slice,  # More specific node location
+                    msg=f"Only string and integer subscripts are supported, got: {type(index).__name__} with value {repr(index)}",
                     exception=QueryTranspilerValueError,
                 )
+        elif isinstance(node.slice, ast.UnaryOp) and isinstance(
+            node.slice.op, ast.USub
+        ):
+            # Handle negative indexing in Python 3.9+ (like foo[-1])
+            # Get the operand value if possible
+            operand_info = ""
+            try:
+                if isinstance(node.slice.operand, ast.Constant):
+                    operand_info = f" (value: -{node.slice.operand.value})"
+                elif isinstance(node.slice.operand, ast.Name):
+                    operand_info = f" (variable: -{node.slice.operand.id})"
+            except AttributeError:
+                pass
+
+            self._report_error(
+                node=node.slice,  # More specific node location
+                msg=f"Negative indexing is not supported{operand_info}",
+                exception=QueryTranspilerValueError,
+            )
         elif isinstance(node.slice, ast.Name):
             # Variable subscript access, not supported in MongoDB queries
             self._report_error(
-                node=node,
+                node=node.slice,  # More specific node location
                 msg=f"Variable subscript is not supported in MongoDB queries: {node.slice.id}",
                 exception=QueryTranspilerValueError,
             )
         else:
             self._report_error(
-                node=node,
-                msg=f"Unsupported subscript type: {type(node.slice)}",
+                node=node.slice,  # More specific node location
+                msg=f"Unsupported subscript type: {type(node.slice).__name__}",
                 exception=QueryTranspilerValueError,
             )
 
