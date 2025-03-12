@@ -18,6 +18,28 @@ class TestQueryTranspiler:
     @pytest.mark.parametrize(
         "query_str, expected_result",
         [
+            ("foo == 42", {"foo": 42}),
+            ("foo.bar == 42", {"foo.bar": 42}),
+            ("foo['bar'] == 42", {"foo.bar": 42}),
+            ("foo[0] == 42", {"foo.0": 42}),
+        ],
+    )
+    def test_field_conversion(self, query_str, expected_result):
+        """Test converting dot separated fields and subscript. E.g. foo.bar, foo['bar']"""
+        assert are_filters_equivalent(transpile_query(query_str), expected_result)
+
+    @pytest.mark.parametrize(
+        "query_str",
+        ["foo[bar] == 42"],
+    )
+    def test_invalid_field_conversion(self, query_str):
+        """Test invalid conversion of dot separated fields and subscript."""
+        with pytest.raises(QueryTranspilerValueError):
+            transpile_query(query_str)
+
+    @pytest.mark.parametrize(
+        "query_str, expected_result",
+        [
             # Greater than (auto added $exists check before evaluating $expr)
             ("age > 18", {"age": {"$gt": 18}}),
             (
@@ -146,6 +168,14 @@ class TestQueryTranspiler:
             (
                 "status in ['active', 'pending']",
                 {"status": {"$in": ["active", "pending"]}},
+            ),
+            (
+                "'experimental' in dict(metadata.tags)",
+                {"metadata.tags.experimental": {"$exists": True}},
+            ),
+            (
+                "'experimental' in list(metadata.tags)",
+                {"metadata.tags": "experimental"},
             ),
             # not supported due to ambiguity
             # (

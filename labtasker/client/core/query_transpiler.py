@@ -66,8 +66,16 @@ def _is_field(n):
     Examples:
         foo
         foo.bar
+        foo[0]
+        foo['bar']
+        foo.bar[0]
+        foo['bar'].baz
     """
-    return isinstance(n, ast.Name) or isinstance(n, ast.Attribute)
+    return (
+        isinstance(n, ast.Name)
+        or isinstance(n, ast.Attribute)
+        or isinstance(n, ast.Subscript)
+    )
 
 
 def _is_literal(n):
@@ -621,6 +629,65 @@ class QueryTranspiler(ast.NodeVisitor):
             self._report_error(
                 node=node,
                 msg=f"Unsupported attribute access: {ast.dump(node)}",
+                exception=QueryTranspilerValueError,
+            )
+
+    def visit_Subscript(self, node: ast.Subscript) -> str:
+        """
+        Process subscript access (bracket notation)
+        Python: person['address'], array[0]
+        MongoDB: "person.address", "array.0" (as a field reference)
+
+        Handles both old-style (Python 3.8-) and new-style (Python 3.9+) AST structures.
+        """
+        value = self.visit(node.value)  # Get the object being accessed
+
+        # Python 3.8 and earlier uses an Index node
+        if isinstance(node.slice, ast.Index):
+            # Extract the value from the Index node
+            if isinstance(node.slice.value, ast.Constant):
+                index = node.slice.value.value
+                # Type check: only allow string and integer subscripts
+                if isinstance(index, (str, int)):
+                    return f"{value}.{index}"
+                else:
+                    self._report_error(
+                        node=node,
+                        msg=f"Only string and integer subscripts are supported, got: {type(index).__name__}",
+                        exception=QueryTranspilerValueError,
+                    )
+            else:
+                self._report_error(
+                    node=node,
+                    msg=f"Unsupported index value type: {type(node.slice.value)}",
+                    exception=QueryTranspilerValueError,
+                )
+
+        # Python 3.9+ directly uses the value
+        elif isinstance(node.slice, ast.Constant):
+            # Direct index or string key: foo[0] or foo['bar']
+            index = node.slice.value
+
+            # Type check: only allow string and integer subscripts
+            if isinstance(index, (str, int)):
+                return f"{value}.{index}"
+            else:
+                self._report_error(
+                    node=node,
+                    msg=f"Only string and integer subscripts are supported, got: {type(index).__name__}",
+                    exception=QueryTranspilerValueError,
+                )
+        elif isinstance(node.slice, ast.Name):
+            # Variable subscript access, not supported in MongoDB queries
+            self._report_error(
+                node=node,
+                msg=f"Variable subscript is not supported in MongoDB queries: {node.slice.id}",
+                exception=QueryTranspilerValueError,
+            )
+        else:
+            self._report_error(
+                node=node,
+                msg=f"Unsupported subscript type: {type(node.slice)}",
                 exception=QueryTranspilerValueError,
             )
 
