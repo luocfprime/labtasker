@@ -1,41 +1,32 @@
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-    -   id: trailing-whitespace
-    -   id: end-of-file-fixer
-    -   id: check-yaml
-    -   id: check-added-large-files
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
         exclude: ^docs/docs/assets/
-    -   id: mixed-line-ending
-        args: [--fix=lf]
+      - id: mixed-line-ending
+        args: [ --fix=lf ]
 
--   repo: https://github.com/psf/black
+  - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
-    -   id: black
+      - id: black
 
--   repo: https://github.com/pycqa/isort
+  - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
-    -   id: isort
+      - id: isort
 
-# -   repo: https://github.com/pycqa/flake8
-#     rev: 6.0.0
-#     hooks:
-#     -   id: flake8
-#         additional_dependencies: [
-#             'flake8-docstrings',
-#             'flake8-bugbear',
-#             'flake8-comprehensions',
-#             'flake8-simplify',
-#         ]
-
-# -   repo: https://github.com/pre-commit/mirrors-mypy
-#     rev: v1.3.0
-#     hooks:
-#     -   id: mypy
-#         additional_dependencies:
-#             - types-requests
-#         args: [--ignore-missing-imports]
-#         exclude: ^tests/
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        additional_dependencies: [
+          'flake8-docstrings',
+          'flake8-bugbear',
+          'flake8-comprehensions',
+          'flake8-simplify',
+        ]

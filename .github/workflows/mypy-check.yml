@@ -1,0 +1,23 @@
+name: Mypy type checking
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install mypy and dependencies
+        run: |
+          pip install mypy types-requests
+
+      - name: Run mypy
+        run: mypy --ignore-missing-imports
