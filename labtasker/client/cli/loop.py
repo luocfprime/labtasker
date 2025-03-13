@@ -133,11 +133,12 @@ def loop(
     )
     def run_cmd(args):
         # Interpolate command
+
         (
-            interpolated_cmd,  # type: List[str]
+            interpolated_cmd,
             _,
         ) = cmd_interpolate(
-            cmd,  # type: List[str]
+            cmd,
             args,
         )
         logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")

@@ -4,7 +4,7 @@ import inspect
 import sys
 from copy import copy
 from functools import wraps
-from typing import Any, Callable, Dict, List, Set, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Set, Tuple, Type
 
 from typing_extensions import Annotated, get_args, get_origin, get_type_hints
 
@@ -123,7 +123,7 @@ def get_params_from_function(func: Callable[..., Any]) -> Dict[str, ParamMeta]:
         params[param.name] = ParamMeta(
             name=param.name,
             kind=param.kind,
-            default=default,  # type: Union[ParameterInfo, Any]
+            default=default,
             annotation=annotation,
         )
     return params
