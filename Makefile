@@ -2,6 +2,9 @@
 
 ANTLR=antlr
 
+ANTLR_GRAMMAR_DIR=labtasker/client/core/cmd_parser/
+ANTLR_OUT_DIR=labtasker/client/core/cmd_parser/generated
+
 format:
 	black .
 	isort .
@@ -23,8 +26,9 @@ performance-test:
 	pytest -m "integration and benchmark" --benchmark-columns="rounds, iterations, min, mean, max"
 
 cmd-grammar:
-	$(ANTLR) -Dlanguage=Python3 labtasker/client/core/cmd_parser/LabCmdLexer.g4
-	$(ANTLR) -Dlanguage=Python3 labtasker/client/core/cmd_parser/LabCmd.g4
+	cp -r $(ANTLR_GRAMMAR_DIR)/*.g4 $(ANTLR_OUT_DIR)
+	$(ANTLR) -Dlanguage=Python3 $(ANTLR_OUT_DIR)/*.g4
+	rm $(ANTLR_OUT_DIR)/*.g4
 
 clean:
 	# Python cache files

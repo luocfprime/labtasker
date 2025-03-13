@@ -8,9 +8,9 @@ from rich import print
 from rich.console import Console
 from rich.text import Text
 
-from labtasker.client.core.cmd_parser.LabCmd import LabCmd
-from labtasker.client.core.cmd_parser.LabCmdLexer import LabCmdLexer
-from labtasker.client.core.cmd_parser.LabCmdListener import LabCmdListener
+from labtasker.client.core.cmd_parser.generated.LabCmd import LabCmd
+from labtasker.client.core.cmd_parser.generated.LabCmdLexer import LabCmdLexer
+from labtasker.client.core.cmd_parser.generated.LabCmdListener import LabCmdListener
 from labtasker.client.core.exceptions import (
     CmdKeyError,
     CmdParserError,

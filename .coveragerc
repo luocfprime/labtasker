@@ -1,4 +1,4 @@
 [run]
 omit =
 # skip those auto-generated codes by antlr
-    labtasker/client/core/cmd_parser/LabCmd*
+    labtasker/client/core/cmd_parser/generated
