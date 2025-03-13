@@ -10,8 +10,8 @@ format:
 	isort .
 
 lint:
-	flake8 .
-	mypy .
+	flake8
+	mypy --ignore-missing-imports
 
 unit-test:
 	pytest -m "unit" --cov=labtasker --cov-report=term-missing --cov-report=xml
