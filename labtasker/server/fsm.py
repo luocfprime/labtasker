@@ -1,18 +1,50 @@
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
-from functools import wraps
-from typing import Any, Dict, Mapping, Set
+from typing import Any, Dict, Mapping, Optional, Set
 
 from fastapi import HTTPException
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
+from labtasker.api_models import StateTransitionEvent
+from labtasker.server.event_manager import event_manager
+from labtasker.utils import get_current_time
 
-def event(func):
-    @wraps(func)
-    def wrapper(fsm, *args, **kwargs):
-        # TODO: dummy. Reserved for event-driven hooks. (low priority)
-        return func(fsm, *args, **kwargs)
 
-    return wrapper
+class EntityType(str, Enum):
+    TASK = "task"
+    WORKER = "worker"
+
+
+@dataclass
+class StateTransitionEventHandle:
+    """Handle for tracking state transition and event publishing"""
+
+    entity_type: EntityType
+    entity_id: str
+    queue_id: str
+    old_state: str
+    new_state: str
+    transition_time: datetime
+    metadata: Dict[str, Any]
+    _entity_data: Optional[Dict[str, Any]] = None
+
+    def update_fsm_event(self, entity_data: Dict[str, Any]) -> None:
+        """Update FSM event with entity data and trigger event publishing"""
+        self._entity_data = entity_data
+        event_data = StateTransitionEvent(
+            entity_type=self.entity_type,
+            queue_id=self.queue_id,
+            entity_id=self.entity_id,
+            old_state=self.old_state,
+            new_state=self.new_state,
+            timestamp=self.transition_time,
+            metadata=self.metadata,
+            entity_data=self._entity_data,
+        )
+
+        # Use fully synchronous event publishing
+        event_manager.publish_event(self.queue_id, event_data)
 
 
 class InvalidStateTransition(HTTPException):
@@ -34,6 +66,7 @@ class State(str, Enum):
 
 
 class TaskState(State):
+    CREATED = "created"  # temporary state
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -42,24 +75,55 @@ class TaskState(State):
 
 
 class WorkerState(State):
+    CREATED = "created"  # temporary state
     ACTIVE = "active"
     SUSPENDED = "suspended"
     CRASHED = "crashed"
 
 
-class FSMValidatorMixin:
-    """Mixin class for state machine validation logic."""
+class BaseFSM:
+    """Base class for state machine."""
 
     VALID_TRANSITIONS: Dict[Enum, Set[Enum]] = {}
+    ENTITY_TYPE: EntityType  # To be set by subclasses
+
+    def __init__(
+        self,
+        queue_id: str,
+        entity_id: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        """
+
+        Args:
+            queue_id:
+            entity_id:
+            metadata: metadata for the FSM event (optional), not necessarily metadata for the entity
+        """
+        self.queue_id = queue_id
+        self.entity_id = entity_id
+        self.metadata = metadata or {}
+        self._state = None
 
     @property
     def state(self):
         return self._state
 
-    @state.setter
-    def state(self, new_state) -> None:
+    def transition_to(self, new_state: Enum) -> StateTransitionEventHandle:
+        """Perform state transition and return a handle"""
+        old_state = self._state
         self.validate_transition(new_state)
         self._state = new_state
+
+        return StateTransitionEventHandle(
+            entity_type=self.ENTITY_TYPE,
+            entity_id=self.entity_id,
+            queue_id=self.queue_id,
+            old_state=str(old_state),
+            new_state=str(new_state),
+            transition_time=get_current_time(),
+            metadata=self.metadata,
+        )
 
     def validate_transition(self, new_state) -> bool:
         """Validate if a state transition is allowed."""
@@ -70,13 +134,15 @@ class FSMValidatorMixin:
         return True
 
     def force_set_state(self, new_state: Enum) -> None:
-        """Force set state without validation."""
+        """Force set state without validation or event emission."""
         self._state = new_state
 
 
-class TaskFSM(FSMValidatorMixin):
+class TaskFSM(BaseFSM):
+    ENTITY_TYPE = EntityType.TASK
     # Define valid state transitions
     VALID_TRANSITIONS = {
+        TaskState.CREATED: {TaskState.PENDING},
         TaskState.PENDING: {TaskState.RUNNING, TaskState.PENDING, TaskState.CANCELLED},
         TaskState.RUNNING: {
             TaskState.SUCCESS,
@@ -100,10 +166,14 @@ class TaskFSM(FSMValidatorMixin):
 
     def __init__(
         self,
+        queue_id: str,
+        entity_id: str,
         current_state: TaskState,
         retries: int,
         max_retries: int,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
+        super().__init__(queue_id=queue_id, entity_id=entity_id, metadata=metadata)
         self.force_set_state(current_state)
         self.retries = retries
         self.max_retries = max_retries
@@ -111,20 +181,32 @@ class TaskFSM(FSMValidatorMixin):
     @classmethod
     def from_db_entry(cls, db_entry: Mapping[str, Any]) -> "TaskFSM":
         """Instantiate FSM from database entry."""
-        return cls(db_entry["status"], db_entry["retries"], db_entry["max_retries"])
+        return cls(
+            queue_id=db_entry["queue_id"],
+            entity_id=db_entry["_id"],
+            current_state=db_entry["status"],
+            retries=db_entry["retries"],
+            max_retries=db_entry["max_retries"],
+            metadata=None,  # default event metadata to None
+        )
 
-    @event
-    def cancel(self) -> TaskState:
+    def create(self) -> StateTransitionEventHandle:
+        """Create task."""
+        if not self.state == TaskState.CREATED:
+            raise InvalidStateTransition(
+                f"Cannot create task from state {self.state}",
+            )
+        return self.transition_to(TaskState.PENDING)
+
+    def cancel(self) -> StateTransitionEventHandle:
         """Cancel task.
 
         Transitions:
         - Any state -> CANCELLED (task is cancelled)
         """
-        self.state = TaskState.CANCELLED
-        return self.state
+        return self.transition_to(TaskState.CANCELLED)
 
-    @event
-    def reset(self) -> TaskState:
+    def reset(self) -> StateTransitionEventHandle:
         """Reset task settings and requeue.
 
         Transitions:
@@ -137,25 +219,18 @@ class TaskFSM(FSMValidatorMixin):
         Note: This allows tasks to be requeued from any state,
         useful for retrying failed tasks or rerunning success ones.
         """
-        # Reset task settings
         self.retries = 0
+        return self.transition_to(TaskState.PENDING)
 
-        self.state = TaskState.PENDING
-
-        return self.state
-
-    @event
-    def fetch(self) -> TaskState:
+    def fetch(self) -> StateTransitionEventHandle:
         """Fetch task for execution.
 
         Transitions:
         - PENDING -> RUNNING (task fetched for execution)
         """
-        self.state = TaskState.RUNNING
-        return self.state
+        return self.transition_to(TaskState.RUNNING)
 
-    @event
-    def complete(self) -> TaskState:
+    def complete(self) -> StateTransitionEventHandle:
         """Mark task as success.
 
         Transitions:
@@ -164,11 +239,9 @@ class TaskFSM(FSMValidatorMixin):
 
         Note: SUCCESS is a terminal state with no further transitions.
         """
-        self.state = TaskState.SUCCESS
-        return self.state
+        return self.transition_to(TaskState.SUCCESS)
 
-    @event
-    def fail(self) -> TaskState:
+    def fail(self) -> StateTransitionEventHandle:
         """Mark task as failed with optional retry.
 
         Transitions:
@@ -184,14 +257,15 @@ class TaskFSM(FSMValidatorMixin):
 
         self.retries += 1
         if self.retries < self.max_retries:
-            self.state = TaskState.PENDING
+            return self.transition_to(TaskState.PENDING)
         else:
-            self.state = TaskState.FAILED
-        return self.state
+            return self.transition_to(TaskState.FAILED)
 
 
-class WorkerFSM(FSMValidatorMixin):
+class WorkerFSM(BaseFSM):
+    ENTITY_TYPE = EntityType.WORKER
     VALID_TRANSITIONS = {
+        WorkerState.CREATED: {WorkerState.ACTIVE},
         WorkerState.ACTIVE: {
             WorkerState.ACTIVE,
             WorkerState.SUSPENDED,
@@ -201,7 +275,16 @@ class WorkerFSM(FSMValidatorMixin):
         WorkerState.CRASHED: {WorkerState.ACTIVE},  # Manual transition
     }
 
-    def __init__(self, current_state: WorkerState, retries: int, max_retries: int):
+    def __init__(
+        self,
+        queue_id: str,
+        entity_id: str,
+        current_state: WorkerState,
+        retries: int,
+        max_retries: int,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(queue_id=queue_id, entity_id=entity_id, metadata=metadata)
         self.force_set_state(current_state)
         self.retries = retries
         self.max_retries = max_retries
@@ -210,40 +293,42 @@ class WorkerFSM(FSMValidatorMixin):
     def from_db_entry(cls, db_entry: Mapping[str, Any]) -> "WorkerFSM":
         """Instantiate FSM from database entry."""
         return cls(
+            queue_id=db_entry["queue_id"],
+            entity_id=db_entry["_id"],
             current_state=db_entry["status"],
             retries=db_entry["retries"],
             max_retries=db_entry["max_retries"],
+            metadata=None,  # default event metadata to None
         )
 
-    @event
-    def activate(self) -> WorkerState:
-        """
-        Activate worker. If previous state is crashed, reset retries to 0.
+    def create(self) -> StateTransitionEventHandle:
+        """Create worker."""
+        if not self.state == WorkerState.CREATED:
+            raise InvalidStateTransition(
+                f"Cannot create worker from state {self.state}",
+            )
+        return self.transition_to(WorkerState.ACTIVE)
+
+    def activate(self) -> StateTransitionEventHandle:
+        """Activate worker. If previous state is crashed, reset retries to 0.
 
         Transitions:
         - Any state -> ACTIVE (worker resumes)
         """
         if self.state == WorkerState.CRASHED:
             self.retries = 0
+        return self.transition_to(WorkerState.ACTIVE)
 
-        self.state = WorkerState.ACTIVE
-        return self.state
-
-    @event
-    def suspend(self) -> WorkerState:
-        """
-        Suspend worker.
+    def suspend(self) -> StateTransitionEventHandle:
+        """Suspend worker.
 
         Transitions:
         - ACTIVE -> SUSPENDED (worker is suspended)
         """
-        self.state = WorkerState.SUSPENDED
-        return self.state
+        return self.transition_to(WorkerState.SUSPENDED)
 
-    @event
-    def fail(self) -> WorkerState:
-        """
-        Fail worker.
+    def fail(self) -> StateTransitionEventHandle:
+        """Fail worker.
 
         Transitions:
         - ACTIVE -> ACTIVE
@@ -254,5 +339,5 @@ class WorkerFSM(FSMValidatorMixin):
 
         self.retries += 1
         if self.retries >= self.max_retries:
-            self.state = WorkerState.CRASHED
-        return self.state
+            return self.transition_to(WorkerState.CRASHED)
+        return self.transition_to(WorkerState.ACTIVE)

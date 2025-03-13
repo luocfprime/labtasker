@@ -276,14 +276,21 @@ class DBService:
         with self.transaction() as session:
             now = get_current_time()
 
-            # fsm = TaskFSM(
-            #     current_state=TaskState.PENDING, retries=0, max_retries=max_retries
-            # )
-            # fsm.reset()
+            task_id = str(uuid4())
+
+            fsm = TaskFSM(
+                queue_id=queue_id,
+                entity_id=task_id,
+                current_state=TaskState.CREATED,
+                retries=0,
+                max_retries=max_retries,
+                metadata=None,
+            )
+            event_handle = fsm.create()
 
             task = {
-                "_id": str(uuid4()),
-                "queue_id": str(queue_id),
+                "_id": task_id,
+                "queue_id": queue_id,
                 "status": TaskState.PENDING,
                 "task_name": task_name,
                 "created_at": now,
@@ -302,6 +309,9 @@ class DBService:
                 "worker_id": None,
             }
             result = self._tasks.insert_one(task, session=session)
+
+            event_handle.update_fsm_event(task)
+
             return str(result.inserted_id)
 
     @auth_required
@@ -317,8 +327,20 @@ class DBService:
         with self.transaction() as session:
             now = get_current_time()
 
+            worker_id = str(uuid4())
+
+            fsm = WorkerFSM(
+                queue_id=queue_id,
+                entity_id=worker_id,
+                current_state=WorkerState.CREATED,
+                retries=0,
+                max_retries=max_retries,
+                metadata=None,
+            )
+            event_handle = fsm.create()
+
             worker = {
-                "_id": str(uuid4()),
+                "_id": worker_id,
                 "queue_id": queue_id,
                 "status": WorkerState.ACTIVE,
                 "worker_name": worker_name,
@@ -329,6 +351,9 @@ class DBService:
                 "last_modified": now,
             }
             result = self._workers.insert_one(worker, session=session)
+
+            event_handle.update_fsm_event(worker)
+
             return str(result.inserted_id)
 
     @auth_required
@@ -591,6 +616,9 @@ class DBService:
                     ):
                         continue  # Skip to the next task if it doesn't match
 
+                    fsm = TaskFSM.from_db_entry(task)
+                    event_handle = fsm.fetch()
+
                     updated_task = self._tasks.find_one_and_update(
                         {"_id": task["_id"]},
                         update,
@@ -599,6 +627,8 @@ class DBService:
                     )
 
                     if updated_task:
+                        updated_task: Dict[str, Any]
+                        event_handle.update_fsm_event(updated_task)
                         return updated_task
 
             return None  # Return None if no tasks matched
@@ -707,11 +737,11 @@ class DBService:
             fsm = TaskFSM.from_db_entry(task)
 
             if report_status == "success":
-                fsm.complete()
+                event_handle = fsm.complete()
             elif report_status == "failed":
-                fsm.fail()
+                event_handle = fsm.fail()
             elif report_status == "cancelled":
-                fsm.cancel()
+                event_handle = fsm.cancel()
             else:
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
@@ -752,6 +782,11 @@ class DBService:
         }
 
         result = self._tasks.update_one({"_id": task_id}, update, session=session)
+
+        # Update the event with entity data and publish
+        event_handle.update_fsm_event(
+            self._tasks.find_one({"_id": task_id}, session=session)
+        )
 
         return result.modified_count > 0
 
@@ -823,15 +858,22 @@ class DBService:
         """Cancel a task."""
         with self.transaction() as session:
             # Cancel task
+            fsm = TaskFSM.from_db_entry(
+                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})
+            )
+            event_handle = fsm.cancel()
             result = self._tasks.update_one(
                 {"_id": task_id, "queue_id": queue_id},
                 {
                     "$set": {
-                        "status": TaskState.CANCELLED,
+                        "status": fsm.state,
                         "last_modified": get_current_time(),
                     }
                 },
                 session=session,
+            )
+            event_handle.update_fsm_event(
+                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})
             )
             return result.modified_count > 0
 
@@ -842,7 +884,6 @@ class DBService:
     def _report_worker_status(
         self, queue_id: str, worker_id: str, report_status: str, session=None
     ) -> bool:
-        """Internal method to update worker status."""
         worker = self._workers.find_one(
             {"_id": worker_id, "queue_id": queue_id}, session=session
         )
@@ -855,11 +896,11 @@ class DBService:
             fsm = WorkerFSM.from_db_entry(worker)
 
             if report_status == "active":
-                fsm.activate()
+                event_handle = fsm.activate()
             elif report_status == "suspended":
-                fsm.suspend()
+                event_handle = fsm.suspend()
             elif report_status == "failed":
-                fsm.fail()
+                event_handle = fsm.fail()
             else:
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST,
@@ -881,6 +922,12 @@ class DBService:
         }
 
         result = self._workers.update_one({"_id": worker_id}, update, session=session)
+
+        # Update the event with entity data and publish
+        event_handle.update_fsm_event(
+            self._workers.find_one({"_id": worker_id}, session=session)
+        )
+
         return result.modified_count > 0
 
     @auth_required
@@ -1012,7 +1059,7 @@ class DBService:
                     fsm = TaskFSM.from_db_entry(task)
 
                     # Transition to FAILED state through FSM
-                    fsm.fail()
+                    event_handle = fsm.fail()
 
                     # Update worker status if worker is specified
                     if task["worker_id"]:
@@ -1037,6 +1084,12 @@ class DBService:
                         },
                         session=session,
                     )
+
+                    # Update FSM event with updated task
+                    event_handle.update_fsm_event(
+                        self._tasks.find_one({"_id": task["_id"]}, session=session)
+                    )
+
                     if result.modified_count > 0:
                         transitioned_tasks.append(task["_id"])
                 except Exception as e:

@@ -1,9 +1,10 @@
 import asyncio
-from asyncio import create_task
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from sse_starlette.sse import EventSourceResponse
 from starlette.status import (
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
@@ -36,6 +37,7 @@ from labtasker.api_models import (
 from labtasker.server.config import get_server_config
 from labtasker.server.database import DBService
 from labtasker.server.dependencies import get_db, get_verified_queue_dependency
+from labtasker.server.event_manager import event_manager
 from labtasker.server.logging import logger
 from labtasker.utils import get_current_time, parse_obj_as, unflatten_dict
 
@@ -62,7 +64,7 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan and background tasks."""
     # Setup
     config = get_server_config()
-    task = create_task(periodic_task(app, config.periodic_task_interval))
+    task = asyncio.create_task(periodic_task(app, config.periodic_task_interval))
 
     app.state.prev_polling = get_current_time().timestamp()
 
@@ -492,3 +494,17 @@ def get_worker(
     if not worker:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Worker not found")
     return worker
+
+
+@app.get("/api/v1/queues/me/events")
+async def subscribe_events(
+    request: Request,
+    queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
+):
+    """Subscribe to queue events using Server-Sent Events"""
+    client_id = str(uuid.uuid4())
+    queue_manager = event_manager.get_queue_event_manager(queue["_id"])
+
+    return EventSourceResponse(
+        queue_manager.subscribe(client_id, disconnect_handle=request.is_disconnected)
+    )

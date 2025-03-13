@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from packaging.version import Version
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
@@ -281,3 +281,44 @@ class QueueUpdateRequest(BaseRequestModel):
         if self.new_password:
             result.update({"new_password": self.new_password.get_secret_value()})
         return result
+
+
+class BaseEventModel(BaseApiModel):
+    """Base model for all events"""
+
+    type: Literal["base"] = "base"
+    queue_id: str
+    timestamp: datetime
+    metadata: Dict[str, Any]
+
+
+class StateTransitionEvent(BaseEventModel):
+    """Model for state transition events"""
+
+    type: Literal["state_transition"] = "state_transition"
+
+    entity_type: str = Field(..., pattern=r"^(task|worker)$")  # Validate entity types
+    entity_id: str
+    old_state: str
+    new_state: str
+    entity_data: Dict[str, Any]
+
+
+EventModelTypes = Union[BaseEventModel, StateTransitionEvent]
+
+
+class EventSubscriptionResponse(BaseApiModel):
+    """Response for event subscription"""
+
+    status: str = "connected"
+    client_id: str
+
+
+class EventResponse(BaseApiModel):
+    """Model for queue event responses"""
+
+    sequence: int
+    timestamp: datetime
+    event: EventModelTypes = Field(
+        discriminator="type"
+    )  # choose which model to use based on type field
