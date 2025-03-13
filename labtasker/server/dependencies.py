@@ -31,7 +31,7 @@ async def get_verified_queue_dependency(
                 headers={"WWW-Authenticate": "Basic"},
             )
         return queue
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",

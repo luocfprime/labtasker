@@ -412,7 +412,7 @@ class QueryTranspiler(ast.NodeVisitor):
         else:
             self._report_error(
                 node=node,
-                msg=f"An unexpected error occurred.",
+                msg="An unexpected error occurred.",
                 exception=QueryTranspilerError,
             )
 

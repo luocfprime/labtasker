@@ -36,7 +36,7 @@ from labtasker.utils import parse_timeout
 
 __all__ = ["loop_run", "finish"]
 
-_loop_internal_error_handler = lambda e: None
+_loop_internal_error_handler = lambda e: None  # noqa: E731
 
 
 def set_loop_internal_error_handler(handler: Callable[[Exception], None]):

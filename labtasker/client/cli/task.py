@@ -550,7 +550,7 @@ def update(
         add_eol_comment(
             d,
             fields=list(ud.keys()),
-            comment=f"Modified",
+            comment="Modified",
         )
 
     s = io.StringIO()

@@ -288,7 +288,7 @@ def validate_required_fields(keys):
     allowed_pattern = DOT_SEPARATED_KEY_PATTERN
     if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
         raise TypeError("Input must be a list of strings.")
-    if not "*" in keys and not all(re.match(allowed_pattern, k) for k in keys):
+    if "*" not in keys and not all(re.match(allowed_pattern, k) for k in keys):
         raise ValueError(
             "Keys must be valid dot-separated strings or a single '*' for matching everything."
         )

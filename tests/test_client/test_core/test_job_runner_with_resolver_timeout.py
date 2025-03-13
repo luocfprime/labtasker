@@ -60,7 +60,7 @@ def trigger_heartbeat_thread_termination():
     # This is a bit of a hack.
     # The heartbeat thread will stop once the lock file is deleted.
     # Only use this for testing. Do not use this practice.
-    heartbeat_lock = get_labtasker_log_dir() / f"heartbeat.lock"
+    heartbeat_lock = get_labtasker_log_dir() / "heartbeat.lock"
     if heartbeat_lock.exists():
         os.unlink(heartbeat_lock)
 

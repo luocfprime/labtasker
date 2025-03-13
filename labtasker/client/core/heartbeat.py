@@ -26,7 +26,7 @@ class Heartbeat:
         self._stop_event = threading.Event()
 
         # the heartbeat.lock file is useful for stopping heartbeat in the scheduler process from the actual job process
-        self._lockfile = get_labtasker_log_dir() / f"heartbeat.lock"
+        self._lockfile = get_labtasker_log_dir() / "heartbeat.lock"
 
     def start(self):
         """Start the heartbeat thread."""

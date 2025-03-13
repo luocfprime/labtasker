@@ -29,7 +29,7 @@ def handle_queue_create_conflict_err(func: Optional[Callable] = None, /):
     """Handles queue create conflict and prints human-readable message."""
 
     def error_409_handler(e):
-        stderr_console.print(f"[bold red]Error:[/bold red] Queue already exists.")
+        stderr_console.print("[bold red]Error:[/bold red] Queue already exists.")
         raise typer.Abort()
 
     return handle_http_err(

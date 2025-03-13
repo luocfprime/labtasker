@@ -246,7 +246,7 @@ def test_task_retry_on_timeout(db_fixture, queue_args, get_task_args):
         task = db_fixture._tasks.find_one({"_id": task_id})
         assert (
             task["status"] == TaskState.RUNNING
-        ), f"Task status should be RUNNING, since it's only half of the timeout"
+        ), "Task status should be RUNNING, since it's only half of the timeout"
 
         # 2.3 Fast forward past the remaining timeout duration
         frozen_time.tick(timedelta(seconds=31))  # Move forward 31 seconds

@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 
-from labtasker.client.core.api import *
+from labtasker.client.core.api import *  # noqa: F403
 from labtasker.client.core.context import current_task_id, current_worker_id, task_info
 from labtasker.client.core.exceptions import LabtaskerTypeError, LabtaskerValueError
 from labtasker.client.core.job_runner import finish, loop_run
