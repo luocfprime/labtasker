@@ -42,7 +42,7 @@ __all__ = [
 
 
 def loop(
-    required_fields: List[str] = None,
+    required_fields: Optional[List[str]] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
     worker_id: Optional[str] = None,

@@ -1,5 +1,5 @@
 import ast
-from typing import Any, Dict, List, NoReturn, Optional, Type
+from typing import Any, Dict, List, NoReturn, Type
 
 from rich.console import Console
 from rich.text import Text
@@ -157,10 +157,7 @@ class QueryTranspiler(ast.NodeVisitor):
         self.query_str = query_str
 
     def _report_error(
-        self,
-        node: ast.AST,
-        msg: str,
-        exception: Optional[Type[QueryTranspilerError]] = None,
+        self, node: ast.AST, msg: str, exception: Type[QueryTranspilerError]
     ) -> NoReturn:
         """
         Report an error with context from the AST node before raising an exception.
@@ -189,8 +186,7 @@ class QueryTranspiler(ast.NodeVisitor):
             msg=msg,
         )
 
-        if exception:
-            raise exception(msg)
+        raise exception(msg)
 
     def visit(self, node: Any) -> Any:
         """
@@ -361,6 +357,7 @@ class QueryTranspiler(ast.NodeVisitor):
                 node=node,
                 msg="'not in' operator is not supported, as it may lead to ambiguous behaviour due to the missing key returning null problem. "
                 "If you wish to use $nin, use the full mongodb query and handle the $exists manually",
+                exception=QueryTranspilerValueError,
             )
         # Only handle built-in functions like list() and dict() specially
         if not isinstance(right.func, ast.Name) or right.func.id not in (

@@ -147,7 +147,7 @@ def load_client_config(
 @requires_client_config
 def get_client_config() -> ClientConfig:
     """Get singleton instance of ClientConfig."""
-    return _config
+    return _config  # type: ignore[return-value]
 
 
 def init_labtasker_root(

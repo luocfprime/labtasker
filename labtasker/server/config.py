@@ -49,7 +49,7 @@ def init_server_config(env_file: Optional[str] = None):
     global _config
     if _config is not None:
         raise RuntimeError("ServerConfig already initialized.")
-    _config = ServerConfig(_env_file=env_file)  # noqa
+    _config = ServerConfig(_env_file=env_file)  # type: ignore[call-arg]
 
 
 def get_server_config() -> ServerConfig:

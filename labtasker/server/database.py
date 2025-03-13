@@ -46,7 +46,10 @@ _in_transaction = contextvars.ContextVar("in_transaction", default=False)
 class DBService:
 
     def __init__(
-        self, db_name: str, uri: str = None, client: Optional[MongoClient] = None
+        self,
+        db_name: str,
+        uri: Optional[str] = None,
+        client: Optional[MongoClient] = None,
     ):
         """
         Initialize database client. If client is provided, it will be used instead of connecting to MongoDB.
@@ -61,7 +64,7 @@ class DBService:
         try:
             self._client = MongoClient(uri, w="majority", retryWrites=True)
             self._client.admin.command("ping")
-            self._db: Database = self._client[db_name]
+            self._db: Database = self._client[db_name]  # type: ignore
             self._setup_collections()
         except Exception as e:
             raise HTTPException(
@@ -627,8 +630,7 @@ class DBService:
                     )
 
                     if updated_task:
-                        updated_task: Dict[str, Any]
-                        event_handle.update_fsm_event(updated_task)
+                        event_handle.update_fsm_event(updated_task)  # type: ignore
                         return updated_task
 
             return None  # Return None if no tasks matched
@@ -859,7 +861,7 @@ class DBService:
         with self.transaction() as session:
             # Cancel task
             fsm = TaskFSM.from_db_entry(
-                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})
+                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})  # type: ignore
             )
             event_handle = fsm.cancel()
             result = self._tasks.update_one(
@@ -873,7 +875,7 @@ class DBService:
                 session=session,
             )
             event_handle.update_fsm_event(
-                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})
+                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})  # type: ignore
             )
             return result.modified_count > 0
 
@@ -925,7 +927,7 @@ class DBService:
 
         # Update the event with entity data and publish
         event_handle.update_fsm_event(
-            self._workers.find_one({"_id": worker_id}, session=session)
+            self._workers.find_one({"_id": worker_id}, session=session)  # type: ignore
         )
 
         return result.modified_count > 0
@@ -988,7 +990,7 @@ class DBService:
             if queue_id:
                 queue = self._queues.find_one({"_id": queue_id}, session=session)
             else:
-                queue = self._get_queue_by_name(queue_name, session=session)
+                queue = self._get_queue_by_name(queue_name, session=session)  # type: ignore
 
             if not queue:
                 return None
@@ -1051,7 +1053,7 @@ class DBService:
             # Find tasks that might have timed out
             tasks = self._tasks.find(query, session=session)
 
-            tasks = list(tasks)  # Convert cursor to list
+            tasks = list(tasks)  # type: ignore
 
             for task in tasks:
                 try:
@@ -1087,7 +1089,7 @@ class DBService:
 
                     # Update FSM event with updated task
                     event_handle.update_fsm_event(
-                        self._tasks.find_one({"_id": task["_id"]}, session=session)
+                        self._tasks.find_one({"_id": task["_id"]}, session=session)  # type: ignore
                     )
 
                     if result.modified_count > 0:

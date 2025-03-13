@@ -61,7 +61,7 @@ def dump_task_info():
 
 
 def loop_run(
-    required_fields: List[str] = None,
+    required_fields: List[str],
     extra_filter: Optional[Dict[str, Any]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
     worker_id: Optional[str] = None,

@@ -41,7 +41,7 @@ def callback(
 @app.command(name="help")
 def help_(ctx: typer.Context):
     """Print help."""
-    stdout_console.print(ctx.parent.get_help())
+    stdout_console.print(ctx.parent.get_help())  # type: ignore[union-attr]
     raise typer.Exit()
 
 

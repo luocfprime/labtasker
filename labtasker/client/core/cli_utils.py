@@ -31,7 +31,7 @@ class LsFmtChoices(str, Enum):
     yaml = "yaml"
 
 
-def parse_dict(d_str: str) -> Optional[Dict[str, Any]]:
+def parse_dict(d_str: Optional[str]) -> Optional[Dict[str, Any]]:
     """
     Parse metadata string into a dictionary.
     Raise typer.BadParameter if the input is invalid.
@@ -47,7 +47,7 @@ def parse_dict(d_str: str) -> Optional[Dict[str, Any]]:
         raise typer.BadParameter(f"Invalid dict str: {e}")
 
 
-def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
+def parse_metadata(metadata: Optional[str]) -> Optional[Dict[str, Any]]:
     """
     Parse metadata string into a dictionary.
     Raise typer.BadParameter if the input is invalid.
@@ -55,7 +55,7 @@ def parse_metadata(metadata: str) -> Optional[Dict[str, Any]]:
     return parse_dict(d_str=metadata)
 
 
-def parse_filter(filter_str: str) -> Optional[Dict[str, Any]]:
+def parse_filter(filter_str: Optional[str]) -> Optional[Dict[str, Any]]:
     """
     1. If provided is a dict, eval it into a python dict mongodb filter using literal_eval
     2. Else, try transpile the string Python expression into mongodb filter
@@ -69,7 +69,7 @@ def parse_filter(filter_str: str) -> Optional[Dict[str, Any]]:
         return parse_dict(d_str=filter_str)
     except typer.BadParameter:
         try:
-            return transpile_query(query_str=filter_str)
+            return transpile_query(query_str=filter_str)  # type: ignore[arg-type]
         except QueryTranspilerError as e:
             raise typer.BadParameter(f"Invalid filter str: {e}") from e
 
@@ -242,7 +242,7 @@ def parse_updates(
                             value = literal_eval(value)
                         except (ValueError, SyntaxError):
                             pass  # consider it as a string if it fails to parse as a literal. e.g. "args.foo=test"
-                    parsed_updates[toplevel][subfields] = value
+                    parsed_updates[toplevel][subfields] = value  # type: ignore[index]
                 else:
                     raise LabtaskerValueError(
                         f"Invalid update: {update}. {toplevel} is not in top_level_fields {top_level_fields}. "
@@ -316,7 +316,7 @@ def confirm(
 
     """
     if not quiet:
-        return typer.confirm(*args, default=default, **kwargs)
+        return typer.confirm(*args, default=default, **kwargs)  # type: ignore[misc]
     else:  # non-interactive script mode
         if default:  # "yes"
             return True

@@ -103,13 +103,13 @@ class BaseFSM:
         self.queue_id = queue_id
         self.entity_id = entity_id
         self.metadata = metadata or {}
-        self._state = None
+        self._state: Optional[State] = None
 
     @property
     def state(self):
         return self._state
 
-    def transition_to(self, new_state: Enum) -> StateTransitionEventHandle:
+    def transition_to(self, new_state: State) -> StateTransitionEventHandle:
         """Perform state transition and return a handle"""
         old_state = self._state
         self.validate_transition(new_state)
@@ -133,7 +133,7 @@ class BaseFSM:
             )
         return True
 
-    def force_set_state(self, new_state: Enum) -> None:
+    def force_set_state(self, new_state: State) -> None:
         """Force set state without validation or event emission."""
         self._state = new_state
 

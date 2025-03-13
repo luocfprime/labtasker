@@ -105,10 +105,10 @@ class TeeStream(io.TextIOBase):
     def readable(self) -> bool:
         return self.original_stream.readable()
 
-    def read(self, size: int = -1) -> str:
+    def read(self, size: int = -1) -> str:  # type: ignore[override]
         return self.original_stream.read(size)
 
-    def readlines(self, hint: int = -1) -> List[str]:
+    def readlines(self, hint: int = -1) -> List[str]:  # type: ignore[override]
         return self.original_stream.readlines(hint)
 
     def seek(self, offset: int, whence: int = 0) -> int:
@@ -128,7 +128,7 @@ class TeeStream(io.TextIOBase):
     def writable(self) -> bool:
         return self.original_stream.writable()
 
-    def writelines(self, lines: Iterable[str]) -> None:
+    def writelines(self, lines: Iterable[str]) -> None:  # type: ignore[override]
         # First write to original stream
         self.original_stream.writelines(lines)
 
@@ -147,7 +147,7 @@ class TeeStream(io.TextIOBase):
                         else:
                             raise
 
-    def readline(self, size: Optional[int] = -1) -> str:
+    def readline(self, size: Optional[int] = -1) -> str:  # type: ignore[override]
         return self.original_stream.readline(size)
 
     def __del__(self) -> None:
@@ -156,7 +156,7 @@ class TeeStream(io.TextIOBase):
         pass
 
     @property
-    def closed(self) -> bool:
+    def closed(self) -> bool:  # type: ignore[override]
         return self.original_stream.closed
 
     def _checkClosed(self) -> None:
@@ -165,23 +165,23 @@ class TeeStream(io.TextIOBase):
 
     # Additional TextIOBase attributes that may be needed
     @property
-    def encoding(self) -> str:
-        return getattr(self.original_stream, "encoding", None)
+    def encoding(self) -> str:  # type: ignore[override]
+        return getattr(self.original_stream, "encoding", None)  # type: ignore[return-value]
 
     @property
-    def errors(self) -> Optional[str]:
+    def errors(self) -> Optional[str]:  # type: ignore[override]
         return getattr(self.original_stream, "errors", None)
 
     @property
-    def newlines(self) -> Optional[Union[str, tuple]]:
+    def newlines(self) -> Optional[Union[str, tuple]]:  # type: ignore[override]
         return getattr(self.original_stream, "newlines", None)
 
     @property
-    def buffer(self):
+    def buffer(self):  # type: ignore[override]
         return getattr(self.original_stream, "buffer", None)
 
     @property
-    def line_buffering(self) -> bool:
+    def line_buffering(self) -> bool:  # type: ignore[override]
         return getattr(self.original_stream, "line_buffering", False)
 
     # Forward any other attributes to the original stream

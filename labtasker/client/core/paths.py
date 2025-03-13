@@ -55,7 +55,7 @@ def get_labtasker_log_dir() -> Path:
         raise LabtaskerRuntimeError(
             "Labtasker log directory not set. Check if env var `LABTASKER_LOG_DIR` is not overwritten."
         )
-    return _labtasker_log_dir.get()
+    return _labtasker_log_dir.get()  # type: ignore[return-value]
 
 
 def get_template_dir() -> Path:

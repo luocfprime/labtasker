@@ -364,7 +364,7 @@ def ls_tasks(
 @display_server_notifications
 @cast_http_status_error
 def update_tasks(
-    task_updates: List[TaskUpdateRequest] = None,
+    task_updates: List[TaskUpdateRequest],
     reset_pending: bool = False,
     client: Optional[httpx.Client] = None,
 ) -> TaskLsResponse:

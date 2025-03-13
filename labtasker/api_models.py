@@ -286,7 +286,7 @@ class QueueUpdateRequest(BaseRequestModel):
 class BaseEventModel(BaseApiModel):
     """Base model for all events"""
 
-    type: Literal["base"] = "base"
+    type: Literal["base"] = "base"  # type: ignore[assignment]
     queue_id: str
     timestamp: datetime
     metadata: Dict[str, Any]
@@ -295,7 +295,7 @@ class BaseEventModel(BaseApiModel):
 class StateTransitionEvent(BaseEventModel):
     """Model for state transition events"""
 
-    type: Literal["state_transition"] = "state_transition"
+    type: Literal["state_transition"] = "state_transition"  # type: ignore[assignment]
 
     entity_type: str = Field(..., pattern=r"^(task|worker)$")  # Validate entity types
     entity_id: str

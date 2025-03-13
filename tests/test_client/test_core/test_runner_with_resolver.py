@@ -178,7 +178,7 @@ class TestRunnerWithResolver:
             arg2["arg3"] = str(arg2["arg3"])
             return arg2
 
-        @loop(eta_max="1h")
+        @loop(required_fields=["*"], eta_max="1h")
         def job(
             arg1: Annotated[int, Required()],  # annotation
             arg2: Annotated[dict, Required(resolver=arg2_arg3_to_str)],  # resolver
@@ -391,7 +391,7 @@ class TestRunnerFetchTasks:
                 "metadata.group": {
                     "$nin": [1, 2, 4, 5, 6]
                 },  # Filter out all groups except group 3
-            }
+            },
         )
         def job(
             arg1: List[int] = Required(),

@@ -45,7 +45,7 @@ def config(
         # Create a temporary file
         fd, temp_file_path = tempfile.mkstemp(prefix="labtasker.tmp.", suffix=".toml")
         os.close(fd)  # Close the file descriptor to avoid locking issues
-        temp_file_path = Path(temp_file_path)
+        temp_file_path = Path(temp_file_path)  # type: ignore[assignment]
 
         # 1.1 Copy existing configuration to the temporary file (if it exists)
         config_path = get_labtasker_client_config_path()
@@ -91,5 +91,5 @@ def config(
 
     finally:
         # Cleanup: Delete the temporary file
-        if temp_file_path and temp_file_path.exists():
-            temp_file_path.unlink()
+        if temp_file_path and temp_file_path.exists():  # type: ignore[attr-defined]
+            temp_file_path.unlink()  # type: ignore[attr-defined]

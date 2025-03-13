@@ -4,7 +4,7 @@ import inspect
 import sys
 from copy import copy
 from functools import wraps
-from typing import Any, Callable, Dict, List, Set, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
 
 from typing_extensions import Annotated, get_args, get_origin, get_type_hints
 
@@ -130,8 +130,8 @@ def get_params_from_function(func: Callable[..., Any]) -> Dict[str, ParamMeta]:
 
 
 def get_required_fields(
-    param_metas: Dict[str, ParamMeta] = None,
-    extra_required_fields: List[str] = None,
+    param_metas: Dict[str, ParamMeta],
+    extra_required_fields: Optional[List[str]] = None,
 ) -> List[str]:
     """
     Get required fields from function ParamMeta
@@ -152,10 +152,10 @@ def get_required_fields(
                 required_fields.add(meta.name)
 
     if extra_required_fields:
-        extra_required_fields = set(extra_required_fields)
+        extra_required_fields = set(extra_required_fields)  # type: ignore[assignment]
 
         # merge required_fields together
-        required_fields = required_fields | extra_required_fields
+        required_fields = required_fields | extra_required_fields  # type: ignore[operator]
 
     return list(required_fields)
 

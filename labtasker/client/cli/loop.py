@@ -7,7 +7,7 @@ import os
 import shlex
 import subprocess
 from collections import defaultdict
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import typer
 from typing_extensions import Annotated
@@ -106,8 +106,8 @@ def loop(
             "Command cannot be empty. Either specify via positional argument [CMD] or `--cmd`."
         )
 
-    extra_filter = parse_filter(extra_filter)
-    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
+    parsed_filter = parse_filter(extra_filter)
+    verbose_print(f"Parsed filter: {json.dumps(parsed_filter, indent=4)}")
 
     if heartbeat_timeout is None:
         heartbeat_timeout = get_client_config().task.heartbeat_interval * 3
@@ -125,7 +125,7 @@ def loop(
 
     @loop_run(
         required_fields=required_fields,
-        extra_filter=extra_filter,
+        extra_filter=parsed_filter,
         worker_id=worker_id,
         eta_max=eta_max,
         heartbeat_timeout=heartbeat_timeout,

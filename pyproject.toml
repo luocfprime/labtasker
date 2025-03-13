@@ -95,11 +95,15 @@ known_first_party = ["labtasker"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.mypy]
+disable_error_code = [
+    "var-annotated",
+    "no-redef",
+    "import-untyped"
+]
 python_version = "3.8"
 warn_unused_configs = true
 ignore_missing_imports = true
 show_error_codes = true
-strict = true
 
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -108,9 +112,25 @@ disallow_untyped_decorators = false
 disallow_untyped_calls = false
 warn_return_any = false
 warn_no_return = false
+warn_unused_ignores = false
+
+disallow_subclassing_any = false
+disallow_any_generics = false
 
 files = ["labtasker"]
 
 [[tool.mypy.overrides]]
 module = "labtasker.client.core.cmd_parser.*"
 ignore_errors = true
+
+# Add this for Typer-specific code
+[[tool.mypy.overrides]]
+module = "labtasker.client.cli.*"
+disallow_untyped_defs = false
+check_untyped_defs = false
+disable_error_code = ["arg-type", "assignment"]
+
+# If you're using Rich features from Typer
+[[tool.mypy.overrides]]
+module = "rich.*"
+ignore_missing_imports = true

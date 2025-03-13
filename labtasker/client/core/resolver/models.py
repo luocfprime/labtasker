@@ -27,7 +27,7 @@ class ParamMeta:
         self,
         *,
         name: str,
-        kind: inspect.Parameter.kind,
+        kind: inspect.Parameter.kind,  # type: ignore[valid-type]
         default: Any = inspect.Parameter.empty,
         annotation: Any = inspect.Parameter.empty,
     ) -> None:

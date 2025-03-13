@@ -61,7 +61,7 @@ def parse_timeout(timeout_str: str) -> float:
         "seconds": 1,
     }
 
-    total_seconds = 0
+    total_seconds = 0.0
 
     # Match alternating number-unit pairs
     matches = re.findall(r"(\d+\.?\d*)([a-z]+)", timeout_str)

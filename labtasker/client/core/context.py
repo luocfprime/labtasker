@@ -24,7 +24,7 @@ def current_task_id():
     return _current_task_id.get()
 
 
-def task_info() -> Task:
+def task_info() -> Optional[Task]:
     """Get current task info"""
     if _current_task_info.get() is None:  # perhaps called from a job subprocess
         # Try to load it from run dir

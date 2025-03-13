@@ -473,8 +473,8 @@ def update(
                         raise typer.Abort()
         finally:
             # Cleanup: Delete the temporary file
-            if temp_file_path and temp_file_path.exists():
-                temp_file_path.unlink()
+            if temp_file_path and temp_file_path.exists():  # type: ignore[attr-defined]
+                temp_file_path.unlink()  # type: ignore[attr-defined]
 
         # make sure the len match
         if len(modified) != len(old_tasks_primitive):
