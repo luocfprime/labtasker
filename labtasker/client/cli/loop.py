@@ -170,4 +170,4 @@ def loop(
 
     run_cmd()
 
-    logger.info("Loop finished.")
+    logger.info("Loop ended.")

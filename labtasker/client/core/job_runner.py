@@ -192,7 +192,7 @@ def loop_run(
                                 finish(status="success")
                             end_heartbeat()
                 except WorkerSuspended:
-                    logger.info("Worker suspended.")
+                    logger.error("Worker suspended.")
                     break
                 except Exception:
                     logger.exception("Error in task loop.")
