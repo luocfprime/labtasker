@@ -783,14 +783,20 @@ class DBService:
             }
         }
 
-        result = self._tasks.update_one({"_id": task_id}, update, session=session)
-
-        # Update the event with entity data and publish
-        event_handle.update_fsm_event(
-            self._tasks.find_one({"_id": task_id}, session=session)
+        updated_task = self._tasks.find_one_and_update(
+            {"_id": task_id},
+            update,
+            session=session,
+            return_document=ReturnDocument.AFTER,
         )
 
-        return result.modified_count > 0
+        if not updated_task:
+            return False
+
+        # Update the event with entity data and publish
+        event_handle.update_fsm_event(updated_task)  # type: ignore
+
+        return True
 
     @auth_required
     @validate_arg
@@ -815,6 +821,12 @@ class DBService:
         Potentially Auto-Overwritten Fields: [status, retries]
         """
         with self.transaction() as session:
+            task = self._tasks.find_one(
+                {"_id": task_id, "queue_id": queue_id}, session=session
+            )
+            if not task:
+                return False
+
             # Update task settings
             if task_setting_update:
                 # disallow mongodb operators
@@ -835,9 +847,14 @@ class DBService:
 
             task_setting_update["last_modified"] = get_current_time()
 
+            fsm = TaskFSM.from_db_entry(task)
+
             if reset_pending:
-                task_setting_update["status"] = TaskState.PENDING
-                task_setting_update["retries"] = 0
+                event_handle = fsm.reset()
+                task_setting_update["status"] = fsm.state  # PENDING
+                task_setting_update["retries"] = fsm.retries  # 0
+            else:
+                event_handle = None
 
             update = {
                 "$set": {
@@ -845,39 +862,21 @@ class DBService:
                 }
             }
 
-            result = self._tasks.update_one(
-                {"_id": task_id, "queue_id": queue_id}, update, session=session
-            )
-            return result.modified_count > 0
-
-    @auth_required
-    @validate_arg
-    def cancel_task(
-        self,
-        queue_id: str,
-        task_id: str,
-    ) -> bool:
-        """Cancel a task."""
-        with self.transaction() as session:
-            # Cancel task
-            fsm = TaskFSM.from_db_entry(
-                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})  # type: ignore
-            )
-            event_handle = fsm.cancel()
-            result = self._tasks.update_one(
+            updated_task = self._tasks.find_one_and_update(
                 {"_id": task_id, "queue_id": queue_id},
-                {
-                    "$set": {
-                        "status": fsm.state,
-                        "last_modified": get_current_time(),
-                    }
-                },
+                update,
                 session=session,
+                return_document=ReturnDocument.AFTER,
             )
-            event_handle.update_fsm_event(
-                self._tasks.find_one({"_id": task_id, "queue_id": queue_id})  # type: ignore
-            )
-            return result.modified_count > 0
+
+            # if the FSM state is modified by user manually
+            if not reset_pending and updated_task["status"] != task["status"]:
+                event_handle = fsm.transition_to(updated_task["status"])
+
+            if event_handle:
+                event_handle.update_fsm_event(updated_task)
+
+            return True
 
     def get_task(self, queue_id: str, task_id: str) -> Optional[Mapping[str, Any]]:
         """Retrieve a task by ID."""
@@ -923,14 +922,17 @@ class DBService:
             }
         }
 
-        result = self._workers.update_one({"_id": worker_id}, update, session=session)
-
-        # Update the event with entity data and publish
-        event_handle.update_fsm_event(
-            self._workers.find_one({"_id": worker_id}, session=session)  # type: ignore
+        updated_worker = self._workers.find_one_and_update(
+            {"_id": worker_id},
+            update,
+            session=session,
+            return_document=ReturnDocument.AFTER,
         )
 
-        return result.modified_count > 0
+        # Update the event with entity data and publish
+        event_handle.update_fsm_event(updated_worker)
+
+        return True
 
     @auth_required
     @validate_arg
@@ -1073,7 +1075,7 @@ class DBService:
                         )
 
                     # Update task in database
-                    result = self._tasks.update_one(
+                    updated_task = self._tasks.find_one_and_update(
                         {"_id": task["_id"]},
                         {
                             "$set": {
@@ -1084,16 +1086,13 @@ class DBService:
                                 "summary.labtasker_error": "Either heartbeat or task execution timed out",
                             }
                         },
+                        return_document=ReturnDocument.AFTER,
                         session=session,
                     )
 
-                    # Update FSM event with updated task
-                    event_handle.update_fsm_event(
-                        self._tasks.find_one({"_id": task["_id"]}, session=session)  # type: ignore
-                    )
+                    event_handle.update_fsm_event(updated_task)
 
-                    if result.modified_count > 0:
-                        transitioned_tasks.append(task["_id"])
+                    transitioned_tasks.append(task["_id"])
                 except Exception as e:
                     # Log error but continue processing other tasks
                     logger.info(f"Error handling timeout for task {task['_id']}: {e}")

@@ -336,47 +336,58 @@ def update_tasks(
             detail="Too many tasks to update. Maximum is 1000.",
         )
 
-    for task_update in task_updates:
-        update = {}
-        replace_fields = task_update.replace_fields
-        # to convert it into a dict of {"field_a.sub_field_a": "value"}}
-        # e.g. {"args": {"arg1": 0}, "metadata": {"label": "test"}} ->
-        # {"args.arg1": 0, "metadata.label": "test"}
-        # we need to flatten by 1-level and add prefix
-        for key, value in task_update.model_dump(
-            exclude_unset=True, by_alias=True
-        ).items():
-            if key == "replace_fields":
-                continue
-            if key in replace_fields:  # replace root field
-                if isinstance(value, dict):
-                    # prevent {"args": {"foo.bar": 0}} case. (this can cause trouble for updating,
-                    # because if {"foo.bar": 0} is assigned to args (i.e. ["args"]["foo.bar"]),
-                    # updating args.foo.bar later would actually update the value of ["args"]["foo"]["bar"]
-                    # rather than the existing db entry ["args"]["foo.bar"]
-                    # therefore, only format like {"args": {"foo":{"bar": 0}}} should be allowed.
-                    update[key] = unflatten_dict(value)
-                else:
-                    update[key] = value
-            else:
-                if isinstance(value, dict):  # only update sub-fields
-                    # in this case, {"args": {"foo.bar": 0}} is allowed
-                    # since it will be transformed to {"args.foo.bar": 0} for updating
-                    for sub_key, sub_value in value.items():
-                        update[f"{key}.{sub_key}"] = sub_value
-                else:  # for non-dict, just overwrite the field
-                    update[key] = value
+    failed_updates = []
 
-        if not db.update_task(
-            queue_id=queue["_id"],
-            task_id=task_update.task_id,
-            task_setting_update=update,
-            reset_pending=reset_pending,
-        ):
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND,
-                detail=f"Task {task_update.task_id} not found.",
-            )
+    for task_update in task_updates:
+        try:
+            update = {}
+            replace_fields = task_update.replace_fields
+            # to convert it into a dict of {"field_a.sub_field_a": "value"}}
+            # e.g. {"args": {"arg1": 0}, "metadata": {"label": "test"}} ->
+            # {"args.arg1": 0, "metadata.label": "test"}
+            # we need to flatten by 1-level and add prefix
+            for key, value in task_update.model_dump(
+                exclude_unset=True, by_alias=True
+            ).items():
+                if key == "replace_fields":
+                    continue
+                if key in replace_fields:  # replace root field
+                    if isinstance(value, dict):
+                        # prevent {"args": {"foo.bar": 0}} case. (this can cause trouble for updating,
+                        # because if {"foo.bar": 0} is assigned to args (i.e. ["args"]["foo.bar"]),
+                        # updating args.foo.bar later would actually update the value of ["args"]["foo"]["bar"]
+                        # rather than the existing db entry ["args"]["foo.bar"]
+                        # therefore, only format like {"args": {"foo":{"bar": 0}}} should be allowed.
+                        update[key] = unflatten_dict(value)
+                    else:
+                        update[key] = value
+                else:
+                    if isinstance(value, dict):  # only update sub-fields
+                        # in this case, {"args": {"foo.bar": 0}} is allowed
+                        # since it will be transformed to {"args.foo.bar": 0} for updating
+                        for sub_key, sub_value in value.items():
+                            update[f"{key}.{sub_key}"] = sub_value
+                    else:  # for non-dict, just overwrite the field
+                        update[key] = value
+
+            if not db.update_task(
+                queue_id=queue["_id"],
+                task_id=task_update.task_id,
+                task_setting_update=update,
+                reset_pending=reset_pending,
+            ):
+                raise HTTPException(
+                    status_code=HTTP_404_NOT_FOUND,
+                    detail=f"Task {task_update.task_id} not found.",
+                )
+        except HTTPException as e:
+            failed_updates.append((task_update.task_id, e.detail))
+
+    if len(failed_updates) > 0:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Failed to update {len(failed_updates)}/{len(task_updates)} tasks. Detail: {failed_updates}",
+        )
 
     tasks = []
     for task in task_updates:
