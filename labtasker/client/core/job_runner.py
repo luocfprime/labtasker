@@ -194,8 +194,9 @@ def loop_run(
                 except WorkerSuspended:
                     logger.error("Worker suspended.")
                     break
-                except Exception:
+                except Exception as e:
                     logger.exception("Error in task loop.")
+                    _loop_internal_error_handler(e)
 
         return wrapper
 
