@@ -136,7 +136,7 @@ class Task(
 ):
     task_id: str = Field(alias="_id")  # Accepts "_id" as an input field
     queue_id: str
-    status: str
+    status: str = Field(..., pattern=r"^(pending|running|success|failed|cancelled)$")
     task_name: Optional[str]
     created_at: datetime
     start_time: Optional[datetime]
@@ -177,7 +177,9 @@ class TaskUpdateRequest(
     # reference from Task
     task_id: str = Field(alias="_id")  # Accepts "_id" as an input field
     # queue_id: str
-    status: Optional[str] = None
+    status: Optional[str] = Field(
+        None, pattern=r"^(pending|running|success|failed|cancelled)$"
+    )
     task_name: Optional[str] = Field(
         None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )
