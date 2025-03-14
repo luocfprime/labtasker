@@ -7,6 +7,7 @@ from starlette.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
     HTTP_204_NO_CONTENT,
+    HTTP_400_BAD_REQUEST,
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
@@ -666,7 +667,7 @@ class TestUpdateTasks:
             headers=auth_headers,
             json=update_request,
         )
-        assert response.status_code == HTTP_404_NOT_FOUND
+        assert response.status_code == HTTP_400_BAD_REQUEST
 
     def test_update_tasks_no_changes(
         self, test_app, setup_queue, auth_headers, task_submit_request
