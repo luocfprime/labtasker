@@ -81,6 +81,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+# Debug only
+# @app.exception_handler(HTTPException)
+# async def http_exception_handler(request, exc: HTTPException):
+#     logger.exception(f"HTTPException: {exc}")
+#     return JSONResponse(
+#         status_code=exc.status_code,
+#         content={
+#             "detail": exc.detail,
+#         },
+#     )
+
+
 @app.get("/health")
 def health_check():
     """Basic health check."""

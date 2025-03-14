@@ -1,5 +1,3 @@
-import contextlib
-import contextvars
 from typing import Any, Dict, List, Mapping, Optional, Union
 from uuid import uuid4
 
@@ -21,10 +19,10 @@ from labtasker.security import hash_password
 from labtasker.server.config import get_server_config
 from labtasker.server.db_utils import (
     arg_match,
-    auth_required,
     keys_to_query_dict,
     merge_filter,
     query_dict_to_mongo_filter,
+    retry_on_transient,
     sanitize_dict,
     sanitize_query,
     sanitize_update,
@@ -39,8 +37,6 @@ from labtasker.utils import (
     risky,
     unflatten_dict,
 )
-
-_in_transaction = contextvars.ContextVar("in_transaction", default=False)
 
 
 class DBService:
@@ -71,43 +67,6 @@ class DBService:
                 status_code=HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to connect to MongoDB: {str(e)}",
             )
-
-    @contextlib.contextmanager
-    def transaction(self, allow_nesting: bool = False):
-        """Context manager for database transactions.
-
-        Args:
-            allow_nesting (bool): Whether to detect and ban nested transactions
-        """
-        # Check if already in transaction
-        if _in_transaction.get() and not allow_nesting:
-            # raise error
-            raise HTTPException(
-                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Nested transactions are not allowed",
-            )
-
-        # Set transaction flag and get token for resetting
-        token = _in_transaction.set(True)
-        try:
-            with self._client.start_session() as session:
-                with session.start_transaction():
-                    try:
-                        yield session
-                        session.commit_transaction()
-                    except Exception as e:
-                        session.abort_transaction()
-                        if isinstance(e, HTTPException):
-                            raise e
-                        logger.error(f"Unexpected error in transaction: {str(e)}")
-                        logger.exception(e)
-                        raise HTTPException(
-                            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Transaction failed: {str(e)}",
-                        )
-        finally:
-            # Reset transaction flag using token
-            _in_transaction.reset(token)
 
     def ping(self) -> bool:
         self._client.admin.command("ping")
@@ -157,8 +116,7 @@ class DBService:
     def projection(self):
         return {"password": 0}
 
-    @auth_required
-    # @risky("Potential query injection")
+    @retry_on_transient
     @validate_arg
     def query_collection(
         self,
@@ -169,27 +127,28 @@ class DBService:
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Query a collection."""
-        with self.transaction() as session:
-            if collection_name not in ["queues", "tasks", "workers"]:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail="Invalid collection name. Must be one of: queues, tasks, workers",
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                if collection_name not in ["queues", "tasks", "workers"]:
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail="Invalid collection name. Must be one of: queues, tasks, workers",
+                    )
+
+                # Prevent query injection
+                query = sanitize_query(queue_id, query)
+
+                result = (
+                    self._db[collection_name]
+                    .find(query, self.projection, session=session)
+                    .skip(offset)
+                    .limit(limit)
                 )
 
-            # Prevent query injection
-            query = sanitize_query(queue_id, query)
+                return list(result)
 
-            result = (
-                self._db[collection_name]
-                .find(query, self.projection, session=session)
-                .skip(offset)
-                .limit(limit)
-            )
-
-            return list(result)
-
-    @auth_required
     @risky("Potential query injection")
+    @retry_on_transient
     @validate_arg
     def update_collection(
         self,
@@ -199,32 +158,34 @@ class DBService:
         update: Dict[str, Any],  # MongoDB update
     ) -> int:
         """Update a collection. Return modified count"""
-        with self.transaction() as session:
-            if collection_name not in ["queues", "tasks", "workers"]:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail="Invalid collection name. Must be one of: queues, tasks, workers",
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                if collection_name not in ["queues", "tasks", "workers"]:
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail="Invalid collection name. Must be one of: queues, tasks, workers",
+                    )
+
+                # Prevent query injection
+                query = sanitize_query(queue_id, query)
+
+                now = get_current_time()
+
+                update = sanitize_update(
+                    update
+                )  # make sure important fields are not tempered with
+
+                if update.get("$set"):
+                    update["$set"]["last_modified"] = now
+                else:
+                    update["$set"] = {"last_modified": now}
+
+                result = self._db[collection_name].update_many(
+                    query, update, session=session
                 )
+                return result.modified_count
 
-            # Prevent query injection
-            query = sanitize_query(queue_id, query)
-
-            now = get_current_time()
-
-            update = sanitize_update(
-                update
-            )  # make sure important fields are not tempered with
-
-            if update.get("$set"):
-                update["$set"]["last_modified"] = now
-            else:
-                update["$set"] = {"last_modified": now}
-
-            result = self._db[collection_name].update_many(
-                query, update, session=session
-            )
-            return result.modified_count
-
+    @retry_on_transient
     @validate_arg
     def create_queue(
         self,
@@ -237,26 +198,27 @@ class DBService:
             raise HTTPException(
                 status_code=HTTP_400_BAD_REQUEST, detail="Queue name is required"
             )
-        with self.transaction() as session:
-            try:
-                now = get_current_time()
-                queue = {
-                    "_id": str(uuid4()),
-                    "queue_name": queue_name,
-                    "password": hash_password(password),
-                    "created_at": now,
-                    "last_modified": now,
-                    "metadata": unflatten_dict(metadata or {}),
-                }
-                result = self._queues.insert_one(queue, session=session)
-                return str(result.inserted_id)
-            except DuplicateKeyError:
-                raise HTTPException(
-                    status_code=HTTP_409_CONFLICT,
-                    detail=f"Queue '{queue_name}' already exists",
-                )
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                try:
+                    now = get_current_time()
+                    queue = {
+                        "_id": str(uuid4()),
+                        "queue_name": queue_name,
+                        "password": hash_password(password),
+                        "created_at": now,
+                        "last_modified": now,
+                        "metadata": unflatten_dict(metadata or {}),
+                    }
+                    result = self._queues.insert_one(queue, session=session)
+                    return str(result.inserted_id)
+                except DuplicateKeyError:
+                    raise HTTPException(
+                        status_code=HTTP_409_CONFLICT,
+                        detail=f"Queue '{queue_name}' already exists",
+                    )
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def create_task(
         self,
@@ -278,48 +240,49 @@ class DBService:
                 status_code=HTTP_400_BAD_REQUEST,
                 detail="Either args or cmd must be provided",
             )
-        with self.transaction() as session:
-            now = get_current_time()
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                now = get_current_time()
 
-            task_id = str(uuid4())
+                task_id = str(uuid4())
 
-            fsm = TaskFSM(
-                queue_id=queue_id,
-                entity_id=task_id,
-                current_state=TaskState.CREATED,
-                retries=0,
-                max_retries=max_retries,
-                metadata=None,
-            )
-            event_handle = fsm.create()
+                fsm = TaskFSM(
+                    queue_id=queue_id,
+                    entity_id=task_id,
+                    current_state=TaskState.CREATED,
+                    retries=0,
+                    max_retries=max_retries,
+                    metadata=None,
+                )
+                event_handle = fsm.create()
 
-            task = {
-                "_id": task_id,
-                "queue_id": queue_id,
-                "status": TaskState.PENDING,
-                "task_name": task_name,
-                "created_at": now,
-                "start_time": None,
-                "last_heartbeat": None,
-                "last_modified": now,
-                "heartbeat_timeout": heartbeat_timeout,
-                "task_timeout": task_timeout,
-                "max_retries": max_retries,
-                "retries": 0,
-                "priority": priority,
-                "metadata": unflatten_dict(metadata or {}),
-                "args": unflatten_dict(args or {}),
-                "cmd": cmd or "",
-                "summary": {},
-                "worker_id": None,
-            }
-            result = self._tasks.insert_one(task, session=session)
+                task = {
+                    "_id": task_id,
+                    "queue_id": queue_id,
+                    "status": TaskState.PENDING,
+                    "task_name": task_name,
+                    "created_at": now,
+                    "start_time": None,
+                    "last_heartbeat": None,
+                    "last_modified": now,
+                    "heartbeat_timeout": heartbeat_timeout,
+                    "task_timeout": task_timeout,
+                    "max_retries": max_retries,
+                    "retries": 0,
+                    "priority": priority,
+                    "metadata": unflatten_dict(metadata or {}),
+                    "args": unflatten_dict(args or {}),
+                    "cmd": cmd or "",
+                    "summary": {},
+                    "worker_id": None,
+                }
+                result = self._tasks.insert_one(task, session=session)
 
-            event_handle.update_fsm_event(task)
+                event_handle.update_fsm_event(task)
 
-            return str(result.inserted_id)
+                return str(result.inserted_id)
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def create_worker(
         self,
@@ -329,39 +292,40 @@ class DBService:
         max_retries: int = 3,
     ) -> str:
         """Create a worker."""
-        with self.transaction() as session:
-            now = get_current_time()
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                now = get_current_time()
 
-            worker_id = str(uuid4())
+                worker_id = str(uuid4())
 
-            fsm = WorkerFSM(
-                queue_id=queue_id,
-                entity_id=worker_id,
-                current_state=WorkerState.CREATED,
-                retries=0,
-                max_retries=max_retries,
-                metadata=None,
-            )
-            event_handle = fsm.create()
+                fsm = WorkerFSM(
+                    queue_id=queue_id,
+                    entity_id=worker_id,
+                    current_state=WorkerState.CREATED,
+                    retries=0,
+                    max_retries=max_retries,
+                    metadata=None,
+                )
+                event_handle = fsm.create()
 
-            worker = {
-                "_id": worker_id,
-                "queue_id": queue_id,
-                "status": WorkerState.ACTIVE,
-                "worker_name": worker_name,
-                "metadata": unflatten_dict(metadata or {}),
-                "retries": 0,
-                "max_retries": max_retries,
-                "created_at": now,
-                "last_modified": now,
-            }
-            result = self._workers.insert_one(worker, session=session)
+                worker = {
+                    "_id": worker_id,
+                    "queue_id": queue_id,
+                    "status": WorkerState.ACTIVE,
+                    "worker_name": worker_name,
+                    "metadata": unflatten_dict(metadata or {}),
+                    "retries": 0,
+                    "max_retries": max_retries,
+                    "created_at": now,
+                    "last_modified": now,
+                }
+                result = self._workers.insert_one(worker, session=session)
 
-            event_handle.update_fsm_event(worker)
+                event_handle.update_fsm_event(worker)
 
-            return str(result.inserted_id)
+                return str(result.inserted_id)
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def delete_queue(
         self,
@@ -378,26 +342,27 @@ class DBService:
         Return:
             deleted_count: total affected entries
         """
-        with self.transaction() as session:
-            deleted_count = 0
-            # Delete queue
-            deleted_count += self._queues.delete_one(
-                {"_id": queue_id}, session=session
-            ).deleted_count
-
-            if cascade_delete:
-                # Delete all tasks in the queue
-                deleted_count += self._tasks.delete_many(
-                    {"queue_id": queue_id}, session=session
-                ).deleted_count
-                # Delete all workers in the queue
-                deleted_count += self._workers.delete_many(
-                    {"queue_id": queue_id}, session=session
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                deleted_count = 0
+                # Delete queue
+                deleted_count += self._queues.delete_one(
+                    {"_id": queue_id}, session=session
                 ).deleted_count
 
-            return deleted_count
+                if cascade_delete:
+                    # Delete all tasks in the queue
+                    deleted_count += self._tasks.delete_many(
+                        {"queue_id": queue_id}, session=session
+                    ).deleted_count
+                    # Delete all workers in the queue
+                    deleted_count += self._workers.delete_many(
+                        {"queue_id": queue_id}, session=session
+                    ).deleted_count
 
-    @auth_required
+                return deleted_count
+
+    @retry_on_transient
     @validate_arg
     def delete_task(
         self,
@@ -405,13 +370,14 @@ class DBService:
         task_id: str,
     ) -> int:
         """Delete a task."""
-        with self.transaction() as session:
-            # Delete task
-            return self._tasks.delete_one(
-                {"_id": task_id, "queue_id": queue_id}, session=session
-            ).deleted_count
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                # Delete task
+                return self._tasks.delete_one(
+                    {"_id": task_id, "queue_id": queue_id}, session=session
+                ).deleted_count
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def delete_worker(
         self,
@@ -430,25 +396,26 @@ class DBService:
         Return:
             affected_count:
         """
-        with self.transaction() as session:
-            affected_count = 0
-            # Delete worker
-            affected_count += self._workers.delete_one(
-                {"_id": worker_id, "queue_id": queue_id}, session=session
-            ).deleted_count
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                affected_count = 0
+                # Delete worker
+                affected_count += self._workers.delete_one(
+                    {"_id": worker_id, "queue_id": queue_id}, session=session
+                ).deleted_count
 
-            now = get_current_time()
-            if cascade_update:
-                # Update all tasks associated with the worker
-                affected_count += self._tasks.update_many(
-                    {"queue_id": queue_id, "worker_id": worker_id},
-                    {"$set": {"worker_id": None, "last_modified": now}},
-                    session=session,
-                ).modified_count
+                now = get_current_time()
+                if cascade_update:
+                    # Update all tasks associated with the worker
+                    affected_count += self._tasks.update_many(
+                        {"queue_id": queue_id, "worker_id": worker_id},
+                        {"$set": {"worker_id": None, "last_modified": now}},
+                        session=session,
+                    ).modified_count
 
-            return affected_count
+                return affected_count
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def update_queue(
         self,
@@ -458,44 +425,48 @@ class DBService:
         metadata_update: Optional[Dict[str, Any]] = None,
     ) -> int:
         """Update queue settings. Returns modified_count"""
-        with self.transaction() as session:
-            # Make sure name does not already exist
-            if new_queue_name and self._get_queue_by_name(
-                new_queue_name, session=session, raise_exception=False
-            ):
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail=f"Queue name '{new_queue_name}' already exists",
-                )
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                # Make sure name does not already exist
+                if new_queue_name and self._get_queue_by_name(
+                    new_queue_name, session=session, raise_exception=False
+                ):
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail=f"Queue name '{new_queue_name}' already exists",
+                    )
 
-            update_dict = {}
+                update_dict = {}
 
-            if new_queue_name:
-                update_dict["queue_name"] = new_queue_name
-            if new_password:
-                update_dict["password"] = hash_password(new_password)
+                if new_queue_name:
+                    update_dict["queue_name"] = new_queue_name
+                if new_password:
+                    update_dict["password"] = hash_password(new_password)
 
-            if metadata_update is None:
-                metadata_update = {}
-            elif metadata_update == {}:  # set the metadata root field to empty dict
-                metadata_update = {"metadata": {}}
-            else:
-                metadata_update = sanitize_dict(metadata_update)
-                metadata_update = add_key_prefix(metadata_update, prefix="metadata.")
+                if metadata_update is None:
+                    metadata_update = {}
+                elif metadata_update == {}:  # set the metadata root field to empty dict
+                    metadata_update = {"metadata": {}}
+                else:
+                    metadata_update = sanitize_dict(metadata_update)
+                    metadata_update = add_key_prefix(
+                        metadata_update, prefix="metadata."
+                    )
 
-            # Update queue settings
-            update = {
-                "$set": {
-                    "last_modified": get_current_time(),
-                    **update_dict,
-                    **metadata_update,
+                # Update queue settings
+                update = {
+                    "$set": {
+                        "last_modified": get_current_time(),
+                        **update_dict,
+                        **metadata_update,
+                    }
                 }
-            }
-            result = self._queues.update_one({"_id": queue_id}, update, session=session)
-            return result.modified_count
+                result = self._queues.update_one(
+                    {"_id": queue_id}, update, session=session
+                )
+                return result.modified_count
 
-    # @risky("Potential query injection")
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def fetch_task(
         self,
@@ -538,108 +509,116 @@ class DBService:
                 detail="Eta max must be specified when start_heartbeat is False",
             )
 
-        with self.transaction() as session:
-            # Verify worker status if specified
-            if worker_id:
-                worker = self._workers.find_one(
-                    {"_id": worker_id, "queue_id": queue_id}, session=session
-                )
-                if not worker:
-                    raise HTTPException(
-                        status_code=HTTP_404_NOT_FOUND,
-                        detail=f"Worker '{worker_id}' not found in queue '{queue_id}'",
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                # Verify worker status if specified
+                if worker_id:
+                    worker = self._workers.find_one(
+                        {"_id": worker_id, "queue_id": queue_id}, session=session
                     )
-                worker_status = worker["status"]
-                if worker_status != WorkerState.ACTIVE:
+                    if not worker:
+                        raise HTTPException(
+                            status_code=HTTP_404_NOT_FOUND,
+                            detail=f"Worker '{worker_id}' not found in queue '{queue_id}'",
+                        )
+                    worker_status = worker["status"]
+                    if worker_status != WorkerState.ACTIVE:
+                        raise HTTPException(
+                            status_code=HTTP_403_FORBIDDEN,
+                            detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_id}'",
+                        )
+
+                # Fetch task
+                now = get_current_time()
+
+                # "no less" of the "no more, no less" principle, user demanded fields must
+                # exist in task args
+                # even if allow_arbitrary_args==True, this principle should still be followed
+                # else it may lead to unexpected missing keys.
+                try:
+                    query_dict = keys_to_query_dict(required_fields, mode="deepest")
+                except (TypeError, ValueError) as e:
                     raise HTTPException(
-                        status_code=HTTP_403_FORBIDDEN,
-                        detail=f"Worker '{worker_id}' is {worker_status} in queue '{queue_id}'",
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid required fields. Detail: {str(e)}",
                     )
-
-            # Fetch task
-            now = get_current_time()
-
-            # "no less" of the "no more, no less" principle, user demanded fields must
-            # exist in task args
-            # even if allow_arbitrary_args==True, this principle should still be followed
-            # else it may lead to unexpected missing keys.
-            try:
-                query_dict = keys_to_query_dict(required_fields, mode="deepest")
-            except (TypeError, ValueError) as e:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid required fields. Detail: {str(e)}",
+                required_fields_filter = query_dict_to_mongo_filter(
+                    query_dict, parent_key="args"
                 )
-            required_fields_filter = query_dict_to_mongo_filter(
-                query_dict, parent_key="args"
-            )
 
-            combined_filter = merge_filter(
-                required_fields_filter, extra_filter, logical_op="and"
-            )
+                combined_filter = merge_filter(
+                    required_fields_filter, extra_filter, logical_op="and"
+                )
 
-            sanitized_filter = sanitize_query(queue_id, combined_filter)
+                sanitized_filter = sanitize_query(queue_id, combined_filter)
 
-            # Construct the query
-            query = {
-                "queue_id": queue_id,
-                "status": TaskState.PENDING,
-                **sanitized_filter,
-            }
-
-            update = {
-                "$set": {
-                    "status": TaskState.RUNNING,
-                    "start_time": now,
-                    "last_heartbeat": now if start_heartbeat else None,
-                    "last_modified": now,
-                    "worker_id": worker_id,
+                # Construct the query
+                query = {
+                    "queue_id": queue_id,
+                    "status": TaskState.PENDING,
+                    **sanitized_filter,
                 }
-            }
 
-            if task_timeout:
-                update["$set"]["task_timeout"] = task_timeout
+                update = {
+                    "$set": {
+                        "status": TaskState.RUNNING,
+                        "start_time": now,
+                        "last_heartbeat": now if start_heartbeat else None,
+                        "last_modified": now,
+                        "worker_id": worker_id,
+                    }
+                }
 
-            if heartbeat_timeout:
-                update["$set"]["heartbeat_timeout"] = heartbeat_timeout
+                if task_timeout:
+                    update["$set"]["task_timeout"] = task_timeout
 
-            tasks = self._tasks.find(
-                query,
-                session=session,
-                # sort: highest priority, least recently modified, oldest created
-                sort=[("priority", -1), ("last_modified", 1), ("created_at", 1)],
-            )
+                if heartbeat_timeout:
+                    update["$set"]["heartbeat_timeout"] = heartbeat_timeout
 
-            # "no more" of the "no more, no less" principle
-            required_fields_no_more = keys_to_query_dict(
-                required_fields, mode="topmost"
-            )
-            for task in tasks:
-                if task:
-                    if (
-                        not allow_arbitrary_args
-                        and required_fields_no_more
-                        and not arg_match(required_fields_no_more, task["args"])
-                    ):
-                        continue  # Skip to the next task if it doesn't match
-
-                    fsm = TaskFSM.from_db_entry(task)
-                    event_handle = fsm.fetch()
-
-                    updated_task = self._tasks.find_one_and_update(
-                        {"_id": task["_id"]},
-                        update,
+                tasks = list(
+                    self._tasks.find(
+                        query,
                         session=session,
-                        return_document=ReturnDocument.AFTER,
+                        # sort: highest priority, least recently modified, oldest created
+                        sort=[
+                            ("priority", -1),
+                            ("last_modified", 1),
+                            ("created_at", 1),
+                        ],
                     )
+                )
 
-                    if updated_task:
-                        event_handle.update_fsm_event(updated_task)  # type: ignore
-                        return updated_task
+                # "no more" of the "no more, no less" principle
+                # those specified in the task["args"] should be required
+                required_fields_no_more = keys_to_query_dict(
+                    required_fields, mode="topmost"
+                )
+                for task in tasks:
+                    if task:
+                        if (
+                            not allow_arbitrary_args
+                            and required_fields_no_more
+                            and not arg_match(required_fields_no_more, task["args"])
+                        ):
+                            continue  # Skip to the next task if it doesn't match
 
-            return None  # Return None if no tasks matched
+                        fsm = TaskFSM.from_db_entry(task)
+                        event_handle = fsm.fetch()
 
-    @auth_required
+                        updated_task = self._tasks.find_one_and_update(
+                            {"_id": task["_id"]},
+                            update,
+                            session=session,
+                            return_document=ReturnDocument.AFTER,
+                        )
+
+                        if updated_task:
+                            event_handle.update_fsm_event(updated_task)  # type: ignore
+                            return updated_task
+
+                return None  # Return None if no tasks matched
+
+    @retry_on_transient
     @validate_arg
     def refresh_task_heartbeat(
         self,
@@ -647,17 +626,18 @@ class DBService:
         task_id: str,
     ) -> bool:
         """Update task heartbeat timestamp."""
-        with self.transaction() as session:
-            return (
-                self._tasks.update_one(
-                    {"_id": task_id, "queue_id": queue_id},
-                    {"$set": {"last_heartbeat": get_current_time()}},
-                    session=session,
-                ).modified_count
-                > 0
-            )
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                return (
+                    self._tasks.update_one(
+                        {"_id": task_id, "queue_id": queue_id},
+                        {"$set": {"last_heartbeat": get_current_time()}},
+                        session=session,
+                    ).modified_count
+                    > 0
+                )
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def worker_report_task_status(
         self,
@@ -684,32 +664,34 @@ class DBService:
         Returns:
 
         """
-        with self.transaction() as session:
-            task = self._tasks.find_one(
-                {"_id": task_id, "queue_id": queue_id}, session=session
-            )
-            if not task:
-                raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND, detail=f"Task {task_id} not found"
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                task = self._tasks.find_one(
+                    {"_id": task_id, "queue_id": queue_id}, session=session
+                )
+                if not task:
+                    raise HTTPException(
+                        status_code=HTTP_404_NOT_FOUND,
+                        detail=f"Task {task_id} not found",
+                    )
+
+                # check if the task is assigned to the worker
+                if task["worker_id"] != worker_id:
+                    raise HTTPException(
+                        status_code=HTTP_409_CONFLICT,
+                        detail=f"Task {task_id} is assigned to worker {task['worker_id']}",
+                    )
+
+                # The worker status update is also handled by _report_task_status
+                return self._report_task_status(
+                    queue_id=queue_id,
+                    task=task,
+                    report_status=report_status,
+                    summary_update=summary_update,
+                    session=session,
                 )
 
-            # check if the task is assigned to the worker
-            if task["worker_id"] != worker_id:
-                raise HTTPException(
-                    status_code=HTTP_409_CONFLICT,
-                    detail=f"Task {task_id} is assigned to worker {task['worker_id']}",
-                )
-
-            # The worker status update is also handled by _report_task_status
-            return self._report_task_status(
-                queue_id=queue_id,
-                task=task,
-                report_status=report_status,
-                summary_update=summary_update,
-                session=session,
-            )
-
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def report_task_status(
         self,
@@ -719,21 +701,23 @@ class DBService:
         summary_update: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Update task status. Used for reporting task execution results."""
-        with self.transaction() as session:
-            task = self._tasks.find_one(
-                {"_id": task_id, "queue_id": queue_id}, session=session
-            )
-            if not task:
-                raise HTTPException(
-                    status_code=HTTP_404_NOT_FOUND, detail=f"Task {task_id} not found"
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                task = self._tasks.find_one(
+                    {"_id": task_id, "queue_id": queue_id}, session=session
                 )
-            return self._report_task_status(
-                queue_id=queue_id,
-                task=task,
-                report_status=report_status,
-                summary_update=summary_update,
-                session=session,
-            )
+                if not task:
+                    raise HTTPException(
+                        status_code=HTTP_404_NOT_FOUND,
+                        detail=f"Task {task_id} not found",
+                    )
+                return self._report_task_status(
+                    queue_id=queue_id,
+                    task=task,
+                    report_status=report_status,
+                    summary_update=summary_update,
+                    session=session,
+                )
 
     def _report_task_status(
         self, queue_id, task, report_status, summary_update, session
@@ -802,7 +786,7 @@ class DBService:
 
         return True
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def update_task(
         self,
@@ -824,63 +808,64 @@ class DBService:
         Banned Fields from Updating: [_id, queue_id, created_at, last_modified]
         Potentially Auto-Overwritten Fields: [status, retries]
         """
-        with self.transaction() as session:
-            task = self._tasks.find_one(
-                {"_id": task_id, "queue_id": queue_id}, session=session
-            )
-            if not task:
-                return False
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                task = self._tasks.find_one(
+                    {"_id": task_id, "queue_id": queue_id}, session=session
+                )
+                if not task:
+                    return False
 
-            # Update task settings
-            if task_setting_update:
-                # disallow mongodb operators
-                task_setting_update = sanitize_dict(task_setting_update)
-                task_setting_update_keys = list(task_setting_update.keys())
-                # ignore disallowed fields
-                BANNED_FIELDS = [
-                    "_id",
-                    "queue_id",
-                    "created_at",
-                    "last_modified",
-                ]
-                for k in task_setting_update_keys:
-                    if k.split(".")[0] in BANNED_FIELDS:
-                        del task_setting_update[k]
-            else:
-                task_setting_update = {}
+                # Update task settings
+                if task_setting_update:
+                    # disallow mongodb operators
+                    task_setting_update = sanitize_dict(task_setting_update)
+                    task_setting_update_keys = list(task_setting_update.keys())
+                    # ignore disallowed fields
+                    banned_fields = [
+                        "_id",
+                        "queue_id",
+                        "created_at",
+                        "last_modified",
+                    ]
+                    for k in task_setting_update_keys:
+                        if k.split(".")[0] in banned_fields:
+                            del task_setting_update[k]
+                else:
+                    task_setting_update = {}
 
-            task_setting_update["last_modified"] = get_current_time()
+                task_setting_update["last_modified"] = get_current_time()
 
-            fsm = TaskFSM.from_db_entry(task)
+                fsm = TaskFSM.from_db_entry(task)
 
-            if reset_pending:
-                event_handle = fsm.reset()
-                task_setting_update["status"] = fsm.state  # PENDING
-                task_setting_update["retries"] = fsm.retries  # 0
-            else:
-                event_handle = None
+                if reset_pending:
+                    event_handle = fsm.reset()
+                    task_setting_update["status"] = fsm.state  # PENDING
+                    task_setting_update["retries"] = fsm.retries  # 0
+                else:
+                    event_handle = None
 
-            update = {
-                "$set": {
-                    **task_setting_update,
+                update = {
+                    "$set": {
+                        **task_setting_update,
+                    }
                 }
-            }
 
-            updated_task = self._tasks.find_one_and_update(
-                {"_id": task_id, "queue_id": queue_id},
-                update,
-                session=session,
-                return_document=ReturnDocument.AFTER,
-            )
+                updated_task = self._tasks.find_one_and_update(
+                    {"_id": task_id, "queue_id": queue_id},
+                    update,
+                    session=session,
+                    return_document=ReturnDocument.AFTER,
+                )
 
-            # if the FSM state is modified by user manually
-            if not reset_pending and updated_task["status"] != task["status"]:
-                event_handle = fsm.transition_to(updated_task["status"])
+                # if the FSM state is modified by user manually
+                if not reset_pending and updated_task["status"] != task["status"]:
+                    event_handle = fsm.transition_to(updated_task["status"])
 
-            if event_handle:
-                event_handle.update_fsm_event(updated_task)
+                if event_handle:
+                    event_handle.update_fsm_event(updated_task)
 
-            return True
+                return True
 
     def get_task(self, queue_id: str, task_id: str) -> Optional[Mapping[str, Any]]:
         """Retrieve a task by ID."""
@@ -938,7 +923,7 @@ class DBService:
 
         return True
 
-    @auth_required
+    @retry_on_transient
     @validate_arg
     def report_worker_status(
         self,
@@ -947,13 +932,14 @@ class DBService:
         report_status: str,
     ) -> bool:
         """Update worker status."""
-        with self.transaction() as session:
-            return self._report_worker_status(
-                queue_id=queue_id,
-                worker_id=worker_id,
-                report_status=report_status,
-                session=session,
-            )
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                return self._report_worker_status(
+                    queue_id=queue_id,
+                    worker_id=worker_id,
+                    report_status=report_status,
+                    session=session,
+                )
 
     def get_worker(self, queue_id: str, worker_id: str) -> Optional[Mapping[str, Any]]:
         """Retrieve a worker by ID."""
@@ -985,6 +971,7 @@ class DBService:
             return None
         return queue
 
+    @retry_on_transient
     @validate_arg
     def get_queue(
         self,
@@ -992,30 +979,32 @@ class DBService:
         queue_name: Optional[str] = None,
     ) -> Optional[Mapping[str, Any]]:
         """Get queue by id or name. Name and id must match."""
-        with self.transaction() as session:
-            if queue_id:
-                queue = self._queues.find_one({"_id": queue_id}, session=session)
-            else:
-                queue = self._get_queue_by_name(queue_name, session=session)  # type: ignore
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                if queue_id:
+                    queue = self._queues.find_one({"_id": queue_id}, session=session)
+                else:
+                    queue = self._get_queue_by_name(queue_name, session=session)  # type: ignore
 
-            if not queue:
-                return None
+                if not queue:
+                    return None
 
-            # Make sure the provided queue_name and queue_id match
-            if queue_id and queue["_id"] != queue_id:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
-                )
+                # Make sure the provided queue_name and queue_id match
+                if queue_id and queue["_id"] != queue_id:
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
+                    )
 
-            if queue_name and queue["queue_name"] != queue_name:
-                raise HTTPException(
-                    status_code=HTTP_400_BAD_REQUEST,
-                    detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
-                )
+                if queue_name and queue["queue_name"] != queue_name:
+                    raise HTTPException(
+                        status_code=HTTP_400_BAD_REQUEST,
+                        detail=f"Queue '{queue_name}' does not match queue_id '{queue_id}'",
+                    )
 
-            return queue
+                return queue
 
+    @retry_on_transient
     def handle_timeouts(self) -> List[str]:
         """Check and handle task timeouts."""
         now = get_current_time()
@@ -1055,53 +1044,56 @@ class DBService:
             ],
         }
 
-        with self.transaction() as session:
-            # Find tasks that might have timed out
-            tasks = self._tasks.find(query, session=session)
+        with self._client.start_session() as session:
+            with session.start_transaction():
+                # Find tasks that might have timed out
+                tasks = self._tasks.find(query, session=session)
 
-            tasks = list(tasks)  # type: ignore
+                tasks = list(tasks)  # type: ignore
 
-            for task in tasks:
-                try:
-                    # Create FSM with current state
-                    fsm = TaskFSM.from_db_entry(task)
+                for task in tasks:
+                    try:
+                        # Create FSM with current state
+                        fsm = TaskFSM.from_db_entry(task)
 
-                    # Transition to FAILED state through FSM
-                    event_handle = fsm.fail()
+                        # Transition to FAILED state through FSM
+                        event_handle = fsm.fail()
 
-                    # Update worker status if worker is specified
-                    if task["worker_id"]:
-                        self._report_worker_status(
-                            queue_id=task["queue_id"],
-                            worker_id=task["worker_id"],
-                            report_status="failed",
+                        # Update worker status if worker is specified
+                        if task["worker_id"]:
+                            self._report_worker_status(
+                                queue_id=task["queue_id"],
+                                worker_id=task["worker_id"],
+                                report_status="failed",
+                                session=session,
+                            )
+
+                        # Update task in database
+                        updated_task = self._tasks.find_one_and_update(
+                            {"_id": task["_id"]},
+                            {
+                                "$set": {
+                                    "status": fsm.state,
+                                    "retries": fsm.retries,
+                                    "last_modified": now,
+                                    "worker_id": None,
+                                    "summary.labtasker_error": "Either heartbeat or task execution timed out",
+                                }
+                            },
+                            return_document=ReturnDocument.AFTER,
                             session=session,
                         )
 
-                    # Update task in database
-                    updated_task = self._tasks.find_one_and_update(
-                        {"_id": task["_id"]},
-                        {
-                            "$set": {
-                                "status": fsm.state,
-                                "retries": fsm.retries,
-                                "last_modified": now,
-                                "worker_id": None,
-                                "summary.labtasker_error": "Either heartbeat or task execution timed out",
-                            }
-                        },
-                        return_document=ReturnDocument.AFTER,
-                        session=session,
-                    )
+                        event_handle.update_fsm_event(updated_task)
 
-                    event_handle.update_fsm_event(updated_task)
+                        transitioned_tasks.append(task["_id"])
+                    except Exception as e:
+                        # Log error but continue processing other tasks
+                        logger.info(
+                            f"Error handling timeout for task {task['_id']}: {e}"
+                        )
 
-                    transitioned_tasks.append(task["_id"])
-                except Exception as e:
-                    # Log error but continue processing other tasks
-                    logger.info(f"Error handling timeout for task {task['_id']}: {e}")
-
-            return transitioned_tasks
+                return transitioned_tasks
 
 
 _db_service = None

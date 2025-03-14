@@ -1,11 +1,13 @@
 import re
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
+import stamina
 from fastapi import HTTPException
 from pydantic import ValidationError, validate_call
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
 
+from labtasker.server.logging import logger
 from labtasker.utils import flatten_dict, validate_required_fields
 
 
@@ -21,15 +23,6 @@ def validate_arg(func):
             raise HTTPException(
                 status_code=HTTP_400_BAD_REQUEST,
                 detail=e.errors(),  # Provide detailed validation errors
-            ) from e
-        except HTTPException:
-            # Allow pre-existing HTTPExceptions to propagate
-            raise
-        except Exception as e:
-            # Catch any other exception and raise it as a generic HTTP 500 error
-            raise HTTPException(
-                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(e),
             ) from e
 
     return wrapped
@@ -233,17 +226,79 @@ def sanitize_dict(dic: Dict[str, Any]) -> Dict[str, Any]:
     return _recr_sanitize(dic)
 
 
-def auth_required(func):
+def is_transient_error(e: Exception) -> bool:
+    """Determine if an error is a transient MongoDB error that can be retried.
+
+    Args:
+        e: The exception to check
+
+    Returns:
+        bool: True if the error is transient and can be retried
     """
-    A decorator to mark a function as requiring authentication.
-    This does not enforce authentication but serves as a marker.
+    if not isinstance(e, Exception):
+        return False
+
+    # Check for MongoDB write conflict and transient transaction errors
+    if hasattr(e, "details") and isinstance(e.details, dict):
+        error_labels = e.details.get("errorLabels", [])
+        if "TransientTransactionError" in error_labels:
+            return True
+
+        code = e.details.get("code")
+        code_name = e.details.get("codeName")
+        if code == 112 and code_name == "WriteConflict":
+            return True
+
+    return False
+
+
+def retry_on_transient(
+    func: Optional[Callable] = None,
+    /,
+    *,
+    max_attempts=5,
+    timeout=5.0,
+):
+    """Decorator that retries a function on transient errors.
+
+    Args:
+        max_attempts (int): Maximum number of retry attempts
+        timeout (float): Maximum timeout in seconds
     """
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # Just call the original function without enforcing anything
-        return func(*args, **kwargs)
+    def decorator(func: Callable):
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            for attempt in stamina.retry_context(
+                on=is_transient_error,
+                attempts=max_attempts,
+                timeout=timeout,
+                wait_initial=0.1,
+                wait_max=2.0,
+                wait_jitter=0.5,
+                wait_exp_base=2.0,
+            ):
+                with attempt:
+                    try:
+                        return func(*args, **kwargs)
+                    except Exception as e:
+                        if is_transient_error(e):
+                            logger.warning(
+                                f"Operation failed with transient error (retrying with attempt {attempt.num} / {max_attempts}): {str(e)}"
+                            )
+                            raise  # let stamina handle it
+                        if isinstance(e, HTTPException):
+                            raise
+                        logger.error(f"Unexpected error in operation: {str(e)}")
+                        logger.exception(e)
+                        raise HTTPException(
+                            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Operation failed: {str(e)}",
+                        ) from e
 
-    # Add a marker attribute to the function
-    wrapper.auth_required = True
-    return wrapper
+        return wrapped
+
+    if func is None:
+        return decorator
+
+    return decorator(func)

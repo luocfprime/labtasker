@@ -2284,6 +2284,28 @@ uvicorn = "*"
 examples = ["fastapi"]
 
 [[package]]
+name = "stamina"
+version = "25.1.0"
+description = "Production-grade retries made easy."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "stamina-25.1.0-py3-none-any.whl", hash = "sha256:c08291da540e6f4243c20f7ee98f0ed0ac9101d639803c481a029b56d7e9b45d"},
+    {file = "stamina-25.1.0.tar.gz", hash = "sha256:ad674809796ae40512b3b6296cfade826efd63863ff2ca2f59f806342e91e94a"},
+]
+
+[package.dependencies]
+tenacity = "*"
+typing-extensions = {version = "*", markers = "python_version < \"3.10\""}
+
+[package.extras]
+dev = ["anyio", "dirty-equals", "mypy (>=1.4)", "nox (>=2024.3.2)", "prometheus-client", "pytest", "structlog", "tomli ; python_version < \"3.11\"", "trio", "uv"]
+docs = ["furo", "myst-parser", "prometheus-client", "sphinx (>=7.2.2)", "sphinx-copybutton", "sphinx-notfound-page", "structlog"]
+tests = ["anyio", "dirty-equals", "pytest"]
+typing = ["mypy (>=1.4)"]
+
+[[package]]
 name = "starlette"
 version = "0.44.0"
 description = "The little ASGI library that shines."
@@ -2301,6 +2323,22 @@ typing-extensions = {version = ">=3.10.0", markers = "python_version < \"3.10\""
 
 [package.extras]
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
+
+[[package]]
+name = "tenacity"
+version = "9.0.0"
+description = "Retry code until it succeeds"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "tenacity-9.0.0-py3-none-any.whl", hash = "sha256:93de0c98785b27fcf659856aa9f54bfbd399e29969b0621bc7f762bd441b4539"},
+    {file = "tenacity-9.0.0.tar.gz", hash = "sha256:807f37ca97d62aa361264d497b0e31e92b8027044942bfa756160d908320d73b"},
+]
+
+[package.extras]
+doc = ["reno", "sphinx"]
+test = ["pytest", "tornado (>=4.5)", "typeguard"]
 
 [[package]]
 name = "tomli"
@@ -2838,4 +2876,4 @@ plugins = ["labtasker-plugin-task-count"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "c15161bd22fa4ca4f58b48d45f8ee7bc703bc889502e3793e266b1190e9e65bc"
+content-hash = "4a52cb29016002dc6001001e2454325472e9ff8a25da18ba69afe4bb3b98a451"
