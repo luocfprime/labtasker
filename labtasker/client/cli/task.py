@@ -15,7 +15,6 @@ import rich
 import ruamel.yaml
 import typer
 import yaml
-from pydantic import ValidationError
 from rich.syntax import Syntax
 from starlette.status import HTTP_404_NOT_FOUND
 from typing_extensions import Annotated
@@ -25,7 +24,6 @@ from labtasker.client.core.api import (
     delete_task,
     get_queue,
     ls_tasks,
-    report_task_status,
     submit_task,
     update_tasks,
 )
@@ -195,29 +193,6 @@ def submit(
         priority=priority,
     )
     stdout_console.print(f"Task submitted with ID: {task_id}")
-
-
-@app.command()
-@cli_utils_decorator
-def report(
-    task_id: str = typer.Argument(..., help="ID of the task to update."),
-    status: str = typer.Argument(
-        ..., help="New status for the task. One of `success`, `failed`, `cancelled`."
-    ),
-    summary: Optional[str] = typer.Option(
-        None,
-        help="Summary of the task status.",
-    ),
-):
-    """
-    Report the status of a task.
-    """
-    try:
-        summary = parse_dict(summary)
-        report_task_status(task_id=task_id, status=status, summary=summary)
-    except ValidationError as e:
-        raise typer.BadParameter(e)
-    stdout_console.print(f"Task {task_id} status updated to {status}.")
 
 
 @app.command()

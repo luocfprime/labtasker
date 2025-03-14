@@ -146,18 +146,6 @@ def setup_running_task(db_fixture, cli_create_queue_from_config):
     return task_id
 
 
-class TestReport:
-    def test_report_task_status(self, db_fixture, setup_running_task):
-        task_id = setup_running_task
-        result = runner.invoke(app, ["task", "report", task_id, "success"])
-        assert result.exit_code == 0, result.output
-
-        # Verify task status is updated
-        task = db_fixture._tasks.find_one({"_id": task_id})
-        assert task is not None
-        assert task["status"] == "success"
-
-
 class TestLs:
     @pytest.fixture
     def setup_tasks(self, db_fixture, cli_create_queue_from_config):
