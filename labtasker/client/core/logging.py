@@ -314,10 +314,11 @@ def _setup():
     reset_logger(reset_all=True, debug=False)  # remove default loguru logger
 
 
-def set_verbose(verbose: bool):
+def set_verbose(verbose: bool) -> bool:
     global _logger_handle, _verbose
     _verbose = verbose
     reset_logger(debug=verbose)
+    return verbose
 
 
 def verbose_print(t, stderr: bool = False):
