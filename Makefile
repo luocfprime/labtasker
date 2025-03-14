@@ -5,6 +5,11 @@ ANTLR=antlr
 ANTLR_GRAMMAR_DIR=labtasker/client/core/cmd_parser/
 ANTLR_OUT_DIR=labtasker/client/core/cmd_parser/generated
 
+COVERAGE_DIR=coverage
+
+coverage-dir:
+	mkdir -p $(COVERAGE_DIR)
+
 format:
 	black .
 	isort .
@@ -13,14 +18,23 @@ lint:
 	flake8
 	mypy --ignore-missing-imports
 
-unit-test:
+unit-test: coverage-dir
 	pytest -m "unit" --cov=labtasker --cov-report=term-missing --cov-report=xml
+	mv .coverage coverage/.coverage.unit
 
-integration-test:
+
+integration-test: coverage-dir
 	pytest -m "integration" --cov=labtasker --cov-report=term-missing --cov-report=xml
+	mv .coverage coverage/.coverage.integration
 
-e2e-test:
+e2e-test: coverage-dir
 	pytest -m "e2e" --cov=labtasker --cov-report=term-missing --cov-report=xml
+	mv .coverage coverage/.coverage.e2e
+
+merge-coverage: coverage-dir
+	coverage combine coverage/
+	coverage report
+	coverage xml -o coverage.xml
 
 performance-test:
 	pytest -m "integration and benchmark" --benchmark-columns="rounds, iterations, min, mean, max"
