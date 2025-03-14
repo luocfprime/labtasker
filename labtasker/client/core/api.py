@@ -32,6 +32,7 @@ from labtasker.client.core.exceptions import (
 from labtasker.client.core.utils import (
     cast_http_status_error,
     display_server_notifications,
+    raise_for_status,
 )
 from labtasker.constants import Priority
 from labtasker.security import SecretStr, get_auth_headers
@@ -88,7 +89,7 @@ def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     if client is None:
         client = get_httpx_client()
     response = client.get("/health/full")
-    response.raise_for_status()
+    raise_for_status(response)
     return HealthCheckResponse(**response.json())
 
 
@@ -109,7 +110,7 @@ def create_queue(
         metadata=metadata,
     ).to_request_dict()  # Convert to dict for JSON serialization
     response = client.post("/api/v1/queues", json=payload)
-    response.raise_for_status()
+    raise_for_status(response)
     return QueueCreateResponse(**response.json())
 
 
@@ -120,7 +121,7 @@ def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
     if client is None:
         client = get_httpx_client()
     response = client.get("/api/v1/queues/me")
-    response.raise_for_status()
+    raise_for_status(response)
     return QueueGetResponse(**response.json())
 
 
@@ -134,7 +135,7 @@ def delete_queue(
         client = get_httpx_client()
     params = {"cascade_delete": cascade_delete}
     response = client.delete("/api/v1/queues/me", params=params)
-    response.raise_for_status()
+    raise_for_status(response)
 
 
 @display_server_notifications
@@ -168,7 +169,7 @@ def submit_task(
         priority=priority,
     ).model_dump()  # Convert to dict for JSON serialization
     response = client.post("/api/v1/queues/me/tasks", json=payload)
-    response.raise_for_status()
+    raise_for_status(response)
     return TaskSubmitResponse(**response.json())
 
 
@@ -205,7 +206,7 @@ def fetch_task(
         raise WorkerSuspended(
             "Current worker could be halted due to exceeding max failure counts."
         )
-    response.raise_for_status()
+    raise_for_status(response)
     return TaskFetchResponse(**response.json())
 
 
@@ -245,7 +246,7 @@ def report_task_status(
             "Current task is assigned to a different worker.\n"
             f"Detail: {response.text}"
         )
-    response.raise_for_status()
+    raise_for_status(response)
 
 
 @cast_http_status_error
@@ -257,7 +258,7 @@ def refresh_task_heartbeat(
     if client is None:
         client = get_httpx_client()
     response = client.post(f"/api/v1/queues/me/tasks/{task_id}/heartbeat")
-    response.raise_for_status()
+    raise_for_status(response)
 
 
 @cast_http_status_error
@@ -276,7 +277,7 @@ def create_worker(
         max_retries=max_retries,
     ).model_dump()
     response = client.post("/api/v1/queues/me/workers", json=payload)
-    response.raise_for_status()
+    raise_for_status(response)
     return WorkerCreateResponse(**response.json()).worker_id
 
 
@@ -301,7 +302,7 @@ def ls_worker(
         offset=offset,
     ).model_dump()
     response = client.post("/api/v1/queues/me/workers/search", json=payload)
-    response.raise_for_status()
+    raise_for_status(response)
     return WorkerLsResponse(**response.json())
 
 
@@ -333,7 +334,7 @@ def report_worker_status(
             f"FSM invalid transition: \n" f"Detail: {response.text}"
         )
 
-    response.raise_for_status()
+    raise_for_status(response)
 
 
 @display_server_notifications
@@ -357,7 +358,7 @@ def ls_tasks(
         offset=offset,
     ).model_dump()
     response = client.post("/api/v1/queues/me/tasks/search", json=payload)
-    response.raise_for_status()
+    raise_for_status(response)
     return TaskLsResponse(**response.json())
 
 
@@ -374,7 +375,7 @@ def update_tasks(
     response = client.put(
         "/api/v1/queues/me/tasks", json=payload, params={"reset_pending": reset_pending}
     )
-    response.raise_for_status()
+    raise_for_status(response)
     return TaskLsResponse(**response.json())
 
 
@@ -387,7 +388,7 @@ def delete_task(
     if client is None:
         client = get_httpx_client()
     response = client.delete(f"/api/v1/queues/me/tasks/{task_id}")
-    response.raise_for_status()
+    raise_for_status(response)
 
 
 @display_server_notifications
@@ -409,7 +410,7 @@ def update_queue(
     )
 
     response = client.put("/api/v1/queues/me", json=update_request.to_request_dict())
-    response.raise_for_status()
+    raise_for_status(response)
     return QueueGetResponse(**response.json())
 
 
@@ -424,4 +425,4 @@ def delete_worker(
         client = get_httpx_client()
     params = {"cascade_update": cascade_update}
     response = client.delete(f"/api/v1/queues/me/workers/{worker_id}", params=params)
-    response.raise_for_status()
+    raise_for_status(response)

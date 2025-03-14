@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from labtasker.client.core.api import *  # noqa: F403
 from labtasker.client.core.context import current_task_id, current_worker_id, task_info
+from labtasker.client.core.events import EventListener, connect_events
 from labtasker.client.core.exceptions import LabtaskerTypeError, LabtaskerValueError
 from labtasker.client.core.job_runner import finish, loop_run
 from labtasker.client.core.resolver import (
@@ -21,6 +22,9 @@ __all__ = [
     "task_info",
     "current_task_id",
     "current_worker_id",
+    # event api
+    "connect_events",
+    "EventListener",
     # http api (you should be careful with these unless you know what you are doing)
     "close_httpx_client",
     "health_check",

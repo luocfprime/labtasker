@@ -78,3 +78,26 @@ def cast_http_status_error(func: Optional[Callable] = None, /):
         return decorator(func)
 
     return decorator
+
+
+def raise_for_status(r: httpx.Response) -> httpx.Response:
+    """
+    Call the original raise_for_status but preserve detailed error information.
+
+    Args:
+        r: The httpx.Response object
+
+    Returns:
+        The original response if successful
+
+    Raises:
+        HTTPStatusError: Enhanced with more detailed error information
+    """
+    try:
+        return r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        error_details = r.text
+        enhanced_message = f"{str(e)}\nResponse details: {error_details}"
+        raise httpx.HTTPStatusError(
+            enhanced_message, request=e.request, response=e.response
+        ) from None
