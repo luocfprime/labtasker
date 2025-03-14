@@ -99,6 +99,8 @@ class DBService:
                         session.abort_transaction()
                         if isinstance(e, HTTPException):
                             raise e
+                        logger.error(f"Unexpected error in transaction: {str(e)}")
+                        logger.exception(e)
                         raise HTTPException(
                             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Transaction failed: {str(e)}",
@@ -561,13 +563,15 @@ class DBService:
             # exist in task args
             # even if allow_arbitrary_args==True, this principle should still be followed
             # else it may lead to unexpected missing keys.
-            required_fields_filter = (
-                query_dict_to_mongo_filter(
-                    keys_to_query_dict(required_fields, mode="deepest"),
-                    parent_key="args",
+            try:
+                query_dict = keys_to_query_dict(required_fields, mode="deepest")
+            except (TypeError, ValueError) as e:
+                raise HTTPException(
+                    status_code=HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid required fields. Detail: {str(e)}",
                 )
-                if required_fields
-                else None
+            required_fields_filter = query_dict_to_mongo_filter(
+                query_dict, parent_key="args"
             )
 
             combined_filter = merge_filter(
