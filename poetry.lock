@@ -1359,19 +1359,6 @@ pyyaml = ">=5.1"
 virtualenv = ">=20.10.0"
 
 [[package]]
-name = "py-cpuinfo"
-version = "9.0.0"
-description = "Get CPU info with pure Python"
-optional = true
-python-versions = "*"
-groups = ["main"]
-markers = "extra == \"dev\""
-files = [
-    {file = "py-cpuinfo-9.0.0.tar.gz", hash = "sha256:3cdbbf3fac90dc6f118bfd64384f309edeadd902d7c8fb17f02ffa1fc3f49690"},
-    {file = "py_cpuinfo-9.0.0-py3-none-any.whl", hash = "sha256:859625bc251f64e21f077d099d4162689c762b5d6a4c3c97553d56241c9674d5"},
-]
-
-[[package]]
 name = "pycodestyle"
 version = "2.12.1"
 description = "Python style guide checker"
@@ -1749,28 +1736,6 @@ pytest = ">=8.2,<9"
 [package.extras]
 docs = ["sphinx (>=5.3)", "sphinx-rtd-theme (>=1.0)"]
 testing = ["coverage (>=6.2)", "hypothesis (>=5.7.1)"]
-
-[[package]]
-name = "pytest-benchmark"
-version = "4.0.0"
-description = "A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer."
-optional = true
-python-versions = ">=3.7"
-groups = ["main"]
-markers = "extra == \"dev\""
-files = [
-    {file = "pytest-benchmark-4.0.0.tar.gz", hash = "sha256:fb0785b83efe599a6a956361c0691ae1dbb5318018561af10f3e915caa0048d1"},
-    {file = "pytest_benchmark-4.0.0-py3-none-any.whl", hash = "sha256:fdb7db64e31c8b277dff9850d2a2556d8b60bcb0ea6524e36e28ffd7c87f71d6"},
-]
-
-[package.dependencies]
-py-cpuinfo = "*"
-pytest = ">=3.8"
-
-[package.extras]
-aspect = ["aspectlib"]
-elasticsearch = ["elasticsearch"]
-histogram = ["pygal", "pygaljs"]
 
 [[package]]
 name = "pytest-cov"
@@ -2869,11 +2834,11 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 type = ["pytest-mypy"]
 
 [extras]
-dev = ["asgi-lifespan", "black", "flake8", "freezegun", "isort", "mongomock", "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-benchmark", "pytest-cov", "pytest-dependency", "pytest-docker", "tox"]
+dev = ["asgi-lifespan", "black", "flake8", "freezegun", "isort", "mongomock", "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-cov", "pytest-dependency", "pytest-docker", "tox"]
 doc = ["mike", "mkdocs-material"]
 plugins = ["labtasker-plugin-task-count"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "4a52cb29016002dc6001001e2454325472e9ff8a25da18ba69afe4bb3b98a451"
+content-hash = "51eeae43098362a2a952f130013143bfd4b9d7244cff0a35a6635ca9a37112c5"

@@ -41,9 +41,6 @@ merge-coverage: coverage-dir
 	coverage report
 	coverage xml -o coverage.xml
 
-performance-test:
-	pytest -m "integration and benchmark" --benchmark-columns="rounds, iterations, min, mean, max"
-
 cmd-grammar:
 	cp -r $(ANTLR_GRAMMAR_DIR)/*.g4 $(ANTLR_OUT_DIR)
 	$(ANTLR) -Dlanguage=Python3 $(ANTLR_OUT_DIR)/*.g4
