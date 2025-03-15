@@ -336,7 +336,7 @@ class DBService:
     def delete_queue(
         self,
         queue_id,
-        cascade_delete: bool = False,  # TODO: need consideration
+        cascade_delete: bool = True,
     ) -> int:
         """
         Delete a queue.
@@ -462,9 +462,9 @@ class DBService:
                 # Update queue settings
                 update = {
                     "$set": {
-                        "last_modified": get_current_time(),
                         **update_dict,
                         **metadata_update,
+                        "last_modified": get_current_time(),
                     }
                 }
                 result = self._queues.update_one(
@@ -561,9 +561,9 @@ class DBService:
 
                 # Construct the query
                 query = {
+                    **sanitized_filter,
                     "queue_id": queue_id,
                     "status": TaskState.PENDING,
-                    **sanitized_filter,
                 }
 
                 update = {
@@ -782,11 +782,11 @@ class DBService:
 
         update = {
             "$set": {
+                **summary_update,
                 "status": fsm.state,
                 "retries": fsm.retries,
                 "last_modified": get_current_time(),
                 "worker_id": None,
-                **summary_update,
             }
         }
 
