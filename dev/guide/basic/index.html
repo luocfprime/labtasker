@@ -1027,10 +1027,10 @@ you can create one from the previously configured config.</strong></p>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># This script run jobs in loop by calling python job_main.py via labtasker loop</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># The argument can be automatically injected into the command line via %(...) syntax</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;python demo/bash_demo/job_main.py --arg1 %(arg1) --arg2 %(arg2)&#39;</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;python demo/basic/bash_demo/job_main.py --arg1 %(arg1) --arg2 %(arg2)&#39;</span>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Also a simpler fashion:</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># labtasker loop -- python demo/bash_demo/job_main.py --arg1 &#39;%(arg1)&#39; --arg2 &#39;%(arg2)&#39;</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># labtasker loop -- python demo/basic/bash_demo/job_main.py --arg1 &#39;%(arg1)&#39; --arg2 &#39;%(arg2)&#39;</span>
 </code></pre></div>
 <p>where</p>
 <div class="highlight"><span class="filename">demo/basic/bash_demo/job_main.py</span><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="s2">&quot;&quot;&quot;</span>
