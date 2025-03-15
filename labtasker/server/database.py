@@ -28,7 +28,13 @@ from labtasker.server.db_utils import (
     sanitize_update,
     validate_arg,
 )
-from labtasker.server.fsm import TaskFSM, TaskState, WorkerFSM, WorkerState
+from labtasker.server.fsm import (
+    StateTransitionEventHandle,
+    TaskFSM,
+    TaskState,
+    WorkerFSM,
+    WorkerState,
+)
 from labtasker.server.logging import logger
 from labtasker.utils import (
     add_key_prefix,
@@ -278,9 +284,9 @@ class DBService:
                 }
                 result = self._tasks.insert_one(task, session=session)
 
-                event_handle.update_fsm_event(task)
+        event_handle.update_fsm_event(task, commit=True)
 
-                return str(result.inserted_id)
+        return str(result.inserted_id)
 
     @retry_on_transient
     @validate_arg
@@ -321,9 +327,9 @@ class DBService:
                 }
                 result = self._workers.insert_one(worker, session=session)
 
-                event_handle.update_fsm_event(worker)
+        event_handle.update_fsm_event(worker, commit=True)
 
-                return str(result.inserted_id)
+        return str(result.inserted_id)
 
     @retry_on_transient
     @validate_arg
@@ -509,6 +515,7 @@ class DBService:
                 detail="Eta max must be specified when start_heartbeat is False",
             )
 
+        updated_task = None
         with self._client.start_session() as session:
             with session.start_transaction():
                 # Verify worker status if specified
@@ -611,12 +618,13 @@ class DBService:
                             session=session,
                             return_document=ReturnDocument.AFTER,
                         )
+                        break
 
-                        if updated_task:
-                            event_handle.update_fsm_event(updated_task)  # type: ignore
-                            return updated_task
+        if updated_task:
+            event_handle.update_fsm_event(updated_task, commit=True)  # type: ignore
+            return updated_task
 
-                return None  # Return None if no tasks matched
+        return None  # Return None if no tasks matched
 
     @retry_on_transient
     @validate_arg
@@ -683,13 +691,18 @@ class DBService:
                     )
 
                 # The worker status update is also handled by _report_task_status
-                return self._report_task_status(
+                event_handles = self._report_task_status(
                     queue_id=queue_id,
                     task=task,
                     report_status=report_status,
                     summary_update=summary_update,
                     session=session,
                 )
+
+        for event_handle in event_handles:
+            event_handle.update_fsm_event(task, commit=True)
+
+        return True
 
     @retry_on_transient
     @validate_arg
@@ -711,7 +724,7 @@ class DBService:
                         status_code=HTTP_404_NOT_FOUND,
                         detail=f"Task {task_id} not found",
                     )
-                return self._report_task_status(
+                event_handles = self._report_task_status(
                     queue_id=queue_id,
                     task=task,
                     report_status=report_status,
@@ -719,9 +732,14 @@ class DBService:
                     session=session,
                 )
 
+        for event_handle in event_handles:
+            event_handle.update_fsm_event(task, commit=True)
+        return True
+
     def _report_task_status(
         self, queue_id, task, report_status, summary_update, session
-    ):
+    ) -> List[StateTransitionEventHandle]:
+        event_handles = []
         task_id = task["_id"]
         try:
             fsm = TaskFSM.from_db_entry(task)
@@ -746,12 +764,13 @@ class DBService:
 
         # Update worker status if worker is specified
         if report_status == "failed" and task["worker_id"]:
-            self._report_worker_status(
+            worker_event_handle = self._report_worker_status(
                 queue_id=queue_id,
                 worker_id=task["worker_id"],
                 report_status="failed",
                 session=session,
             )
+            event_handles.append(worker_event_handle)
 
         if summary_update is None:
             summary_update = {}
@@ -778,13 +797,11 @@ class DBService:
             return_document=ReturnDocument.AFTER,
         )
 
-        if not updated_task:
-            return False
-
         # Update the event with entity data and publish
         event_handle.update_fsm_event(updated_task)  # type: ignore
+        event_handles.append(event_handle)
 
-        return True
+        return event_handles
 
     @retry_on_transient
     @validate_arg
@@ -862,10 +879,10 @@ class DBService:
                 if not reset_pending and updated_task["status"] != task["status"]:
                     event_handle = fsm.transition_to(updated_task["status"])
 
-                if event_handle:
-                    event_handle.update_fsm_event(updated_task)
+        if event_handle:
+            event_handle.update_fsm_event(updated_task, commit=True)
 
-                return True
+        return True
 
     def get_task(self, queue_id: str, task_id: str) -> Optional[Mapping[str, Any]]:
         """Retrieve a task by ID."""
@@ -873,7 +890,7 @@ class DBService:
 
     def _report_worker_status(
         self, queue_id: str, worker_id: str, report_status: str, session=None
-    ) -> bool:
+    ) -> StateTransitionEventHandle:
         worker = self._workers.find_one(
             {"_id": worker_id, "queue_id": queue_id}, session=session
         )
@@ -921,7 +938,7 @@ class DBService:
         # Update the event with entity data and publish
         event_handle.update_fsm_event(updated_worker)
 
-        return True
+        return event_handle
 
     @retry_on_transient
     @validate_arg
@@ -934,12 +951,14 @@ class DBService:
         """Update worker status."""
         with self._client.start_session() as session:
             with session.start_transaction():
-                return self._report_worker_status(
+                event_handle = self._report_worker_status(
                     queue_id=queue_id,
                     worker_id=worker_id,
                     report_status=report_status,
                     session=session,
                 )
+        event_handle.commit()
+        return True
 
     def get_worker(self, queue_id: str, worker_id: str) -> Optional[Mapping[str, Any]]:
         """Retrieve a worker by ID."""
@@ -1044,6 +1063,7 @@ class DBService:
             ],
         }
 
+        fsm_event_handles = []
         with self._client.start_session() as session:
             with session.start_transaction():
                 # Find tasks that might have timed out
@@ -1061,12 +1081,13 @@ class DBService:
 
                         # Update worker status if worker is specified
                         if task["worker_id"]:
-                            self._report_worker_status(
+                            worker_event_handle = self._report_worker_status(
                                 queue_id=task["queue_id"],
                                 worker_id=task["worker_id"],
                                 report_status="failed",
                                 session=session,
                             )
+                            fsm_event_handles.append(worker_event_handle)
 
                         # Update task in database
                         updated_task = self._tasks.find_one_and_update(
@@ -1085,6 +1106,7 @@ class DBService:
                         )
 
                         event_handle.update_fsm_event(updated_task)
+                        fsm_event_handles.append(event_handle)
 
                         transitioned_tasks.append(task["_id"])
                     except Exception as e:
@@ -1093,7 +1115,11 @@ class DBService:
                             f"Error handling timeout for task {task['_id']}: {e}"
                         )
 
-                return transitioned_tasks
+        # commit the event after the transaction is completed
+        for event_handle in fsm_event_handles:
+            event_handle.commit()
+
+        return transitioned_tasks
 
 
 _db_service = None

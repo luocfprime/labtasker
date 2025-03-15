@@ -29,9 +29,20 @@ class StateTransitionEventHandle:
     metadata: Dict[str, Any]
     _entity_data: Optional[Dict[str, Any]] = None
 
-    def update_fsm_event(self, entity_data: Dict[str, Any]) -> None:
-        """Update FSM event with entity data and trigger event publishing"""
+    def update_fsm_event(
+        self, entity_data: Dict[str, Any], commit: bool = False
+    ) -> None:
+        """Update FSM event with entity data and trigger event publishing
+
+        Args:
+            entity_data:
+            commit:
+        """
         self._entity_data = entity_data
+        if commit:
+            self.commit()
+
+    def commit(self):
         event_data = StateTransitionEvent(
             entity_type=self.entity_type,
             queue_id=self.queue_id,
@@ -45,6 +56,7 @@ class StateTransitionEventHandle:
 
         # Use fully synchronous event publishing
         event_manager.publish_event(self.queue_id, event_data)
+        self._entity_data = None
 
 
 class InvalidStateTransition(HTTPException):
