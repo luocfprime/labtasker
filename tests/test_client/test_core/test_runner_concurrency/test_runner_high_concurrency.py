@@ -1,6 +1,5 @@
 import concurrent.futures
 import random
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -11,7 +10,7 @@ from tests.fixtures.logging import silence_logger
 from tests.utils import high_precision_sleep
 
 pytestmark = [
-    pytest.mark.unit,
+    # pytest.mark.unit,  # does not support transaction, cannot guarantee ACID
     pytest.mark.integration,
     pytest.mark.e2e,
     pytest.mark.usefixtures(
@@ -20,11 +19,10 @@ pytestmark = [
 ]
 
 # Constants
-TOTAL_WORKERS = 20
-TOTAL_PRODUCER = 5
+TOTAL_WORKERS = 25
+TOTAL_PRODUCER = 10
 TASKS_PER_PRODUCER = 20
 TOTAL_TASKS = TOTAL_PRODUCER * TASKS_PER_PRODUCER
-FAILURE_RATE_PER_WORKER = 0.02
 AVERAGE_JOB_DELAY = 0.5
 AVERAGE_JOB_DELAY_STD = 0.3
 AVERAGE_PRODUCER_DELAY = 0.1
@@ -44,6 +42,7 @@ def producer():
                 "arg1": i,
                 "arg2": {"arg3": i, "arg4": "foo"},
             },
+            max_retries=1,
         )
 
 
@@ -51,11 +50,7 @@ def consumer():
     @loop_run(required_fields=["arg1", "arg2"])
     def run_job():
         rand_delay(AVERAGE_JOB_DELAY, AVERAGE_JOB_DELAY_STD)
-        success = random.uniform(0, 1) > FAILURE_RATE_PER_WORKER
-        if success:
-            finish("success")
-        else:
-            finish("failed")
+        finish("success")
 
     run_job()
 
@@ -80,10 +75,6 @@ def setup_loop_internal_error_handler():
 
 
 def test_concurrent_producers_and_consumers():
-    # Track completion
-    completed_tasks = 0
-    failed_tasks = 0
-
     # Start workers and producers concurrently
     with ThreadPoolExecutor(max_workers=TOTAL_WORKERS + TOTAL_PRODUCER) as executor:
         # Submit job workers
@@ -99,8 +90,11 @@ def test_concurrent_producers_and_consumers():
             except Exception as e:
                 pytest.fail(f"Producer failed with exception: {e}")
 
-        # Give workers some time to process tasks
-        time.sleep(5)
+        tasks = ls_tasks(limit=TOTAL_TASKS)
+        assert tasks.found, "No tasks found after test run"
+        assert (
+            len(tasks.content) == TOTAL_TASKS
+        ), f"Expected {TOTAL_TASKS} tasks, found {len(tasks.content)}"
 
         for future in consumer_futures:
             try:
@@ -112,8 +106,11 @@ def test_concurrent_producers_and_consumers():
                 pytest.fail(f"Worker failed with exception: {e}")
 
     # Final check for task statuses
-    tasks = ls_tasks()
+    tasks = ls_tasks(limit=TOTAL_TASKS)
     assert tasks.found, "No tasks found after test run"
+    assert (
+        len(tasks.content) == TOTAL_TASKS
+    ), f"Expected {TOTAL_TASKS} tasks, found {len(tasks.content)}"
 
     success_count = 0
     failed_count = 0
@@ -126,25 +123,22 @@ def test_concurrent_producers_and_consumers():
             failed_count += 1
         elif task.status == "pending":
             pending_count += 1
+        else:
+            pytest.fail(f"Unexpected task status: {task.status}")
 
     # Verify that tasks were submitted
     assert (
         len(tasks.content) == TOTAL_PRODUCER * TASKS_PER_PRODUCER
     ), f"Expected {TOTAL_PRODUCER * TASKS_PER_PRODUCER} tasks, found {len(tasks.content)}"
 
-    # Verify that all tasks should be processed if worker are not all suspended
     workers = ls_worker()
-    all_suspended = True
     for worker in workers.content:
-        if worker.status != "suspended":
-            all_suspended = False
-            break
+        assert worker.status != "suspended", f"Worker {worker.id} is suspended."
 
-    if not all_suspended:
-        assert pending_count == 0, (
-            f"Expected 0 pending tasks, got Pending: {pending_count}, Success: {success_count}, Failed: {failed_count}."
-            f"By a tiny chance, this is happening due to a probability of FAILURE_RATE_PER_WORKER. Try run this test again "
-            f"and see if the error persists."
-        )
-
+    assert (
+        success_count == TOTAL_PRODUCER * TASKS_PER_PRODUCER
+    ), f"Expected {TOTAL_PRODUCER * TASKS_PER_PRODUCER} successful tasks, got Pending: {pending_count}, Success: {success_count}, Failed: {failed_count}."
+    print(
+        f"Test runner concurrency with failure rate = 0, result: Pending: {pending_count}, Success: {success_count}, Failed: {failed_count}."
+    )
     # Check no internal loop errors occurred (which would have triggered the error handler and failed the test)
