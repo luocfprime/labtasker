@@ -2,9 +2,11 @@ import re
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
+import pymongo.errors
 import stamina
 from fastapi import HTTPException
 from pydantic import ValidationError, validate_call
+from stamina import Attempt
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
 
 from labtasker.server.logging import logger
@@ -238,15 +240,10 @@ def is_transient_error(e: Exception) -> bool:
     if not isinstance(e, Exception):
         return False
 
-    # Check for MongoDB write conflict and transient transaction errors
-    if hasattr(e, "details") and isinstance(e.details, dict):
-        error_labels = e.details.get("errorLabels", [])
-        if "TransientTransactionError" in error_labels:
-            return True
-
-        code = e.details.get("code")
-        code_name = e.details.get("codeName")
-        if code == 112 and code_name == "WriteConflict":
+    if isinstance(e, pymongo.errors.ConnectionFailure) or isinstance(
+        e, pymongo.errors.OperationFailure
+    ):
+        if e.has_error_label("TransientTransactionError"):
             return True
 
     return False
@@ -257,11 +254,12 @@ def retry_on_transient(
     /,
     *,
     max_attempts=10,
-    timeout=5.0,
+    timeout=20.0,
 ):
     """Decorator that retries a function on transient errors.
 
     Args:
+        func: The wrapped function
         max_attempts (int): Maximum number of retry attempts
         timeout (float): Maximum timeout in seconds
     """
@@ -269,32 +267,49 @@ def retry_on_transient(
     def decorator(func: Callable):
         @wraps(func)
         def wrapped(*args, **kwargs):
-            for attempt in stamina.retry_context(
-                on=is_transient_error,
-                attempts=max_attempts,
-                timeout=timeout,
-                wait_initial=0.1,
-                wait_max=2.0,
-                wait_jitter=0.5,
-                wait_exp_base=2.0,
-            ):
-                with attempt:
-                    try:
-                        return func(*args, **kwargs)
-                    except Exception as e:
-                        if is_transient_error(e):
-                            logger.warning(
-                                f"Operation failed with transient error (retrying with attempt {attempt.num} / {max_attempts}): {str(e)}"
-                            )
-                            raise  # let stamina handle it
-                        if isinstance(e, HTTPException):
-                            raise
-                        logger.error(f"Unexpected error in operation: {str(e)}")
+            attempt = None
+            try:
+                for attempt in stamina.retry_context(
+                    on=is_transient_error,
+                    attempts=max_attempts,
+                    timeout=timeout,
+                    wait_initial=0.1,
+                    wait_max=2.0,
+                    wait_jitter=0.5,
+                    wait_exp_base=2.0,
+                ):
+                    with attempt:
+                        try:
+                            return func(*args, **kwargs)
+                        except Exception as e:
+                            if is_transient_error(e):
+                                logger.warning(
+                                    f"Operation failed with transient error (retrying with attempt {attempt.num} / {max_attempts}): {str(e)}"
+                                )
+                                raise  # let stamina handle it
+
+                            if isinstance(e, HTTPException):
+                                raise
+
+                            logger.error(f"Unexpected error in operation: {str(e)}")
+                            logger.exception(e)
+                            raise HTTPException(
+                                status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Operation failed: {str(e)}",
+                            ) from e
+            except Exception as e:
+                if isinstance(e, HTTPException):
+                    raise  # keep propagating
+
+                if isinstance(attempt, Attempt):  # is_transient_error(e) == False
+                    if attempt.num == 1:
+                        logger.error(f"Unexpected error: {str(e)}")
                         logger.exception(e)
-                        raise HTTPException(
-                            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Operation failed: {str(e)}",
-                        ) from e
+                    else:  # attempt.num > 1 , either func timeout or exceed max_attempts
+                        logger.error(
+                            f"Operation failed due to a transient error (possibly a timeout) after {max_attempts} attempts: {str(e)}"
+                        )
+                raise  # keep propagating
 
         return wrapped
 
