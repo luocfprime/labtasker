@@ -515,7 +515,7 @@ class DBService:
                 detail="Eta max must be specified when start_heartbeat is False",
             )
 
-        updated_task = None
+        fetched_task = None
         with self._client.start_session() as session:
             with session.start_transaction():
                 # Verify worker status if specified
@@ -612,7 +612,7 @@ class DBService:
                         fsm = TaskFSM.from_db_entry(task)
                         event_handle = fsm.fetch()
 
-                        updated_task = self._tasks.find_one_and_update(
+                        fetched_task = self._tasks.find_one_and_update(
                             {"_id": task["_id"]},
                             update,
                             session=session,
@@ -620,9 +620,9 @@ class DBService:
                         )
                         break
 
-        if updated_task:
-            event_handle.update_fsm_event(updated_task, commit=True)  # type: ignore
-            return updated_task
+        if fetched_task:
+            event_handle.update_fsm_event(fetched_task, commit=True)  # type: ignore
+            return fetched_task
 
         return None  # Return None if no tasks matched
 
