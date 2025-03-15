@@ -13,6 +13,7 @@ from labtasker import __version__
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.logging import stderr_console, stdout_console
 from labtasker.client.core.paths import get_labtasker_root
+from labtasker.utils import get_current_time
 
 # Constants
 PACKAGE_NAME = "labtasker"
@@ -58,7 +59,7 @@ def update_last_checked() -> None:
         return
 
     with get_last_version_check_path().open("w") as f:
-        f.write(datetime.now().isoformat())
+        f.write(get_current_time().isoformat())
 
 
 def should_check() -> bool:
@@ -69,7 +70,7 @@ def should_check() -> bool:
     if _process_checked:
         return False
 
-    return datetime.now() - last_checked() >= CHECK_INTERVAL
+    return get_current_time() - last_checked() >= CHECK_INTERVAL
 
 
 def _check_pypi_status() -> None:

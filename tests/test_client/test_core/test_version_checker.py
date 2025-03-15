@@ -7,6 +7,7 @@ from labtasker.client.core.version_checker import (
     get_last_version_check_path,
     should_check,
 )
+from labtasker.utils import get_current_time
 
 pytestmark = [pytest.mark.unit]
 
@@ -56,7 +57,7 @@ def test_check_once_per_day(
     last_checked_time = datetime.fromisoformat(
         get_last_version_check_path().read_text().strip()
     )
-    assert datetime.now() - last_checked_time < timedelta(
+    assert get_current_time() - last_checked_time < timedelta(
         minutes=1
     ), "Should be very recently checked."
 
@@ -65,6 +66,6 @@ def test_check_once_per_day(
     monkeypatch.setattr("labtasker.client.core.version_checker._process_checked", False)
     assert not should_check()
     get_last_version_check_path().write_text(
-        (datetime.now() - timedelta(days=1, hours=1)).isoformat()
+        (get_current_time() - timedelta(days=1, hours=1)).isoformat()
     )
     assert should_check()
