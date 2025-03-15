@@ -59,22 +59,41 @@ class StateTransitionEventHandle:
         self._entity_data = None
 
 
-class InvalidStateTransition(HTTPException):
-    """Raised when attempting an invalid state transition."""
-
-    def __init__(self, message: str):
-        super().__init__(
-            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"InvalidStateTransition: {message}",
-        )
-
-
 class State(str, Enum):
     def __str__(self):
         return self.value
 
     def __repr__(self):
         return self.value
+
+
+class InvalidStateTransition(HTTPException):
+    """Raised when attempting an invalid state transition."""
+
+    def __init__(
+        self,
+        message: str,
+        old_state: Optional[State] = None,
+        new_state: Optional[State] = None,
+    ):
+        """
+
+        Args:
+            message:
+            old_state: If None, consider not specified, as the transition event is invalid (e.g. task_fsm.fail() from PENDING)
+            new_state: If None, consider not specified, as the transition event is invalid (e.g. task_fsm.fail() from PENDING)
+        """
+        super().__init__(
+            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"InvalidStateTransition: {message}.",
+        )
+        self.message = message
+        self.old_state = old_state
+        self.new_state = new_state
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        return f"{class_name}(message={self.message}, old_state={self.old_state}, new_state={self.new_state})"
 
 
 class TaskState(State):
@@ -142,6 +161,8 @@ class BaseFSM:
         if new_state not in self.VALID_TRANSITIONS[self.state]:
             raise InvalidStateTransition(
                 f"Cannot transition from {self.state} to {new_state}",
+                old_state=self.state,
+                new_state=new_state,
             )
         return True
 
