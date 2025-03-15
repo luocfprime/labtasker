@@ -6,16 +6,19 @@ import pytest
 
 from labtasker import create_queue, finish, ls_tasks, ls_worker, submit_task
 from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
-from tests.fixtures.logging import silence_logger
+from tests.fixtures.logging import server_logger_level_to_error, silence_logger
 from tests.utils import high_precision_sleep
 
 pytestmark = [
-    # pytest.mark.unit,  # does not support transaction, cannot guarantee ACID
+    # pytest.mark.unit,  # mongomock does not support transaction, cannot guarantee ACID
     pytest.mark.integration,
     pytest.mark.e2e,
     pytest.mark.usefixtures(
         "silence_logger"
     ),  # silence logger in testcases of this module
+    pytest.mark.usefixtures(
+        "server_logger_level_to_error"
+    ),  # hide transaction retry warnings. If you want to see retry warnings, remove this line
 ]
 
 # Constants
