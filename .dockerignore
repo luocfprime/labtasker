@@ -4,7 +4,6 @@
 # except
 !pyproject.toml
 !MANIFEST.in
-!setup.cfg
 !setup.py
 !labtasker/
 
