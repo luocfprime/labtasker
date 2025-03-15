@@ -1,8 +1,6 @@
-# 1 level commands
 import labtasker.client.cli.config
+import labtasker.client.cli.event as event
 import labtasker.client.cli.loop
-
-# multi level commands
 import labtasker.client.cli.queue as queue
 import labtasker.client.cli.task as task
 import labtasker.client.cli.worker as worker
@@ -14,7 +12,8 @@ from labtasker.client.core.plugin_utils import load_plugins
 
 app.add_typer(queue.app, name="queue", help=queue.__doc__)
 app.add_typer(task.app, name="task", help=task.__doc__)
-app.add_typer(worker.app, name="worker", help=task.__doc__)
+app.add_typer(worker.app, name="worker", help=worker.__doc__)
+app.add_typer(event.app, name="event", help=event.__doc__)
 
 if get_labtasker_client_config_path().exists():
     load_plugins(group="labtasker.client.cli", config=get_client_config().cli_plugins)
