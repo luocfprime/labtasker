@@ -1,5 +1,6 @@
 import contextvars
 import os
+import uuid
 from pathlib import Path
 
 from labtasker.client.core.exceptions import LabtaskerRuntimeError
@@ -43,8 +44,17 @@ def set_labtasker_log_dir(task_id: str, set_env: bool = False, overwrite: bool =
     if not overwrite and _labtasker_log_dir.get() is not None:
         raise LabtaskerRuntimeError("Labtasker log directory already set.")
     now = get_current_time().strftime("%Y-%m-%d-%H-%M-%S")
-    log_dir = get_labtasker_log_root() / "run" / f"run-{task_id}_{now}"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    log_dir = (
+        get_labtasker_log_root()
+        / "run"
+        / f"run-{task_id}_{now}_r{str(uuid.uuid4())[:8]}"
+    )  # a random chunk of uuid to prevent collision.
+    try:
+        log_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        raise LabtaskerRuntimeError(
+            f"Labtasker log directory {log_dir} already exists."
+        )
     _labtasker_log_dir.set(log_dir)
     if set_env:
         os.environ["LABTASKER_LOG_DIR"] = str(_labtasker_log_dir.get())
