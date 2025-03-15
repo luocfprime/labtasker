@@ -174,7 +174,7 @@ def loop_run(
                             func_args = (task.args, *args) if pass_args_dict else args
                             func(*func_args, **kwargs)
                             success_flag = True
-                        except BaseException as e:
+                        except (KeyboardInterrupt, BaseException) as e:
                             logger.exception(f"Task {current_task_id()} failed")
                             finish(
                                 status="failed",
@@ -186,6 +186,10 @@ def loop_run(
                                     }
                                 },
                             )
+
+                            if isinstance(e, KeyboardInterrupt):
+                                break
+
                         finally:
                             if success_flag:
                                 # Default finish. Can be overridden by the user if called somewhere deep in the wrapped func().
