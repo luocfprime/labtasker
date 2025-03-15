@@ -238,7 +238,7 @@ class WorkerCreateResponse(BaseResponseModel):
 
 
 class WorkerStatusUpdateRequest(BaseRequestModel):
-    status: str = Field(..., pattern=r"^(active|suspended|failed)$")
+    status: str = Field(..., pattern=r"^(active|suspended|crashed)$")
 
 
 class WorkerLsRequest(BaseRequestModel):
@@ -252,7 +252,7 @@ class WorkerLsRequest(BaseRequestModel):
 class Worker(BaseApiModel, MetadataKeyValidateMixin):
     worker_id: str = Field(alias="_id")
     queue_id: str
-    status: str
+    status: str = Field(..., pattern=r"^(active|suspended|crashed)$")
     worker_name: Optional[str] = Field(
         None, pattern=r"^[a-zA-Z0-9_-]+$", min_length=1, max_length=100
     )

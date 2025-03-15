@@ -183,7 +183,7 @@ def ls(
 def report(
     worker_id: str = typer.Argument(..., help="ID of the worker to update."),
     status: str = typer.Argument(
-        ..., help="New status for the worker. One of `active`, `suspended`, `failed`."
+        ..., help="New status for the worker. One of `active`, `suspended`, `crashed`."
     ),
 ):
     """

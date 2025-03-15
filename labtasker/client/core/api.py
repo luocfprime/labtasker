@@ -316,8 +316,8 @@ def report_worker_status(
     assert status in [
         "active",
         "suspended",
-        "failed",
-    ], f"Invalid status {status}, should be one of ['active', 'suspended', 'failed']"
+        "crashed",
+    ], f"Invalid status {status}, should be one of ['active', 'suspended', 'crashed']"
 
     if client is None:
         client = get_httpx_client()
