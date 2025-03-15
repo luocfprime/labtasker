@@ -1,4 +1,4 @@
-.PHONY: format lint unit-test integration-test performance-test cmd-grammar clean
+.PHONY: format lint unit-test integration-test performance-test cmd-grammar clean coverage-dir pytest-docker-up pytest-docker-down e2e-test merge-coverage
 
 ANTLR=antlr
 
@@ -22,6 +22,11 @@ unit-test: coverage-dir
 	pytest -m "unit" --cov=labtasker --cov-report=term-missing --cov-report=xml
 	mv .coverage coverage/.coverage.unit
 
+pytest-docker-up:
+	docker compose --env-file server.example.env -p pytest-labtasker up --build -d
+
+pytest-docker-down:
+	docker compose --env-file server.example.env -p pytest-labtasker down
 
 integration-test: coverage-dir
 	pytest -m "integration" --cov=labtasker --cov-report=term-missing --cov-report=xml

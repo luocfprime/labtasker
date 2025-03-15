@@ -6,6 +6,17 @@ from labtasker.server.config import get_server_config, init_server_config
 from tests.fixtures.database import mock_db, real_db  # noqa: F401
 
 
+def pytest_addoption(parser):
+    """Add custom options to pytest."""
+
+    parser.addoption(
+        "--manual-docker",
+        action="store_true",
+        default=False,
+        help="Manually control the instantiation of docker compose service",
+    )
+
+
 @pytest.fixture(scope="session")
 def proj_root(pytestconfig) -> str:
     return str(pytestconfig.rootdir)  # noqa
@@ -67,14 +78,32 @@ def server_env_file(proj_root):
 
 
 @pytest.fixture(scope="session")
+def manual_docker(request):
+    """Check if user asked manually control Docker compose service setup and teardown during the test."""
+    return request.config.option.manual_docker
+
+
+@pytest.fixture(scope="session")
+def docker_compose_project_name(manual_docker, docker_compose_project_name) -> str:
+    """Generate a project name using the current process PID. Override this
+    fixture in your tests if you need a particular project name."""
+
+    if manual_docker:
+        return "pytest-labtasker"
+    return docker_compose_project_name
+
+
+@pytest.fixture(scope="session")
 def docker_compose_file(proj_root):
     """Get an absolute path to the `docker-compose.yml` file. Override from pytest-docker."""
     return os.path.join(proj_root, "docker-compose.yml")
 
 
 @pytest.fixture(scope="session")
-def docker_setup(server_env_file, test_type):
+def docker_setup(manual_docker, server_env_file, test_type):
     """Override the pytest-docker docker_setup to take in env file"""
+    if manual_docker:
+        return ["version"]  # dummy command
     if test_type == "integration":
         # only start mongodb for integration test
         return [f"--env-file {server_env_file} up --build -d mongodb"]
@@ -83,9 +112,11 @@ def docker_setup(server_env_file, test_type):
 
 
 @pytest.fixture(scope="session")
-def docker_cleanup(proj_root):
+def docker_cleanup(manual_docker, proj_root, server_env_file):
     """Override the pytest-docker docker_cleanup to take in env file"""
-    return [f"--env-file {proj_root}/server.example.env down -v"]
+    if manual_docker:
+        return ["version"]  # dummy command
+    return [f"--env-file {server_env_file} down -v"]
 
 
 # auto use fixtures ------------------------------------------------
