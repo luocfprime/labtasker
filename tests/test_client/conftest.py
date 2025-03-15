@@ -36,6 +36,9 @@ def patch_httpx_client(monkeypatch, test_type, test_app, client_config):
 def labtasker_test_root(proj_root, monkeypatch):
     """Setup labtasker test root dir and default client config"""
     labtasker_test_root = Path(os.path.join(proj_root, "tmp", ".labtasker"))
+    if labtasker_test_root.exists():
+        rmtree(labtasker_test_root)
+
     init_labtasker_root(labtasker_root=labtasker_test_root, exist_ok=True)
 
     os.environ["LABTASKER_ROOT"] = str(labtasker_test_root)
