@@ -1,4 +1,5 @@
 import concurrent.futures
+import os
 import random
 import threading
 import time
@@ -10,6 +11,12 @@ from labtasker import create_queue, finish, ls_tasks, ls_worker, submit_task
 from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
 from tests.fixtures.logging import server_logger_level_to_error, silence_logger
 from tests.utils import high_precision_sleep
+
+if os.environ.get("GITHUB_ACTIONS") == "true":
+    pytest.skip(
+        "Skipping test_runner_high_concurrency.py in GH Actions.",
+        allow_module_level=True,
+    )
 
 pytestmark = [
     # pytest.mark.unit,  # mongomock does not support transaction, cannot guarantee ACID

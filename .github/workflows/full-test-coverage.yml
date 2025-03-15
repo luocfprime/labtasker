@@ -1,0 +1,58 @@
+name: full-test-coverage
+on:
+  push:
+    branches:
+      - main
+      - full-test-coverage  # FIXME
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[dev]"
+
+      - name: Setup Coverage Directory
+        run: mkdir -p coverage
+
+      - name: Start Docker Compose
+        run: make pytest-docker-up
+
+      - name: Unit Test
+        run: |
+          pytest -m "unit" --cov=labtasker
+          mv .coverage coverage/unit.coverage
+
+      - name: Integration Test
+        run: |
+          pytest -m "integration" --cov=labtasker --manual-docker
+          mv .coverage coverage/integration.coverage
+
+      - name: End-to-End Test
+        run: |
+          pytest -m "e2e" --cov=labtasker --manual-docker
+          mv .coverage coverage/e2e.coverage
+
+      - name: Merge Coverage
+        run: make merge-coverage
+
+      - name: Stop Docker Compose
+        run: make pytest-docker-down
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
