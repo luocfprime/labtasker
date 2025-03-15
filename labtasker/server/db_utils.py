@@ -256,7 +256,7 @@ def retry_on_transient(
     func: Optional[Callable] = None,
     /,
     *,
-    max_attempts=5,
+    max_attempts=10,
     timeout=5.0,
 ):
     """Decorator that retries a function on transient errors.
