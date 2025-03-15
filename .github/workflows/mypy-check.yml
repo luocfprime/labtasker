@@ -17,7 +17,7 @@ jobs:
 
       - name: Install mypy and dependencies
         run: |
-          pip install mypy types-requests
+          pip install -e '.[dev]'
 
       - name: Run mypy
         run: mypy --ignore-missing-imports
