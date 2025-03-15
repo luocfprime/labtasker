@@ -3,6 +3,7 @@ import json
 import pytest
 from httpx_sse import aconnect_sse
 from sse_starlette import ServerSentEvent
+from sse_starlette.sse import AppStatus
 from starlette.status import HTTP_201_CREATED
 
 from labtasker.api_models import (
@@ -15,6 +16,13 @@ from labtasker.server.event_manager import QueueEventManager
 from labtasker.server.fsm import EntityType
 from labtasker.utils import get_current_time
 from tests.fixtures.server import async_test_app
+
+
+@pytest.fixture(autouse=True)
+def reset_appstatus_event():
+    # https://github.com/sysid/sse-starlette/issues/59
+    # avoid: RuntimeError: <asyncio.locks.Event object at 0x1046a0a30 [unset]> is bound to a different event loop
+    AppStatus.should_exit_event = None
 
 
 @pytest.fixture
@@ -126,7 +134,6 @@ async def mock_subscribe_with_state_transition(self, client_id: str, disconnect_
     )
 
 
-@pytest.mark.integration
 @pytest.mark.unit
 @pytest.mark.anyio
 async def test_basic_connection(async_test_app, setup_queue, auth_headers, monkeypatch):
@@ -143,7 +150,6 @@ async def test_basic_connection(async_test_app, setup_queue, auth_headers, monke
                 break
 
 
-@pytest.mark.integration
 @pytest.mark.unit
 @pytest.mark.anyio
 async def test_ping(async_test_app, setup_queue, auth_headers, monkeypatch):
@@ -162,7 +168,6 @@ async def test_ping(async_test_app, setup_queue, auth_headers, monkeypatch):
     assert events[1].event == "ping"
 
 
-@pytest.mark.integration
 @pytest.mark.unit
 @pytest.mark.anyio
 async def test_state_transition(async_test_app, setup_queue, auth_headers, monkeypatch):
