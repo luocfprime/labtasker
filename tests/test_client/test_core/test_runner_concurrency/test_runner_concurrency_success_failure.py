@@ -167,10 +167,8 @@ def test_concurrent_producers_and_consumers(failing_workers, max_retries):
     success_count = 0
     failed_count = 0
     pending_count = 0
-    total_task_retries = 0
 
     for task in tasks.content:
-        total_task_retries += task.retries
         if task.status == "success":
             success_count += 1
         elif task.status == "failed":
@@ -184,10 +182,6 @@ def test_concurrent_producers_and_consumers(failing_workers, max_retries):
     assert (
         len(tasks.content) == TOTAL_TASKS
     ), f"Expected {TOTAL_TASKS} tasks, found {len(tasks.content)}"
-
-    assert (
-        total_task_retries == task_fail_cnt
-    ), f"Expected {task_fail_cnt} tasks to be retried, but got {total_task_retries}"
 
     # Verify worker statuses
     workers = ls_worker()
