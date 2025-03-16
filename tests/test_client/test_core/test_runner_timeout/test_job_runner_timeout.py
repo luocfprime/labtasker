@@ -9,7 +9,6 @@ import time
 import pytest
 
 from labtasker import create_queue, ls_tasks, submit_task
-from labtasker.client.core.context import set_current_worker_id
 from labtasker.client.core.job_runner import loop_run
 from labtasker.client.core.paths import get_labtasker_log_dir
 from tests.fixtures.logging import silence_logger

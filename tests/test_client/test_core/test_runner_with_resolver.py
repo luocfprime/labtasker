@@ -7,7 +7,6 @@ from typing_extensions import Annotated
 import labtasker
 from labtasker import create_queue, finish, ls_tasks, submit_task, task_info
 from labtasker.client.client_api import Required, loop
-from labtasker.client.core.context import set_current_worker_id
 from tests.fixtures.logging import silence_logger
 
 pytestmark = [

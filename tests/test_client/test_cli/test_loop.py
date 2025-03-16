@@ -6,7 +6,6 @@ from typer.testing import CliRunner
 
 from labtasker.client.cli import app
 from labtasker.client.core.api import create_queue, submit_task
-from labtasker.client.core.context import set_current_worker_id
 from tests.fixtures.logging import silence_logger
 
 runner = CliRunner()

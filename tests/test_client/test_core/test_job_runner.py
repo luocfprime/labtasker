@@ -11,7 +11,6 @@ from labtasker import (
     submit_task,
     task_info,
 )
-from labtasker.client.core.context import set_current_worker_id
 from labtasker.client.core.job_runner import loop_run
 from tests.fixtures.logging import silence_logger
 
