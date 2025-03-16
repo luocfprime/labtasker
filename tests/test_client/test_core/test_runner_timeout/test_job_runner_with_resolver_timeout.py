@@ -8,9 +8,9 @@ import time
 
 import pytest
 
-from labtasker import create_queue, ls_tasks, submit_task
+from labtasker import Required, create_queue, ls_tasks, submit_task
+from labtasker.client.client_api import loop
 from labtasker.client.core.context import set_current_worker_id
-from labtasker.client.core.job_runner import loop_run
 from labtasker.client.core.paths import get_labtasker_log_dir
 from tests.fixtures.logging import silence_logger
 
@@ -30,11 +30,6 @@ def setup_queue(client_config):
         password=client_config.queue.password.get_secret_value(),
         metadata={"tag": "test"},
     )
-
-
-@pytest.fixture(autouse=True)
-def reset_worker_id():
-    set_current_worker_id(None)
 
 
 @pytest.fixture
@@ -72,13 +67,11 @@ def test_job_task_timeout(setup_tasks, server_config):
 
     timeout = server_config.periodic_task_interval / 2
 
-    @loop_run(
-        required_fields=["arg1", "arg2"],
+    @loop(
         eta_max=f"{timeout}sec",  # set task timeout
         create_worker_kwargs={"max_retries": max_retries},
-        pass_args_dict=True,
     )
-    def job(args):
+    def job(arg_foo=Required(alias="arg1"), arg_bar=Required(alias="arg2")):
         nonlocal cnt
         cnt += 1
         delay(timeout * 3)
@@ -105,13 +98,12 @@ def test_job_heartbeat_timeout(setup_tasks, server_config):
 
     timeout = server_config.periodic_task_interval / 2
 
-    @loop_run(
-        required_fields=["arg1", "arg2"],
+    @loop(
         heartbeat_timeout=timeout,
         create_worker_kwargs={"max_retries": max_retries},
         pass_args_dict=True,
     )
-    def job(args):
+    def job(args, arg1=Required(), arg2=Required()):
         nonlocal cnt
         cnt += 1
         trigger_heartbeat_thread_termination()  # stop heartbeat (hack)
