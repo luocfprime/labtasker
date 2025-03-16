@@ -6,12 +6,12 @@ import threading
 import time
 
 import pytest
-from test_client.test_core.test_event.utils import dump_events
 
 from labtasker import Required, create_queue, loop, report_task_status, submit_task
 from labtasker.api_models import EventResponse
 from labtasker.client.core.events import connect_events
 from tests.fixtures.logging import silence_logger
+from tests.test_client.test_core.test_event.utils import dump_events
 
 pytestmark = [
     pytest.mark.e2e,

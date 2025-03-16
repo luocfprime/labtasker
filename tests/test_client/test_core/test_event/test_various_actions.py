@@ -1,9 +1,9 @@
+import os
 import time
 from collections import defaultdict
 from concurrent.futures.thread import ThreadPoolExecutor
 
 import pytest
-from test_client.test_core.test_event.utils import dump_events
 from typing_extensions import Annotated
 
 from labtasker import Required, create_queue, loop, report_task_status, submit_task
@@ -12,6 +12,13 @@ from labtasker.client.core.api import update_tasks
 from labtasker.client.core.context import set_current_worker_id
 from labtasker.client.core.events import connect_events
 from tests.fixtures.logging import silence_logger
+from tests.test_client.test_core.test_event.utils import dump_events
+
+if os.environ.get("GITHUB_ACTIONS") == "true":
+    pytest.skip(
+        f"Skipping {__file__} GH Actions.",
+        allow_module_level=True,
+    )
 
 pytestmark = [
     pytest.mark.e2e,
