@@ -105,8 +105,8 @@ def docker_setup(manual_docker, server_env_file, test_type):
     if manual_docker:
         return ["version"]  # dummy command
     if test_type == "integration":
-        # only start mongodb for integration test
-        return [f"--env-file {server_env_file} up --build -d mongodb"]
+        # only start mongodb (after post init) for integration test
+        return [f"--env-file {server_env_file} up --build -d mongo-post-init"]
     elif test_type == "e2e":
         return [f"--env-file {server_env_file} up --build -d"]
 
@@ -116,7 +116,7 @@ def docker_cleanup(manual_docker, proj_root, server_env_file):
     """Override the pytest-docker docker_cleanup to take in env file"""
     if manual_docker:
         return ["version"]  # dummy command
-    return [f"--env-file {server_env_file} down -v"]
+    return [f"--env-file {server_env_file} down --remove-orphans --volumes"]
 
 
 # auto use fixtures ------------------------------------------------

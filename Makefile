@@ -26,7 +26,7 @@ pytest-docker-up:
 	docker compose --env-file server.example.env -p pytest-labtasker up --build -d
 
 pytest-docker-down:
-	docker compose --env-file server.example.env -p pytest-labtasker down
+	docker compose --env-file server.example.env -p pytest-labtasker down --remove-orphans --volumes
 
 integration-test: coverage-dir
 	pytest -m "integration" --cov=labtasker --cov-report=term-missing --cov-report=xml

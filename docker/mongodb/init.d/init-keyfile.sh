@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 echo "Running init-keyfile.sh..."
 
 KEYFILE_PATH="/data/configdb/mongo-keyfile"
