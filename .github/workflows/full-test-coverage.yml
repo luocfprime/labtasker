@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - full-test-coverage  # FIXME
   workflow_dispatch:
 
 jobs:
@@ -34,23 +33,23 @@ jobs:
       - name: Unit Test
         run: |
           pytest -m "unit" --cov=labtasker
-          mv .coverage coverage/unit.coverage
+          mv .coverage coverage/.unit.coverage
 
       - name: Integration Test
         run: |
           pytest -m "integration" --cov=labtasker --manual-docker
-          mv .coverage coverage/integration.coverage
+          mv .coverage coverage/.integration.coverage
 
       - name: End-to-End Test
         run: |
           pytest -m "e2e" --cov=labtasker --manual-docker
-          mv .coverage coverage/e2e.coverage
-
-      - name: Merge Coverage
-        run: make merge-coverage
+          mv .coverage coverage/.e2e.coverage
 
       - name: Stop Docker Compose
         run: make pytest-docker-down
+
+      - name: Merge Coverage
+        run: make merge-coverage
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
