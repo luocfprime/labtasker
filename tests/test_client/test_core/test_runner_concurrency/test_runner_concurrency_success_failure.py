@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from labtasker import create_queue, finish, ls_tasks, ls_workers, submit_task
-from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
+from labtasker.client.core.job_runner import loop_run
 from tests.fixtures.logging import server_logger_level_to_error, silence_logger
 from tests.utils import high_precision_sleep
 
@@ -97,16 +97,6 @@ def setup_task_fail_cnt():
     task_fail_cnt = 0
     yield
     task_fail_cnt = 0
-
-
-@pytest.fixture(autouse=True)
-def setup_loop_internal_error_handler():
-    def handler(e):
-        pytest.fail(f"Loop internal error: {e}")
-
-    set_loop_internal_error_handler(handler)
-    yield
-    set_loop_internal_error_handler(lambda e: None)
 
 
 @pytest.mark.parametrize(

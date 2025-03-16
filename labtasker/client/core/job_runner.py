@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 import traceback
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -34,12 +35,31 @@ from labtasker.client.core.logging import log_to_file, logger, stderr_console
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
 from labtasker.utils import parse_timeout
 
-__all__ = ["loop_run", "finish"]
-
-_loop_internal_error_handler = lambda e: None  # noqa: E731
+__all__ = ["loop_run", "finish", "set_loop_internal_error_handler"]
 
 
-def set_loop_internal_error_handler(handler: Callable[[Exception], None]):
+def _default_loop_internal_error_handler(e: Exception, failure_count: int):
+    if failure_count > 10:  # TODO: hard coded
+        logger.error(
+            f"Internal error occurred {failure_count} times. Quitting the loop..."
+        )
+        raise e
+
+    time.sleep(
+        min(
+            60.0,  # max backoff time
+            2 ** (failure_count - 1),  # exponential backoff
+        )
+    )
+
+
+_loop_internal_failure_count = 0
+_loop_internal_error_handler: Callable[[Exception, int], None] = (
+    _default_loop_internal_error_handler
+)
+
+
+def set_loop_internal_error_handler(handler: Callable[[Exception, int], None]):
     global _loop_internal_error_handler
     _loop_internal_error_handler = handler
 
@@ -128,6 +148,7 @@ def loop_run(
             3. Run task
             4. Submit result (finish).
             """
+            global _loop_internal_failure_count
             # Run task in a loop
             while True:
                 try:
@@ -200,7 +221,8 @@ def loop_run(
                     break
                 except Exception as e:
                     logger.exception("Error in task loop.")
-                    _loop_internal_error_handler(e)
+                    _loop_internal_failure_count += 1
+                    _loop_internal_error_handler(e, _loop_internal_failure_count)
 
         return wrapper
 

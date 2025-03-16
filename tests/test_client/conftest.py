@@ -14,6 +14,10 @@ from labtasker.client.core.config import (
 )
 from labtasker.client.core.context import set_current_worker_id
 from labtasker.client.core.heartbeat import end_heartbeat
+from labtasker.client.core.job_runner import (
+    _loop_internal_error_handler,
+    set_loop_internal_error_handler,
+)
 from labtasker.security import get_auth_headers
 from tests.fixtures.server.sync_app import test_app
 
@@ -72,6 +76,17 @@ def reset_heartbeat():
 def reset_worker_id():
     yield
     set_current_worker_id(None)
+
+
+@pytest.fixture(autouse=True)
+def setup_loop_internal_error_handler():
+    def handler(e, _):
+        pytest.fail(f"Loop internal error: {e}")
+
+    original_handler = _loop_internal_error_handler
+    set_loop_internal_error_handler(handler)
+    yield
+    set_loop_internal_error_handler(original_handler)
 
 
 @pytest.fixture

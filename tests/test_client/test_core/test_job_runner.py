@@ -49,11 +49,6 @@ def setup_tasks(db_fixture):
         )
 
 
-@pytest.fixture(autouse=True)
-def reset_worker_id():
-    set_current_worker_id(None)
-
-
 def test_no_auth(db_fixture, capture_output):
     db_fixture.erase()  # wipe the db so that the queue is not created
     with pytest.raises(LabtaskerHTTPStatusError):

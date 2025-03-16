@@ -49,12 +49,6 @@ def setup_tasks(db_fixture):
         )
 
 
-@pytest.fixture(autouse=True)
-def reset_worker_id():
-    # Reset the worker ID before each test to ensure a clean state
-    set_current_worker_id(None)
-
-
 class TestRegularBehaviour:
     """Test the basic functionality of the task loop without resolvers"""
 

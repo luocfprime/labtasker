@@ -45,11 +45,6 @@ def setup_tasks(db_fixture):
         )
 
 
-@pytest.fixture(autouse=True)
-def reset_worker_id():
-    set_current_worker_id(None)
-
-
 @pytest.fixture
 def dummy_job_script_dir(proj_root):
     return osp.join(proj_root, "tests", "dummy_jobs")

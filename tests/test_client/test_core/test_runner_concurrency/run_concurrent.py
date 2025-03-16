@@ -11,7 +11,11 @@ from labtasker import (
     ls_workers,
     submit_task,
 )
-from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
+from labtasker.client.core.job_runner import (
+    _loop_internal_error_handler,
+    loop_run,
+    set_loop_internal_error_handler,
+)
 
 # Constants
 TOTAL_WORKERS = 20
@@ -57,7 +61,7 @@ def consumer():
     run_job()
 
 
-def error_handler(e):
+def error_handler(e, _):
     print(f"Loop internal error: {e}")
     raise e
 
@@ -72,6 +76,7 @@ def main():
     )
 
     # Set error handler
+    original_handler = _loop_internal_error_handler
     set_loop_internal_error_handler(error_handler)
 
     try:
@@ -161,7 +166,7 @@ def main():
 
     finally:
         # Reset error handler
-        set_loop_internal_error_handler(lambda e: None)
+        set_loop_internal_error_handler(original_handler)
 
 
 if __name__ == "__main__":

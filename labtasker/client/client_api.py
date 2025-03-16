@@ -4,7 +4,11 @@ from labtasker.client.core.api import *  # noqa: F403
 from labtasker.client.core.context import current_task_id, current_worker_id, task_info
 from labtasker.client.core.events import EventListener, connect_events
 from labtasker.client.core.exceptions import LabtaskerTypeError, LabtaskerValueError
-from labtasker.client.core.job_runner import finish, loop_run
+from labtasker.client.core.job_runner import (
+    finish,
+    loop_run,
+    set_loop_internal_error_handler,
+)
 from labtasker.client.core.resolver import (
     Required,
     get_params_from_function,
@@ -17,6 +21,7 @@ __all__ = [
     # python job runner api
     "loop",
     "finish",
+    "set_loop_internal_error_handler",
     "Required",
     # context api
     "task_info",

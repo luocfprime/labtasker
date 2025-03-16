@@ -1,7 +1,11 @@
 import pytest
 
 from labtasker import create_queue, submit_task
-from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
+from labtasker.client.core.job_runner import (
+    _loop_internal_error_handler,
+    loop_run,
+    set_loop_internal_error_handler,
+)
 from tests.fixtures.logging import silence_logger
 
 pytestmark = [
@@ -29,12 +33,13 @@ class CustomError(Exception):
 
 @pytest.fixture(autouse=True)
 def setup_loop_internal_error_handler():
-    def handler(e):
+    def handler(e, _):
         raise CustomError("custom")
 
+    original_handler = _loop_internal_error_handler
     set_loop_internal_error_handler(handler)
     yield
-    set_loop_internal_error_handler(lambda e: None)
+    set_loop_internal_error_handler(original_handler)
 
 
 def test_loop_internal_error_handler(monkeypatch):
