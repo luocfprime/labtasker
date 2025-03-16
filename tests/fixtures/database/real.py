@@ -51,6 +51,8 @@ def real_db(request, server_config):
         # Create a DatabaseClient object
         _real_db_instance = DBService(db_name=server_config.db_name, uri=uri)
 
+    _real_db_instance.erase()  # clean up
+
     yield _real_db_instance
 
     _real_db_instance.erase()  # clean up
