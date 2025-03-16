@@ -202,7 +202,7 @@ def listen(
 
     if raw:
         # Raw SSE output mode
-        for sse in listener.iter_raw_sse(timeout=timeout):
+        for sse in listener.iter_raw_sse():
             stdout_console.print(sse)
     else:
         # Processed events output mode

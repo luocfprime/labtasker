@@ -76,6 +76,8 @@ class EventListener:
 
         if self._error:
             self.stop()
+            if isinstance(self._error, httpx.HTTPError):
+                raise self._error  # let httpx error propagate
             raise LabtaskerRuntimeError(
                 f"Failed to connect to event stream: {self._error}"
             )
@@ -142,32 +144,28 @@ class EventListener:
         except Empty:
             return None
 
-    def iter_events(self, timeout: Optional[float] = None) -> Iterator[EventResponse]:
+    def iter_events(self) -> Iterator[EventResponse]:
         """
         Iterate over events as they arrive.
-
-        Args:
-            timeout: Maximum time to wait for each event in seconds.
-                    If None, will wait indefinitely.
 
         Yields:
             EventResponse objects as they arrive.
         """
         while self.is_connected():
-            event = self.get_event(timeout=timeout)
+            event = self.get_event()
             if event:
                 yield event
+            time.sleep(0.1)
 
-    def iter_raw_sse(
-        self, timeout: Optional[float] = None
-    ) -> Iterator[ServerSentEvent]:
+    def iter_raw_sse(self) -> Iterator[ServerSentEvent]:
         """
         Iterate over raw SSE events as they arrive.
         """
         while self.is_connected():
-            sse = self.get_raw_sse(timeout=timeout)
+            sse = self.get_raw_sse()
             if sse:
                 yield sse
+            time.sleep(0.1)
 
     def _event_listener_thread(self) -> None:
         """Background thread that listens for events from the server."""
