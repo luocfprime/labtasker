@@ -4,9 +4,9 @@ End-to-end tests for the EventListener class.
 
 import threading
 import time
-from queue import Queue
 
 import pytest
+from test_client.test_core.test_event.utils import dump_events
 
 from labtasker import Required, create_queue, loop, report_task_status, submit_task
 from labtasker.api_models import EventResponse
@@ -31,21 +31,8 @@ def setup_queue(client_config, db_fixture):
 
 def test_event_listener_basic_jobflow():
     """Test the basic flow of events when tasks are submitted and processed."""
-    events_received = Queue()
     job_finish_event = threading.Event()
-    terminate_event = threading.Event()
-
-    def event_listener_thread():
-        # Use the queue_id directly with the EventListener
-        listener = connect_events(timeout=5)
-        try:
-            for event in listener.iter_events(timeout=0.5):
-                if event.event.type == "state_transition":
-                    events_received.put(event)
-                if terminate_event.is_set():
-                    break
-        finally:
-            listener.stop()
+    listener = connect_events(timeout=5)
 
     def jobflow_thread():
         try:
@@ -70,9 +57,8 @@ def test_event_listener_basic_jobflow():
         finally:
             job_finish_event.set()
 
-    listener_thread = threading.Thread(target=event_listener_thread, daemon=True)
     jobflow_thread = threading.Thread(target=jobflow_thread, daemon=True)
-    listener_thread.start()
+
     time.sleep(1)  # wait for the listener to start
     jobflow_thread.start()
 
@@ -80,12 +66,10 @@ def test_event_listener_basic_jobflow():
     job_finish_event.wait(timeout=10)
     # Give some time for all events to be processed
     time.sleep(2)
-    terminate_event.set()
+    listener.stop()
 
     # Check that we received the expected events
-    received_events = []
-    while not events_received.empty():
-        received_events.append(events_received.get())
+    received_events = dump_events(listener)
 
     expected_transition_sequence = [
         # 3 job creation events
@@ -120,4 +104,3 @@ def test_event_listener_basic_jobflow():
 
     # Join threads to clean up
     jobflow_thread.join(timeout=3)
-    listener_thread.join(timeout=3)
