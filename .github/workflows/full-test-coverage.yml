@@ -33,17 +33,17 @@ jobs:
       - name: Unit Test
         run: |
           pytest -m "unit" --cov=labtasker
-          mv .coverage coverage/.unit.coverage
+          mv .coverage coverage/.coverage.unit
 
       - name: Integration Test
         run: |
           pytest -m "integration" --cov=labtasker --manual-docker
-          mv .coverage coverage/.integration.coverage
+          mv .coverage coverage/.coverage.integration
 
       - name: End-to-End Test
         run: |
           pytest -m "e2e" --cov=labtasker --manual-docker
-          mv .coverage coverage/.e2e.coverage
+          mv .coverage coverage/.coverage.e2e
 
       - name: Stop Docker Compose
         run: make pytest-docker-down
