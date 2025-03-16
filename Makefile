@@ -1,4 +1,4 @@
-.PHONY: format lint unit-test integration-test performance-test cmd-grammar clean coverage-dir pytest-docker-up pytest-docker-down e2e-test merge-coverage
+.PHONY: format lint unit-test integration-test performance-test cmd-grammar clean coverage-dir pytest-docker-up pytest-docker-down e2e-test merge-coverage tox-unit-test tox-integration-test tox-e2e-test
 
 ANTLR=antlr
 
@@ -35,6 +35,15 @@ integration-test: coverage-dir
 e2e-test: coverage-dir
 	pytest -m "e2e" --cov=labtasker --cov-report=term-missing --cov-report=xml
 	mv .coverage coverage/.coverage.e2e
+
+tox-unit-test:
+	tox -e py38-unit,py39-unit,py310-unit,py311-unit,py312-unit,py313-unit
+
+tox-integration-test:
+	tox -e py38-integration,py39-integration,py310-integration,py311-integration,py312-integration,py313-integration
+
+tox-e2e-test:
+	tox -e py38-e2e,py39-e2e,py310-e2e,py311-e2e,py312-e2e,py313-e2e
 
 merge-coverage: coverage-dir
 	coverage combine coverage/
