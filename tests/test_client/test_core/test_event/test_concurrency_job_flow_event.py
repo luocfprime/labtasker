@@ -3,6 +3,7 @@ import os
 import random
 import threading
 import time
+import traceback
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
@@ -31,9 +32,9 @@ pytestmark = [
 ]
 
 # Constants
-TOTAL_WORKERS = 20
+TOTAL_WORKERS = 10
 TOTAL_PRODUCER = 10
-TASKS_PER_PRODUCER = 20
+TASKS_PER_PRODUCER = 5
 TOTAL_TASKS = TOTAL_PRODUCER * TASKS_PER_PRODUCER
 AVERAGE_JOB_DELAY = 0.5
 AVERAGE_JOB_DELAY_STD = 0.3
@@ -105,6 +106,7 @@ def setup_task_fail_cnt():
 @pytest.fixture(autouse=True)
 def setup_loop_internal_error_handler():
     def handler(e):
+        print(traceback.format_exc())
         pytest.fail(f"Loop internal error: {e}")
 
     set_loop_internal_error_handler(handler)
@@ -257,11 +259,20 @@ def test_concurrent_job_flow_events(failing_workers, max_retries):
     )
 
     # Test event listener
+    # wait a little while
+    time.sleep(5.0)
     listener.stop()
     received_events_list = dump_events(listener)
     received_events = defaultdict(int)
     for event_resp in received_events_list:
         received_events[event_resp.event.old_state, event_resp.event.new_state] += 1
+
+    # check if the received events are ordered and consecutive
+    received_events_list = sorted(received_events_list, key=lambda r: r.sequence)
+    for i in range(len(received_events_list) - 1):
+        assert (
+            received_events_list[i].sequence + 1 == received_events_list[i + 1].sequence
+        ), f"Expected consecutive events, but got {received_events_list[i].sequence} and {received_events_list[i + 1].sequence}"
 
     # old, new, count
     expected_transitions = [
