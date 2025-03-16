@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from test_client.test_core.test_event.utils import dump_events
 
-from labtasker import create_queue, finish, ls_tasks, ls_worker, submit_task
+from labtasker import create_queue, finish, ls_tasks, ls_workers, submit_task
 from labtasker.client.core.events import connect_events
 from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
 from tests.fixtures.logging import silence_logger
@@ -196,7 +196,7 @@ def test_concurrent_job_flow_events(failing_workers, max_retries):
     ), f"Expected {TOTAL_TASKS} tasks, found {len(tasks.content)}"
 
     # Verify worker statuses
-    workers = ls_worker()
+    workers = ls_workers()
     active_workers = 0
     crashed_workers = 0
 

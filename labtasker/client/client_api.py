@@ -39,7 +39,7 @@ __all__ = [
     "get_queue",
     "health_check",
     "ls_tasks",
-    "ls_worker",
+    "ls_workers",
     "refresh_task_heartbeat",
     "report_task_status",
 ]

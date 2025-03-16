@@ -51,7 +51,7 @@ __all__ = [
     "report_task_status",
     "refresh_task_heartbeat",
     "create_worker",
-    "ls_worker",
+    "ls_workers",
     "report_worker_status",
     "ls_tasks",
     "update_tasks",
@@ -283,7 +283,7 @@ def create_worker(
 
 @display_server_notifications
 @cast_http_status_error
-def ls_worker(
+def ls_workers(
     worker_id: Optional[str] = None,
     worker_name: Optional[str] = None,
     extra_filter: Optional[Dict[str, Any]] = None,

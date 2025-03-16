@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from labtasker import create_queue, finish, ls_tasks, ls_worker, submit_task
+from labtasker import create_queue, finish, ls_tasks, ls_workers, submit_task
 from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
 from tests.fixtures.logging import server_logger_level_to_error, silence_logger
 from tests.utils import high_precision_sleep
@@ -141,7 +141,7 @@ def test_concurrent_producers_and_consumers():
         len(tasks.content) == TOTAL_PRODUCER * TASKS_PER_PRODUCER
     ), f"Expected {TOTAL_PRODUCER * TASKS_PER_PRODUCER} tasks, found {len(tasks.content)}"
 
-    workers = ls_worker()
+    workers = ls_workers()
     for worker in workers.content:
         assert worker.status != "suspended", f"Worker {worker.worker_id} is suspended."
 

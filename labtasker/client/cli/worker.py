@@ -16,7 +16,7 @@ from labtasker.client.core.api import (
     create_worker,
     delete_worker,
     get_queue,
-    ls_worker,
+    ls_workers,
     report_worker_status,
 )
 from labtasker.client.core.cli_utils import (
@@ -148,7 +148,7 @@ def ls(
 
     page_iter = pager_iterator(
         fetch_function=partial(
-            ls_worker,
+            ls_workers,
             worker_id=worker_id,
             worker_name=worker_name,
             extra_filter=extra_filter,

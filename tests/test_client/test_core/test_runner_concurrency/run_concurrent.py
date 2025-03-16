@@ -8,7 +8,7 @@ from labtasker import (
     finish,
     get_client_config,
     ls_tasks,
-    ls_worker,
+    ls_workers,
     submit_task,
 )
 from labtasker.client.core.job_runner import loop_run, set_loop_internal_error_handler
@@ -144,7 +144,7 @@ def main():
             )
 
         # Check worker statuses
-        workers = ls_worker()
+        workers = ls_workers()
         for worker in workers.content:
             if worker.status == "suspended":
                 print(f"Warning: Worker {worker.worker_id} is suspended.")
