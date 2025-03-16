@@ -87,7 +87,8 @@ def create_consumer(should_fail=False):
 
 
 @pytest.fixture(autouse=True)
-def setup_queue(client_config):
+def setup_queue(client_config, db_fixture):
+    # relies on db_fixture so that DB is cleaned up after each test
     return create_queue(
         queue_name=client_config.queue.queue_name,
         password=client_config.queue.password.get_secret_value(),

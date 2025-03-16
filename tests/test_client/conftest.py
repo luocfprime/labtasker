@@ -12,6 +12,7 @@ from labtasker.client.core.config import (
     init_labtasker_root,
     load_client_config,
 )
+from labtasker.client.core.context import set_current_worker_id
 from labtasker.client.core.heartbeat import end_heartbeat
 from labtasker.security import get_auth_headers
 from tests.fixtures.server.sync_app import test_app
@@ -65,6 +66,12 @@ def reset_heartbeat():
     """Reset heartbeat manager after each testcase. So that some crashed test does not affect others."""
     yield
     end_heartbeat(raise_error=False)
+
+
+@pytest.fixture(autouse=True)
+def reset_worker_id():
+    yield
+    set_current_worker_id(None)
 
 
 @pytest.fixture

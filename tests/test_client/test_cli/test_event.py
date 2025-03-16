@@ -57,8 +57,13 @@ def parse_transition(output: str) -> List[Tuple[str, str]]:
     return transitions
 
 
+@pytest.fixture(autouse=True)
+def setup_teardown_db(db_fixture):
+    yield
+
+
 class TestListen:
-    def test_listen_basic(self, db_fixture, cli_create_queue_from_config):
+    def test_listen_basic(self, cli_create_queue_from_config):
         """Test the basic flow of events when tasks are submitted and processed."""
         # Start the CLI process with a timeout
         cli_process = subprocess.Popen(
