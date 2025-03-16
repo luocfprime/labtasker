@@ -143,7 +143,7 @@ def test_concurrent_producers_and_consumers():
 
     workers = ls_worker()
     for worker in workers.content:
-        assert worker.status != "suspended", f"Worker {worker.id} is suspended."
+        assert worker.status != "suspended", f"Worker {worker.worker_id} is suspended."
 
     assert (
         success_count == TOTAL_PRODUCER * TASKS_PER_PRODUCER

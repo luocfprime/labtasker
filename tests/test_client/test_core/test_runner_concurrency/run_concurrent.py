@@ -147,7 +147,7 @@ def main():
         workers = ls_worker()
         for worker in workers.content:
             if worker.status == "suspended":
-                print(f"Warning: Worker {worker.id} is suspended.")
+                print(f"Warning: Worker {worker.worker_id} is suspended.")
 
         # Verify all tasks succeeded
         if success_count != TOTAL_PRODUCER * TASKS_PER_PRODUCER:
