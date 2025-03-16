@@ -8,6 +8,8 @@ from labtasker.api_models import (
     EventResponse,
     EventSubscriptionResponse,
 )
+from labtasker.server.config import get_server_config
+from labtasker.server.logging import logger
 from labtasker.utils import get_current_time
 
 
@@ -25,7 +27,7 @@ class QueueEventManager:
         self.queue_id = queue_id
         self.sequence = 0
         self.client_buffers: Dict[str, asyncio.Queue[QueueEvent]] = {}
-        self.max_buffer_size = 100  # Prevent memory issues
+        self.max_buffer_size = get_server_config().event_buffer_size
 
     def publish(self, event: BaseEventModel) -> None:
         """Publish a new event to all client buffers"""
@@ -36,12 +38,20 @@ class QueueEventManager:
         )
         # Broadcast to all client buffers
         for client_buffer in self.client_buffers.values():
-            try:
-                client_buffer.put_nowait(queue_event)
-            except asyncio.QueueFull:
-                # If buffer is full, remove oldest event
-                client_buffer.get_nowait()
-                client_buffer.put_nowait(queue_event)
+            while True:
+                try:
+                    client_buffer.put_nowait(queue_event)
+                    break
+                except asyncio.QueueFull:
+                    try:
+                        # Remove oldest event
+                        client_buffer.get_nowait()
+                        logger.warning(
+                            "Event queue is full. Dropped oldest event to make room for new one."
+                        )
+                    except asyncio.QueueEmpty:
+                        logger.error("Queue unexpectedly empty after full.")
+                        break
 
     async def subscribe(
         self, client_id: str, disconnect_handle: Callable[[], Awaitable[bool]]
@@ -67,7 +77,7 @@ class QueueEventManager:
             while not await disconnect_handle():
                 # Check if we need to send a ping
                 current_time = asyncio.get_event_loop().time()
-                if current_time - last_ping > 15:  # TODO: hard coded
+                if current_time - last_ping > get_server_config().sse_ping_interval:
                     yield ServerSentEvent(event="ping")
                     last_ping = current_time
 

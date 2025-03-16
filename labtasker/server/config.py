@@ -19,6 +19,9 @@ class ServerConfig(BaseSettings):
     # Other settings
     periodic_task_interval: float = 30.0
 
+    event_buffer_size: int = 100
+    sse_ping_interval: float = 15.0  # in seconds
+
     model_config = SettingsConfigDict(
         # env_file=".env",
         env_file_encoding="utf-8",
