@@ -77,22 +77,35 @@ For example, you may implement a custom tag system to manage your tasks through 
     # 155f3872-1a07-45c9-85fb-51fce5cc29b5
     ```
 
-1. See more about `labtasker task ls` in [List tasks](#list-tasks).
+1. See more about `labtasker task ls` in [List tasks](#list-query-tasks).
 
-## List tasks
+## List (query) tasks
 
-By default, `labtasker task ls` will list all tasks using a pager (such as `less`).
+By default, `labtasker task ls` displays all tasks in the queue. Output is shown through a pager like `less` by default. Add `--no-pager` to display directly in the terminal.
 
-You can use `--no-pager` to disable pager.
+You can filter tasks using:
 
-Additionally, you can use `--extra-filter` to filter tasks. This is compatible with MongoDB's query syntax.
+- `--task-id` or `--task-name` for basic filtering
+- `--extra-filter` for advanced queries
 
-For example:
+### Using Extra Filters
 
-```bash
-# filters tasks whose args.foo.bar is greater than 0.1
-labtasker task ls --extra-filter '{"args.foo.bar": {"$gt": 0.1}}' --quiet --no-pager
-```
+Choose between two filter syntaxes:
+
+1. **Python Native Syntax**: Intuitive to use but less powerful.
+   ```bash
+   # Find tasks where args.foo.bar > 0.1
+   labtasker task ls --extra-filter 'args.foo.bar > 0.1' --quiet --no-pager
+   ```
+   ==Note:== Does not support `not in`, `not expr`, or `!=` due to null value ambiguities
+
+2. **MongoDB Syntax**: More powerful but requires MongoDB knowledge.
+   ```bash
+   # Find tasks where args.foo.bar > 0.1
+   labtasker task ls --extra-filter '{"args.foo.bar": {"$gt": 0.1}}' --quiet --no-pager
+   ```
+
+You can see the transpiled query using `--verbose` option.
 
 ## Modify (update) tasks
 
