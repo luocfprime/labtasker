@@ -8,10 +8,11 @@ import httpx
 import typer
 from typing_extensions import Annotated
 
-from labtasker import __version__, check_pypi_status
+from labtasker import __version__
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.logging import stderr_console, stdout_console
+from labtasker.client.core.version_checker import check_pypi_status
 
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 
