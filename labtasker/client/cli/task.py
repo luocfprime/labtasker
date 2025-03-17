@@ -251,10 +251,12 @@ def ls(
     ),
 ):
     """List tasks in the queue."""
-    if quiet and (pager or verbose):
-        raise typer.BadParameter(
-            "--quiet and --pager / --verbose cannot be used together."
-        )
+    if quiet:
+        if verbose:
+            raise typer.BadParameter(
+                "You can only specify one of the options --verbose and --quiet."
+            )
+        pager = False
 
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
