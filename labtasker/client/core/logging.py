@@ -2,6 +2,7 @@ import contextlib
 import contextvars
 import io
 import os
+import re
 import sys
 import threading
 import warnings
@@ -189,6 +190,100 @@ class TeeStream(io.TextIOBase):
         return getattr(self.original_stream, name)
 
 
+class AnsiFilterStream(io.TextIOBase):
+    """Filter stream that removes ANSI escape sequences"""
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+    def write(self, text):
+        cleaned = self.ansi_escape.sub("", text)
+        return self.stream.write(cleaned)
+
+    def flush(self):
+        return self.stream.flush()
+
+    # Standard file methods proxied to original stream
+    def close(self) -> None:
+        return self.stream.close()
+
+    def fileno(self) -> int:
+        return self.stream.fileno()
+
+    def isatty(self) -> bool:
+        return self.stream.isatty()
+
+    def readable(self) -> bool:
+        return self.stream.readable()
+
+    def read(self, size: int = -1) -> str:  # type: ignore[override]
+        return self.stream.read(size)
+
+    def readlines(self, hint: int = -1) -> List[str]:  # type: ignore[override]
+        return self.stream.readlines(hint)
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self.stream.seek(offset, whence)
+
+    def seekable(self) -> bool:
+        return self.stream.seekable()
+
+    def tell(self) -> int:
+        return self.stream.tell()
+
+    def truncate(self, size: Optional[int] = None) -> int:
+        if size is None:
+            return self.stream.truncate()
+        return self.stream.truncate(size)
+
+    def writable(self) -> bool:
+        return self.stream.writable()
+
+    def writelines(self, lines: Iterable[str]) -> None:  # type: ignore[override]
+        # First write to original stream
+        self.stream.writelines(lines)
+
+    def readline(self, size: Optional[int] = -1) -> str:  # type: ignore[override]
+        return self.stream.readline(size)
+
+    def __del__(self) -> None:
+        self.stream.close()
+
+    @property
+    def closed(self) -> bool:  # type: ignore[override]
+        return self.stream.closed
+
+    def _checkClosed(self) -> None:
+        if self.closed:
+            raise ValueError("I/O operation on closed file")
+
+    # Additional TextIOBase attributes that may be needed
+    @property
+    def encoding(self) -> str:  # type: ignore[override]
+        return getattr(self.stream, "encoding", None)  # type: ignore[return-value]
+
+    @property
+    def errors(self) -> Optional[str]:  # type: ignore[override]
+        return getattr(self.stream, "errors", None)
+
+    @property
+    def newlines(self) -> Optional[Union[str, tuple]]:  # type: ignore[override]
+        return getattr(self.stream, "newlines", None)
+
+    @property
+    def buffer(self):  # type: ignore[override]
+        return getattr(self.stream, "buffer", None)
+
+    @property
+    def line_buffering(self) -> bool:  # type: ignore[override]
+        return getattr(self.stream, "line_buffering", False)
+
+    # Forward other methods/properties to wrapped stream
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+
 def reset_logger(reset_all: bool = False, debug: bool = False):
     """
     Reset logger configuration.
@@ -274,6 +369,8 @@ def log_to_file(
 
     # Open log file
     log_file = open(file_path, "a", encoding="utf-8")
+    if not log_file.isatty():
+        log_file = AnsiFilterStream(log_file)  # type: ignore[assignment]
 
     # Add file to appropriate output streams
     stdout_token = None
