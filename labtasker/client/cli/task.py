@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 import click
+import pydantic
 import rich
 import ruamel.yaml
 import typer
@@ -366,8 +367,7 @@ def update(
             "You can only specify one of the options --verbose and --quiet."
         )
 
-    updates = updates if updates else option_updates
-
+    updates = updates or option_updates
     extra_filter = parse_filter(extra_filter)
     verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
 
@@ -378,17 +378,7 @@ def update(
     readonly_fields.add("task_id")
 
     if reset_pending:
-        # these fields will be overwritten internally: status: pending, retries: 0
-        readonly_fields.add("status")
-        readonly_fields.add("retries")
-
-    if not updates:  # if no update provided, enter use_editor mode
-        use_editor = True
-    else:
-        use_editor = False
-
-    if quiet and use_editor:
-        raise typer.BadParameter("You must specify --update when using --quiet.")
+        readonly_fields.update({"status", "retries"})
 
     old_tasks = ls_tasks(
         task_id=task_id,
@@ -397,150 +387,191 @@ def update(
         limit=1000,
         offset=offset,
     ).content
+    use_editor = not updates
 
-    task_updates: List[TaskUpdateRequest] = []
+    if quiet and use_editor:
+        raise typer.BadParameter("You must specify --update when using --quiet.")
 
-    # Opens a system text editor to allow modification
     if use_editor:
-        old_tasks_primitive: List[Dict[str, Any]] = [t.model_dump() for t in old_tasks]
-
-        commented_seq = commented_seq_from_dict_list(old_tasks_primitive)
-
-        # format: set line break at each entry
-        for i in range(len(commented_seq) - 1):
-            commented_seq.yaml_set_comment_before_after_key(key=i + 1, before="\n")
-
-        # add "do not edit" at the end of readonly_fields
-        for d in commented_seq:
-            add_eol_comment(
-                d, fields=list(readonly_fields), comment="Read-only. DO NOT modify!"
-            )
-
-        # open an editor to allow interaction
-        temp_file_path = None
-        try:
-            # Create a temporary file
-            fd, temp_file_path = tempfile.mkstemp(
-                prefix="labtasker.tmp.", suffix=".yaml"
-            )
-            os.close(fd)  # Close the file descriptor to avoid locking issues
-            temp_file_path = Path(temp_file_path)
-
-            # Write the content to the temporary file
-            with open(temp_file_path, "w", encoding="utf-8") as temp_file:
-                dump_commented_seq(commented_seq=commented_seq, f=temp_file)
-
-            while True:  # continue to edit until no syntax error
-                try:
-                    # Open the file in the editor
-                    click.edit(filename=str(temp_file_path), editor=editor)
-
-                    # Read the edited content
-                    with open(temp_file_path, "r", encoding="utf-8") as temp_file:
-                        modified = yaml.safe_load(temp_file)
-                    break  # if no error, break
-                except yaml.error.YAMLError as e:
-                    stderr_console.print(
-                        "[bold red]Error:[/bold red] error when parsing yaml.\n"
-                        f"Detail: {str(e)}"
-                    )
-                    if not typer.confirm("Continue to edit?", abort=True):
-                        raise typer.Abort()
-        finally:
-            # Cleanup: Delete the temporary file
-            if temp_file_path and temp_file_path.exists():  # type: ignore[attr-defined]
-                temp_file_path.unlink()  # type: ignore[attr-defined]
-
-        # make sure the len match
-        if len(modified) != len(old_tasks_primitive):
-            stderr_console.print(
-                f"[bold red]Error:[/bold red] number of entries do not match. new {len(modified)} != old {len(old_tasks_primitive)}. "
-                f"Please check your modification. You should not change the order or make deletions to entries."
-            )
-            raise typer.Abort()
-
-        # make sure the order match
-        for i, (m, o) in enumerate(zip(modified, old_tasks_primitive)):
-            if m["task_id"] != o["task_id"]:
-                stderr_console.print(
-                    f"[bold red]Error:[/bold red] task_id {m['task_id']} should be {o['task_id']} at {i}th entry. "
-                    "You should not modify task_id or change the order of the entries."
-                )
-                raise typer.Abort()
-
-        # get a list of update dict
-        update_dicts = diff(
-            prev=old_tasks_primitive,
-            modified=modified,
-            readonly_fields=list(readonly_fields),
-        )
-
-        # for editor mode, all modified field values are suppose to **replace** the original task field values entirely
-        replace_fields_list = []
-        for ud in update_dicts:
-            modified_fields = [k for k, v in ud.items() if k not in readonly_fields]
-            replace_fields_list.append(modified_fields)
+        task_updates = handle_editor_mode(old_tasks, readonly_fields, editor)
     else:
-        # parse the updates
-        replace_fields, update_dict = parse_updates(
-            updates=updates,
-            top_level_fields=list(TaskUpdateRequest.model_fields.keys()),  # type: ignore
-        )
-
-        # populate if not using use_editor mode to modify one by one
-        update_dicts = [update_dict] * len(old_tasks)
-        replace_fields_list = [replace_fields] * len(old_tasks)
-
-    for i, (ud, replace_fields) in enumerate(
-        zip(update_dicts, replace_fields_list)
-    ):  # ud: update dict list entry
-        if not ud:  # filter out empty update dict
-            continue
-
-        task_updates.append(
-            TaskUpdateRequest(
-                _id=old_tasks[i].task_id, replace_fields=replace_fields, **ud
-            )
-        )
+        task_updates = handle_non_editor_mode(old_tasks, updates, readonly_fields)
 
     updated_tasks = update_tasks(task_updates=task_updates, reset_pending=reset_pending)
-
-    if not confirm(
-        f"Total {len(updated_tasks.content)} tasks updated complete. Do you want to see the updated result?",
+    if confirm(
+        f"Total {len(updated_tasks.content)} tasks updated. View result?",
         quiet=quiet,
         default=False,
     ):
-        raise typer.Exit()
+        display_updated_tasks(updated_tasks=updated_tasks, update_dicts=task_updates)
 
-    # display via pager ---------------------------------------------------------------
+
+def handle_editor_mode(old_tasks, readonly_fields, editor):
+    """Handles editing tasks using a system editor and returns task updates."""
+    old_tasks_primitive = [t.model_dump() for t in old_tasks]
+
+    # Create a commented sequence once at the beginning
+    commented_seq = commented_seq_from_dict_list(old_tasks_primitive)
+    for i in range(len(commented_seq) - 1):
+        commented_seq.yaml_set_comment_before_after_key(key=i + 1, before="\n")
+    for d in commented_seq:
+        add_eol_comment(
+            d, fields=list(readonly_fields), comment="Read-only. DO NOT modify!"
+        )
+
+    temp_file_path = None
+    try:
+        fd, temp_file_path = tempfile.mkstemp(prefix="labtasker.tmp.", suffix=".yaml")
+        os.close(fd)
+        temp_file_path = Path(temp_file_path)
+
+        # Write the initial state to the temp file (outside the loop)
+        with open(temp_file_path, "w", encoding="utf-8") as temp_file:
+            dump_commented_seq(commented_seq=commented_seq, f=temp_file)
+
+        while True:
+            try:
+                # Edit the file
+                click.edit(filename=str(temp_file_path), editor=editor)
+
+                # Read the modified content
+                with open(temp_file_path, "r", encoding="utf-8") as temp_file:
+                    modified = yaml.safe_load(temp_file)
+
+                # Calculate diffs and create task updates
+                update_dicts = diff(
+                    old_tasks_primitive, modified, readonly_fields=list(readonly_fields)
+                )
+                replace_fields_list = [
+                    [k for k, v in ud.items() if k not in readonly_fields]
+                    for ud in update_dicts
+                ]
+
+                # Try to create task updates
+                task_updates = []
+                validation_errors = False
+
+                for i, (ud, replace_fields) in enumerate(
+                    zip(update_dicts, replace_fields_list)
+                ):
+                    if not ud:
+                        continue
+                    try:
+                        task_updates.append(
+                            TaskUpdateRequest(
+                                _id=old_tasks[i].task_id,
+                                replace_fields=replace_fields,
+                                **ud,
+                            )
+                        )
+                    except pydantic.ValidationError as e:
+                        error_messages = "; ".join(
+                            [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
+                        )
+                        stderr_console.print(
+                            f"[bold red]Validation Error for task {old_tasks[i].task_id}:[/bold red] {error_messages}"
+                        )
+                        validation_errors = True
+
+                if validation_errors:
+                    if not typer.confirm("Continue to edit?", default=True):
+                        raise typer.Abort()
+                    # Continue the loop with the current file state
+                else:
+                    # No validation errors, we can break the loop
+                    break
+
+            except yaml.error.YAMLError as e:
+                stderr_console.print(f"[bold red]YAML Error:[/bold red] {str(e)}")
+                if not typer.confirm("Continue to edit?", default=True):
+                    raise typer.Abort()
+                # Continue the loop with the current file state
+
+    finally:
+        if temp_file_path and temp_file_path.exists():
+            temp_file_path.unlink()
+
+    return task_updates
+
+
+def handle_non_editor_mode(old_tasks, updates, readonly_fields):
+    """Handles update tasks without an editor and returns task updates."""
+    replace_fields, update_dict = parse_updates(
+        updates, top_level_fields=list(TaskUpdateRequest.model_fields.keys())  # type: ignore
+    )
+
+    # Check for readonly field modification
+    for k in list(update_dict.keys()):
+        if k in readonly_fields:
+            stderr_console.print(
+                f"[bold orange1]Warning:[/bold orange1] Field '{k}' is readonly. "
+                f"You are not supposed to modify it. Your modification to this field will be ignored."
+            )
+            # readonly fields modifications will be discarded by the server
+
+    task_updates = []
+    for i, task in enumerate(old_tasks):
+        task_updates.append(
+            TaskUpdateRequest(
+                _id=task.task_id, replace_fields=replace_fields, **update_dict
+            )
+        )
+
+    return task_updates
+
+
+def display_updated_tasks(updated_tasks, update_dicts):
+    """Displays updated tasks in a formatted YAML output."""
     updated_tasks_primitive = [t.model_dump() for t in updated_tasks.content]
     commented_seq = commented_seq_from_dict_list(updated_tasks_primitive)
 
-    # format: set line break at each entry
+    # Format: set line break at each entry
     for i in range(len(commented_seq) - 1):
         commented_seq.yaml_set_comment_before_after_key(key=i + 1, before="\n")
 
-    # add "modified" comment
-    for d, ud in zip(commented_seq, update_dicts):
-        add_eol_comment(
-            d,
-            fields=list(ud.keys()),
-            comment="Modified",
-        )
+    # Add "Modified" comment to the fields that were actually modified
+    if update_dicts:
+        # Extract the modified fields from each task update
+        for i, task_update in enumerate(update_dicts):
+            # Skip if we don't have a corresponding task in the commented sequence
+            if i >= len(commented_seq):
+                continue
 
+            # Convert TaskUpdateRequest to dict and extract modified fields
+            update_dict = task_update.model_dump()
+
+            # Get replace_fields if available, otherwise default to all non-system fields
+            modified_fields = (
+                task_update.replace_fields
+                if hasattr(task_update, "replace_fields")
+                else []
+            )
+
+            # If replace_fields is empty or not available, try to infer from the update
+            if not modified_fields:
+                modified_fields = [
+                    k for k in update_dict.keys() if k not in ("_id", "replace_fields")
+                ]
+
+            # Add comment for each modified field
+            if modified_fields:
+                add_eol_comment(
+                    commented_seq[i],
+                    fields=modified_fields,
+                    comment="Modified",
+                )
+
+    # Convert to string
     s = io.StringIO()
     y = ruamel.yaml.YAML()
     y.indent(mapping=2, sequence=2, offset=0)
     y.dump(commented_seq, s)
 
-    yaml_str = s.getvalue()
-
+    # Display in pager with syntax highlighting
     console = rich.console.Console()
     with console.capture() as capture:
-        console.print(Syntax(yaml_str, "yaml"))
-    ansi_str = capture.get()
-
-    click.echo_via_pager(ansi_str)
+        console.print(Syntax(s.getvalue(), "yaml"))
+    click.echo_via_pager(capture.get())
 
 
 @app.command()
