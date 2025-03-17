@@ -1,5 +1,5 @@
 # Documentation management with mkdocs and mike
-.PHONY: clean deploy deploy-dev push list delete delete-all
+.PHONY: clean deploy deploy-dev push list delete delete-all fix-code-snippet
 
 # Variables
 MKDOCS := mkdocs
@@ -49,3 +49,7 @@ delete:
 delete-all:
 	@echo "Deleting all versions..."
 	$(MIKE) delete --all
+
+fix-code-snippet:
+	# The formatter breaks --8<-- annotation, we fix it here
+	find . -type f -exec perl -i -pe 's/--\s*8\s*<\s*--/--8<--/g' {} \;
