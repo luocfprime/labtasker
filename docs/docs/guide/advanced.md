@@ -6,7 +6,7 @@
 
 CLI plugins are particularly useful if you want to pack up your workflow and share it with others.
 
-!!! tip "Demo plugin"
+!!! example "Demo plugin"
 
     There is a demo plugin at `/PROJECT_ROOT/plugins/labtasker_plugin_task_count`.
 
@@ -43,7 +43,7 @@ pip install labtasker-plugin-task-count
 
 ### Workflow plugins [WIP]
 
-## Custom Resolvers
+## Custom resolvers
 
 Sometimes after we fetched task args from the server, we need to convert it into other types (such as dataclasses) for
 further processing.
@@ -65,3 +65,42 @@ Now, you can achieve a more elegant solution by using a custom resolver:
 ```python title="demo/advanced/custom_resolver/w.py"
 --8<-- "demo/advanced/custom_resolver/w.py"
 ```
+
+## Event system
+
+Labtasker implements a simple event notification system based on Server Sent Events (SSE).
+This is particularly useful for real-time notifications, workflows, and other use cases.
+
+### Demo: `labtasker event listen`
+
+We use the `labtasker event listen` command as a demo.
+
+It will listen to the FSM state transition events from the server and print them out.
+
+!!! example "labtasker event listen"
+
+    <script src="https://asciinema.org/a/XT3yc8CzXrY2m97986nVA1HwR.js" id="asciicast-XT3yc8CzXrY2m97986nVA1HwR" async="true"></script>
+
+### Demo: email notification on task failure
+
+Using the event listener, it is very easy to implement a simple email notification system
+on various events.
+
+For example, you can listen for `pending -> failed` state transition events and
+send notification email.
+
+```python title="demo/advanced/event_system/email_on_task_failure.py"
+--8<-- "demo/advanced/event_system/email_on_task_failure.py"
+```
+
+Below is a recorded demo running a simulated unstable job with 50% chance of crashing.
+
+```python title="demo/advanced/event_system/sim_unstable_job.py"
+--8<-- "demo/advanced/event_system/sim_unstable_job.py"
+```
+
+The notification script successfully captures the event and sends email.
+
+!!! example "Email notification on task failure"
+
+    <script src="https://asciinema.org/a/QHwatVNwEzLSd3e52k8R3bIvT.js" id="asciicast-QHwatVNwEzLSd3e52k8R3bIvT" async="true"></script>
