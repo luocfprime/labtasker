@@ -1,6 +1,7 @@
 import io
 import re
 from ast import literal_eval
+from uuid import uuid4
 
 import pytest
 from typer.testing import CliRunner
@@ -11,6 +12,9 @@ from labtasker.client.cli.task import (
     commented_seq_from_dict_list,
     dump_commented_seq,
 )
+from labtasker.constants import Priority
+from labtasker.server.fsm import TaskState
+from labtasker.utils import get_current_time
 from tests.test_client.test_cli.test_queue import cli_create_queue_from_config
 
 runner = CliRunner(
@@ -442,8 +446,35 @@ class TestUpdate:
         assert task is not None
         assert task["task_name"] == "updated-test-task"
 
-    def test_update_task_readonly_field(self, db_fixture, setup_pending_task):
-        task_id = setup_pending_task
+    def test_update_task_reset_pending(self, db_fixture, cli_create_queue_from_config):
+        queue_id = db_fixture._queues.find_one(
+            {"queue_name": cli_create_queue_from_config.queue.queue_name}
+        )["_id"]
+
+        running_task_id = str(uuid4())
+        now = get_current_time()
+        db_fixture._tasks.insert_one(
+            {
+                "_id": running_task_id,
+                "queue_id": queue_id,
+                "status": TaskState.RUNNING,
+                "task_name": "foo",
+                "created_at": now,
+                "start_time": None,
+                "last_heartbeat": None,
+                "last_modified": now,
+                "heartbeat_timeout": 99999999.0,  # large enough to avoid timeout
+                "task_timeout": None,
+                "max_retries": 3,
+                "retries": 0,
+                "priority": Priority.MEDIUM,
+                "metadata": {},
+                "args": {},
+                "cmd": "",
+                "summary": {},
+                "worker_id": "some-random-worker-id",  # create a running task with some random worker id
+            }
+        )
         update = "task_name=updated-test-task"
 
         # when --reset-pending is set,
@@ -454,7 +485,7 @@ class TestUpdate:
                 "task",
                 "update",
                 "--extra-filter",
-                f'{{"_id": "{task_id}", "status": "finished"}}',
+                f'{{"_id": "{running_task_id}"}}',
                 "-u",
                 update,
                 "--reset-pending",
@@ -469,9 +500,65 @@ class TestUpdate:
             "You are not supposed to modify it. Your modification to this field will be ignored."
         ), result.stderr
 
-        task = db_fixture._tasks.find_one({"_id": task_id})
+        task = db_fixture._tasks.find_one({"_id": running_task_id})
         assert task is not None
         assert task["status"] == "pending"
+        assert task["task_name"] == "updated-test-task"
+        assert task["worker_id"] is None
+
+    def test_update_task_running_to_pending(
+        self, db_fixture, cli_create_queue_from_config
+    ):
+        queue_id = db_fixture._queues.find_one(
+            {"queue_name": cli_create_queue_from_config.queue.queue_name}
+        )["_id"]
+
+        running_task_id = str(uuid4())
+        now = get_current_time()
+        db_fixture._tasks.insert_one(
+            {
+                "_id": running_task_id,
+                "queue_id": queue_id,
+                "status": TaskState.RUNNING,
+                "task_name": "foo",
+                "created_at": now,
+                "start_time": None,
+                "last_heartbeat": None,
+                "last_modified": now,
+                "heartbeat_timeout": 99999999.0,  # large enough to avoid timeout
+                "task_timeout": None,
+                "max_retries": 3,
+                "retries": 0,
+                "priority": Priority.MEDIUM,
+                "metadata": {},
+                "args": {},
+                "cmd": "",
+                "summary": {},
+                "worker_id": "some-random-worker-id",  # create a running task with some random worker id
+            }
+        )
+
+        update = "status=pending"
+
+        result = runner.invoke(
+            app,
+            [
+                "task",
+                "update",
+                "--extra-filter",
+                f'{{"_id": "{running_task_id}"}}',
+                "-u",
+                update,
+            ],
+        )
+
+        # the update would still be successful, only with the "status" field being ignored
+        assert result.exit_code == 0, result.output + result.stderr
+
+        task = db_fixture._tasks.find_one({"_id": running_task_id})
+        assert task is not None
+        assert task["status"] == "pending"
+        assert task["worker_id"] is None  # worker_id should be cleared
 
 
 class TestUtilities:

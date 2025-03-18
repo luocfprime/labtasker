@@ -864,6 +864,7 @@ class DBService:
                     event_handle = fsm.reset()
                     task_setting_update["status"] = fsm.state  # PENDING
                     task_setting_update["retries"] = fsm.retries  # 0
+                    task_setting_update["worker_id"] = None  # reset worker_id
                 else:
                     event_handle = None
 
@@ -883,6 +884,17 @@ class DBService:
                 # if the FSM state is modified by user manually
                 if not reset_pending and updated_task["status"] != task["status"]:
                     event_handle = fsm.transition_to(updated_task["status"])
+
+                # reset worker_id if the task is pending and worker_id is not None
+                if (
+                    updated_task["status"] == TaskState.PENDING
+                    and updated_task["worker_id"] is not None
+                ):
+                    self._tasks.update_one(
+                        {"_id": task_id, "queue_id": queue_id},
+                        {"$set": {"worker_id": None}},
+                        session=session,
+                    )
 
         if event_handle:
             event_handle.update_fsm_event(updated_task, commit=True)
