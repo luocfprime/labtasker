@@ -37,6 +37,8 @@ from labtasker.utils import parse_timeout
 
 __all__ = ["loop_run", "finish", "set_loop_internal_error_handler"]
 
+_prompt_on_task_failure: bool = True
+
 
 def _default_loop_internal_error_handler(e: Exception, failure_count: int):
     if failure_count > 10:  # TODO: hard coded
@@ -62,6 +64,18 @@ _loop_internal_error_handler: Callable[[Exception, int], None] = (
 def set_loop_internal_error_handler(handler: Callable[[Exception, int], None]):
     global _loop_internal_error_handler
     _loop_internal_error_handler = handler
+
+
+def set_prompt_on_task_failure(enabled: bool):
+    """
+    Enable/disable interactive prompts when task failures occur.
+
+    When enabled, users will be prompted to choose recovery actions (e.g.
+    report as 'failed', which is default, or reset task status as if
+    the failure never occurred) after task failures.
+    """
+    global _prompt_on_task_failure
+    _prompt_on_task_failure = enabled
 
 
 def dump_status(status: str):
@@ -279,4 +293,5 @@ def finish(
         task_id=current_task_id(),
         status=status,
         summary=summary,
+        worker_id=current_worker_id(),
     )
