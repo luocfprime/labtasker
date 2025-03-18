@@ -20,9 +20,3 @@ repos:
     rev: 5.13.2
     hooks:
       - id: isort
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-        exclude: ^labtasker/client/core/cmd_parser/generated/
