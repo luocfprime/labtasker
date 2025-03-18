@@ -172,5 +172,5 @@ def loop(
 
     logger.info("Loop ended.")
 
-def foo():
-    ...
+
+def foo(): ...
