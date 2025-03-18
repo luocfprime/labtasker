@@ -6,13 +6,15 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-import typer
 from packaging import version
 
 from labtasker import __version__
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.logging import stderr_console, stdout_console
-from labtasker.client.core.paths import get_labtasker_root
+from labtasker.client.core.paths import (
+    get_labtasker_client_config_path,
+    get_labtasker_root,
+)
 from labtasker.utils import get_current_time
 
 # Constants
@@ -34,10 +36,10 @@ def get_last_version_check_path() -> Path:
 @lru_cache(maxsize=1)
 def get_configured_should_check() -> bool:
     """Cached access to configuration setting"""
-    try:
+    if get_labtasker_client_config_path().exists():
         return get_client_config().version_check
-    except typer.Exit:  # config not initialized
-        return True  # default to True
+    # config not initialized
+    return True  # default to True
 
 
 def last_checked() -> datetime:

@@ -2,12 +2,12 @@ from functools import wraps
 from typing import Callable, Optional
 
 import httpx
-import typer
 
 from labtasker.api_models import BaseResponseModel
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
 from labtasker.client.core.logging import stderr_console, stdout_console
+from labtasker.client.core.paths import get_labtasker_client_config_path
 
 server_notification_prefix = {
     "info": "[bold dodger_blue1]INFO(notification):[/bold dodger_blue1] ",
@@ -29,10 +29,10 @@ def display_server_notifications(
         @wraps(function)
         def wrapped(*args, **kwargs):
             resp = function(*args, **kwargs)
-            try:
+
+            level = "medium"
+            if get_labtasker_client_config_path().exists():
                 level = get_client_config().display_server_notifications_level
-            except typer.Exit:  # config not initialized
-                level = "medium"  # enabled, medium by default
 
             enabled = level != "none"
 
