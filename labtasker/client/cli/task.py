@@ -341,6 +341,12 @@ def update(
         "--name",
         help="Filter by task name.",
     ),
+    status: Optional[str] = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="Filter by task status. One of `pending`, `running`, `success`, `failed`, `cancelled`.",
+    ),
     extra_filter: Optional[str] = typer.Option(
         None,
         "--extra-filter",
@@ -410,6 +416,7 @@ def update(
     old_tasks = ls_tasks(
         task_id=task_id,
         task_name=task_name,
+        status=status,
         extra_filter=extra_filter,
         limit=1000,
         offset=offset,
