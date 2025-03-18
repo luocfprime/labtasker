@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import shlex
@@ -5,12 +6,17 @@ import warnings
 from ast import literal_eval
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 import httpx
 import pydantic
 import typer
 import yaml
+from noneprompt import CancelledError, Choice, ListPrompt
+from prompt_toolkit import Application
+from prompt_toolkit.layout import Float, FloatContainer, Layout, Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.styles import Style
 from pydantic import BaseModel
 from rich.console import Console
 from rich.json import JSON
@@ -27,6 +33,9 @@ from labtasker.client.core.exceptions import (
 from labtasker.client.core.logging import stderr_console
 from labtasker.client.core.query_transpiler import transpile_query
 from labtasker.utils import parse_timeout, unflatten_dict
+
+DT = TypeVar("DT")
+RT = TypeVar("RT")
 
 
 class LsFmtChoices(str, Enum):
@@ -279,7 +288,6 @@ def parse_sort(
         return result
     except ValueError:
         raise typer.BadParameter(f"Invalid sort: {s} in sort: {sort}")
-    return result
 
 
 def split_end_of_options(argv: List[str]) -> Tuple[List[str], str]:
@@ -554,6 +562,99 @@ def cli_utils_decorator(
         return decorator(func)
 
     return decorator
+
+
+class TimedListPrompt(ListPrompt):
+    """A ListPrompt with countdown and timeout functionality."""
+
+    def __init__(
+        self, *args, timeout: int = 10, default: Optional[Choice] = None, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.timeout = timeout
+        self.default = default
+        self.countdown_text = [
+            ("class:countdown", "TIMER: "),
+            ("class:countdown-emphasis", f"{timeout}"),
+            ("class:countdown", " seconds remaining"),
+        ]
+
+    def _build_layout(self) -> Layout:
+        layout = super()._build_layout()
+        float_container = FloatContainer(
+            content=layout.container, floats=[]  # Initialize with empty floats list
+        )
+
+        # Add countdown timer float
+        float_container.floats.append(
+            Float(
+                Window(
+                    FormattedTextControl(lambda: self.countdown_text),
+                    height=1,
+                    dont_extend_height=True,
+                    always_hide_cursor=True,
+                ),
+                top=0,
+                right=0,
+            )
+        )
+        return Layout(container=float_container)
+
+    def _build_style(self, style: Style) -> Style:
+        base_style = super()._build_style(style)
+        return Style(
+            [
+                *base_style.style_rules,
+                ("countdown", "fg:ansiyellow bold"),
+                ("countdown-emphasis", "fg:ansired blink bold"),
+                ("timeout-message", "fg:#FF0000 bg:#000000 bold"),
+            ]
+        )
+
+    async def _run_countdown(self, app: Application):
+        for i in range(self.timeout, 0, -1):
+            self.countdown_text = [
+                ("class:countdown", "TIME REMAINING: "),
+                ("class:countdown-emphasis", f"{i}"),
+                ("class:countdown", " seconds"),
+            ]
+            app.invalidate()
+            await asyncio.sleep(1)
+        self.countdown_text = [
+            ("class:timeout-message", "TIME'S UP! SETTING TO DEFAULT...")
+        ]
+        app.exit(result=None)
+
+    async def prompt_async(self, **kwargs) -> Union[Choice, None]:  # type: ignore[override]
+        app = self._build_application(no_ansi=False, style=Style([]))
+        countdown_task = asyncio.create_task(self._run_countdown(app))
+
+        try:
+            result = await app.run_async()
+            countdown_task.cancel()
+            if result is not None and not isinstance(result, type(...)):
+                return result
+            if self.default is not None:
+                return self.default
+            raise CancelledError("No answer selected!")
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            return None
+
+
+def make_a_choice(
+    question: str, options: List[Choice], default: Choice, timeout: int = 10
+) -> Optional[Choice]:
+    """Helper function to create and run a timed choice prompt."""
+    prompt = TimedListPrompt(
+        question, choices=options, timeout=timeout, default=default
+    )
+    try:
+        result = asyncio.run(prompt.prompt_async())
+        if isinstance(result, type(...)):
+            return default
+        return result
+    except KeyboardInterrupt:
+        return default
 
 
 ls_format_iter = {

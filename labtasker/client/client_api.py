@@ -8,6 +8,7 @@ from labtasker.client.core.job_runner import (
     finish,
     loop_run,
     set_loop_internal_error_handler,
+    set_prompt_on_task_failure,
 )
 from labtasker.client.core.resolver import (
     Required,
@@ -22,6 +23,7 @@ __all__ = [
     "loop",
     "finish",
     "set_loop_internal_error_handler",
+    "set_prompt_on_task_failure",
     "Required",
     # context api
     "task_info",

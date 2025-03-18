@@ -17,6 +17,7 @@ from labtasker.client.core.heartbeat import end_heartbeat
 from labtasker.client.core.job_runner import (
     _loop_internal_error_handler,
     set_loop_internal_error_handler,
+    set_prompt_on_task_failure,
 )
 from labtasker.security import get_auth_headers
 from tests.fixtures.server.sync_app import test_app
@@ -87,6 +88,11 @@ def setup_loop_internal_error_handler():
     set_loop_internal_error_handler(handler)
     yield
     set_loop_internal_error_handler(original_handler)
+
+
+@pytest.fixture(autouse=True)
+def disable_prompt_on_task_failure():
+    set_prompt_on_task_failure(enabled=False)
 
 
 @pytest.fixture

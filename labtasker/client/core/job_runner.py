@@ -16,6 +16,7 @@ from labtasker.client.core.api import (
     report_task_status,
     update_tasks,
 )
+from labtasker.client.core.cli_utils import Choice, make_a_choice
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.context import (
     current_task_id,
@@ -35,7 +36,12 @@ from labtasker.client.core.logging import log_to_file, logger, stderr_console
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
 from labtasker.utils import parse_timeout
 
-__all__ = ["loop_run", "finish", "set_loop_internal_error_handler"]
+__all__ = [
+    "loop_run",
+    "finish",
+    "set_loop_internal_error_handler",
+    "set_prompt_on_task_failure",
+]
 
 _prompt_on_task_failure: bool = True
 
@@ -210,17 +216,74 @@ def loop_run(
                             func(*func_args, **kwargs)
                             success_flag = True
                         except (KeyboardInterrupt, BaseException) as e:
+                            # Task failure handling logic
+                            # 1. Log the exception
+                            # 2. Ask the user to decide what to do (only for 10s if enabled)
+                            #    A. Report: Report task as failed, with number of retries decreasing.
+                            #    B. Ignore: Reset task to back to PENDING with retries count set to 0, as if this crashed run never happened
+
+                            # 1. log exception
                             logger.exception(f"Task {current_task_id()} failed")
-                            finish(
-                                status="failed",
-                                summary={
-                                    "labtasker_exception": {
-                                        "type": type(e).__name__,
-                                        "message": str(e),
-                                        "traceback": traceback.format_exc(),
-                                    }
-                                },
-                            )
+
+                            # 2. ask the user
+                            _next_action = "report"  # one of ["report", "ignore"]
+
+                            if _prompt_on_task_failure:
+                                # ask the user (wait for 10 seconds) to decide what to do
+                                choices = [
+                                    Choice(
+                                        "(default) Report: Report task as failed, with number of retries decreasing.",
+                                        data="report",
+                                    ),
+                                    Choice(
+                                        "Ignore: Reset task to back to PENDING with retries count set to 0, as if this crashed run never happened.",
+                                        data="ignore",
+                                    ),
+                                ]
+                                choice = make_a_choice(
+                                    question="Task failed with the above exception. You have 10 seconds to make a choice:",
+                                    options=choices,
+                                    default=choices[0],
+                                )
+                                if choice.data == "ignore":
+                                    _next_action = "ignore"
+                                else:
+                                    _next_action = "report"
+
+                            if _next_action == "ignore":
+                                resp = update_tasks(
+                                    task_updates=[
+                                        TaskUpdateRequest(
+                                            **{
+                                                "task_id": current_task_id(),
+                                                "status": "pending",  # running -> pending
+                                                "retries": 0,
+                                                "worker_id": None,
+                                            }
+                                        )
+                                    ]
+                                )
+                                if not resp.found:
+                                    logger.error(
+                                        f"Failed to reset task {current_task_id()} to PENDING."
+                                    )
+                                logger.info(
+                                    f"Task {current_task_id()} reset to PENDING by user request."
+                                )
+                            else:  # report failure
+                                finish(
+                                    status="failed",
+                                    summary={
+                                        "labtasker_exception": {
+                                            "type": type(e).__name__,
+                                            "message": str(e),
+                                            "traceback": traceback.format_exc(),
+                                        }
+                                    },
+                                )
+                                logger.info(
+                                    f"Task {current_task_id()} crash incident reported."
+                                )
 
                             if isinstance(e, KeyboardInterrupt):
                                 break
