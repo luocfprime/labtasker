@@ -10,6 +10,7 @@ from queue import Empty, Queue
 from typing import Iterator, Optional
 
 import httpx
+import stamina
 from httpx_sse import ServerSentEvent, connect_sse
 
 from labtasker.api_models import EventResponse
@@ -39,6 +40,9 @@ class EventListener:
         self._client_id: Optional[str] = None
         self._connected = False
         self._error: Optional[Exception] = None
+
+        self._retry_context_iter = None
+        self.retry_context_iter(reset=True)
 
     def start(self, timeout: int = 10) -> "EventListener":
         """
@@ -152,7 +156,7 @@ class EventListener:
             EventResponse objects as they arrive.
         """
         while self.is_connected():
-            event = self.get_event()
+            event = self.get_event(timeout=1.0)  # prevent queue blocking forever
             if event:
                 yield event
             time.sleep(0.1)
@@ -162,35 +166,53 @@ class EventListener:
         Iterate over raw SSE events as they arrive.
         """
         while self.is_connected():
-            sse = self.get_raw_sse()
+            sse = self.get_raw_sse(timeout=1.0)
             if sse:
                 yield sse
             time.sleep(0.1)
 
+    def retry_context_iter(self, reset: bool = False):
+        if reset:
+            self._retry_context_iter = stamina.retry_context(
+                on=httpx.HTTPError,
+                attempts=10,
+                timeout=60,
+                wait_initial=0.5,
+                wait_max=8.0,
+                wait_jitter=1.0,
+                wait_exp_base=2.0,
+            ).__iter__()
+        return self._retry_context_iter
+
     def _event_listener_thread(self) -> None:
         """Background thread that listens for events from the server."""
         try:
-            client = get_httpx_client()
-            with connect_sse(
-                client,
-                "GET",
-                "/api/v1/queues/me/events",
-                timeout=300,  # TODO: hard coded
-            ) as event_source:
-                event_source.response.raise_for_status()
+            while not self._stop_event.is_set():
+                attempt = next(self.retry_context_iter())
+                with attempt:
+                    client = get_httpx_client()
+                    with connect_sse(
+                        client,
+                        "GET",
+                        "/api/v1/queues/me/events",
+                        timeout=300,  # TODO: hard coded
+                    ) as event_source:
+                        event_source.response.raise_for_status()
 
-                for sse in event_source.iter_sse():
-                    if self._stop_event.is_set():
-                        break
+                        for sse in event_source.iter_sse():
+                            if self._stop_event.is_set():
+                                break
 
-                    if sse.event == "connection":
-                        # Handle connection event
-                        connection_data = json.loads(sse.data)
-                        self._client_id = connection_data.get("client_id")
-                        self._connected = True
+                            if sse.event == "connection":
+                                # Handle connection event
+                                connection_data = json.loads(sse.data)
+                                self._client_id = connection_data.get("client_id")
+                                self._connected = True
 
-                    # Queue the event for processing
-                    self._event_queue.put(sse)
+                            # Queue the event for processing
+                            self._event_queue.put(sse)
+                            # reset retry context, as the retry is intended for **consecutive** failures
+                            self.retry_context_iter(reset=True)
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error in event listener: {e}")
