@@ -246,8 +246,12 @@ class TestLs:
             ],
         )
         assert result.exit_code == 0, result.output
-        task_ids = result.output.strip().split("\n")
+        # strip ansi
+        result_out = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", result.output)
+        task_ids = result_out.strip().split("\n")
         tasks = [db_fixture._tasks.find_one({"_id": task_id}) for task_id in task_ids]
+        tasks = [task for task in tasks if task is not None]
+        assert len(tasks) == len(task_ids) == 5, f"Expected {5}, received {len(tasks)}"
 
         # original order: (0, 0), (0, 1), (1, 2), (1, 3), (2, 4)
         # sorted order: (0, 1), (0, 0), (1, 3), (1, 2), (2, 4)
