@@ -30,11 +30,14 @@ def get_labtasker_log_root() -> Path:
     return _LABTASKER_ROOT / "logs"
 
 
-def set_labtasker_log_dir(task_id: str, set_env: bool = False, overwrite: bool = False):
+def set_labtasker_log_dir(
+    task_id: str, task_name: str = "", set_env: bool = False, overwrite: bool = False
+):
     """
     Set the log dir for labtasker.
     Args:
         task_id: current task that is being executed.
+        task_name: task name of the current task that is being executed.
         set_env: whether set LABTASKER_LOG_DIR.
         overwrite: whether overwrite existing setting. Useful for preventing accidentally overwriting log dir.
 
@@ -47,7 +50,7 @@ def set_labtasker_log_dir(task_id: str, set_env: bool = False, overwrite: bool =
     log_dir = (
         get_labtasker_log_root()
         / "run"
-        / f"run-{task_id}_{now}_r{str(uuid.uuid4())[:8]}"
+        / f"run_t{now}_n{task_name}_id{task_id}_rd{str(uuid.uuid4())[:8]}"
     )  # a random chunk of uuid to prevent collision.
     try:
         log_dir.mkdir(parents=True, exist_ok=False)

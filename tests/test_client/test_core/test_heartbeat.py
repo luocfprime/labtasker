@@ -66,7 +66,9 @@ def patch_up(monkeypatch, client_config, test_app_):
 
 @pytest.fixture(autouse=True)
 def setup_log_dir():
-    set_labtasker_log_dir("test_task_id", set_env=True, overwrite=True)
+    set_labtasker_log_dir(
+        "test_task_id", "test_task_name", set_env=True, overwrite=True
+    )
 
 
 def test_heartbeat():

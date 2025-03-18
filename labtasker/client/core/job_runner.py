@@ -202,7 +202,10 @@ def loop_run(
 
                     # Setup
                     set_labtasker_log_dir(
-                        task_id=current_task_id(), set_env=True, overwrite=True
+                        task_id=task.task_id,
+                        task_name=task.task_name,
+                        set_env=True,
+                        overwrite=True,
                     )
 
                     # Dump task_info.json
