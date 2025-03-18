@@ -171,3 +171,6 @@ def loop(
     run_cmd()
 
     logger.info("Loop ended.")
+
+def foo():
+    ...
