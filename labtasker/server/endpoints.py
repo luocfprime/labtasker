@@ -219,6 +219,8 @@ def ls_tasks(
         task_query["_id"] = task_request.task_id
     if task_request.task_name:
         task_query["task_name"] = task_request.task_name
+    if task_request.status:
+        task_query["status"] = task_request.status
 
     tasks = db.query_collection(
         queue_id=queue["_id"],
@@ -226,6 +228,7 @@ def ls_tasks(
         query=task_query,
         limit=task_request.limit,
         offset=task_request.offset,
+        sort=task_request.sort,
     )
     if not tasks:
         return TaskLsResponse(found=False)
@@ -457,6 +460,8 @@ def ls_worker(
         worker_query["_id"] = worker_request.worker_id
     if worker_request.worker_name:
         worker_query["worker_name"] = worker_request.worker_name
+    if worker_request.status:
+        worker_query["status"] = worker_request.status
 
     workers = db.query_collection(
         queue_id=queue["_id"],
@@ -464,6 +469,7 @@ def ls_worker(
         query=worker_query,
         limit=worker_request.limit,
         offset=worker_request.offset,
+        sort=worker_request.sort,
     )
     if not workers:
         return WorkerLsResponse(found=False)

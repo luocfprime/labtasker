@@ -259,6 +259,31 @@ def parse_updates(
     return replace_fields, parsed_updates
 
 
+def parse_sort(
+    sort: Optional[List[str]],
+    *,
+    default_order: Optional[List[Tuple[str, int]]] = None,
+):
+    if sort is None:
+        return default_order
+
+    s = None
+    try:
+        result = []
+        for s in sort:
+            key, order = s.split(":")
+            if order == "asc":
+                result.append((key, 1))
+            elif order == "desc":
+                result.append((key, -1))
+            else:
+                raise typer.BadParameter(f"Invalid order: {order} in sort: {sort}")
+            return result
+    except ValueError:
+        raise typer.BadParameter(f"Invalid sort: {s} in sort: {sort}")
+    return result
+
+
 def split_end_of_options(argv: List[str]) -> Tuple[List[str], str]:
     """
     Split the input list by the first occurrence of '--', and join the parts

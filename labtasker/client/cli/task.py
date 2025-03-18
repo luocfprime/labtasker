@@ -38,6 +38,7 @@ from labtasker.client.core.cli_utils import (
     parse_extra_opt,
     parse_filter,
     parse_metadata,
+    parse_sort,
     parse_updates,
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
@@ -211,6 +212,12 @@ def ls(
         "--name",
         help="Filter by task name.",
     ),
+    status: Optional[str] = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="Filter by task status. One of `pending`, `running`, `success`, `failed`, `cancelled`.",
+    ),
     extra_filter: Optional[str] = typer.Option(
         None,
         "--extra-filter",
@@ -236,6 +243,21 @@ def ls(
     offset: int = typer.Option(
         0,
         help="Initial offset for pagination.",
+    ),
+    sort: Optional[List[str]] = typer.Option(
+        None,
+        "--sort",
+        "-S",
+        callback=partial(
+            parse_sort,
+            default_order=[
+                ("priority", -1),
+                ("last_modified", 1),
+                ("created_at", 1),
+            ],
+        ),
+        help="Sort by field and direction. "
+        "e.g. `-S 'created_at:desc' -S 'last_modified:asc'`",
     ),
     fmt: LsFmtChoices = typer.Option(
         "yaml",
@@ -267,7 +289,9 @@ def ls(
             ls_tasks,
             task_id=task_id,
             task_name=task_name,
+            status=status,
             extra_filter=extra_filter,
+            sort=sort,
         ),
         offset=offset,
         limit=limit,

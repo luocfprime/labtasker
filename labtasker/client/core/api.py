@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import httpx
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_409_CONFLICT
@@ -286,9 +286,11 @@ def create_worker(
 def ls_workers(
     worker_id: Optional[str] = None,
     worker_name: Optional[str] = None,
+    status: Optional[str] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     limit: int = 100,
     offset: int = 0,
+    sort: Optional[List[Tuple[str, int]]] = None,
     client: Optional[httpx.Client] = None,
 ) -> WorkerLsResponse:
     """List workers."""
@@ -297,9 +299,11 @@ def ls_workers(
     payload = WorkerLsRequest(
         worker_id=worker_id,
         worker_name=worker_name,
+        status=status,
         extra_filter=extra_filter,
         limit=limit,
         offset=offset,
+        sort=sort,
     ).model_dump()
     response = client.post("/api/v1/queues/me/workers/search", json=payload)
     raise_for_status(response)
@@ -342,9 +346,11 @@ def report_worker_status(
 def ls_tasks(
     task_id: Optional[str] = None,
     task_name: Optional[str] = None,
+    status: Optional[str] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     limit: int = 100,
     offset: int = 0,
+    sort: Optional[List[Tuple[str, int]]] = None,
     client: Optional[httpx.Client] = None,
 ) -> TaskLsResponse:
     """List tasks in a queue."""
@@ -353,9 +359,11 @@ def ls_tasks(
     payload = TaskLsRequest(
         task_id=task_id,
         task_name=task_name,
+        status=status,
         extra_filter=extra_filter,
         limit=limit,
         offset=offset,
+        sort=sort,
     ).model_dump()
     response = client.post("/api/v1/queues/me/tasks/search", json=payload)
     raise_for_status(response)

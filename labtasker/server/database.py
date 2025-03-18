@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -131,8 +131,12 @@ class DBService:
         query: Dict[str, Any],  # MongoDB query
         limit: int = 100,
         offset: int = 0,
+        sort: Optional[List[Tuple[str, int]]] = None,
     ) -> List[Dict[str, Any]]:
         """Query a collection."""
+        sort = sort or [
+            ("last_modified", ASCENDING)
+        ]  # Default sort by last_modified first
         with self._client.start_session() as session:
             with session.start_transaction():
                 if collection_name not in ["queues", "tasks", "workers"]:
@@ -149,6 +153,7 @@ class DBService:
                     .find(query, self.projection, session=session)
                     .skip(offset)
                     .limit(limit)
+                    .sort(sort)
                 )
 
                 return list(result)
@@ -588,9 +593,9 @@ class DBService:
                         session=session,
                         # sort: highest priority, least recently modified, oldest created
                         sort=[
-                            ("priority", -1),
-                            ("last_modified", 1),
-                            ("created_at", 1),
+                            ("priority", DESCENDING),
+                            ("last_modified", ASCENDING),
+                            ("created_at", ASCENDING),
                         ],
                     )
                 )

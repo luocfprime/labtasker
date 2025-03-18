@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from packaging.version import Version
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
@@ -209,7 +209,32 @@ class TaskLsRequest(BaseRequestModel):
     limit: int = Field(100, ge=0, le=1000)
     task_id: Optional[str] = None
     task_name: Optional[str] = None
+    status: Optional[str] = Field(
+        None, pattern=r"^(pending|running|success|failed|cancelled)$"
+    )
     extra_filter: Optional[Dict[str, Any]] = None
+    sort: Optional[List[Tuple[str, int]]] = None  # validate that int must be -1/1
+
+    @field_validator("sort")
+    def validate_sort(cls, value):
+        if value is not None:
+            if not isinstance(value, list):
+                raise ValueError("Sort must be a list of tuples.")
+            for item in value:
+                if not isinstance(item, tuple) or len(item) != 2:
+                    raise ValueError(
+                        f"Invalid sort format: {item}. Expected (field, order)."
+                    )
+                field, order = item
+                if not isinstance(field, str):
+                    raise ValueError(
+                        f"Sort field must be a string, got {type(field).__name__}."
+                    )
+                if order not in (-1, 1):
+                    raise ValueError(
+                        f"Sort order must be 1 (ascending) or -1 (descending), got {order}."
+                    )
+        return value
 
 
 class TaskLsResponse(BaseResponseModel):
@@ -246,7 +271,30 @@ class WorkerLsRequest(BaseRequestModel):
     limit: int = Field(100, ge=0, le=1000)
     worker_id: Optional[str] = None
     worker_name: Optional[str] = None
+    status: Optional[str] = Field(None, pattern=r"^(active|suspended|crashed)$")
     extra_filter: Optional[Dict[str, Any]] = None
+    sort: Optional[List[Tuple[str, int]]] = None  # validate that int must be -1/1
+
+    @field_validator("sort")
+    def validate_sort(cls, value):
+        if value is not None:
+            if not isinstance(value, list):
+                raise ValueError("Sort must be a list of tuples.")
+            for item in value:
+                if not isinstance(item, tuple) or len(item) != 2:
+                    raise ValueError(
+                        f"Invalid sort format: {item}. Expected (field, order)."
+                    )
+                field, order = item
+                if not isinstance(field, str):
+                    raise ValueError(
+                        f"Sort field must be a string, got {type(field).__name__}."
+                    )
+                if order not in (-1, 1):
+                    raise ValueError(
+                        f"Sort order must be 1 (ascending) or -1 (descending), got {order}."
+                    )
+        return value
 
 
 class Worker(BaseApiModel, MetadataKeyValidateMixin):
