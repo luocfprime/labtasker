@@ -2,8 +2,6 @@
 
 import json
 import os
-
-
 import shlex
 import subprocess
 from collections import defaultdict
