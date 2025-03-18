@@ -248,14 +248,6 @@ def ls(
         None,
         "--sort",
         "-S",
-        callback=partial(
-            parse_sort,
-            default_order=[
-                ("priority", -1),
-                ("last_modified", 1),
-                ("created_at", 1),
-            ],
-        ),
         help="Sort by field and direction. "
         "e.g. `-S 'created_at:desc' -S 'last_modified:asc'`",
     ),
@@ -280,6 +272,15 @@ def ls(
             )
         pager = False
 
+    if not sort:
+        parsed_sort = [
+            ("priority", -1),
+            ("last_modified", 1),
+            ("created_at", 1),
+        ]
+    else:
+        parsed_sort = parse_sort(sort)
+
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
     extra_filter = parse_filter(extra_filter)
@@ -291,7 +292,7 @@ def ls(
             task_name=task_name,
             status=status,
             extra_filter=extra_filter,
-            sort=sort,
+            sort=parsed_sort,
         ),
         offset=offset,
         limit=limit,

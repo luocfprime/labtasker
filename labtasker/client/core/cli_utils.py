@@ -261,11 +261,9 @@ def parse_updates(
 
 def parse_sort(
     sort: Optional[List[str]],
-    *,
-    default_order: Optional[List[Tuple[str, int]]] = None,
 ):
-    if sort is None:
-        return default_order
+    if not sort:
+        return []
 
     s = None
     try:
@@ -278,7 +276,7 @@ def parse_sort(
                 result.append((key, -1))
             else:
                 raise typer.BadParameter(f"Invalid order: {order} in sort: {sort}")
-            return result
+        return result
     except ValueError:
         raise typer.BadParameter(f"Invalid sort: {s} in sort: {sort}")
     return result

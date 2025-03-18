@@ -162,7 +162,11 @@ class TestLs:
                 queue_id=queue_id,
                 task_name=f"task-{i}",
                 args={"key": f"value-{i}"},
-                metadata={"tag": f"test-{i}"},
+                metadata={
+                    "tag": f"test-{i}",
+                    "sort_key_1": i // 2,  # 0, 1, 2
+                    "sort_key_2": i,  # 0, 1, 2, 3, 4
+                },
                 cmd="echo hello",
             )
 
@@ -189,6 +193,78 @@ class TestLs:
         assert "task-1" in result.output
         assert "task-0" not in result.output
         assert "task-2" not in result.output
+
+    def test_ls_tasks_with_status(self, db_fixture, setup_tasks):
+        result = runner.invoke(app, ["task", "ls", "-s", "pending"])
+        assert result.exit_code == 0, result.output
+        assert "task-1" in result.output
+        assert "task-0" in result.output
+        assert "task-2" in result.output
+
+        result = runner.invoke(app, ["task", "ls", "-s", "non-existent-status"])
+        assert result.exit_code != 0, result.output + result.stderr
+        assert "Invalid value" in result.stderr
+
+    def test_ls_tasks_with_sort(self, db_fixture, setup_tasks):
+        # first try with a non-existent key
+        result_non_existent_key = runner.invoke(
+            app,
+            [
+                "task",
+                "ls",
+                "-S",
+                "non-existent-key:desc",
+                "--quiet",
+            ],
+        )
+        result_no_sort = runner.invoke(
+            app,
+            [
+                "task",
+                "ls",
+                "--quiet",
+            ],
+        )
+        # the output should be the same as without the sort, because sort
+        # by non-existent-key is sort by null, which essentially does nothing
+        assert result_non_existent_key.exit_code == 0, (
+            result_non_existent_key.output + result_non_existent_key.stderr
+        )
+        assert result_no_sort.output == result_non_existent_key.output
+
+        # Test sort
+        result = runner.invoke(
+            app,
+            [
+                "task",
+                "ls",
+                "-S",
+                "metadata.sort_key_1:asc",
+                "-S",
+                "metadata.sort_key_2:desc",
+                "--quiet",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        task_ids = result.output.strip().split("\n")
+        tasks = [db_fixture._tasks.find_one({"_id": task_id}) for task_id in task_ids]
+
+        # original order: (0, 0), (0, 1), (1, 2), (1, 3), (2, 4)
+        # sorted order: (0, 1), (0, 0), (1, 3), (1, 2), (2, 4)
+
+        expected = [(0, 1), (0, 0), (1, 3), (1, 2), (2, 4)]
+        received = [
+            (task["metadata"]["sort_key_1"], task["metadata"]["sort_key_2"])
+            for task in tasks
+        ]
+        assert len(expected) == len(
+            received
+        ), f"Expected {expected}, received {received}"
+        assert expected == received, f"Expected {expected}, received {received}"
+
+        result = runner.invoke(app, ["task", "ls", "-S", "invalid-sort"])
+        assert result.exit_code != 0, result.output + result.stderr
+        assert "Invalid value" in result.stderr
 
     def test_ls_tasks_empty(self, db_fixture, cli_create_queue_from_config):
         result = runner.invoke(app, ["task", "ls"])
