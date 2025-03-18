@@ -174,7 +174,7 @@ class EventListener:
     def retry_context_iter(self, reset: bool = False):
         if reset:
             self._retry_context_iter = stamina.retry_context(
-                on=httpx.HTTPError,
+                on=httpx.TransportError,
                 attempts=10,
                 timeout=60,
                 wait_initial=0.5,

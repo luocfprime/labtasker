@@ -1,6 +1,8 @@
+from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import httpx
+import stamina
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_409_CONFLICT
 
 from labtasker.api_models import (
@@ -59,6 +61,16 @@ __all__ = [
     "update_queue",
     "delete_worker",
 ]
+
+
+def _network_err_retry(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return stamina.retry(
+            on=httpx.TransportError, attempts=5, wait_initial=0.5, wait_max=10.0
+        )(func)(*args, **kwargs)
+
+    return wrapper
 
 
 def get_httpx_client() -> httpx.Client:
@@ -211,6 +223,7 @@ def fetch_task(
 
 
 @cast_http_status_error
+@_network_err_retry
 def report_task_status(
     task_id: str,
     status: str,
@@ -250,6 +263,7 @@ def report_task_status(
 
 
 @cast_http_status_error
+@_network_err_retry
 def refresh_task_heartbeat(
     task_id: str,
     client: Optional[httpx.Client] = None,
@@ -311,6 +325,7 @@ def ls_workers(
 
 
 @cast_http_status_error
+@_network_err_retry
 def report_worker_status(
     worker_id: str,
     status: str,
