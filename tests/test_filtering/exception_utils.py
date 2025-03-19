@@ -3,6 +3,7 @@ from fastapi import HTTPException
 
 from labtasker.filtering import (
     filter_exception,
+    install_traceback_filter,
     register_sensitive_text,
     set_traceback_filter_hook,
 )
@@ -12,6 +13,7 @@ app = typer.Typer()
 dummy_password = "mypassword"
 register_sensitive_text(dummy_password)
 
+install_traceback_filter()
 set_traceback_filter_hook(enabled=True)  # enable by default
 
 
