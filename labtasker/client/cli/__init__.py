@@ -1,5 +1,6 @@
 import labtasker.client.cli.config
 import labtasker.client.cli.event as event
+import labtasker.client.cli.init
 import labtasker.client.cli.loop
 import labtasker.client.cli.queue as queue
 import labtasker.client.cli.task as task
@@ -21,5 +22,5 @@ else:
     stderr_console.print(
         f"[bold orange1]Warning:[/bold orange1] config file not found at {get_labtasker_client_config_path()}. "
         f"[orange1]Skipped plugin loading.[/orange1] "
-        f"It is recommended to initialize config via running [orange1]`labtasker config`[/orange1] first."
+        "If you are running [dodger_blue1]`labtasker init`[/dodger_blue1] or [dodger_blue1]`labtasker config`[/dodger_blue1], ignore this warning."
     )
