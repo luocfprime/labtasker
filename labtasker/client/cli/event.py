@@ -21,11 +21,16 @@ app = typer.Typer()
 
 
 STATE_COLORS = {
+    # task states
     "pending": "gold1",
     "running": "dodger_blue1",
     "success": "green3",
     "failed": "red1",
     "cancelled": "white",
+    # worker states
+    "active": "green3",
+    "suspended": "white",
+    "crashed": "red1",
 }
 
 # Event renderer registry - maps event types to their rendering functions
