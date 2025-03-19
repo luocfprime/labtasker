@@ -7,7 +7,9 @@ from labtasker.api_models import BaseResponseModel
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import (
     LabtaskerConnectError,
+    LabtaskerConnectTimeout,
     LabtaskerHTTPStatusError,
+    LabtaskerNetworkError,
 )
 from labtasker.client.core.logging import stderr_console, stdout_console
 from labtasker.client.core.paths import get_labtasker_client_config_path
@@ -76,6 +78,10 @@ def cast_http_error(func: Optional[Callable] = None, /):
                 ) from e
             except httpx.ConnectError as e:
                 raise LabtaskerConnectError(message=str(e), request=e.request) from e
+            except httpx.ConnectTimeout as e:
+                raise LabtaskerConnectTimeout(message=str(e), request=e.request) from e
+            except httpx.HTTPError as e:
+                raise LabtaskerNetworkError(str(e)) from e
 
         return wrapped
 

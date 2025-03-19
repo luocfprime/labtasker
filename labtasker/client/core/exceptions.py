@@ -7,19 +7,19 @@ class LabtaskerError(Exception):
     pass
 
 
-class LabtaskerRuntimeError(LabtaskerError, RuntimeError):
+class LabtaskerRuntimeError(RuntimeError, LabtaskerError):
     """General runtime error"""
 
     pass
 
 
-class LabtaskerValueError(LabtaskerError, ValueError):
+class LabtaskerValueError(ValueError, LabtaskerError):
     """General value error"""
 
     pass
 
 
-class LabtaskerTypeError(LabtaskerError, ValueError):
+class LabtaskerTypeError(ValueError, LabtaskerError):
     """General type error"""
 
     pass
@@ -31,13 +31,17 @@ class LabtaskerNetworkError(LabtaskerError):
     pass
 
 
-class LabtaskerHTTPStatusError(LabtaskerNetworkError, httpx.HTTPStatusError):
+class LabtaskerHTTPStatusError(httpx.HTTPStatusError, LabtaskerNetworkError):
     """HTTPStatusError"""
 
     pass
 
 
-class LabtaskerConnectError(LabtaskerNetworkError, httpx.ConnectError):
+class LabtaskerConnectError(httpx.ConnectError, LabtaskerNetworkError):
+    pass
+
+
+class LabtaskerConnectTimeout(httpx.ConnectTimeout, LabtaskerNetworkError):
     pass
 
 
@@ -49,15 +53,15 @@ class CmdParserError(LabtaskerError):
     pass
 
 
-class CmdSyntaxError(CmdParserError, SyntaxError):
+class CmdSyntaxError(SyntaxError, CmdParserError):
     pass
 
 
-class CmdKeyError(CmdParserError, KeyError):
+class CmdKeyError(KeyError, CmdParserError):
     pass
 
 
-class CmdTypeError(CmdParserError, TypeError):
+class CmdTypeError(TypeError, CmdParserError):
     pass
 
 
@@ -65,9 +69,9 @@ class QueryTranspilerError(LabtaskerError):
     pass
 
 
-class QueryTranspilerSyntaxError(QueryTranspilerError, SyntaxError):
+class QueryTranspilerSyntaxError(SyntaxError, QueryTranspilerError):
     pass
 
 
-class QueryTranspilerValueError(QueryTranspilerError, ValueError):
+class QueryTranspilerValueError(ValueError, QueryTranspilerError):
     pass
