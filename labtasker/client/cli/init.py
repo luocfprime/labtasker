@@ -83,9 +83,10 @@ def setup_endpoint_url() -> Tuple[str, bool]:
 
     # 1. Prompt
     url = InputPrompt(
-        "Input the URL of your Labtasker server. (It should start with http:// or https://): ",
+        "URL of your Labtasker server (http://host:port or https://xxx.yyy): ",
         validator=validator,
     ).prompt()
+    url = str(HttpUrl(url))
 
     # 2. validate connection
     try:
@@ -124,7 +125,7 @@ def setup_queue_name() -> str:
             return False
 
     queue_name = InputPrompt(
-        "Input the queue name for your experiment. This is analogous to username: ",
+        "Queue name (just like a 'username/project_name') : ",
         validator=validator,
         error_message="Queue name should be a valid string without spaces. ^[a-zA-Z0-9_-]+$",
     ).prompt()
@@ -139,7 +140,7 @@ def setup_password() -> str:
     ).prompt()
 
     second_input = InputPrompt(
-        "Input the password again: ",
+        "(confirm) Input the password again: ",
         is_password=True,
     ).prompt()
 
@@ -196,17 +197,16 @@ def setup_queue(base_url, base_url_verified) -> Tuple[str, str]:
 def confirm_set_traceback_filter() -> bool:
     choices = [
         Choice(
-            "Yes: Install to filter out sensitive content (e.g. password) from console output and enable pretty formatting. "
-            "This may cause some compatibility issue if your package override the sys.excepthook.",
+            "Yes: I want better exception formatting and sensitive text filtering.",
             data=True,
         ),
         Choice(
-            "No: Do not install traceback filter.",
+            "No: I just want compatibility.",
             data=False,
         ),
     ]
     choice = ListPrompt(
-        "Would you like to enable traceback filtering?", choices=choices
+        "Enable traceback hook? (Overrides the `sys.excepthook`)", choices=choices
     ).prompt()
 
     return choice.data

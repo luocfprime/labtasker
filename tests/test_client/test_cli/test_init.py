@@ -50,7 +50,7 @@ def test_setup_endpoint_url_valid(monkeypatch):
     )
 
     url, verified = setup_endpoint_url()
-    assert url == "https://valid.url"
+    assert url == "https://valid.url/"
     assert verified is True
 
 
@@ -75,7 +75,7 @@ def test_setup_endpoint_url_retry_flow(monkeypatch):
     )
 
     url, verified = setup_endpoint_url()
-    assert url == "https://retry.url"
+    assert url == "https://retry.url/"
     assert verified is False
 
 
