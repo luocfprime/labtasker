@@ -27,7 +27,6 @@ from labtasker.api_models import (
 )
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import (
-    LabtaskerConnectError,
     LabtaskerRuntimeError,
     LabtaskerValueError,
     WorkerSuspended,
