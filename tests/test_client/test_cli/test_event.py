@@ -74,7 +74,7 @@ class TestListen:
         )
 
         # Give the CLI process time to start
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         # Run the job flow in a thread
         jobflow_thread = threading.Thread(target=jobflow, daemon=True)
