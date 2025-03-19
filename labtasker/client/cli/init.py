@@ -15,7 +15,6 @@ from noneprompt import CancelledError, Choice, ConfirmPrompt, InputPrompt, ListP
 from pydantic import HttpUrl, SecretStr
 from starlette.status import HTTP_409_CONFLICT
 
-from labtasker import get_labtasker_client_config_path
 from labtasker.client.cli.cli import app
 from labtasker.client.core.api import create_queue, get_queue, health_check
 from labtasker.client.core.config import (
@@ -26,7 +25,10 @@ from labtasker.client.core.config import (
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
 from labtasker.client.core.logging import stderr_console, stdout_console
-from labtasker.client.core.paths import get_labtasker_root
+from labtasker.client.core.paths import (
+    get_labtasker_client_config_path,
+    get_labtasker_root,
+)
 from labtasker.security import get_auth_headers
 
 

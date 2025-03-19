@@ -26,6 +26,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.exceptions import (
+    LabtaskerNetworkError,
     LabtaskerTypeError,
     LabtaskerValueError,
     QueryTranspilerError,
@@ -435,7 +436,7 @@ def requires_server_connection(func: Optional[Callable] = None, /):
             try:
                 status = health_check()
                 assert status.status == "healthy"
-            except (AssertionError, httpx.HTTPStatusError, httpx.ConnectError) as e:
+            except (AssertionError, LabtaskerNetworkError) as e:
                 stderr_console.print(
                     "[bold red]Error:[/bold red] Server connection is not healthy. Please check your connection.\n"
                     f"Detail: {e}"

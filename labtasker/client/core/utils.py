@@ -5,7 +5,10 @@ import httpx
 
 from labtasker.api_models import BaseResponseModel
 from labtasker.client.core.config import get_client_config
-from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
+from labtasker.client.core.exceptions import (
+    LabtaskerConnectError,
+    LabtaskerHTTPStatusError,
+)
 from labtasker.client.core.logging import stderr_console, stdout_console
 from labtasker.client.core.paths import get_labtasker_client_config_path
 
@@ -61,7 +64,7 @@ def display_server_notifications(
     return decorator
 
 
-def cast_http_status_error(func: Optional[Callable] = None, /):
+def cast_http_error(func: Optional[Callable] = None, /):
     def decorator(function: Callable):
         @wraps(function)
         def wrapped(*args, **kwargs):
@@ -71,6 +74,8 @@ def cast_http_status_error(func: Optional[Callable] = None, /):
                 raise LabtaskerHTTPStatusError(
                     message=str(e), request=e.request, response=e.response
                 ) from e
+            except httpx.ConnectError as e:
+                raise LabtaskerConnectError(message=str(e), request=e.request) from e
 
         return wrapped
 

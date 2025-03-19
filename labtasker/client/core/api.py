@@ -27,12 +27,13 @@ from labtasker.api_models import (
 )
 from labtasker.client.core.config import get_client_config
 from labtasker.client.core.exceptions import (
+    LabtaskerConnectError,
     LabtaskerRuntimeError,
     LabtaskerValueError,
     WorkerSuspended,
 )
 from labtasker.client.core.utils import (
-    cast_http_status_error,
+    cast_http_error,
     display_server_notifications,
     raise_for_status,
 )
@@ -95,7 +96,7 @@ def close_httpx_client():
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
     """Check the health of the server."""
     if client is None:
@@ -106,7 +107,7 @@ def health_check(client: Optional[httpx.Client] = None) -> HealthCheckResponse:
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def create_queue(
     queue_name: str,
     password: str,
@@ -127,7 +128,7 @@ def create_queue(
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
     """Get queue information."""
     if client is None:
@@ -137,7 +138,7 @@ def get_queue(client: Optional[httpx.Client] = None) -> QueueGetResponse:
     return QueueGetResponse(**response.json())
 
 
-@cast_http_status_error
+@cast_http_error
 def delete_queue(
     cascade_delete: bool = True,
     client: Optional[httpx.Client] = None,
@@ -151,7 +152,7 @@ def delete_queue(
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def submit_task(
     task_name: Optional[str] = None,
     args: Optional[Dict[str, Any]] = None,
@@ -186,7 +187,7 @@ def submit_task(
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def fetch_task(
     worker_id: Optional[str] = None,
     eta_max: Optional[str] = None,
@@ -222,7 +223,7 @@ def fetch_task(
     return TaskFetchResponse(**response.json())
 
 
-@cast_http_status_error
+@cast_http_error
 @_network_err_retry
 def report_task_status(
     task_id: str,
@@ -262,7 +263,7 @@ def report_task_status(
     raise_for_status(response)
 
 
-@cast_http_status_error
+@cast_http_error
 @_network_err_retry
 def refresh_task_heartbeat(
     task_id: str,
@@ -275,7 +276,7 @@ def refresh_task_heartbeat(
     raise_for_status(response)
 
 
-@cast_http_status_error
+@cast_http_error
 def create_worker(
     worker_name: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
@@ -296,7 +297,7 @@ def create_worker(
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def ls_workers(
     worker_id: Optional[str] = None,
     worker_name: Optional[str] = None,
@@ -324,7 +325,7 @@ def ls_workers(
     return WorkerLsResponse(**response.json())
 
 
-@cast_http_status_error
+@cast_http_error
 @_network_err_retry
 def report_worker_status(
     worker_id: str,
@@ -357,7 +358,7 @@ def report_worker_status(
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def ls_tasks(
     task_id: Optional[str] = None,
     task_name: Optional[str] = None,
@@ -386,7 +387,7 @@ def ls_tasks(
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def update_tasks(
     task_updates: List[TaskUpdateRequest],
     reset_pending: bool = False,
@@ -402,7 +403,7 @@ def update_tasks(
     return TaskLsResponse(**response.json())
 
 
-@cast_http_status_error
+@cast_http_error
 def delete_task(
     task_id: str,
     client: Optional[httpx.Client] = None,
@@ -415,7 +416,7 @@ def delete_task(
 
 
 @display_server_notifications
-@cast_http_status_error
+@cast_http_error
 def update_queue(
     new_queue_name: Optional[str] = None,
     new_password: Optional[str] = None,
@@ -437,7 +438,7 @@ def update_queue(
     return QueueGetResponse(**response.json())
 
 
-@cast_http_status_error
+@cast_http_error
 def delete_worker(
     worker_id: str,
     cascade_update: bool = True,
