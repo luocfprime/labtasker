@@ -122,6 +122,12 @@ def docker_cleanup(manual_docker, proj_root, server_env_file):
 # auto use fixtures ------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def setup_teardown_db(db_fixture):
+    """Invoke db_fixture to automatically clear database after each test"""
+    pass
+
+
 @pytest.fixture(scope="session", autouse=True)
 def allow_unsafe():
     """Enable unsafe operations for testing."""
