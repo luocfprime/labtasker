@@ -45,15 +45,14 @@ def jobflow():
 
 
 def parse_transition(output: str) -> List[Tuple[str, str]]:
-    lines = output.split("\n")
+    matches = re.finditer(
+        r"\[\s*(\w+)[\s\n]*->[\s\n]*(\w+)\s*\]", output, re.DOTALL  # noqa
+    )
     transitions = []
-    for line in lines:
-        # parse xxx -> yyy
-        match = re.search(r"(\w+)\s*->\s*(\w+)", line)
-        if match:
-            from_state = match.group(1)
-            to_state = match.group(2)
-            transitions.append((from_state, to_state))
+    for match in matches:
+        from_state = match.group(1)
+        to_state = match.group(2)
+        transitions.append((from_state, to_state))
     return transitions
 
 
