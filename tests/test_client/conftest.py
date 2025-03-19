@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 from io import StringIO
 from pathlib import Path
@@ -145,3 +146,15 @@ def capture_output(monkeypatch):
             stderr_buffer.seek(0)
 
     return OutputCapture()
+
+
+@pytest.fixture(autouse=True)
+def skip_if_terminal_too_narrow():
+    """
+    Some tests require reading from output. And a narrow terminal may cause unexpected test failures (false positive).
+    """
+    terminal_width, _ = shutil.get_terminal_size(
+        (80, 24)
+    )  # Default to 80 if unavailable
+    if terminal_width < 80:
+        pytest.skip(f"Skipping test: Terminal width ({terminal_width}) is less than 80")
