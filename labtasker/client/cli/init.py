@@ -23,7 +23,10 @@ from labtasker.client.core.config import (
     QueueConfig,
     init_labtasker_root,
 )
-from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
+from labtasker.client.core.exceptions import (
+    LabtaskerHTTPStatusError,
+    LabtaskerNetworkError,
+)
 from labtasker.client.core.logging import stderr_console, stdout_console
 from labtasker.client.core.paths import (
     get_labtasker_client_config_path,
@@ -89,7 +92,7 @@ def setup_endpoint_url() -> Tuple[str, bool]:
         resp = health_check(client=httpx.Client(base_url=url))
         if resp.status == "healthy":
             return url, True
-    except LabtaskerHTTPStatusError:
+    except LabtaskerNetworkError:
         pass
 
     choice = ListPrompt(
@@ -254,3 +257,7 @@ def init():
             f"An unexpected error occurred: {e}.\n" f"Detail: {traceback.format_exc()}"
         )
         rmtree(get_labtasker_root())
+
+    stdout_console.print(
+        f"[bold green]Configuration initialized successfully at {get_labtasker_client_config_path()}.[/bold green]"
+    )

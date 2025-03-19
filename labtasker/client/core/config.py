@@ -150,9 +150,10 @@ def get_client_config() -> ClientConfig:
     return _config  # type: ignore[return-value]
 
 
-def init_labtasker_root(
-    labtasker_root: Path = get_labtasker_root(), exist_ok: bool = False
-):
+def init_labtasker_root(labtasker_root: Optional[Path] = None, exist_ok: bool = False):
+    if labtasker_root is None:
+        labtasker_root = get_labtasker_root()
+
     labtasker_root_template = get_template_dir() / "labtasker_root"
 
     if labtasker_root.exists() and not exist_ok:
