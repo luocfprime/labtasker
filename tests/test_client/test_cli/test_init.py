@@ -5,6 +5,7 @@ from shutil import rmtree
 import httpx
 import pytest
 from noneprompt import Choice, ConfirmPrompt, InputPrompt, ListPrompt
+from starlette.status import HTTP_403_FORBIDDEN
 from typer.testing import CliRunner
 
 from labtasker.api_models import QueueCreateResponse
@@ -16,7 +17,10 @@ from labtasker.client.cli.init import (
     setup_queue,
     setup_queue_name,
 )
-from labtasker.client.core.exceptions import LabtaskerConnectError
+from labtasker.client.core.exceptions import (
+    LabtaskerConnectError,
+    LabtaskerHTTPStatusError,
+)
 
 runner = CliRunner()
 
@@ -112,6 +116,19 @@ def test_setup_queue_creation(monkeypatch):
     monkeypatch.setattr(
         "labtasker.client.cli.init.create_queue",
         lambda *args, **kwargs: QueueCreateResponse(queue_id="test-queue-id"),
+    )
+    monkeypatch.setattr(
+        "labtasker.client.cli.init.get_queue",
+        lambda **kwargs: (_ for _ in ()).throw(  # Generator that throws error
+            LabtaskerHTTPStatusError(  # if queue not exist, get_queue would throw an error, which is expected
+                message="403 forbidden",
+                request=httpx.Request("GET", "https://invalid_url"),
+                response=httpx.Response(
+                    status_code=HTTP_403_FORBIDDEN,
+                    request=httpx.Request("GET", "https://invalid_url"),
+                ),
+            )
+        ),
     )
 
     name, pwd = setup_queue("http://valid.url", True)
