@@ -291,32 +291,6 @@ def parse_sort(
         raise typer.BadParameter(f"Invalid sort: {s} in sort: {sort}")
 
 
-def split_end_of_options(argv: List[str]) -> Tuple[List[str], str]:
-    """
-    Split the input list by the first occurrence of '--', and join the parts
-    after '--' as a string. Returns the split result as a tuple of two parts:
-    (before '--' as a list, after '--' as a string).
-
-    Args:
-        argv (List[str]): A list of command-line arguments.
-
-    Returns:
-        Tuple[List[str], str]: A tuple where the first element is the part of
-        the list before '--', and the second element is a string containing
-        the joined arguments after '--'. If '--' is not found, the second
-        element is an empty string.
-    """
-    if "--" in argv:
-        index = argv.index("--")
-        before_options = argv[:index]
-        after_options = " ".join(argv[index + 1 :])
-    else:
-        before_options = argv
-        after_options = ""
-
-    return before_options, after_options
-
-
 def eta_max_validation(value: Optional[str]):
     if value is None:
         return None
