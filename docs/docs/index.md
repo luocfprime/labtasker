@@ -18,7 +18,7 @@ workers.
     do
         for dataset in visualmrc_test halu_eval foo_eval bar_eval baz_eval
         do
-    -       # run sequentially with only 1 GPU :(
+    -       # run sequentially with only 1 GPU 😫
     -       CUDA_VISIBLE_DEVICES=0 python $script --dataset $dataset
     +       # submit the task args once
     +       labtasker submit -- --exp_script $script --exp_dataset $dataset
@@ -27,7 +27,7 @@ workers.
     ```
 
     ```diff title="eval_run.sh, **parallel with any number of workers**"
-    + # parallelism across any number of workers effortlessly :)
+    + # parallelism across any number of workers effortlessly 😄
     + CUDA_VISIBLE_DEVICES=0 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
     + CUDA_VISIBLE_DEVICES=1 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
     ...
