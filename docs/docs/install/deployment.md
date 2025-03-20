@@ -34,9 +34,9 @@
 
 ### Step 2: Start services
 
-1. Start services:
+1. Start services (first time or update existing services):
    ```bash
-   docker compose --env-file server.env up -d
+   docker compose --env-file server.env up -d --pull always
    ```
 
 2. Check status:

@@ -20,8 +20,20 @@ The client tools is a Python package that you can install on your local machine.
     pip install labtasker
     ```
 
+    To install bundled plugins, run with optional dependency install:
+
+    ```bash
+    pip install 'labtasker[plugins]'
+    ```
+
 === "From Github"
 
     ```bash
     pip install git+https://github.com/fkcptlst/labtasker.git
+    ```
+
+    To install bundled plugins, run with optional dependency install:
+
+    ```bash
+    pip install 'labtasker[plugins] @ git+https://github.com/fkcptlst/labtasker.git'
     ```

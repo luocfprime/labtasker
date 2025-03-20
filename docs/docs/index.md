@@ -12,6 +12,28 @@ workers.
     **TLDR:** Replace `for` loops in your experiment *wrapper script* (1) with labtasker to unlock a variety of powerful features (2)
     effortlessly.
 
+
+    ```diff title="eval_submit.sh, **submit once**"
+    for script in eval/eval_model_A.py eval/eval_model_B.py
+    do
+        for dataset in visualmrc_test halu_eval foo_eval bar_eval baz_eval
+        do
+    -       # run sequentially with only 1 GPU :(
+    -       CUDA_VISIBLE_DEVICES=0 python $script --dataset $dataset
+    +       # submit the task args once
+    +       labtasker submit -- --exp_script $script --exp_dataset $dataset
+        done
+    done
+    ```
+
+    ```diff title="eval_run.sh, **parallel with any number of workers**"
+    + # parallelism across any number of workers effortlessly :)
+    + CUDA_VISIBLE_DEVICES=0 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
+    + CUDA_VISIBLE_DEVICES=1 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
+    ...
+    + CUDA_VISIBLE_DEVICES=7 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
+    ```
+
 1. **What is a wrapper script?**
     - A wrapper script is not part of your experiment's core logic.
     - Instead, it organizes and passes the necessary arguments to your experiment's core script.

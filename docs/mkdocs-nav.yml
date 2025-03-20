@@ -16,3 +16,4 @@ nav:
     - Documentation: develop/documentation.md
     - Database: develop/database.md
     - RESTful API: develop/restful-api.md
+  - FAQs: faq.md

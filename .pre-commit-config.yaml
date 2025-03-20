@@ -7,7 +7,7 @@ repos:
       - id: check-yaml
         exclude: ^docs/mkdocs.yml
       - id: check-added-large-files
-        exclude: ^docs/docs/assets/
+        exclude: ^docs/docs/assets/|^assets/
       - id: mixed-line-ending
         args: [ --fix=lf ]
 

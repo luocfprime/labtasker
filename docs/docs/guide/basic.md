@@ -28,25 +28,16 @@ Following [Installation](../install/install.md).
 **Make sure you have configured client.**
 
 ```bash
-labtasker config
+labtasker init
 ```
 
-**Validate server connection.**
+It will guide you step-by-step:
 
-```bash
-labtasker health
-```
-
-**If a task queue for current project has not been created,
-you can create one from the previously configured config.**
-
-```bash
-labtasker queue create-from-config
-```
+<script src="https://asciinema.org/a/f0XrD6BC8zbtYTth6FCpxusDT.js" id="asciicast-f0XrD6BC8zbtYTth6FCpxusDT" async="true"></script>
 
 !!! tip ""
 
-    See more details in [Queue Manual#create-queue](./manual_queue.md#create-queue).
+    See more details about creating a queue in [Queue Manual#create-queue](./manual_queue.md#create-queue).
 
 ## Step 1. Submit job arguments via Python Demo or CLI tool
 
@@ -76,7 +67,7 @@ labtasker queue create-from-config
 
     where
 
-    ```bash title="demo/basic/bash_demo/job_main.py"
+    ```python title="demo/basic/bash_demo/job_main.py"
     --8<-- "demo/basic/bash_demo/job_main.py"
     ```
 
@@ -91,13 +82,13 @@ labtasker queue create-from-config
 === "pending"
 
     ```bash
-    labtasker task ls --extra-filter '{"status": "pending"}'
+    labtasker task ls -s pending
     ```
 
 === "running"
 
     ```bash
-    labtasker task ls --extra-filter '{"status": "running"}'
+    labtasker task ls -s running
     ```
 
 !!! tip ""

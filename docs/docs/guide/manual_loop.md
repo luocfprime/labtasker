@@ -143,3 +143,21 @@ to fetch only the task you want to run.
     def main():
         # your job code here
     ```
+
+### Upon task failure
+
+When a task fails, you will be presented with a 10-second countdown to choose one of the following options:
+
+1. **Report:** Mark the task as failed and submit the error message. The task state will be set to either "pending" or "
+   failed," depending on the remaining retry attempts. Additionally, the worker's remaining attempts will be reduced by
+   one.
+2. **Ignore:** Disregard the failure, reset the task state to "pending," restore the retry count as if no failure
+   occurred, and proceed to the next task.
+
+By default, the system selects the first option, which is ideal for background task execution, allowing Labtasker to
+automatically report failures.
+
+The second option is useful for debugging scenarios where you do not want to re-submit or manually adjust the task
+state. It enables you to isolate the failure without affecting subsequent tasks.
+
+<script src="https://asciinema.org/a/ifCMwvWqACatCnE22ZCkRQ7lH.js" id="asciicast-ifCMwvWqACatCnE22ZCkRQ7lH" async="true"></script>
