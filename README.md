@@ -43,7 +43,7 @@ This demo shows how to easily submit task arguments and run jobs in parallel.
 It also features an event listener to monitor task execution in real-time and automate workflows,
 such as sending emails on task failure.
 
-![demo](assets/demo.gif)
+![demo](https://fkcptlst.github.io/labtasker/dev/assets/gifs/demo.cast)
 
 ## Features
 
