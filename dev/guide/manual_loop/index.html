@@ -325,6 +325,23 @@
   
 
       
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+    
+  
+  FAQs
+
+      </a>
+    </li>
+  
+
+      
     </ul>
   </div>
 </nav>
@@ -824,6 +841,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#upon-task-failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Upon task failure
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -904,6 +930,27 @@
   
 
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FAQs
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -999,6 +1046,15 @@
   <a href="#use-filter-to-get-only-the-task-you-want" class="md-nav__link">
     <span class="md-ellipsis">
       Use filter to get only the task you want
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upon-task-failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Upon task failure
     </span>
   </a>
   
@@ -1138,6 +1194,20 @@ to fetch only the task you want to run.</p>
 </div>
 </div>
 </div>
+<h3 id="upon-task-failure">Upon task failure<a class="headerlink" href="#upon-task-failure" title="Permanent link">&para;</a></h3>
+<p>When a task fails, you will be presented with a 10-second countdown to choose one of the following options:</p>
+<ol>
+<li><strong>Report:</strong> Mark the task as failed and submit the error message. The task state will be set to either "pending" or "
+   failed," depending on the remaining retry attempts. Additionally, the worker's remaining attempts will be reduced by
+   one.</li>
+<li><strong>Ignore:</strong> Disregard the failure, reset the task state to "pending," restore the retry count as if no failure
+   occurred, and proceed to the next task.</li>
+</ol>
+<p>By default, the system selects the first option, which is ideal for background task execution, allowing Labtasker to
+automatically report failures.</p>
+<p>The second option is useful for debugging scenarios where you do not want to re-submit or manually adjust the task
+state. It enables you to isolate the failure without affecting subsequent tasks.</p>
+<script src="https://asciinema.org/a/ifCMwvWqACatCnE22ZCkRQ7lH.js" id="asciicast-ifCMwvWqACatCnE22ZCkRQ7lH" async="true"></script>
 
 
 
