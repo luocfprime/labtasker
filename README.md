@@ -2,13 +2,12 @@
 <h1 align="center">Labtasker</h1>
 <p align="center"><a href="https://fkcptlst.github.io/labtasker/latest/install/install/">Install</a> • <a href="https://fkcptlst.github.io/labtasker/latest/guide/basic/">Tutorial / Demo</a> • <a href="https://fkcptlst.github.io/labtasker/latest/">Documentation</a> • <a href="https://fkcptlst.github.io/labtasker/dev/faq/">FAQs</a> • <a href="https://github.com/fkcptlst/labtasker/releases">Releases</a></p>
 
-
-<div style="text-align: center;">
+<p align="center">
   <img src="https://github.com/fkcptlst/labtasker/actions/workflows/unit-test-matrix.yml/badge.svg" alt="unit-test-matrix" />
   <a href="https://codecov.io/gh/fkcptlst/labtasker"><img src="https://codecov.io/gh/fkcptlst/labtasker/graph/badge.svg?token=KQFBV3QRPY" alt="codecov" /></a>
   <img src="https://img.shields.io/badge/Python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12%20|%203.13-blue" alt="Python version" />
   <a href="https://pypi.org/project/labtasker/"><img src="https://img.shields.io/pypi/v/labtasker" alt="PyPI" /></a>
-</div>
+</p>
 
 **Labtasker makes lab experiment wrapper scripts smarter with task prioritization, failure handling, halfway resume and
 more: just change 1 line of code.**
@@ -48,7 +47,7 @@ This demo shows how to easily submit task arguments and run jobs in parallel.
 It also features an event listener to monitor task execution in real-time and automate workflows,
 such as sending emails on task failure.
 
-![demo](https://fkcptlst.github.io/labtasker/dev/assets/gifs/demo.gif)
+![demo](https://fkcptlst.github.io/labtasker/dev/assets/svgs/demo.svg)
 
 ## Features
 
