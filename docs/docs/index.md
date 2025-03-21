@@ -69,6 +69,10 @@ To get an overview of the motivation of this tool, continue reading.
 
 ### Why not simple bash wrapper scripts?
 
+**Running multiple lab experiments on a multiple GPUs (such as most AIGC experiments) can be tedious and inefficient.** Traditional scripts require manual splitting and offer limited control. Labtasker simplifies this process by allowing you to submit tasks to a server-based queue, which workers can fetch and execute.
+
+Below is an example of how traditional wrapper scripts scale poorly.
+
 Imagine you have multiple lab experiment jobs to run on a single GPU, such as for tasks like prompt engineering or
 hyperparameter search.
 
@@ -91,53 +95,55 @@ This method works, but what if you have more than one worker/GPU?
 Let's say you have 4 GPUs. You would probably split the experiments into 4 groups and run them in parallel to make
 better use of the resources.
 
-<div class="grid" markdown>
+!!! example "This is already getting messy! 😰"
 
-```bash title="run_job_1.sh"
-#!/bin/bash
+    <div class="grid" markdown>
 
-arg1=1
-for arg2 in 1 2 3 4; do
-    for arg3 in 1 2 3 4; do
-        python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+    ```bash title="run_job_1.sh"
+    #!/bin/bash
+
+    arg1=1
+    for arg2 in 1 2 3 4; do
+        for arg3 in 1 2 3 4; do
+            python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+        done
     done
-done
-```
+    ```
 
-```bash title="run_job_2.sh"
-#!/bin/bash
+    ```bash title="run_job_2.sh"
+    #!/bin/bash
 
-arg1=2
-for arg2 in 1 2 3 4; do
-    for arg3 in 1 2 3 4; do
-        python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+    arg1=2
+    for arg2 in 1 2 3 4; do
+        for arg3 in 1 2 3 4; do
+            python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+        done
     done
-done
-```
+    ```
 
-```bash title="run_job_3.sh"
-#!/bin/bash
+    ```bash title="run_job_3.sh"
+    #!/bin/bash
 
-arg1=3
-for arg2 in 1 2 3 4; do
-    for arg3 in 1 2 3 4; do
-        python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+    arg1=3
+    for arg2 in 1 2 3 4; do
+        for arg3 in 1 2 3 4; do
+            python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+        done
     done
-done
-```
+    ```
 
-```bash title="run_job_4.sh"
-#!/bin/bash
+    ```bash title="run_job_4.sh"
+    #!/bin/bash
 
-arg1=4
-for arg2 in 1 2 3 4; do
-    for arg3 in 1 2 3 4; do
-        python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+    arg1=4
+    for arg2 in 1 2 3 4; do
+        for arg3 in 1 2 3 4; do
+            python job_main.py --arg1 $arg1 --arg2 $arg2 --arg3 $arg3
+        done
     done
-done
-```
+    ```
 
-</div>
+    </div>
 
 However, this method can quickly become tedious and offers limited control over the experiments once the job scripts are
 running. Consider the following scenarios:
