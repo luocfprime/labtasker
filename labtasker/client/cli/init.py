@@ -125,7 +125,7 @@ def setup_queue_name() -> str:
             return False
 
     queue_name = InputPrompt(
-        "Queue name (just like a 'username/project_name') : ",
+        "Queue name (just like a 'username' or 'project_name') : ",
         validator=validator,
         error_message="Queue name should be a valid string without spaces. ^[a-zA-Z0-9_-]+$",
     ).prompt()
