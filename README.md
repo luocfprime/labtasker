@@ -52,6 +52,8 @@ such as sending emails on task failure.
 
 ![demo](https://fkcptlst.github.io/labtasker/dev/assets/gifs/demo.gif)
 
+For more detailed steps, please refer to the content in the [Tutorial / Demo](https://fkcptlst.github.io/labtasker/latest/guide/basic/).
+
 ## ⚡️ Features
 
 - ⚙️ Easy configuration and setup.
