@@ -58,7 +58,7 @@ For more detailed steps, please refer to the content in the [Tutorial / Demo](ht
 > You need a running Labtasker server to use the client tools.
 > See [deployment instructions](https://fkcptlst.github.io/labtasker/latest/install/deployment/).
 
-### 1. Install client tools via PyPI
+### 1. Install Client Tools via PyPI
 
 ```bash
 pip install labtasker
