@@ -9,9 +9,8 @@
   <a href="https://pypi.org/project/labtasker/"><img src="https://img.shields.io/pypi/v/labtasker" alt="PyPI" /></a>
 </p>
 
-
-**<span style="font-size: 20px;"> 🌟 Labtasker makes ML experiment wrapper scripts smarter with task prioritization,
-failure handling, halfway resume and more: just change 1 line of code.</span>**
+**`<span style="font-size: 20px;">` 🌟 Labtasker makes ML experiment wrapper scripts smarter with task prioritization,
+failure handling, halfway resume and more: just change 1 line of code.**
 
 If you like our project, please give us a star ⭐ on GitHub for latest update.
 
@@ -51,6 +50,8 @@ It also features an event listener to monitor task execution in real-time and au
 such as sending emails on task failure.
 
 ![demo](https://fkcptlst.github.io/labtasker/dev/assets/gifs/demo.gif)
+
+For more detailed steps, please refer to the content in the [Tutorial / Demo](https://fkcptlst.github.io/labtasker/latest/guide/basic/).
 
 ## ⚡️ Features
 
