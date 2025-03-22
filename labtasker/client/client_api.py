@@ -62,7 +62,7 @@ def loop(
     heartbeat_timeout: Optional[float] = None,
     pass_args_dict: bool = False,
 ):
-    """Run the wrapped job function in loop.
+    """Continuously run the wrapped job function with fetched task arguments until no tasks available.
 
     Args:
         required_fields: Fields (or extra fields other than specified using Required(...)) required for task execution in a dot-separated manner. E.g. ["arg1.arg11", "arg2.arg22"]

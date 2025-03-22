@@ -1,6 +1,4 @@
-"""
-Worker related CRUD operations.
-"""
+"""Manage workers (CRUD operations)."""
 
 import json
 from functools import partial
@@ -49,25 +47,30 @@ def create(
         None,
         "--worker-name",
         "--name",
-        help="Name of the worker.",
+        help="Friendly name to identify this worker (optional).",
     ),
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
+        help='Additional worker metadata as a Python dictionary (e.g., \'{"type": "gpu"}\').',
     ),
     max_retries: Optional[int] = typer.Option(
         3,
-        help="Maximum number of retries for the worker.",
+        help="Maximum number of tolerated failures for a single worker.",
     ),
     quiet: bool = typer.Option(
         False,
         "--quiet",
         "-q",
-        help="Only show worker ID string, rather than full response. Useful when using in bash scripts.",
+        help="Output only the worker ID, useful for scripting.",
     ),
 ):
     """
-    Create a new worker.
+    Create a new worker for processing tasks.
+
+    Workers are responsible for executing tasks from the queue.
+
+    Example:
+        labtasker worker create --name "gpu-worker-1" --metadata '{"gpu": "rtx3090"}'
     """
     metadata = parse_metadata(metadata)
     worker_id = create_worker(

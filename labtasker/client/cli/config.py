@@ -28,9 +28,7 @@ def config(
         None, help="Editor to use for editing the configuration file."
     ),
 ):
-    """
-    Configure the local client. Opens the configuration file for editing using the specified or system-configured editor.
-    """
+    """Edit local client configuration."""
     # 0. Check if Labtasker root exists, if not, initialize it
     if not get_labtasker_root().exists():
         typer.confirm(

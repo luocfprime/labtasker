@@ -1,6 +1,4 @@
-"""
-Task related CRUD operations.
-"""
+"""Manage tasks (CRUD operations)."""
 
 import io
 import json
@@ -128,52 +126,54 @@ def submit(
         List[str],
         typer.Argument(
             ...,
-            help="Arguments for the task as positional argument. "
-            "e.g. `labtasker task submit --task-name 'my-task' -- --arg1 foo --arg2 bar`",
+            help="Task arguments in command-line format. Use -- to separate from other options. Example: -- --input-file data.csv --model xgboost",
         ),
     ] = None,
     task_name: Optional[str] = typer.Option(
         None,
         "--task-name",
         "--name",
-        help="Name of the task.",
+        help="Descriptive name for the task to help with identification.",
     ),
     option_args: Optional[str] = typer.Option(
         None,
         "--args",
-        help="Arguments for the task as a python dict string in CLI option "
-        '(e.g., --args \'{"key": "value"}\').',
+        help='Alternative way to specify task arguments as a Python dictionary (e.g., \'{"input_file": "data.csv", "model": "xgboost"}\').',
     ),
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
+        help='Additional task metadata as a Python dictionary (e.g., \'{"tags": ["experiment", ML"]]}\').',
     ),
     cmd: Optional[str] = typer.Option(
         None,
-        help="The command intended to execute the task. "
-        "It is better to use task arguments instead of cmd, "
-        "as cmd is rarely used in the task dispatch workflow "
-        "and may be overwritten during task loop execution.",
+        help="Command string to execute this task (rarely needed, as commands are typically defined in the worker).",
     ),
     heartbeat_timeout: Optional[float] = typer.Option(
         60,
-        help="Heartbeat timeout for the task.",
+        help="Time in seconds before a task is considered failed if no heartbeat is received.",
     ),
     task_timeout: Optional[int] = typer.Option(
         None,
-        help="Task execution timeout.",
+        help="Maximum allowed execution time for the task in seconds.",
     ),
     max_retries: Optional[int] = typer.Option(
         3,
-        help="Maximum number of retries for the task.",
+        help="Number of retry attempts if the task fails.",
     ),
     priority: Optional[int] = typer.Option(
         Priority.MEDIUM,
-        help="Priority of the task. The larger the number, the higher the priority.",
+        help="Task priority (higher numbers = higher priority). Default is medium priority.",
     ),
 ):
     """
-    Submit a new task to the queue.
+    Submit a new task to the queue for processing.
+
+    Tasks contain arguments that will be passed to workers for execution.
+    You can specify arguments either as command-line style parameters or as a JSON dictionary.
+
+    Examples:
+        labtasker task submit --name "process-batch-5" -- --input data.csv --output results/
+        labtasker task submit --name "train-model" --args '{"dataset": "mnist", "epochs": 10}'
     """
     if args and option_args:
         raise typer.BadParameter(
@@ -264,7 +264,19 @@ def ls(
         is_eager=True,
     ),
 ):
-    """List tasks in the queue."""
+    """
+    List and filter tasks in the queue.
+
+    This command displays tasks matching the specified filters, with support for
+    pagination, sorting, and different output formats.
+
+    Examples:
+        labtasker task ls                                # List all tasks
+        labtasker task ls --status pending               # List only pending tasks
+        labtasker task ls --name "training-job"          # Filter by task name
+        labtasker task ls -f 'priority > 5'              # Filter by priority
+        labtasker task ls -S 'created_at:desc'           # Sort by creation time
+    """
     if quiet:
         if verbose:
             raise typer.BadParameter(
@@ -389,7 +401,18 @@ def update(
         is_eager=True,
     ),
 ):
-    """Update tasks settings."""
+    """
+    Update existing tasks.
+
+    This command allows you to modify task properties like arguments, metadata,
+    priority, and other settings. You can update multiple tasks at once by using
+    filters, and either specify updates directly or use an interactive editor.
+
+    Examples:
+        labtasker task update --id "task-123" -- priority=10
+        labtasker task update --status pending -- metadata.tag=important
+        labtasker task update --name "training" --editor vim  # Open in editor
+    """
     if updates and option_updates:
         raise typer.BadParameter(
             "You can only specify one of the positional argument [UPDATES] or option --update."
@@ -612,10 +635,17 @@ def display_updated_tasks(updated_tasks, update_dicts):
 @cli_utils_decorator
 def delete(
     task_id: str = typer.Argument(..., help="ID of the task to delete."),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm the operation."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
 ):
     """
-    Delete a task.
+    Delete a task from the queue.
+
+    This command permanently removes a task from the queue. By default, it will
+    ask for confirmation before deletion.
+
+    Example:
+        labtasker task delete task-123
+        labtasker task delete task-123 --yes  # Skip confirmation
     """
     if not yes:
         typer.confirm(

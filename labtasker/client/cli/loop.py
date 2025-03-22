@@ -51,34 +51,33 @@ def loop(
         List[str],
         typer.Argument(
             ...,
-            help="Command to run. Support argument auto interpolation, formatted like %(arg1). E.g. `labtasker loop -- python main.py %(arg1)`",
+            help="Command to run. Supports argument interpolation using %(arg_name) syntax. Example: `python main.py '%(input_file)' '%(output_dir)'`",
         ),
     ] = None,
     option_cmd: str = typer.Option(
         None,
         "--cmd",
         "-c",
-        help="Command to run. Support argument auto interpolation, formatted like %(arg1). Same as [CMD], except this can be passed as an option param.",
+        help="Alternative way to specify the command to run. Supports the same argument interpolation the same way as the positional argument. Except you need to quote the entire command.",
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
         "--extra-filter",
         "-f",
-        help='Optional mongodb filter as a dict string (e.g., \'{"$and": [{"metadata.tag": {"$in": ["a", "b"]}}, {"priority": 10}]}\'). '
-        'Or a Python expression (e.g. \'metadata.tag in ["a", "b"] and priority == 10\')',
+        help='Filter tasks using MongoDB query syntax (e.g., \'{"metadata.tag": {"$in": ["a", "b"]}}\') or Python expression (e.g., \'metadata.tag in ["a", "b"] and priority == 10\').',
     ),
     worker_id: Optional[str] = typer.Option(
         None,
-        help="Worker ID to run the command under.",
+        help="Assign a specific worker ID to run the tasks under.",
     ),
     eta_max: Optional[str] = typer.Option(
         None,
         callback=eta_max_validation,
-        help="Maximum ETA for the task. (e.g. '1h', '1h30m', '50s')",
+        help="Maximum estimated time for task completion (e.g. '1h', '1h30m', '50s'). After which the task will be considered timed out.",
     ),
     heartbeat_timeout: Optional[float] = typer.Option(
         None,
-        help="Heartbeat timeout for the task in seconds.",
+        help="Time in seconds before a task is considered stalled if no heartbeat is received.",
     ),
     verbose: bool = typer.Option(  # noqa
         False,
@@ -89,9 +88,14 @@ def loop(
         is_eager=True,
     ),
 ):
-    """Run the wrapped job command in loop.
-    Job command follows a template string syntax: e.g. `python main.py --arg1 %(arg1) --arg2 %(arg2)`.
-    The argument inside %(...) will be autofilled by the task args fetched from task queue.
+    """Process tasks from the queue by repeatedly running a command with task arguments.
+
+    The command uses template syntax to insert task arguments. For example:
+
+    labtasker loop -- python process.py --input '%(input_file)' --output '%(output_dir)'
+
+    This will fetch tasks with 'input_file' and 'output_dir' arguments and run the command
+    with those values substituted. Tasks are processed until the queue is empty.
     """
     if cmd and option_cmd:
         raise typer.BadParameter(

@@ -1,6 +1,4 @@
-"""
-Task queue related CRUD operations.
-"""
+"""Manage task queues (CRUD operations)"""
 
 from typing import Callable, Optional
 
@@ -55,7 +53,7 @@ def create(
         typer.Option(
             prompt=True,
             envvar="QUEUE_NAME",
-            help="Queue name for current experiment.",
+            help="Name for the new queue (must be unique on the server).",
         ),
     ],
     password: Annotated[
@@ -65,22 +63,29 @@ def create(
             confirmation_prompt=True,
             hide_input=True,
             envvar="PASSWORD",
-            help="Password for current queue.",
+            help="Password to secure access to this queue. Will be prompted if not provided.",
         ),
     ],
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
+        help='Optional queue metadata as a Python dictionary (e.g., \'{"project": "image-processing", "team": "research"}\').',
     ),
     quiet: bool = typer.Option(
         False,
         "--quiet",
         "-q",
-        help="Only show queue ID string, rather than full response. Useful when using in bash scripts.",
+        help="Output only the queue ID, useful for scripting and automation.",
     ),
 ):
     """
-    Create a queue.
+    Create a new task queue on the Labtasker server.
+
+    A queue provides isolation between different projects or users. Each queue requires a unique name and password.
+
+    Examples:
+        labtasker queue create                                # Interactive prompts
+        labtasker queue create --queue-name "my-project"      # Password will be prompted
+        labtasker queue create --queue-name "project-x" --metadata '{"department": "engineering"}'
     """
     metadata = parse_metadata(metadata)
     resp = create_queue(
@@ -97,17 +102,25 @@ def create(
 def create_from_config(
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata as a python dict string (e.g., \'{"key": "value"}\').',
+        help='Optional queue metadata as a Python dictionary (e.g., \'{"project": "image-processing", "team": "research"}\').',
     ),
     quiet: bool = typer.Option(
         False,
         "--quiet",
         "-q",
-        help="Only show queue ID string, rather than full response. Useful when using in bash scripts.",
+        help="Output only the queue ID, useful for scripting and automation.",
     ),
 ):
     """
-    Create a queue from config in `.labtasker/client.toml`.
+    Create a queue using settings from your configuration file.
+
+    This command reads the queue name and password from your local
+    configuration file (.labtasker/client.toml) and creates a new queue
+    with those settings.
+
+    Examples:
+        labtasker queue create_from_config
+        labtasker queue create_from_config --metadata '{"project": "automated-testing"}'
     """
     metadata = parse_metadata(metadata)
     config = get_client_config()
@@ -136,33 +149,44 @@ def get(
 def update(
     new_queue_name: Optional[str] = typer.Option(
         None,
-        help="New name for the queue.",
+        help="New name for the queue (leave unchanged if not specified).",
     ),
     new_password: Optional[str] = typer.Option(
         None,
         prompt=True,
         confirmation_prompt=True,
         hide_input=True,
-        prompt_required=False,  # only trigger interactive prompt when `--new-password` is provided
-        help="New password for the queue.",
+        prompt_required=False,
+        help="New password for the queue. Use flag without value to prompt securely.",
     ),
     metadata: Optional[str] = typer.Option(
         None,
-        help='Optional metadata update as a python dict string (e.g., \'{"label": "test"}\'). '
-        "The updated metadata will be merged with the oringinal metadata."
-        "If you want to unset the metadata entirely, specify via `--metadata '{}'`",
+        help="Update queue metadata as a Python dictionary. Examples:\n"
+        '- Add/update fields: \'{"department": "research", "priority": "high"}\'\n'
+        "- Remove all metadata: '{}'",
     ),
     quiet: bool = typer.Option(
         False,
         "--quiet",
         "-q",
-        help="Suppress the output. Execution result is only available via status code.",
+        help="Suppress output details (success/failure indicated by exit code).",
     ),
 ):
     """
-    Update the current queue.
-    If you do not wish to expose password in command (e.g. `labtasker queue update --new-password my-pass --new-queue-name my-name`),
-    omit the content of `--new-password` and an interactive prompt will show up (i.e. labtasker queue update --new-password  --new-queue-name my-name).
+    Update properties of the current queue.
+
+    This command allows you to change the name, password, or metadata
+    of the queue you're currently connected to. You can update any
+    combination of these properties in a single command.
+
+    For security, use --new-password without a value to be prompted
+    interactively rather than typing the password in the command line.
+
+    Examples:
+        labtasker queue update --new-queue-name "renamed-project"
+        labtasker queue update --new-password  # Will prompt securely
+        labtasker queue update --metadata '{"status": "active", "owner": "team-a"}'
+        labtasker queue update --metadata '{}'  # Remove all metadata
     """
     # Parse metadata
     parsed_metadata = parse_metadata(metadata)
@@ -196,8 +220,16 @@ def update(
 @app.command()
 @cli_utils_decorator
 def delete(
-    cascade: bool = typer.Option(False, help="Delete all tasks in the queue."),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm the operation."),
+    cascade: bool = typer.Option(
+        False,
+        help="Also delete all tasks in the queue (cannot be undone).",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Skip confirmation prompt.",
+    ),
 ):
     """Delete current queue."""
     if not yes:

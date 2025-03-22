@@ -215,6 +215,16 @@ def confirm_set_traceback_filter() -> bool:
 @app.command()
 @_cancelled_err_to_aborted
 def init():
+    """Set up Labtasker client configuration interactively.
+
+    This command guides you through the process of:
+    - Connecting to a Labtasker server
+    - Creating or selecting a task queue
+    - Setting up authentication
+    - Configuring client behavior
+
+    Run this command before using other Labtasker commands.
+    """
     # 0. Check if Labtasker root exists
     if get_labtasker_root().exists():
         stderr_console.print(

@@ -178,29 +178,37 @@ def listen(
     timeout: int = typer.Option(
         10,
         "--timeout",
-        help="Start connection timeout in seconds.",
+        help="Connection timeout in seconds when establishing the initial connection.",
     ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
         "-v",
-        help="Enable verbose output.",
+        help="Show detailed event information for debugging.",
         callback=set_verbose,
         is_eager=True,
     ),
     raw: bool = typer.Option(
         False,
         "--raw",
-        help="Print raw SSE events.",
+        help="Display raw Server-Sent Events (SSE) data instead of formatted output.",
     ),
     compact: bool = typer.Option(
         False,
         "--compact",
         "-c",
-        help="Use compact output format for events.",
+        help="Use a condensed single-line format for each event.",
     ),
 ):
-    """Listen and print the events."""
+    """Monitor real-time events from the Labtasker server.
+
+    This command establishes a persistent connection to the server and displays
+    events as they occur, such as:
+    - Task state changes (pending → running → success/failed)
+    - Worker state changes (active → suspended → crashed)
+
+    Use Ctrl+C to stop listening.
+    """
     stdout_console.print("Attempting to connect to server...")
     listener = connect_events(timeout=timeout)
     stdout_console.print(f"Connected. Client listener ID: {listener.get_client_id()}")

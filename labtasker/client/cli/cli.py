@@ -49,7 +49,7 @@ def help_(ctx: typer.Context):
 @app.command()
 @requires_client_config
 def health():
-    """Check server connection and server health."""
+    """Check server status and connectivity."""
     try:
         stdout_console.print(health_check())
     except LabtaskerNetworkError as e:
