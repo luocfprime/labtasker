@@ -9,8 +9,9 @@
   <a href="https://pypi.org/project/labtasker/"><img src="https://img.shields.io/pypi/v/labtasker" alt="PyPI" /></a>
 </p>
 
-**`<span style="font-size: 20px;">` 🌟 Labtasker makes ML experiment wrapper scripts smarter with task prioritization,
-failure handling, halfway resume and more: just change 1 line of code.**
+
+**<span style="font-size: 20px;"> 🌟 Labtasker makes ML experiment wrapper scripts smarter with task prioritization,
+failure handling, halfway resume and more: just change 1 line of code.</span>**
 
 If you like our project, please give us a star ⭐ on GitHub for latest update.
 
