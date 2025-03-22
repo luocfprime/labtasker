@@ -20,26 +20,7 @@ If you like our project, please give us a star ⭐ on GitHub for latest update.
 **TLDR**: Replace `for` loops in your experiment *wrapper script* with labtasker to enable features like experiment
 parallelization, dynamic task prioritization, failure handling, halfway resume, and more.
 
-```diff
-for script in eval/eval_model_A.py eval/eval_model_B.py
-do
-    for dataset in visualmrc_test halu_eval foo_eval bar_eval baz_eval
-    do
--       # run sequentially with only 1 GPU 😫
--       CUDA_VISIBLE_DEVICES=0 python $script --dataset $dataset
-+       # submit the task args once
-+       labtasker submit -- --exp_script $script --exp_dataset $dataset
-    done
-done
-```
-
-```diff
-+ # parallelism across any number of workers effortlessly 😄
-+ CUDA_VISIBLE_DEVICES=0 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
-+ CUDA_VISIBLE_DEVICES=1 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
-...
-+ CUDA_VISIBLE_DEVICES=7 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
-```
+![comparison](docs/docs/assets/comparison.png)
 
 🐳 For detailed examples and concepts, check out the [documentation](https://fkcptlst.github.io/labtasker/).
 
@@ -50,7 +31,7 @@ This demo shows how to easily submit task arguments and run jobs in parallel.
 It also features an event listener to monitor task execution in real-time and automate workflows,
 such as sending emails on task failure.
 
-![demo](assets/demo.gif)
+![demo](docs/docs/assets/gifs/demo.gif)
 
 For more detailed steps, please refer to the content in the [Tutorial / Demo](https://fkcptlst.github.io/labtasker/latest/guide/basic/).
 

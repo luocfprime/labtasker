@@ -9,54 +9,18 @@ workers.
 
     Feeling confused? Here is a quick takeaway:
 
-    **TLDR:** Replace `for` loops in your experiment *wrapper script* (1) with labtasker to unlock a variety of powerful features (2)
+    **TLDR:** Replace `for` loops in your experiment *wrapper script* with labtasker to unlock a variety of powerful features (1)
     effortlessly.
 
+    ![comparison](assets/comparison.png)
 
-    ```diff title="eval_submit.sh, **submit once**"
-    for script in eval/eval_model_A.py eval/eval_model_B.py
-    do
-        for dataset in visualmrc_test halu_eval foo_eval bar_eval baz_eval
-        do
-    -       # run sequentially with only 1 GPU 😫
-    -       CUDA_VISIBLE_DEVICES=0 python $script --dataset $dataset
-    +       # submit the task args once
-    +       labtasker submit -- --exp_script $script --exp_dataset $dataset
-        done
-    done
-    ```
-
-    ```diff title="eval_run.sh, **parallel with any number of workers**"
-    + # parallelism across any number of workers effortlessly 😄
-    + CUDA_VISIBLE_DEVICES=0 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
-    + CUDA_VISIBLE_DEVICES=1 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
-    ...
-    + CUDA_VISIBLE_DEVICES=7 labtasker loop -- python '%(exp_script)' --dataset '%(exp_dataset)' &
-    ```
-
-1. **What is a wrapper script?**
-    - A wrapper script is not part of your experiment's core logic.
-    - Instead, it organizes and passes the necessary arguments to your experiment's core script.
-    - For example:
-
-       ```bash
-       #!/bin/bash
-       # This is a typical wrapper bash script for many ML experiments.
-       for arg1 in {0..2}; do
-           for arg2 in {3..5}; do
-               # The for loops are what you should replace with Labtasker.
-               # Only this line is the actual core logic of your experiment.
-               python train_my_model.py --arg1 $arg1 --arg2 $arg2
-           done
-       done
-       ```
-
-2. Labtasker provides advanced features **with only 1 extra line of code:**
+1. Labtasker provides advanced features **with only 1 extra line of code:**
     - Load balancing and script parallelism
     - Dynamic task prioritization
     - Dynamic task cancellation
     - Failure auto-retry and worker suspension
     - Metadata recording
+    - Event notification
     - And much more!
 
 Integrating Labtasker into your existing experiment workflow requires just a few lines of boilerplate code.
