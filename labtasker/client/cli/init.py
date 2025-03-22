@@ -134,13 +134,24 @@ def setup_queue_name() -> str:
 
 @_input_loop
 def setup_password() -> str:
+    def validator(value: str) -> bool:
+        try:
+            QueueConfig.__pydantic_validator__.validate_assignment(
+                QueueConfig.model_construct(), "password", SecretStr(value)
+            )
+            return True
+        except pydantic.ValidationError:
+            return False
+
     first_input = InputPrompt(
         "Input the password for your queue: ",
+        validator=validator,
         is_password=True,
     ).prompt()
 
     second_input = InputPrompt(
         "(confirm) Input the password again: ",
+        validator=validator,
         is_password=True,
     ).prompt()
 
