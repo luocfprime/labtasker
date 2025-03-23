@@ -18,5 +18,8 @@ RUN pip install --no-cache-dir "."
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${API_PORT:-9321}/health || exit 1
 
+# Set DB_MODE to external
+ENV DB_MODE=${DB_MODE:-external}
+
 # Run the application
-CMD ["python", "-m", "labtasker.server.run"]
+CMD ["labtasker-server", "serve"]

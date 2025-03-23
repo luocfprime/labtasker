@@ -1,4 +1,5 @@
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -48,7 +49,7 @@ class ServerConfig(BaseSettings):
 _config: Optional[ServerConfig] = None
 
 
-def init_server_config(env_file: Optional[str] = None):
+def init_server_config(env_file: Optional[Union[Path, str]] = None):
     global _config
     if _config is not None:
         raise RuntimeError("ServerConfig already initialized.")

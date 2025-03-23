@@ -3,7 +3,7 @@ import os
 import pytest
 
 from labtasker.server.config import get_server_config, init_server_config
-from tests.fixtures.database import mock_db, real_db  # noqa: F401
+from tests.fixtures.database import *  # noqa: F401, F403
 
 
 def pytest_addoption(parser):

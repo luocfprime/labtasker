@@ -16,7 +16,6 @@ from starlette.status import (
 
 from labtasker.constants import Priority
 from labtasker.security import hash_password
-from labtasker.server.config import get_server_config
 from labtasker.server.db_utils import (
     arg_match,
     keys_to_query_dict,
@@ -114,9 +113,11 @@ class DBService:
 
     def erase(self):
         """Erase all data"""
-        self._queues.delete_many({})
-        self._tasks.delete_many({})
-        self._workers.delete_many({})
+        for col_name in self._db.list_collection_names():
+            collection = self._db[col_name]
+            collection.drop()
+
+        self._setup_collections()
 
     @property
     def projection(self):
@@ -1145,7 +1146,11 @@ _db_service = None
 def get_db() -> DBService:
     """Get database service instance."""
     global _db_service
-    config = get_server_config()
     if not _db_service:
-        _db_service = DBService(db_name=config.db_name, uri=config.mongodb_uri)
-    return _db_service
+        raise RuntimeError("Database service not initialized.")
+    return _db_service  # type: ignore
+
+
+def set_db_service(db_service: DBService):
+    global _db_service
+    _db_service = db_service

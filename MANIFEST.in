@@ -19,6 +19,8 @@ exclude coverage.xml
 exclude poetry.lock
 exclude poetry.toml
 
+exclude labtasker_db.json
+
 prune .vscode
 prune .github
 

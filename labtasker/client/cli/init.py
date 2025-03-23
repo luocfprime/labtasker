@@ -83,7 +83,8 @@ def setup_endpoint_url() -> Tuple[str, bool]:
 
     # 1. Prompt
     url = InputPrompt(
-        "URL of your Labtasker server (http://host:port or https://xxx.yyy): ",
+        "URL of your Labtasker server: ",
+        default_text="http://localhost:9321",
         validator=validator,
     ).prompt()
     url = str(HttpUrl(url))
@@ -186,7 +187,9 @@ def setup_queue(base_url, base_url_verified) -> Tuple[str, str]:
     except LabtaskerHTTPStatusError:
         pass
 
-    yes = ConfirmPrompt(question="Would you like to create this queue?").prompt()
+    yes = ConfirmPrompt(
+        question="Would you like to create this queue?", default_choice=True
+    ).prompt()
     if yes:
         try:
             resp = create_queue(queue_name, password, client=client)
