@@ -640,6 +640,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#do-i-need-docker-compose-to-use-labtasker" class="md-nav__link">
+    <span class="md-ellipsis">
+      Do I need docker compose to use Labtasker?
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#do-i-need-to-deploy-the-labtasker-server" class="md-nav__link">
     <span class="md-ellipsis">
       Do I need to deploy the Labtasker server?
@@ -652,15 +661,6 @@
   <a href="#do-i-need-to-deploy-labtasker-server-on-the-cloud-with-a-domain-name" class="md-nav__link">
     <span class="md-ellipsis">
       Do I need to deploy Labtasker server on the cloud? With a domain name?
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#do-i-need-to-use-docker-compose-to-deploy-labtasker-server" class="md-nav__link">
-    <span class="md-ellipsis">
-      Do I need to use docker compose to deploy Labtasker server?
     </span>
   </a>
   
@@ -749,6 +749,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#do-i-need-docker-compose-to-use-labtasker" class="md-nav__link">
+    <span class="md-ellipsis">
+      Do I need docker compose to use Labtasker?
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#do-i-need-to-deploy-the-labtasker-server" class="md-nav__link">
     <span class="md-ellipsis">
       Do I need to deploy the Labtasker server?
@@ -761,15 +770,6 @@
   <a href="#do-i-need-to-deploy-labtasker-server-on-the-cloud-with-a-domain-name" class="md-nav__link">
     <span class="md-ellipsis">
       Do I need to deploy Labtasker server on the cloud? With a domain name?
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#do-i-need-to-use-docker-compose-to-deploy-labtasker-server" class="md-nav__link">
-    <span class="md-ellipsis">
-      Do I need to use docker compose to deploy Labtasker server?
     </span>
   </a>
   
@@ -834,23 +834,26 @@
 
 <h1 id="frequently-asked-questions">Frequently Asked Questions<a class="headerlink" href="#frequently-asked-questions" title="Permanent link">&para;</a></h1>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
+<h3 id="do-i-need-docker-compose-to-use-labtasker">Do I need <code>docker compose</code> to use Labtasker?<a class="headerlink" href="#do-i-need-docker-compose-to-use-labtasker" title="Permanent link">&para;</a></h3>
+<div class="admonition info">
+<p>No. Depends on your needs:</p>
+<ol>
+<li>If you want <strong>the simplest setup</strong>, you can use <code>labtasker-server serve</code> to run the server out-of-the-box. All you only need is a Python environment.</li>
+<li>If you need more scalable and robust setup, use the <code>docker compose</code> method to deploy the server.</li>
+<li>If you have the mongod installed locally, you can specify in the configuration file and choose <code>--db-mode external</code> when you run <code>labtasker-server serve</code>.</li>
+</ol>
+</div>
 <h3 id="do-i-need-to-deploy-the-labtasker-server">Do I need to deploy the Labtasker server?<a class="headerlink" href="#do-i-need-to-deploy-the-labtasker-server" title="Permanent link">&para;</a></h3>
 <div class="admonition info">
 <p>It depends:</p>
 <ol>
-<li><strong>If you’re using Labtasker on your own</strong>, you need to deploy the Labtasker server for the client tools to work.</li>
+<li><strong>If you’re using Labtasker on your own</strong>, you need to deploy the Labtasker server for the client tools to work. It is very convenient: simply run <code>labtasker-server serve</code> in the background and you’re good to go.</li>
 <li><strong>If you’re working with others</strong> or trust someone who has already deployed the Labtasker server, you don’t need to—just connect to their server. <strong>(Make sure you trust the provider, as your task information is not encrypted.)</strong></li>
 </ol>
 </div>
 <h3 id="do-i-need-to-deploy-labtasker-server-on-the-cloud-with-a-domain-name">Do I need to deploy Labtasker server on the cloud? With a domain name?<a class="headerlink" href="#do-i-need-to-deploy-labtasker-server-on-the-cloud-with-a-domain-name" title="Permanent link">&para;</a></h3>
 <div class="admonition info">
 <p>No and no. You can run Labtasker server at localhost (could be your GPU server or your laptop). The only requirement is that the workers can access the server.</p>
-</div>
-<h3 id="do-i-need-to-use-docker-compose-to-deploy-labtasker-server">Do I need to use <code>docker compose</code> to deploy Labtasker server?<a class="headerlink" href="#do-i-need-to-use-docker-compose-to-deploy-labtasker-server" title="Permanent link">&para;</a></h3>
-<div class="admonition info">
-<p>No. It is recommended but not mandatory.</p>
-<p>You can set up your own MongoDB service, and use <code>python -m labtasker.server.run --env-file server.env</code> to run the server.</p>
-<p>Note: MongoDB requires replica set enabled for DB transactions. You can see how it is done in <a href="https://github.com/fkcptlst/labtasker/blob/main/docker/mongodb/post-init.d/init-mongo.sh">docker/mongodb/post-init.d/init-mongo.sh</a>.</p>
 </div>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
 <h3 id="how-to-run-job-command-with-environment-variables-using-labtasker-loop">How to run job command with environment variables using <code>labtasker loop</code>?<a class="headerlink" href="#how-to-run-job-command-with-environment-variables-using-labtasker-loop" title="Permanent link">&para;</a></h3>

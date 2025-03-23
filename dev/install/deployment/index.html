@@ -546,6 +546,25 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#method-1-python-native-easy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Method 1. Python Native (Easy)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#method-2-docker-compose-advanced" class="md-nav__link">
+    <span class="md-ellipsis">
+      Method 2. Docker Compose (Advanced)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Method 2. Docker Compose (Advanced)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#prerequisites" class="md-nav__link">
     <span class="md-ellipsis">
       Prerequisites
@@ -553,16 +572,6 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deployment
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Deployment">
-      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#step-1-configuration" class="md-nav__link">
@@ -582,17 +591,17 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
+          <li class="md-nav__item">
   <a href="#database-management" class="md-nav__link">
     <span class="md-ellipsis">
       Database Management
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -771,6 +780,25 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#method-1-python-native-easy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Method 1. Python Native (Easy)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#method-2-docker-compose-advanced" class="md-nav__link">
+    <span class="md-ellipsis">
+      Method 2. Docker Compose (Advanced)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Method 2. Docker Compose (Advanced)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#prerequisites" class="md-nav__link">
     <span class="md-ellipsis">
       Prerequisites
@@ -778,16 +806,6 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deployment
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Deployment">
-      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#step-1-configuration" class="md-nav__link">
@@ -807,17 +825,17 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
+          <li class="md-nav__item">
   <a href="#database-management" class="md-nav__link">
     <span class="md-ellipsis">
       Database Management
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -843,33 +861,58 @@
 <h1 id="deploy-server">Deploy Server<a class="headerlink" href="#deploy-server" title="Permanent link">&para;</a></h1>
 <div class="admonition info">
 <p class="admonition-title">TLDR</p>
-<p>The deployment of Labtasker is straightforward. Basically, you need to:</p>
-<ol>
-<li>Make sure repo is cloned and docker compose is installed.</li>
-<li>Modify the config file according to your needs.</li>
-<li>Start services via <code>docker compose --env-file=your_env_file.env up -d</code></li>
-</ol>
+<p>The Labtasker server can be deployed in two ways, depending on the database backend and the chosen deployment method.</p>
+<table>
+<thead>
+<tr>
+<th>Deployment Method</th>
+<th>Server</th>
+<th>Database</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python Native <code>labtasker-server</code></td>
+<td>Local Environment</td>
+<td>A Python Emulated Embedded DB</td>
+</tr>
+<tr>
+<td>docker compose</td>
+<td>Run inside a container</td>
+<td>MongoDB Service</td>
+</tr>
+</tbody>
+</table>
 </div>
-<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<h2 id="method-1-python-native-easy">Method 1. Python Native (Easy)<a class="headerlink" href="#method-1-python-native-easy" title="Permanent link">&para;</a></h2>
+<p>This is the simplest way to get started with Labtasker using only Python dependencies. The embedded database makes setup
+fast and straightforward.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>labtasker
+</code></pre></div>
+<p>Then, to start a Labtasker server (with embedded database) in the background, run the following command:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>labtasker-server<span class="w"> </span>serve<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--port<span class="w"> </span><span class="m">9321</span><span class="w"> </span><span class="p">&amp;</span>
+</code></pre></div>
+<h2 id="method-2-docker-compose-advanced">Method 2. Docker Compose (Advanced)<a class="headerlink" href="#method-2-docker-compose-advanced" title="Permanent link">&para;</a></h2>
+<p>This method is recommended for scenarios where you need more robust database capabilities and containerized deployment.</p>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Docker Compose</li>
 </ul>
-<h2 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h2>
 <h3 id="step-1-configuration">Step 1: Configuration<a class="headerlink" href="#step-1-configuration" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
 <p>Clone the repository:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/fkcptlst/labtasker.git
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>labtasker
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/fkcptlst/labtasker.git
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>labtasker
 </code></pre></div></p>
 </li>
 <li>
-<p>Copy <code>server.example.env</code> to <code>server.env</code>:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cp<span class="w"> </span>server.example.env<span class="w"> </span>server.env
+<p>Create your environment file:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cp<span class="w"> </span>server.example.env<span class="w"> </span>server.env
 </code></pre></div></p>
 </li>
 <li>
-<p>Edit <code>server.env</code> with your settings:</p>
+<p>Configure your settings in <code>server.env</code>:</p>
 <ul>
 <li>Configure MongoDB.</li>
 <li>Configure server ports.</li>
@@ -881,21 +924,21 @@
 <ol>
 <li>
 <p>Start services (first time or update existing services):
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>--env-file<span class="w"> </span>server.env<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--pull<span class="w"> </span>always
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>--env-file<span class="w"> </span>server.env<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--pull<span class="w"> </span>always
 </code></pre></div></p>
 </li>
 <li>
 <p>Check status:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>--env-file<span class="w"> </span>server.env<span class="w"> </span>ps
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>--env-file<span class="w"> </span>server.env<span class="w"> </span>ps
 </code></pre></div></p>
 </li>
 <li>
 <p>View logs:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>--env-file<span class="w"> </span>server.env<span class="w"> </span>logs<span class="w"> </span>-f
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>--env-file<span class="w"> </span>server.env<span class="w"> </span>logs<span class="w"> </span>-f
 </code></pre></div></p>
 </li>
 </ol>
-<h2 id="database-management">Database Management<a class="headerlink" href="#database-management" title="Permanent link">&para;</a></h2>
+<h3 id="database-management">Database Management<a class="headerlink" href="#database-management" title="Permanent link">&para;</a></h3>
 <p>To expose MongoDB for external tools (this is potentially risky):</p>
 <ol>
 <li>Set <code>EXPOSE_DB=true</code> in <code>server.env</code></li>
