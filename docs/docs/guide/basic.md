@@ -13,6 +13,8 @@
 
     This is a step-by-step demo of the basic workflow described in this page.
 
+    **Note: During the port configuration step, you can specify your own port.**
+
     <script src="https://asciinema.org/a/tRC0sFsoITjBr0Ik4e9DLXLEm.js" id="asciicast-tRC0sFsoITjBr0Ik4e9DLXLEm" async="true"></script>
 
 ## Prerequisites

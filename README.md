@@ -1,6 +1,6 @@
 <p align="center"><em>Make your ML experiment wrapper scripts smarter with...</em></p>
 <h1 align="center" style="font-size: 40px;"> <a href="">Labtasker</a></h1>
-<p align="center"><a href="https://fkcptlst.github.io/labtasker/latest/install/install/">Install</a> • <a href="https://fkcptlst.github.io/labtasker/latest/guide/basic/">Tutorial / Demo</a> • <a href="https://fkcptlst.github.io/labtasker/latest/">Documentation</a> • <a href="https://fkcptlst.github.io/labtasker/dev/faq/">FAQs</a> • <a href="https://github.com/fkcptlst/labtasker/releases">Releases</a></p>
+<p align="center"><a href="https://fkcptlst.github.io/labtasker/latest/install/install/">Install</a> • <a href="https://fkcptlst.github.io/labtasker/latest/guide/basic/">Tutorial / Demo</a> • <a href="https://fkcptlst.github.io/labtasker/latest/">Documentation</a> • <a href="https://fkcptlst.github.io/labtasker/latest/faq/">FAQs</a> • <a href="https://github.com/fkcptlst/labtasker/releases">Releases</a></p>
 
 <p align="center">
   <img src="https://github.com/fkcptlst/labtasker/actions/workflows/unit-test-matrix.yml/badge.svg" alt="unit-test-matrix" />
@@ -56,9 +56,10 @@ For more detailed steps, please refer to the content in the [Tutorial / Demo](ht
 
 > [!NOTE]
 > You need a running Labtasker server to use the client tools.
+> Simply use the installed Python CLI `labtasker-server serve` or use docker-compose to deploy the server.
 > See [deployment instructions](https://fkcptlst.github.io/labtasker/latest/install/deployment/).
 
-### 1. Install Client Tools via PyPI
+### 1. Install via PyPI
 
 ```bash
 pip install labtasker
@@ -71,6 +72,12 @@ pip install git+https://github.com/fkcptlst/labtasker.git
 ```
 
 ## 🚀 Quick Start
+
+Use the following command to launch a labtasker server in the background:
+
+```bash
+labtasker-server serve &
+```
 
 Use the following command to quickly setup a labtasker queue for your project:
 

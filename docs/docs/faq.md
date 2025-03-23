@@ -2,13 +2,23 @@
 
 ## Installation
 
+### Do I need `docker compose` to use Labtasker?
+
+!!! info ""
+
+    No. Depends on your needs:
+
+    1. If you want **the simplest setup**, you can use `labtasker-server serve` to run the server out-of-the-box. All you only need is a Python environment.
+    2. If you need more scalable and robust setup, use the `docker compose` method to deploy the server.
+    3. If you have the mongod installed locally, you can specify in the configuration file and choose `--db-mode external` when you run `labtasker-server serve`.
+
 ### Do I need to deploy the Labtasker server?
 
 !!! info ""
 
     It depends:
 
-    1. **If you’re using Labtasker on your own**, you need to deploy the Labtasker server for the client tools to work.
+    1. **If you’re using Labtasker on your own**, you need to deploy the Labtasker server for the client tools to work. It is very convenient: simply run `labtasker-server serve` in the background and you’re good to go.
     2. **If you’re working with others** or trust someone who has already deployed the Labtasker server, you don’t need to—just connect to their server. **(Make sure you trust the provider, as your task information is not encrypted.)**
 
 ### Do I need to deploy Labtasker server on the cloud? With a domain name?
@@ -16,17 +26,6 @@
 !!! info ""
 
     No and no. You can run Labtasker server at localhost (could be your GPU server or your laptop). The only requirement is that the workers can access the server.
-
-### Do I need to use `docker compose` to deploy Labtasker server?
-
-!!! info ""
-
-    No. It is recommended but not mandatory.
-
-    You can set up your own MongoDB service, and use `python -m labtasker.server.run --env-file server.env` to run the server.
-
-    Note: MongoDB requires replica set enabled for DB transactions. You can see how it is done in [docker/mongodb/post-init.d/init-mongo.sh](https://github.com/fkcptlst/labtasker/blob/main/docker/mongodb/post-init.d/init-mongo.sh).
-
 
 ## Usage
 
