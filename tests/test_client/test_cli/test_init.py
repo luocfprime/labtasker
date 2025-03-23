@@ -187,7 +187,7 @@ class TestInit:
     @pytest.fixture
     def endpoint_url(self, test_type):
         assert test_type == "e2e"
-        return "http://localhost:8080"  # TODO: hard coded
+        return "http://localhost:9321"  # TODO: hard coded
 
     def test_normal_flow(self, monkeypatch, labtasker_test_root, endpoint_url):
         mock_prompts(

@@ -5,7 +5,7 @@ enable_traceback_filter = true  # prettify the traceback and filter sensitive co
 version_check = true    # check if current version is obsolete or new version is available (non-blocking, best effort)
 
 [endpoint]
-api_base_url = "http://localhost:8080/"  # change this to your server url
+api_base_url = "http://localhost:9321/"  # change this to your server url
 
 [queue]
 queue_name = "test-queue"  # change this

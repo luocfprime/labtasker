@@ -14,7 +14,7 @@ class ServerConfig(BaseSettings):
 
     # API settings
     api_host: str = "0.0.0.0"
-    api_port: int = 8080
+    api_port: int = 9321
 
     # Other settings
     periodic_task_interval: float = 30.0
