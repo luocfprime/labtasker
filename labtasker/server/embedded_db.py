@@ -6,6 +6,7 @@ Adapted from https://github.com/mongomock/mongomock/blob/develop/mongomock/store
 import collections
 import datetime
 import functools
+import threading
 from pathlib import Path
 
 import jsonpickle
@@ -273,25 +274,36 @@ MONGO_METHODS_TO_PATCH = [
     "bulk_write",
 ]
 
+# Global transaction lock
+_transaction_lock = threading.RLock()
+
 
 class MockSession:
     def __init__(self):
-        pass
+        self._transaction_active = False
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        if self._transaction_active:
+            self._transaction_active = False
+            _transaction_lock.release()
 
     def start_transaction(self):
+        _transaction_lock.acquire()
+        self._transaction_active = True
         return self
 
     def commit_transaction(self):
-        pass
+        if self._transaction_active:
+            self._transaction_active = False
+            _transaction_lock.release()
 
     def abort_transaction(self):
-        pass
+        if self._transaction_active:
+            self._transaction_active = False
+            _transaction_lock.release()
 
 
 def ignore_session(original_method):
