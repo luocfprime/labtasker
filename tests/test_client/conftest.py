@@ -96,6 +96,16 @@ def disable_prompt_on_task_failure():
     set_prompt_on_task_failure(enabled=False)
 
 
+@pytest.fixture(autouse=True)
+def patch_job_runner_print_exception(monkeypatch):
+    def no_op(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(
+        "labtasker.client.core.job_runner.stderr_console.print_exception", no_op
+    )
+
+
 @pytest.fixture
 def capture_output(monkeypatch):
     """
