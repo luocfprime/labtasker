@@ -1,3 +1,4 @@
+import os
 import os.path as osp
 
 import pytest
@@ -60,6 +61,27 @@ class TestLoop:
         output_text = Text.from_ansi(result.output).plain
         for i in range(TOTAL_TASKS):
             assert f"Running task {i}" in output_text, output_text
+
+    def test_loop_shell_functionality(self, setup_tasks, dummy_job_script_dir):
+        if os.name == "nt":
+            pytest.skip("Skipping shell test on Windows")
+
+        # test execution with shell '&&'
+        script_path = osp.join(dummy_job_script_dir, "job_1.py")
+        random_str = "asjdfoiadlfg"
+        result = runner.invoke(
+            app,
+            [
+                "loop",
+                "-c",
+                f"python {script_path} --arg1 %(arg1) --arg2 %(arg2) && echo '{random_str}'",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        output_text = Text.from_ansi(result.output).plain
+        for i in range(TOTAL_TASKS):
+            assert f"Running task {i}" in output_text, output_text
+        assert random_str in output_text, output_text
 
     def test_loop_positional_arg(self, setup_tasks, dummy_job_script_dir):
         script_path = osp.join(dummy_job_script_dir, "job_1.py")

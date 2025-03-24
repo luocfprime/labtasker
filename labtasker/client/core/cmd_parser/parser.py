@@ -1,6 +1,5 @@
 import shlex
-import warnings
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple, Union
 
 from antlr4 import CommonTokenStream, InputStream, ParserRuleContext, ParseTreeWalker
 from antlr4.error.ErrorListener import ErrorListener
@@ -258,8 +257,8 @@ class CustomErrorListener(ErrorListener):
 
 
 def cmd_interpolate(
-    cmd: List[str], variable_table: Dict[str, Any]
-) -> Tuple[List[str], Set[str]]:
+    cmd: Union[List[str], str], variable_table: Dict[str, Any]
+) -> Tuple[Union[List[str], str], Set[str]]:
     """
     Interpolate the command string %(...) with the given variable table.
 
@@ -275,11 +274,7 @@ def cmd_interpolate(
 
     """
     if isinstance(cmd, str):
-        warnings.warn(
-            "Using a string for 'cmd' is deprecated. Please pass a list of arguments instead.",
-            DeprecationWarning,
-        )
-        return interpolate_str(cmd, variable_table)  # type: ignore
+        return interpolate_str(cmd, variable_table)
     else:
         # cmd is a list of str
         interpolated_cmd = []

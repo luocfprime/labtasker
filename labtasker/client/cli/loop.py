@@ -1,8 +1,6 @@
 """Implements `labtasker loop xxx`"""
 
 import json
-import os
-import shlex
 import subprocess
 from collections import defaultdict
 from typing import List, Optional
@@ -56,9 +54,10 @@ def loop(
     ] = None,
     option_cmd: str = typer.Option(
         None,
-        "--cmd",
+        "--command",
+        "--command",
         "-c",
-        help="Alternative way to specify the command to run. Supports the same argument interpolation the same way as the positional argument. Except you need to quote the entire command.",
+        help="Specify the command to run with shell=True. Supports the same argument interpolation the same way as the positional argument. Except you need to quote the entire command.",
     ),
     extra_filter: Optional[str] = typer.Option(
         None,
@@ -99,13 +98,13 @@ def loop(
     """
     if cmd and option_cmd:
         raise typer.BadParameter(
-            "Only one of [CMD] and [--cmd] can be specified. Please use one of them."
+            "Only one of [CMD] and [--command] can be specified. Please use one of them."
         )
 
-    cmd = cmd if cmd else shlex.split(option_cmd, posix=(os.name == "posix"))
+    cmd = cmd if cmd else option_cmd
     if not cmd:
         raise typer.BadParameter(
-            "Command cannot be empty. Either specify via positional argument [CMD] or `--cmd`."
+            "Command cannot be empty. Either specify via positional argument [CMD] or `--command`."
         )
 
     parsed_filter = parse_filter(extra_filter)
@@ -145,11 +144,16 @@ def loop(
         )
         logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")
 
+        shell = False
+        if isinstance(interpolated_cmd, str):
+            shell = True
+
         with subprocess.Popen(
             args=interpolated_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            shell=shell,
         ) as process:
             while True:
                 output = process.stdout.readline()
