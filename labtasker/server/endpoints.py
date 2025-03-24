@@ -93,6 +93,11 @@ app = FastAPI(lifespan=lifespan)
 #     )
 
 
+@app.get("/")
+def welcome():
+    return {"message": "Welcome to Labtasker!", "versions": ["v1"], "docs": "/docs"}
+
+
 @app.get("/health")
 def health_check():
     """Basic health check."""
