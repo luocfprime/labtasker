@@ -45,6 +45,18 @@ class LabtaskerConnectTimeout(httpx.ConnectTimeout, LabtaskerNetworkError):
     pass
 
 
+class _LabtaskerJobFailed(LabtaskerRuntimeError):
+    """An internal exception used by `loop`. Triggered when joh subprocess returned non-zero exit code."""
+
+    pass
+
+
+class _LabtaskerLoopExit(LabtaskerRuntimeError):
+    """An internal exception used by job_runner. Triggered when the loop should exit."""
+
+    pass
+
+
 class WorkerSuspended(LabtaskerRuntimeError):
     pass
 

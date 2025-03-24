@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from starlette.status import HTTP_401_UNAUTHORIZED
 
+import labtasker
 from labtasker.api_models import TaskUpdateRequest
 from labtasker.client.core.api import (
     create_worker,
@@ -30,6 +31,8 @@ from labtasker.client.core.exceptions import (
     LabtaskerRuntimeError,
     LabtaskerValueError,
     WorkerSuspended,
+    _LabtaskerJobFailed,
+    _LabtaskerLoopExit,
 )
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import log_to_file, logger, stderr_console
@@ -218,7 +221,11 @@ def loop_run(
                             func_args = (task.args, *args) if pass_args_dict else args
                             func(*func_args, **kwargs)
                             success_flag = True
-                        except (KeyboardInterrupt, BaseException) as e:
+                        except (
+                            _LabtaskerJobFailed,
+                            KeyboardInterrupt,
+                            BaseException,
+                        ) as e:
                             # Task failure handling logic
                             # 1. Log the exception
                             # 2. Ask the user to decide what to do (only for 10s if enabled)
@@ -226,7 +233,12 @@ def loop_run(
                             #    B. Ignore: Reset task to back to PENDING with retries count set to 0, as if this crashed run never happened
 
                             # 1. log exception
-                            logger.exception(f"Task {current_task_id()} failed")
+                            logger.error(f"Task {current_task_id()} failed")
+                            if not isinstance(e, _LabtaskerJobFailed):
+                                stderr_console.print_exception(
+                                    # hide traceback from internals
+                                    suppress=[labtasker]
+                                )
 
                             # 2. ask the user
                             _next_action = "report"  # one of ["report", "ignore"]
@@ -239,19 +251,20 @@ def loop_run(
                                         data="report",
                                     ),
                                     Choice(
-                                        "Ignore: Reset task to back to PENDING with retries count set to 0, as if this crashed run never happened.",
+                                        "(ctrl+c) Ignore: Reset task to back to PENDING with retries count set to 0, as if this crashed run never happened.",
                                         data="ignore",
                                     ),
                                 ]
                                 choice = make_a_choice(
                                     question="Task failed with the above exception. You have 10 seconds to make a choice:",
                                     options=choices,
+                                    # if timed out while waiting for user input, we assume the user is not present and report this crash by default
                                     default=choices[0],
+                                    # if user pressed Ctrl+C, we assume the user wants to exit without reporting
+                                    keyboard_interrupt_default=choices[1],
                                 )
-                                if choice.data == "ignore":
-                                    _next_action = "ignore"
-                                else:
-                                    _next_action = "report"
+
+                                _next_action = choice.data
 
                             if _next_action == "ignore":
                                 resp = update_tasks(
@@ -291,11 +304,40 @@ def loop_run(
                             if isinstance(e, KeyboardInterrupt):
                                 break
 
+                            _should_continue = True  # should the loop continue after exception has occurred and handled
+                            if _prompt_on_task_failure:
+                                # ask the user (wait for 10 seconds) to decide what to do
+                                choices = [
+                                    Choice(
+                                        "(default) Continue: Continue processing other tasks in the queue.",
+                                        data=True,
+                                    ),
+                                    Choice(
+                                        "(ctrl+c) Exit: Stop the task loop and exit the program.",
+                                        data=False,
+                                    ),
+                                ]
+                                choice = make_a_choice(
+                                    question="Do you want to continue processing other tasks or exit the program? (10 seconds to decide):",
+                                    options=choices,
+                                    # if timed out while waiting for user input, we assume the user is not present and continue by default
+                                    default=choices[0],
+                                    # if user pressed Ctrl+C, we assume the user wants to exit without reporting
+                                    keyboard_interrupt_default=choices[1],
+                                )
+
+                                _should_continue = choice.data
+
+                                if not _should_continue:
+                                    raise _LabtaskerLoopExit()
                         finally:
                             if success_flag:
                                 # Default finish. Can be overridden by the user if called somewhere deep in the wrapped func().
                                 finish(status="success")
                             end_heartbeat()
+                except _LabtaskerLoopExit:
+                    logger.info("Exiting task loop.")
+                    break
                 except WorkerSuspended:
                     logger.error("Worker suspended.")
                     break

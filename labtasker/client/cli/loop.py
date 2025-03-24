@@ -20,8 +20,8 @@ from labtasker.client.core.cli_utils import (
 )
 from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.config import get_client_config
-from labtasker.client.core.exceptions import CmdParserError
-from labtasker.client.core.job_runner import finish, loop_run
+from labtasker.client.core.exceptions import CmdParserError, _LabtaskerJobFailed
+from labtasker.client.core.job_runner import loop_run
 from labtasker.client.core.logging import (
     logger,
     set_verbose,
@@ -166,9 +166,9 @@ def loop(
 
             process.wait()
             if process.returncode != 0:
-                finish("failed")
-            else:
-                finish("success")
+                raise _LabtaskerJobFailed(
+                    "Job process finished with non-zero exit code."
+                )
 
         logger.info(f"Task {labtasker.client.core.context.task_info().task_id} ended.")
 

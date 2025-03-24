@@ -12,7 +12,7 @@ import httpx
 import pydantic
 import typer
 import yaml
-from noneprompt import CancelledError, Choice, ListPrompt
+from noneprompt import Choice, ListPrompt
 from prompt_toolkit import Application
 from prompt_toolkit.layout import Float, FloatContainer, Layout, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
@@ -543,11 +543,17 @@ class TimedListPrompt(ListPrompt):
     """A ListPrompt with countdown and timeout functionality."""
 
     def __init__(
-        self, *args, timeout: int = 10, default: Optional[Choice] = None, **kwargs
+        self,
+        *args,
+        timeout: int = 10,
+        default: Optional[Choice] = None,
+        keyboard_interrupt_default: Optional[Choice] = None,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.timeout = timeout
         self.default = default
+        self.keyboard_interrupt_default = keyboard_interrupt_default
         self.countdown_text = [
             ("class:countdown", "TIMER: "),
             ("class:countdown-emphasis", f"{timeout}"),
@@ -604,32 +610,32 @@ class TimedListPrompt(ListPrompt):
         app = self._build_application(no_ansi=False, style=Style([]))
         countdown_task = asyncio.create_task(self._run_countdown(app))
 
-        try:
-            result = await app.run_async()
-            countdown_task.cancel()
-            if result is not None and not isinstance(result, type(...)):
-                return result
-            if self.default is not None:
-                return self.default
-            raise CancelledError("No answer selected!")
-        except (asyncio.CancelledError, KeyboardInterrupt):
-            return None
+        result = await app.run_async()
+        countdown_task.cancel()
+        if result is None:  # timed out
+            return self.default
+        elif isinstance(result, type(...)):  # keyboard interrupt
+            return self.keyboard_interrupt_default
+        else:
+            return result
 
 
 def make_a_choice(
-    question: str, options: List[Choice], default: Choice, timeout: int = 10
+    question: str,
+    options: List[Choice],
+    default: Choice,
+    keyboard_interrupt_default: Choice,
+    timeout: int = 10,
 ) -> Optional[Choice]:
     """Helper function to create and run a timed choice prompt."""
     prompt = TimedListPrompt(
-        question, choices=options, timeout=timeout, default=default
+        question,
+        choices=options,
+        timeout=timeout,
+        default=default,
+        keyboard_interrupt_default=keyboard_interrupt_default,
     )
-    try:
-        result = asyncio.run(prompt.prompt_async())
-        if isinstance(result, type(...)):
-            return default
-        return result
-    except KeyboardInterrupt:
-        return default
+    return asyncio.run(prompt.prompt_async())
 
 
 ls_format_iter = {
