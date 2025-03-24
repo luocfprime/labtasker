@@ -1,4 +1,4 @@
-import shlex
+import os
 from typing import Any, Dict, List, Set, Tuple, Union
 
 from antlr4 import CommonTokenStream, InputStream, ParserRuleContext, ParseTreeWalker
@@ -17,6 +17,16 @@ from labtasker.client.core.exceptions import (
     CmdTypeError,
 )
 from labtasker.client.core.logging import stderr_console
+
+# Posix quote and windows quote
+if os.name == "nt":
+    import mslex
+
+    quote = mslex.quote
+else:
+    import shlex
+
+    quote = shlex.quote
 
 _debug_print = False
 
@@ -182,7 +192,7 @@ class CmdListener(LabCmdListener):
         if isinstance(self.variable, dict):
             # convert dict into bash string
             if self.quote_dict:
-                self.result_str += shlex.quote(reverse_quotes(str(self.variable)))
+                self.result_str += quote(reverse_quotes(str(self.variable)))
             else:
                 self.result_str += reverse_quotes(str(self.variable))
         else:
