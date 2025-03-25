@@ -206,7 +206,7 @@ class TaskFetchResponse(BaseResponseModel):
 
 class TaskLsRequest(BaseRequestModel):
     offset: int = Field(0, ge=0)
-    limit: int = Field(100, ge=0, le=1000)
+    limit: int = Field(100, gt=0, le=1000)
     task_id: Optional[str] = None
     task_name: Optional[str] = None
     status: Optional[str] = Field(
@@ -268,7 +268,7 @@ class WorkerStatusUpdateRequest(BaseRequestModel):
 
 class WorkerLsRequest(BaseRequestModel):
     offset: int = Field(0, ge=0)
-    limit: int = Field(100, ge=0, le=1000)
+    limit: int = Field(100, gt=0, le=1000)
     worker_id: Optional[str] = None
     worker_name: Optional[str] = None
     status: Optional[str] = Field(None, pattern=r"^(active|suspended|crashed)$")
