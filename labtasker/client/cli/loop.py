@@ -8,8 +8,6 @@ from typing import List, Optional
 import typer
 from typing_extensions import Annotated
 
-import labtasker
-import labtasker.client.core.context
 from labtasker.client.cli.cli import app
 from labtasker.client.core.cli_utils import (
     cli_utils_decorator,
@@ -18,6 +16,7 @@ from labtasker.client.core.cli_utils import (
 )
 from labtasker.client.core.cmd_parser import cmd_interpolate
 from labtasker.client.core.config import get_client_config
+from labtasker.client.core.context import task_info
 from labtasker.client.core.exceptions import CmdParserError, _LabtaskerJobFailed
 from labtasker.client.core.job_runner import loop_run
 from labtasker.client.core.logging import (
@@ -174,7 +173,7 @@ def loop(
                     "Job process finished with non-zero exit code."
                 )
 
-        logger.info(f"Task {labtasker.client.core.context.task_info().task_id} ended.")
+        logger.info(f"Task {task_info().task_id} ended.")
 
     run_cmd()
 
