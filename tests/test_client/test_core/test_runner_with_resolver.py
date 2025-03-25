@@ -589,3 +589,19 @@ class TestRunnerFetchTasks:
 
         # Verify we processed the expected number of tasks from group 1
         assert cnt == setup_tasks[0], cnt  # Group 1 is at index 0
+
+    def test_fetch_using_task_id(self, setup_tasks):
+        task = ls_tasks().content[0]
+        task_name = task.task_name
+        task_id = task.task_id
+
+        @loop(
+            required_fields=["*"],
+            extra_filter={"task_id": task_id},
+        )
+        def job(
+            arg2: Annotated[Dict[str, str], Required(alias="arg2.arg21")],
+        ):
+            assert task_info().task_name == task_name
+
+        job()

@@ -119,10 +119,6 @@ class DBService:
 
         self._setup_collections()
 
-    @property
-    def projection(self):
-        return {"password": 0}
-
     @retry_on_transient
     @validate_arg
     def query_collection(
@@ -133,8 +129,23 @@ class DBService:
         limit: int = 100,
         offset: int = 0,
         sort: Optional[List[Tuple[str, int]]] = None,
+        hide_id: bool = True,
     ) -> List[Dict[str, Any]]:
-        """Query a collection."""
+        """
+        Query a collection with options to hide _id field and add collection-specific ID aliases.
+
+        Args:
+            queue_id: The queue ID for security filtering
+            collection_name: Name of the collection to query (queues, tasks, workers)
+            query: MongoDB query dictionary
+            limit: Maximum number of results to return
+            offset: Number of results to skip
+            sort: List of (field, direction) tuples for sorting
+            hide_id: Whether to hide the _id field in results
+
+        Returns:
+            List of documents matching the query
+        """
         sort = sort or [
             ("last_modified", ASCENDING)
         ]  # Default sort by last_modified first
@@ -146,18 +157,39 @@ class DBService:
                         detail="Invalid collection name. Must be one of: queues, tasks, workers",
                     )
 
-                # Prevent query injection
                 query = sanitize_query(queue_id, query)
 
-                result = (
-                    self._db[collection_name]
-                    .find(query, self.projection, session=session)
-                    .skip(offset)
-                    .limit(limit)
-                    .sort(sort)
+                pipeline: List[Mapping[str, Any]] = []
+
+                # Add ID field aliases based on collection type
+                id_field_mapping = {
+                    "tasks": "task_id",
+                    "workers": "worker_id",
+                    "queues": "queue_id",
+                }
+
+                collection_id_field = id_field_mapping.get(collection_name)
+                if collection_id_field:
+                    pipeline.append({"$addFields": {collection_id_field: "$_id"}})
+
+                pipeline.extend(
+                    [
+                        {"$match": query},
+                        {"$project": {"password": 0}},
+                        {"$sort": {field: direction for field, direction in sort}},
+                        {"$skip": offset},
+                        {"$limit": limit},
+                    ]
                 )
 
-                return list(result)
+                # Hide _id if requested
+                if hide_id:
+                    pipeline.append({"$project": {"_id": 0}})
+
+                result = list(
+                    self._db[collection_name].aggregate(pipeline, session=session)
+                )
+                return result
 
     @risky("Potential query injection")
     @retry_on_transient
@@ -588,17 +620,20 @@ class DBService:
                 if heartbeat_timeout:
                     update["$set"]["heartbeat_timeout"] = heartbeat_timeout
 
-                tasks = list(
-                    self._tasks.find(
-                        query,
-                        session=session,
+                tasks = self._tasks.aggregate(
+                    [
+                        {"$match": query},
+                        {"$addFields": {"task_id": "$_id"}},
                         # sort: highest priority, least recently modified, oldest created
-                        sort=[
-                            ("priority", DESCENDING),
-                            ("last_modified", ASCENDING),
-                            ("created_at", ASCENDING),
-                        ],
-                    )
+                        {
+                            "$sort": {
+                                "priority": DESCENDING,
+                                "last_modified": ASCENDING,
+                                "created_at": ASCENDING,
+                            }
+                        },
+                    ],
+                    session=session,
                 )
 
                 # "no more" of the "no more, no less" principle

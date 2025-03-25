@@ -12,6 +12,7 @@ from labtasker.client.cli.task import (
     commented_seq_from_dict_list,
     dump_commented_seq,
 )
+from labtasker.client.core.api import ls_tasks
 from labtasker.constants import Priority
 from labtasker.server.fsm import TaskState
 from labtasker.utils import get_current_time
@@ -178,6 +179,23 @@ class TestLs:
         # Check that the output contains the created tasks
         for i in range(5):
             assert f"task-{i}" in result.output
+
+    def test_ls_tasks_with_task_id(self, db_fixture, setup_tasks):
+        task = ls_tasks().content[0]
+        task_name = task.task_name
+        task_id = task.task_id
+
+        # using the --task-id option
+        result = runner.invoke(app, ["task", "ls", "--task-id", task_id])
+        assert result.exit_code == 0, result.output
+        assert task_name in result.output
+
+        # using the extra filter
+        result = runner.invoke(
+            app, ["task", "ls", "--extra-filter", f'{{"task_id": "{task_id}"}}']
+        )
+        assert result.exit_code == 0, result.output
+        assert task_name in result.output
 
     def test_ls_tasks_with_filter(self, db_fixture, setup_tasks):
         result = runner.invoke(app, ["task", "ls", "--task-name", "task-1"])
