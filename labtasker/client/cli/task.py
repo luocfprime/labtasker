@@ -3,6 +3,7 @@
 import io
 import json
 import os
+import sys
 import tempfile
 from functools import partial
 from pathlib import Path
@@ -634,7 +635,10 @@ def display_updated_tasks(updated_tasks, update_dicts):
 @app.command()
 @cli_utils_decorator
 def delete(
-    task_id: str = typer.Argument(..., help="ID of the task to delete."),
+    task_ids: List[str] = typer.Argument(
+        ... if sys.stdin.isatty() else None,
+        help="IDs of the task to delete.",
+    ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
 ):
     """
@@ -647,14 +651,17 @@ def delete(
         labtasker task delete task-123
         labtasker task delete task-123 --yes  # Skip confirmation
     """
+    if task_ids is None:  # read from stdin to support piping
+        task_ids = [line.strip() for line in sys.stdin.readlines() if line.strip()]
     if not yes:
         typer.confirm(
-            f"Are you sure you want to delete task '{task_id}'?",
+            f"Are you sure you want to delete tasks '{task_ids}'?",
             abort=True,
         )
     try:
-        delete_task(task_id=task_id)
-        stdout_console.print(f"Task {task_id} deleted.")
+        for task_id in task_ids:
+            delete_task(task_id=task_id)
+            stdout_console.print(f"Task {task_id} deleted.")
     except LabtaskerHTTPStatusError as e:
         if e.response.status_code == HTTP_404_NOT_FOUND:
             raise typer.BadParameter("Task not found")

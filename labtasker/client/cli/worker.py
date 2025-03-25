@@ -1,8 +1,9 @@
 """Manage workers (CRUD operations)."""
 
 import json
+import sys
 from functools import partial
-from typing import Optional
+from typing import List, Optional
 
 import click
 import typer
@@ -206,7 +207,9 @@ def report(
 @app.command()
 @cli_utils_decorator
 def delete(
-    worker_id: str = typer.Argument(..., help="ID of the worker to delete."),
+    worker_ids: List[str] = typer.Argument(
+        ... if sys.stdin.isatty() else None, help="IDs of the worker to delete."
+    ),
     cascade_update: bool = typer.Option(
         True,
         help="Whether to cascade set the worker id of relevant tasks to None",
@@ -216,14 +219,17 @@ def delete(
     """
     Delete a worker by worker_id.
     """
+    if worker_ids is None:  # read from stdin to support piping
+        worker_ids = [line.strip() for line in sys.stdin.readlines() if line.strip()]
     if not yes:
         typer.confirm(
-            f"Are you sure you want to delete worker '{worker_id}'?",
+            f"Are you sure you want to delete worker '{worker_ids}'?",
             abort=True,
         )
     try:
-        delete_worker(worker_id=worker_id, cascade_update=cascade_update)
-        stdout_console.print(f"Worker {worker_id} deleted.")
+        for worker_id in worker_ids:
+            delete_worker(worker_id=worker_id, cascade_update=cascade_update)
+            stdout_console.print(f"Worker {worker_id} deleted.")
     except LabtaskerHTTPStatusError as e:
         if e.response.status_code == HTTP_404_NOT_FOUND:
             raise typer.BadParameter("Worker not found")
