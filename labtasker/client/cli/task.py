@@ -378,6 +378,10 @@ def update(
         help="Updated values of fields. Specify multiple options via repeating `-u`. "
         "E.g. `labtasker task update -u args.arg1=foo -u metadata.tag=test`",
     ),
+    limit: int = typer.Option(
+        1000,
+        help="Limit the number of tasks returned.",
+    ),
     offset: int = typer.Option(
         0,
         help="Initial offset for pagination (In case there are too many items for update, only 1000 results starting from offset is displayed. "
@@ -446,7 +450,7 @@ def update(
         task_name=task_name,
         status=status,
         extra_filter=extra_filter,
-        limit=1000,
+        limit=limit,
         offset=offset,
     ).content
     use_editor = not updates
