@@ -52,6 +52,10 @@ from labtasker.constants import Priority
 app = typer.Typer()
 
 
+class _ReEdit(Exception):
+    pass
+
+
 def commented_seq_from_dict_list(
     entries: List[Dict[str, Any]],
 ) -> ruamel.yaml.CommentedSeq:
@@ -496,6 +500,22 @@ def handle_editor_mode(old_tasks, readonly_fields, editor):
                 with open(temp_file_path, "r", encoding="utf-8") as temp_file:
                     modified = yaml.safe_load(temp_file)
 
+                # check if length match
+                if len(modified) != len(old_tasks_primitive):
+                    raise _ReEdit(
+                        "Number of tasks in the file should match the number of tasks in the original list. "
+                        f"Expected {len(old_tasks_primitive)}, got {len(modified)}. "
+                        "If you want to add/delete tasks, you should use `labtasker task submit` or `labtasker task delete`."
+                    )
+
+                # check if task order match
+                for mod, old in zip(modified, old_tasks_primitive):
+                    if mod["task_id"] != old["task_id"]:
+                        raise _ReEdit(
+                            "Task IDs in the modified file should match the task IDs in the original list in the same order. "
+                            f"Expected {old['task_id']}, got {mod['task_id']}."
+                        )
+
                 # Calculate diffs and create task updates
                 update_dicts = diff(
                     old_tasks_primitive, modified, readonly_fields=list(readonly_fields)
@@ -539,8 +559,8 @@ def handle_editor_mode(old_tasks, readonly_fields, editor):
                     # No validation errors, we can break the loop
                     break
 
-            except yaml.error.YAMLError as e:
-                stderr_console.print(f"[bold red]YAML Error:[/bold red] {str(e)}")
+            except (_ReEdit, yaml.error.YAMLError) as e:
+                stderr_console.print(f"[bold red]Error:[/bold red] {str(e)}")
                 if not typer.confirm("Continue to edit?", default=True):
                     raise typer.Abort()
                 # Continue the loop with the current file state
@@ -608,7 +628,9 @@ def display_updated_tasks(updated_tasks, update_dicts):
             # If replace_fields is empty or not available, try to infer from the update
             if not modified_fields:
                 modified_fields = [
-                    k for k in update_dict.keys() if k not in ("_id", "replace_fields")
+                    k
+                    for k in update_dict.keys()
+                    if k not in ("_id", "task_id", "replace_fields")
                 ]
 
             # Add comment for each modified field
