@@ -73,7 +73,8 @@ doc = [
 ]
 
 plugins = [
-    "labtasker-plugin-task-count"
+    "labtasker-plugin-task-count",
+    "labtasker-plugin-script-generate"
 ]
 
 [project.urls]
