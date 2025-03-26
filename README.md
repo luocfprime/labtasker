@@ -33,7 +33,8 @@ such as sending emails on task failure.
 
 ![demo](docs/docs/assets/gifs/demo.gif)
 
-For more detailed steps, please refer to the content in the [Tutorial / Demo](https://fkcptlst.github.io/labtasker/latest/guide/basic/).
+For more detailed steps, please refer to the content in
+the [Tutorial / Demo](https://fkcptlst.github.io/labtasker/latest/guide/basic/).
 
 ## ⚡️ Features
 
@@ -45,12 +46,18 @@ For more detailed steps, please refer to the content in the [Tutorial / Demo](ht
 ## 🔮 Supercharge Your ML Experiments with Labtasker
 
 - ⚡️ **Effortless Parallelization:** Distribute tasks across multiple GPU workers with just a few lines of code.
-- 🛡️ **Intelligent Failure Management:** Automatically capture exceptions, retry failed tasks, and maintain detailed error logs.
-- 🔄 **Seamless Recovery:** Resume failed experiments with a single command - no more scavenging through logs or directories.
-- 🎯 **Real-time Prioritization:** Changed your mind about experiment settings? Instantly cancel, add, or reschedule tasks without disrupting existing ones.
-- 🤖 **Workflow Automation:** Set up smart event triggers for email notifications or task workflow based on FSM transition events.
-- 📊 **Streamlined Logging:** All stdout/stderr automatically organized in `.labtasker/logs` - zero configuration required.
-- 🧩 **Extensible Plugin System:** Create custom command combinations or leverage community plugins to extend functionality.
+- 🛡️ **Intelligent Failure Management:** Automatically capture exceptions, retry failed tasks, and maintain detailed
+  error logs.
+- 🔄 **Seamless Recovery:** Resume failed experiments with a single command - no more scavenging through logs or
+  directories.
+- 🎯 **Real-time Prioritization:** Changed your mind about experiment settings? Instantly cancel, add, or reschedule
+  tasks without disrupting existing ones.
+- 🤖 **Workflow Automation:** Set up smart event triggers for email notifications or task workflow based on FSM
+  transition events.
+- 📊 **Streamlined Logging:** All stdout/stderr automatically organized in `.labtasker/logs` - zero configuration
+  required.
+- 🧩 **Extensible Plugin System:** Create custom command combinations or leverage community plugins to extend
+  functionality.
 
 ## 🛠️ Installation
 
@@ -62,7 +69,8 @@ For more detailed steps, please refer to the content in the [Tutorial / Demo](ht
 ### 1. Install via PyPI
 
 ```bash
-pip install labtasker
+# Install with optional bundled plugins
+pip install 'labtasker[plugins]'
 ```
 
 ### 2. Install the Latest Version from GitHub
@@ -86,6 +94,10 @@ labtasker init
 ```
 
 Then, use `labtasker submit` to submit tasks and use `labtasker loop` to run tasks across any number of workers.
+
+> P.S. If you think manually writing 2 scripts for submit and run is laborious, you can checkout the automatic submit
+> script generation plugin.
+> See [labtasker-plugin-script-generate](https://github.com/fkcptlst/labtasker-plugin-script-generate) for details.
 
 ## 📚 Documentation
 
