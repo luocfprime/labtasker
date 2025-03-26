@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import sys
 from collections import defaultdict
 from typing import List, Optional
 
@@ -101,6 +102,10 @@ def loop(
         )
 
     cmd = cmd if cmd else option_cmd
+    if not cmd and not sys.stdin.isatty():
+        # try reading multi-line cmd from stdin if shell mode
+        cmd = sys.stdin.read()
+
     if not cmd:
         raise typer.BadParameter(
             "Command cannot be empty. Either specify via positional argument [CMD] or `--command`."
