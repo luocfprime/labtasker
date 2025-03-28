@@ -95,9 +95,9 @@ labtasker init
 
 Then, use `labtasker submit` to submit tasks and use `labtasker loop` to run tasks across any number of workers.
 
-> P.S. If you think manually writing 2 scripts for submit and run is laborious, you can checkout the automatic submit
-> script generation plugin.
-> See [labtasker-plugin-script-generate](https://github.com/fkcptlst/labtasker-plugin-script-generate) for details.
+> [!TIP]
+> If you think manually writing 2 scripts for submit and run is laborious, you can checkout the [labtasker-plugin-script-generate](https://github.com/fkcptlst/labtasker-plugin-script-generate).
+> It automatically generate 2 scripts based on the script you provided.
 
 ## 📚 Documentation
 
