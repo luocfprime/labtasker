@@ -62,7 +62,7 @@ dev = [
     "pytest-docker (>=3.0.0,<4.0.0)",
     "pytest-asyncio (>=0.24.0,<0.27.0)",
     "asgi-lifespan (>=2.1.0,<3.0.0)",
-    "tox (>=4.24.0,<4.25.0)",
+    "tox (>=4.24.0,<4.26.0)",
     "pytest-dependency (>=0.6.0,<0.7.0)",
     "pytest-sugar (>=1.0.0,<2.0.0)",
 ]
