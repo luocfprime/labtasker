@@ -136,9 +136,9 @@ def load_client_config(
         _config = ClientConfig.model_validate(tomlkit.load(f))
 
     # register sensitive text
-    register_sensitive_text(_config.queue.password.get_secret_value())
+    register_sensitive_text(_config.queue.password.get_secret_value())  # type: ignore[union-attr]
     register_sensitive_text(
-        get_auth_headers(_config.queue.queue_name, _config.queue.password)[
+        get_auth_headers(_config.queue.queue_name, _config.queue.password)[  # type: ignore[union-attr]
             "Authorization"
         ]
     )
