@@ -842,6 +842,22 @@ packaging = ["build", "setuptools (>=61.2)", "setuptools-scm[toml] (>=6.0)", "tw
 testing = ["PyYAML", "atheris (>=2.3.0,<2.4.0) ; python_version < \"3.12\"", "bson", "ecdsa", "feedparser", "gmpy2", "numpy", "pandas", "pymongo", "pytest (>=6.0,!=8.1.*)", "pytest-benchmark", "pytest-benchmark[histogram]", "pytest-checkdocs (>=1.2.3)", "pytest-enabler (>=1.0.1)", "pytest-ruff (>=0.2.1)", "scikit-learn", "scipy (>=1.9.3) ; python_version > \"3.10\"", "scipy ; python_version <= \"3.10\"", "simplejson", "sqlalchemy", "ujson"]
 
 [[package]]
+name = "labtasker-plugin-script-generate"
+version = "0.1.0"
+description = "A Labtasker plugin that decomposes bash script into submit and job scripts.."
+optional = true
+python-versions = "<4.0,>=3.8.1"
+groups = ["main"]
+markers = "extra == \"plugins\""
+files = [
+    {file = "labtasker_plugin_script_generate-0.1.0-py3-none-any.whl", hash = "sha256:07ad97f38e8221715792bdca758cf545247fdbe252095c72bb5e690747ae917b"},
+    {file = "labtasker_plugin_script_generate-0.1.0.tar.gz", hash = "sha256:52ba8f387d51c55da62ed5840a1b8cd9f0f0eb81ef2cf207e339ed8f25fc14a4"},
+]
+
+[package.dependencies]
+labtasker = "*"
+
+[[package]]
 name = "labtasker-plugin-task-count"
 version = "0.1.0"
 description = "A demo CLI plugin for Labtasker."
@@ -2956,9 +2972,9 @@ type = ["pytest-mypy"]
 [extras]
 dev = ["asgi-lifespan", "black", "flake8", "freezegun", "isort", "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-cov", "pytest-dependency", "pytest-docker", "pytest-sugar", "tox"]
 doc = ["mike", "mkdocs-glightbox", "mkdocs-material"]
-plugins = ["labtasker-plugin-task-count"]
+plugins = ["labtasker-plugin-script-generate", "labtasker-plugin-task-count"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "4c7f2d57383b211feccff71ead4fb5e72460e34263247d12c27034f3f1336c45"
+content-hash = "538d149730d1b77d7c33a121df2db08ebea9d5a4f0debfab81f2c655ce8e9748"
