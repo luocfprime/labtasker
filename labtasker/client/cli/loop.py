@@ -59,6 +59,11 @@ def loop(
         "-c",
         help="Specify the command to run with shell=True. Supports the same argument interpolation the same way as the positional argument. Except you need to quote the entire command.",
     ),
+    executable: Optional[str] = typer.Option(
+        None,
+        "--executable",
+        help="Specify the shell executable to run the command with.",
+    ),
     extra_filter: Optional[str] = typer.Option(
         None,
         "--extra-filter",
@@ -148,16 +153,17 @@ def loop(
         )
         logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")
 
-        shell = False
+        use_shell = False
         if isinstance(interpolated_cmd, str):
-            shell = True
+            use_shell = True
 
         with subprocess.Popen(
             args=interpolated_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            shell=shell,
+            executable=executable,
+            shell=use_shell,
         ) as process:
             while True:
                 output = process.stdout.readline()
