@@ -412,7 +412,7 @@ def _setup():
 
 
 def set_verbose(verbose: bool) -> bool:
-    global _logger_handle, _verbose
+    global _verbose
     _verbose = verbose
     reset_logger(debug=verbose)
     return verbose

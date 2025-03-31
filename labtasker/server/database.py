@@ -1180,7 +1180,6 @@ _db_service = None
 
 def get_db() -> DBService:
     """Get database service instance."""
-    global _db_service
     if not _db_service:
         raise RuntimeError("Database service not initialized.")
     return _db_service  # type: ignore
