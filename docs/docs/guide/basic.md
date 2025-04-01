@@ -2,7 +2,7 @@
 
 !!! tip
 
-    **The code for this page is available on [GitHub](https://github.com/fkcptlst/labtasker/tree/main/demo).**
+    **The code for this page is available on [GitHub](https://github.com/luocfprime/labtasker/tree/main/demo).**
 
     Labtasker supports 2 sets of client APIs:
 

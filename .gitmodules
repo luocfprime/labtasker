@@ -1,8 +1,8 @@
 [submodule "plugins/labtasker_plugin_task_count"]
 	path = plugins/labtasker_plugin_task_count
-	url = https://github.com/fkcptlst/labtasker-plugin-task-count.git
+	url = https://github.com/luocfprime/labtasker-plugin-task-count.git
 	branch = main
 [submodule "plugins/labtasker_plugin_script_generate"]
 	path = plugins/labtasker_plugin_script_generate
-	url = https://github.com/fkcptlst/labtasker-plugin-script-generate.git
+	url = https://github.com/luocfprime/labtasker-plugin-script-generate.git
 	branch = main

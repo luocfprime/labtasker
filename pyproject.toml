@@ -78,9 +78,9 @@ plugins = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/fkcptlst/labtasker"
-Documentation = "https://fkcptlst.github.io/labtasker"
-Repository = "https://github.com/fkcptlst/labtasker.git"
+Homepage = "https://github.com/luocfprime/labtasker"
+Documentation = "https://luocfprime.github.io/labtasker"
+Repository = "https://github.com/luocfprime/labtasker.git"
 
 [project.scripts]
 labtasker = "labtasker.__main__:main"

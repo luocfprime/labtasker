@@ -2,8 +2,8 @@ INHERIT: mkdocs-nav.yml  # mkdocs-nav -> mkdocs
 
 site_name: Labtasker Documentation
 
-repo_name: fkcptlst/labtasker
-repo_url: https://github.com/fkcptlst/labtasker
+repo_name: luocfprime/labtasker
+repo_url: https://github.com/luocfprime/labtasker
 
 theme:
   name: material

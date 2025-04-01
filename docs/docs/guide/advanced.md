@@ -25,7 +25,7 @@ To install officially bundled plugins:
 === "GitHub"
 
     ```bash
-    pip install 'labtasker[plugins] @ git+https://github.com/fkcptlst/labtasker.git'
+    pip install 'labtasker[plugins] @ git+https://github.com/luocfprime/labtasker.git'
     ```
 
 To install other plugins, simply install it like a regular Python package.

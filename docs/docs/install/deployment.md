@@ -36,7 +36,7 @@ This method is recommended for scenarios where you need more robust database cap
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/fkcptlst/labtasker.git
+   git clone https://github.com/luocfprime/labtasker.git
    cd labtasker
    ```
 

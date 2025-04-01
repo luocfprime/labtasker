@@ -1,10 +1,10 @@
 <p align="center"><em>Make your ML experiment wrapper scripts smarter with...</em></p>
 <h1 align="center" style="font-size: 40px;"> <a href="">Labtasker</a></h1>
-<p align="center"><a href="https://fkcptlst.github.io/labtasker/latest/install/install/">Install</a> • <a href="https://fkcptlst.github.io/labtasker/latest/guide/basic/">Tutorial / Demo</a> • <a href="https://fkcptlst.github.io/labtasker/latest/">Documentation</a> • <a href="https://fkcptlst.github.io/labtasker/latest/faq/">FAQs</a> • <a href="https://github.com/fkcptlst/labtasker/releases">Releases</a></p>
+<p align="center"><a href="https://luocfprime.github.io/labtasker/latest/install/install/">Install</a> • <a href="https://luocfprime.github.io/labtasker/latest/guide/basic/">Tutorial / Demo</a> • <a href="https://luocfprime.github.io/labtasker/latest/">Documentation</a> • <a href="https://luocfprime.github.io/labtasker/latest/faq/">FAQs</a> • <a href="https://github.com/luocfprime/labtasker/releases">Releases</a></p>
 
 <p align="center">
-  <img src="https://github.com/fkcptlst/labtasker/actions/workflows/unit-test-matrix.yml/badge.svg" alt="unit-test-matrix" />
-  <a href="https://codecov.io/gh/fkcptlst/labtasker"><img src="https://codecov.io/gh/fkcptlst/labtasker/graph/badge.svg?token=KQFBV3QRPY" alt="codecov" /></a>
+  <img src="https://github.com/luocfprime/labtasker/actions/workflows/unit-test-matrix.yml/badge.svg" alt="unit-test-matrix" />
+  <a href="https://codecov.io/gh/luocfprime/labtasker"><img src="https://codecov.io/gh/luocfprime/labtasker/graph/badge.svg?token=KQFBV3QRPY" alt="codecov" /></a>
   <img src="https://img.shields.io/badge/Python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12%20|%203.13-blue" alt="Python version" />
   <a href="https://pypi.org/project/labtasker/"><img src="https://img.shields.io/pypi/v/labtasker" alt="PyPI" /></a>
 </p>
@@ -22,7 +22,7 @@ parallelization, dynamic task prioritization, failure handling, halfway resume, 
 
 ![comparison](docs/docs/assets/comparison.png)
 
-🐳 For detailed examples and concepts, check out the [documentation](https://fkcptlst.github.io/labtasker/).
+🐳 For detailed examples and concepts, check out the [documentation](https://luocfprime.github.io/labtasker/).
 
 ## 🧪️ A Quick Demo
 
@@ -34,7 +34,7 @@ such as sending emails on task failure.
 ![demo](docs/docs/assets/gifs/demo.gif)
 
 For more detailed steps, please refer to the content in
-the [Tutorial / Demo](https://fkcptlst.github.io/labtasker/latest/guide/basic/).
+the [Tutorial / Demo](https://luocfprime.github.io/labtasker/latest/guide/basic/).
 
 ## ⚡️ Features
 
@@ -64,7 +64,7 @@ the [Tutorial / Demo](https://fkcptlst.github.io/labtasker/latest/guide/basic/).
 > [!NOTE]
 > You need a running Labtasker server to use the client tools.
 > Simply use the installed Python CLI `labtasker-server serve` or use docker-compose to deploy the server.
-> See [deployment instructions](https://fkcptlst.github.io/labtasker/latest/install/deployment/).
+> See [deployment instructions](https://luocfprime.github.io/labtasker/latest/install/deployment/).
 
 ### 1. Install via PyPI
 
@@ -76,7 +76,7 @@ pip install 'labtasker[plugins]'
 ### 2. Install the Latest Version from GitHub
 
 ```bash
-pip install git+https://github.com/fkcptlst/labtasker.git
+pip install git+https://github.com/luocfprime/labtasker.git
 ```
 
 ## 🚀 Quick Start
@@ -96,13 +96,13 @@ labtasker init
 Then, use `labtasker submit` to submit tasks and use `labtasker loop` to run tasks across any number of workers.
 
 > [!TIP]
-> If you think manually writing 2 scripts for submit and run is laborious, you can checkout the [labtasker-plugin-script-generate](https://github.com/fkcptlst/labtasker-plugin-script-generate).
+> If you think manually writing 2 scripts for submit and run is laborious, you can checkout the [labtasker-plugin-script-generate](https://github.com/luocfprime/labtasker-plugin-script-generate).
 > It automatically generate 2 scripts based on the script you provided.
 
 ## 📚 Documentation
 
 For detailed information on demo, tutorial, deployment, usage, please refer to
-the [documentation](https://fkcptlst.github.io/labtasker/).
+the [documentation](https://luocfprime.github.io/labtasker/).
 
 ## 🔒 License
 
