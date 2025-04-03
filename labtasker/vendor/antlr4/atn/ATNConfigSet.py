@@ -3,19 +3,19 @@
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
 
-#
-# Specialized {@link Set}{@code <}{@link ATNConfig}{@code >} that can track
-# info about the set, with support for combining similar configurations using a
-# graph-structured stack.
-#/
-from io import StringIO
-from functools import reduce
-from ..PredictionContext import PredictionContext, merge
+from ..PredictionContext import merge
 from ..Utils import str_list
 from ..atn.ATN import ATN
 from ..atn.ATNConfig import ATNConfig
 from ..atn.SemanticContext import SemanticContext
 from ..error.Errors import UnsupportedOperationException, IllegalStateException
+from functools import reduce
+#
+# Specialized {@link Set}{@code <}{@link ATNConfig}{@code >} that can track
+# info about the set, with support for combining similar configurations using a
+# graph-structured stack.
+# /
+from io import StringIO
 
 ATNSimulator = None
 
@@ -194,7 +194,7 @@ class ATNConfigSet(object):
             buf.write(str_list(self.configs))
             if self.hasSemanticContext:
                 buf.write(",hasSemanticContext=")
-                buf.write(str(self.hasSemanticContext))
+                buf.write(str(self.hasSemanticContext).lower()) # lower() to conform to java output
             if self.uniqueAlt!=ATN.INVALID_ALT_NUMBER:
                 buf.write(",uniqueAlt=")
                 buf.write(str(self.uniqueAlt))
