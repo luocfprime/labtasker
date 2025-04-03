@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import tempfile
 
 import pytest
 from rich.text import Text
@@ -115,6 +116,42 @@ class TestLoop:
                 "--arg1=%(arg1)",
                 "--arg2=%(arg2)",
             ],
+        )
+        assert result.exit_code == 0, result.output
+        output_text = Text.from_ansi(result.output).plain
+        for i in range(TOTAL_TASKS):
+            assert f"Running task {i}" in output_text, output_text
+
+    @pytest.fixture
+    def bash_script(self, dummy_job_script_dir):
+        """Fixture to create a temporary bash script."""
+        bash_script_content = """#!/bin/bash
+        arg1=%(arg1)
+        arg2=%(arg2)
+        echo "Running task $arg1"
+        """
+
+        # Create a temporary file for the script
+        temp_file = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".sh")
+        temp_file.write(bash_script_content)
+        temp_file.close()
+
+        # Make the script executable
+        os.chmod(temp_file.name, 0o755)
+
+        yield temp_file.name  # Return the path to the temporary script
+
+        # Cleanup: Delete the temporary script after the test
+        if os.path.exists(temp_file.name):
+            os.remove(temp_file.name)
+
+    def test_loop_script_path(self, setup_tasks, bash_script):
+        if os.name == "nt":
+            pytest.skip("Skipping shell test on Windows")
+
+        result = runner.invoke(
+            app,
+            ["loop", "--script-path", bash_script],
         )
         assert result.exit_code == 0, result.output
         output_text = Text.from_ansi(result.output).plain

@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 from collections import defaultdict
+from pathlib import Path
 from typing import List, Optional
 
 import typer
@@ -59,6 +60,12 @@ def loop(
         "-c",
         help="Specify the command to run with shell=True. Supports the same argument interpolation the same way as the positional argument. Except you need to quote the entire command.",
     ),
+    script_path: Optional[Path] = typer.Option(
+        None,
+        exists=True,
+        readable=True,
+        help="Path to a script file that contains the command to execute. The script will run with '%(...)' placeholders replaced by the retrieved task arguments.",
+    ),
     executable: Optional[str] = typer.Option(
         None,
         "--executable",
@@ -101,19 +108,30 @@ def loop(
     This will fetch tasks with 'input_file' and 'output_dir' arguments and run the command
     with those values substituted. Tasks are processed until the queue is empty.
     """
-    if cmd and option_cmd:
+    # Ensure only one of [CMD], [--command], or [--script-path] is specified
+    cmd_sources = [cmd, option_cmd, script_path]
+    cmd_sources = list(filter(None, cmd_sources))  # Remove None values dynamically
+    if len(cmd_sources) > 1:
         raise typer.BadParameter(
-            "Only one of [CMD] and [--command] can be specified. Please use one of them."
+            "Only one of [CMD], [--command], or [--script-path] can be specified. Choose one."
         )
 
-    cmd = cmd if cmd else option_cmd
-    if not cmd and not sys.stdin.isatty():
-        # try reading multi-line cmd from stdin if shell mode
-        cmd = sys.stdin.read()
+    # 1. Assign from cmd or option_cmd
+    input_cmd = cmd or option_cmd
 
-    if not cmd:
+    # 2. Assign from script_path if provided
+    if script_path and input_cmd is None:
+        with open(script_path, "r") as f:
+            input_cmd = f.read().strip()
+
+    # 3. Try reading from stdin if shell mode is enabled
+    if not input_cmd and not sys.stdin.isatty():
+        input_cmd = sys.stdin.read().strip()
+
+    # Final validation: ensure a command is present
+    if not input_cmd:
         raise typer.BadParameter(
-            "Command cannot be empty. Either specify via positional argument [CMD] or `--command`."
+            "Command cannot be empty. Specify via positional argument [CMD] or `--command` or `--script-path`."
         )
 
     parsed_filter = parse_filter(extra_filter)
@@ -125,13 +143,13 @@ def loop(
     # Generate required fields dict
     dummy_variable_table = InfiniteDefaultDict()
     try:
-        _, queried_keys = cmd_interpolate(cmd, dummy_variable_table)
+        _, queried_keys = cmd_interpolate(input_cmd, dummy_variable_table)
     except (CmdParserError, KeyError, TypeError) as e:
         raise typer.BadParameter(f"Command error with exception {e}")
 
     required_fields = list(queried_keys)
 
-    logger.info(f"Got command: {cmd}")
+    logger.info(f"Got command: {input_cmd}")
 
     @loop_run(
         required_fields=required_fields,
@@ -148,7 +166,7 @@ def loop(
             interpolated_cmd,
             _,
         ) = cmd_interpolate(
-            cmd,
+            input_cmd,
             args,
         )
         logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")
