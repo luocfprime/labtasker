@@ -4,13 +4,15 @@
 # can be found in the LICENSE.txt file in the project root.
 #
 
+
 class Chunk(object):
     pass
 
-class TagChunk(Chunk):
-    __slots__ = ('tag', 'label')
 
-    def __init__(self, tag:str, label:str=None):
+class TagChunk(Chunk):
+    __slots__ = ("tag", "label")
+
+    def __init__(self, tag: str, label: str = None):
         self.tag = tag
         self.label = label
 
@@ -20,10 +22,11 @@ class TagChunk(Chunk):
         else:
             return self.label + ":" + self.tag
 
-class TextChunk(Chunk):
-    __slots__ = 'text'
 
-    def __init__(self, text:str):
+class TextChunk(Chunk):
+    __slots__ = "text"
+
+    def __init__(self, text: str):
         self.text = text
 
     def __str__(self):

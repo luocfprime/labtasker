@@ -4,6 +4,8 @@
 # can be found in the LICENSE.txt file in the project root.
 #
 
+from io import StringIO
+
 # A tree structure used to record the semantic context in which
 #  an ATN configuration is valid.  It's either a single predicate,
 #  a conjunction {@code p1&&p2}, or a sum of products {@code p1||p2}.
@@ -13,7 +15,6 @@
 #
 from ..Recognizer import Recognizer
 from ..RuleContext import RuleContext
-from io import StringIO
 
 
 class SemanticContext(object):
@@ -36,7 +37,7 @@ class SemanticContext(object):
     # prediction, so we passed in the outer context here in case of context
     # dependent predicate evaluation.</p>
     #
-    def eval(self, parser:Recognizer , outerContext:RuleContext ):
+    def eval(self, parser: Recognizer, outerContext: RuleContext):
         pass
 
     #
@@ -57,13 +58,15 @@ class SemanticContext(object):
     # semantic context after precedence predicates are evaluated.</li>
     # </ul>
     #
-    def evalPrecedence(self, parser:Recognizer, outerContext:RuleContext):
+    def evalPrecedence(self, parser: Recognizer, outerContext: RuleContext):
         return self
+
 
 # need forward declaration
 AND = None
 
-def andContext(a:SemanticContext, b:SemanticContext):
+
+def andContext(a: SemanticContext, b: SemanticContext):
     if a is None or a is SemanticContext.NONE:
         return b
     if b is None or b is SemanticContext.NONE:
@@ -74,10 +77,12 @@ def andContext(a:SemanticContext, b:SemanticContext):
     else:
         return result
 
+
 # need forward declaration
 OR = None
 
-def orContext(a:SemanticContext, b:SemanticContext):
+
+def orContext(a: SemanticContext, b: SemanticContext):
     if a is None:
         return b
     if b is None:
@@ -90,22 +95,28 @@ def orContext(a:SemanticContext, b:SemanticContext):
     else:
         return result
 
-def filterPrecedencePredicates(collection:set):
-    return [context for context in collection if isinstance(context, PrecedencePredicate)]
+
+def filterPrecedencePredicates(collection: set):
+    return [
+        context for context in collection if isinstance(context, PrecedencePredicate)
+    ]
 
 
 class EmptySemanticContext(SemanticContext):
     pass
 
-class Predicate(SemanticContext):
-    __slots__ = ('ruleIndex', 'predIndex', 'isCtxDependent')
 
-    def __init__(self, ruleIndex:int=-1, predIndex:int=-1, isCtxDependent:bool=False):
+class Predicate(SemanticContext):
+    __slots__ = ("ruleIndex", "predIndex", "isCtxDependent")
+
+    def __init__(
+        self, ruleIndex: int = -1, predIndex: int = -1, isCtxDependent: bool = False
+    ):
         self.ruleIndex = ruleIndex
         self.predIndex = predIndex
-        self.isCtxDependent = isCtxDependent # e.g., $i ref in pred
+        self.isCtxDependent = isCtxDependent  # e.g., $i ref in pred
 
-    def eval(self, parser:Recognizer , outerContext:RuleContext ):
+    def eval(self, parser: Recognizer, outerContext: RuleContext):
         localctx = outerContext if self.isCtxDependent else None
         return parser.sempred(localctx, self.ruleIndex, self.predIndex)
 
@@ -117,9 +128,11 @@ class Predicate(SemanticContext):
             return True
         elif not isinstance(other, Predicate):
             return False
-        return self.ruleIndex == other.ruleIndex and \
-               self.predIndex == other.predIndex and \
-               self.isCtxDependent == other.isCtxDependent
+        return (
+            self.ruleIndex == other.ruleIndex
+            and self.predIndex == other.predIndex
+            and self.isCtxDependent == other.isCtxDependent
+        )
 
     def __str__(self):
         return "{" + str(self.ruleIndex) + ":" + str(self.predIndex) + "}?"
@@ -127,13 +140,13 @@ class Predicate(SemanticContext):
 
 class PrecedencePredicate(SemanticContext):
 
-    def __init__(self, precedence:int=0):
+    def __init__(self, precedence: int = 0):
         self.precedence = precedence
 
-    def eval(self, parser:Recognizer , outerContext:RuleContext ):
+    def eval(self, parser: Recognizer, outerContext: RuleContext):
         return parser.precpred(outerContext, self.precedence)
 
-    def evalPrecedence(self, parser:Recognizer, outerContext:RuleContext):
+    def evalPrecedence(self, parser: Recognizer, outerContext: RuleContext):
         if parser.precpred(outerContext, self.precedence):
             return SemanticContext.NONE
         else:
@@ -153,25 +166,28 @@ class PrecedencePredicate(SemanticContext):
         else:
             return self.precedence == other.precedence
 
+
 # A semantic context which is true whenever none of the contained contexts
 # is false.
 del AND
-class AND(SemanticContext):
-    __slots__ = 'opnds'
 
-    def __init__(self, a:SemanticContext, b:SemanticContext):
+
+class AND(SemanticContext):
+    __slots__ = "opnds"
+
+    def __init__(self, a: SemanticContext, b: SemanticContext):
         operands = set()
-        if isinstance( a, AND ):
+        if isinstance(a, AND):
             operands.update(a.opnds)
         else:
             operands.add(a)
-        if isinstance( b, AND ):
+        if isinstance(b, AND):
             operands.update(b.opnds)
         else:
             operands.add(b)
 
         precedencePredicates = filterPrecedencePredicates(operands)
-        if len(precedencePredicates)>0:
+        if len(precedencePredicates) > 0:
             # interested in the transition with the lowest precedence
             reduced = min(precedencePredicates)
             operands.add(reduced)
@@ -199,10 +215,10 @@ class AND(SemanticContext):
     # The evaluation of predicates by this context is short-circuiting, but
     # unordered.</p>
     #
-    def eval(self, parser:Recognizer, outerContext:RuleContext):
+    def eval(self, parser: Recognizer, outerContext: RuleContext):
         return all(opnd.eval(parser, outerContext) for opnd in self.opnds)
 
-    def evalPrecedence(self, parser:Recognizer, outerContext:RuleContext):
+    def evalPrecedence(self, parser: Recognizer, outerContext: RuleContext):
         differs = False
         operands = []
         for context in self.opnds:
@@ -218,7 +234,7 @@ class AND(SemanticContext):
         if not differs:
             return self
 
-        if len(operands)==0:
+        if len(operands) == 0:
             # all elements were true, so the AND context is true
             return SemanticContext.NONE
 
@@ -238,26 +254,29 @@ class AND(SemanticContext):
                 first = False
             return buf.getvalue()
 
+
 #
 # A semantic context which is true whenever at least one of the contained
 # contexts is true.
 del OR
-class OR (SemanticContext):
-    __slots__ = 'opnds'
 
-    def __init__(self, a:SemanticContext, b:SemanticContext):
+
+class OR(SemanticContext):
+    __slots__ = "opnds"
+
+    def __init__(self, a: SemanticContext, b: SemanticContext):
         operands = set()
-        if isinstance( a, OR ):
+        if isinstance(a, OR):
             operands.update(a.opnds)
         else:
             operands.add(a)
-        if isinstance( b, OR ):
+        if isinstance(b, OR):
             operands.update(b.opnds)
         else:
             operands.add(b)
 
         precedencePredicates = filterPrecedencePredicates(operands)
-        if len(precedencePredicates)>0:
+        if len(precedencePredicates) > 0:
             # interested in the transition with the highest precedence
             s = sorted(precedencePredicates)
             reduced = s[-1]
@@ -283,10 +302,10 @@ class OR (SemanticContext):
     # The evaluation of predicates by this context is short-circuiting, but
     # unordered.</p>
     #
-    def eval(self, parser:Recognizer, outerContext:RuleContext):
+    def eval(self, parser: Recognizer, outerContext: RuleContext):
         return any(opnd.eval(parser, outerContext) for opnd in self.opnds)
 
-    def evalPrecedence(self, parser:Recognizer, outerContext:RuleContext):
+    def evalPrecedence(self, parser: Recognizer, outerContext: RuleContext):
         differs = False
         operands = []
         for context in self.opnds:
@@ -302,7 +321,7 @@ class OR (SemanticContext):
         if not differs:
             return self
 
-        if len(operands)==0:
+        if len(operands) == 0:
             # all elements were false, so the OR context is false
             return None
 

@@ -11,8 +11,8 @@
 from .Token import Token
 
 
-class InputStream (object):
-    __slots__ = ('name', 'strdata', '_index', 'data', '_size')
+class InputStream(object):
+    __slots__ = ("name", "strdata", "_index", "data", "_size")
 
     def __init__(self, data: str):
         self.name = "<empty>"
@@ -46,12 +46,12 @@ class InputStream (object):
         self._index += 1
 
     def LA(self, offset: int):
-        if offset==0:
-            return 0 # undefined
-        if offset<0:
-            offset += 1 # e.g., translate LA(-1) to use offset=0
+        if offset == 0:
+            return 0  # undefined
+        if offset < 0:
+            offset += 1  # e.g., translate LA(-1) to use offset=0
         pos = self._index + offset - 1
-        if pos < 0 or pos >= self._size: # invalid
+        if pos < 0 or pos >= self._size:  # invalid
             return Token.EOF
         return self.data[pos]
 
@@ -69,19 +69,19 @@ class InputStream (object):
     # update line and column. If we seek backwards, just set p
     #
     def seek(self, _index: int):
-        if _index<=self._index:
-            self._index = _index # just jump; don't update stream state (line, ...)
+        if _index <= self._index:
+            self._index = _index  # just jump; don't update stream state (line, ...)
             return
         # seek forward
         self._index = min(_index, self._size)
 
-    def getText(self, start :int, stop: int):
+    def getText(self, start: int, stop: int):
         if stop >= self._size:
-            stop = self._size-1
+            stop = self._size - 1
         if start >= self._size:
             return ""
         else:
-            return self.strdata[start:stop+1]
+            return self.strdata[start : stop + 1]
 
     def __str__(self):
         return self.strdata

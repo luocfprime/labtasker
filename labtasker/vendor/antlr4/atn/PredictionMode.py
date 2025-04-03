@@ -10,6 +10,7 @@
 
 
 from enum import Enum
+
 from ..atn.ATN import ATN
 from ..atn.ATNConfig import ATNConfig
 from ..atn.ATNConfigSet import ATNConfigSet
@@ -17,6 +18,7 @@ from ..atn.ATNState import RuleStopState
 from ..atn.SemanticContext import SemanticContext
 
 PredictionMode = None
+
 
 class PredictionMode(Enum):
     #
@@ -78,7 +80,6 @@ class PredictionMode(Enum):
     # behavior for syntactically-incorrect inputs.</p>
     #
     LL_EXACT_AMBIG_DETECTION = 2
-
 
     #
     # Computes the SLL prediction termination condition.
@@ -173,7 +174,9 @@ class PredictionMode(Enum):
     # {@link ATNConfigSet} will merge everything ignoring predicates.</p>
     #
     @classmethod
-    def hasSLLConflictTerminatingPrediction(cls, mode:PredictionMode, configs:ATNConfigSet):
+    def hasSLLConflictTerminatingPrediction(
+        cls, mode: PredictionMode, configs: ATNConfigSet
+    ):
         # Configs in rule stop states indicate reaching the end of the decision
         # rule (local context) or end of start rule (full context). If all
         # configs meet this condition, then none of the configurations is able
@@ -198,7 +201,9 @@ class PredictionMode(Enum):
 
         # pure SLL or combined SLL+LL mode parsing
         altsets = cls.getConflictingAltSubsets(configs)
-        return cls.hasConflictingAltSet(altsets) and not cls.hasStateAssociatedWithOneAlt(configs)
+        return cls.hasConflictingAltSet(
+            altsets
+        ) and not cls.hasStateAssociatedWithOneAlt(configs)
 
     # Checks if any configuration in {@code configs} is in a
     # {@link RuleStopState}. Configurations meeting this condition have reached
@@ -209,7 +214,7 @@ class PredictionMode(Enum):
     # @return {@code true} if any configuration in {@code configs} is in a
     # {@link RuleStopState}, otherwise {@code false}
     @classmethod
-    def hasConfigInRuleStopState(cls, configs:ATNConfigSet):
+    def hasConfigInRuleStopState(cls, configs: ATNConfigSet):
         return any(isinstance(cfg.state, RuleStopState) for cfg in configs)
 
     # Checks if all configurations in {@code configs} are in a
@@ -221,7 +226,7 @@ class PredictionMode(Enum):
     # @return {@code true} if all configurations in {@code configs} are in a
     # {@link RuleStopState}, otherwise {@code false}
     @classmethod
-    def allConfigsInRuleStopStates(cls, configs:ATNConfigSet):
+    def allConfigsInRuleStopStates(cls, configs: ATNConfigSet):
         return all(isinstance(cfg.state, RuleStopState) for cfg in configs)
 
     #
@@ -366,7 +371,7 @@ class PredictionMode(Enum):
     # {@code A={{1,2}}} or {@code {{1,2},{1,2}}}, etc...</p>
     #
     @classmethod
-    def resolvesToJustOneViableAlt(cls, altsets:list):
+    def resolvesToJustOneViableAlt(cls, altsets: list):
         return cls.getSingleViableAlt(altsets)
 
     #
@@ -378,7 +383,7 @@ class PredictionMode(Enum):
     # {@link BitSet#cardinality cardinality} &gt; 1, otherwise {@code false}
     #
     @classmethod
-    def allSubsetsConflict(cls, altsets:list):
+    def allSubsetsConflict(cls, altsets: list):
         return not cls.hasNonConflictingAltSet(altsets)
 
     #
@@ -390,7 +395,7 @@ class PredictionMode(Enum):
     # {@link BitSet#cardinality cardinality} 1, otherwise {@code false}
     #
     @classmethod
-    def hasNonConflictingAltSet(cls, altsets:list):
+    def hasNonConflictingAltSet(cls, altsets: list):
         return any(len(alts) == 1 for alts in altsets)
 
     #
@@ -402,7 +407,7 @@ class PredictionMode(Enum):
     # {@link BitSet#cardinality cardinality} &gt; 1, otherwise {@code false}
     #
     @classmethod
-    def hasConflictingAltSet(cls, altsets:list):
+    def hasConflictingAltSet(cls, altsets: list):
         return any(len(alts) > 1 for alts in altsets)
 
     #
@@ -413,7 +418,7 @@ class PredictionMode(Enum):
     # others, otherwise {@code false}
     #
     @classmethod
-    def allSubsetsEqual(cls, altsets:list):
+    def allSubsetsEqual(cls, altsets: list):
         if not altsets:
             return True
         first = next(iter(altsets))
@@ -427,9 +432,9 @@ class PredictionMode(Enum):
     # @param altsets a collection of alternative subsets
     #
     @classmethod
-    def getUniqueAlt(cls, altsets:list):
+    def getUniqueAlt(cls, altsets: list):
         all = cls.getAlts(altsets)
-        if len(all)==1:
+        if len(all) == 1:
             return next(iter(all))
         return ATN.INVALID_ALT_NUMBER
 
@@ -441,7 +446,7 @@ class PredictionMode(Enum):
     # @return the set of represented alternatives in {@code altsets}
     #
     @classmethod
-    def getAlts(cls, altsets:list):
+    def getAlts(cls, altsets: list):
         return set.union(*altsets)
 
     #
@@ -454,7 +459,7 @@ class PredictionMode(Enum):
     # </pre>
     #
     @classmethod
-    def getConflictingAltSubsets(cls, configs:ATNConfigSet):
+    def getConflictingAltSubsets(cls, configs: ATNConfigSet):
         configToAlts = dict()
         for c in configs:
             h = hash((c.state.stateNumber, c.context))
@@ -474,7 +479,7 @@ class PredictionMode(Enum):
     # </pre>
     #
     @classmethod
-    def getStateToAltMap(cls, configs:ATNConfigSet):
+    def getStateToAltMap(cls, configs: ATNConfigSet):
         m = dict()
         for c in configs:
             alts = m.get(c.state, None)
@@ -485,15 +490,15 @@ class PredictionMode(Enum):
         return m
 
     @classmethod
-    def hasStateAssociatedWithOneAlt(cls, configs:ATNConfigSet):
+    def hasStateAssociatedWithOneAlt(cls, configs: ATNConfigSet):
         return any(len(alts) == 1 for alts in cls.getStateToAltMap(configs).values())
 
     @classmethod
-    def getSingleViableAlt(cls, altsets:list):
+    def getSingleViableAlt(cls, altsets: list):
         viableAlts = set()
         for alts in altsets:
             minAlt = min(alts)
             viableAlts.add(minAlt)
-            if len(viableAlts)>1 : # more than 1 viable alt
+            if len(viableAlts) > 1:  # more than 1 viable alt
                 return ATN.INVALID_ALT_NUMBER
         return min(viableAlts)

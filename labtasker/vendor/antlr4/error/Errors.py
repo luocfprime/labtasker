@@ -13,20 +13,24 @@ ParserRulecontext = None
 PredicateTransition = None
 BufferedTokenStream = None
 
+
 class UnsupportedOperationException(Exception):
 
-    def __init__(self, msg:str):
+    def __init__(self, msg: str):
         super().__init__(msg)
+
 
 class IllegalStateException(Exception):
 
-    def __init__(self, msg:str):
+    def __init__(self, msg: str):
         super().__init__(msg)
+
 
 class CancellationException(IllegalStateException):
 
-    def __init__(self, msg:str):
+    def __init__(self, msg: str):
         super().__init__(msg)
+
 
 # The root of the ANTLR exception hierarchy. In general, ANTLR tracks just
 #  3 kinds of errors: prediction errors, failed predicate errors, and
@@ -38,10 +42,16 @@ from ..InputStream import InputStream
 from ..ParserRuleContext import ParserRuleContext
 from ..Recognizer import Recognizer
 
+
 class RecognitionException(Exception):
 
-
-    def __init__(self, message:str=None, recognizer:Recognizer=None, input:InputStream=None, ctx:ParserRulecontext=None):
+    def __init__(
+        self,
+        message: str = None,
+        recognizer: Recognizer = None,
+        input: InputStream = None,
+        ctx: ParserRulecontext = None,
+    ):
         super().__init__(message)
         self.message = message
         self.recognizer = recognizer
@@ -71,7 +81,7 @@ class RecognitionException(Exception):
     #
     # @return The set of token types that could potentially follow the current
     # state in the ATN, or {@code null} if the information is not available.
-    #/
+    # /
     def getExpectedTokens(self):
         if self.recognizer is not None:
             return self.recognizer.atn.getExpectedTokens(self.offendingState, self.ctx)
@@ -81,7 +91,13 @@ class RecognitionException(Exception):
 
 class LexerNoViableAltException(RecognitionException):
 
-    def __init__(self, lexer:Lexer, input:InputStream, startIndex:int, deadEndConfigs:ATNConfigSet):
+    def __init__(
+        self,
+        lexer: Lexer,
+        input: InputStream,
+        startIndex: int,
+        deadEndConfigs: ATNConfigSet,
+    ):
         super().__init__(message=None, recognizer=lexer, input=input, ctx=None)
         self.startIndex = startIndex
         self.deadEndConfigs = deadEndConfigs
@@ -93,6 +109,7 @@ class LexerNoViableAltException(RecognitionException):
             # TODO symbol = Utils.escapeWhitespace(symbol, false);
         return "LexerNoViableAltException('" + symbol + "')"
 
+
 # Indicates that the parser could not decide which of two or more paths
 #  to take based upon the remaining input. It tracks the starting token
 #  of the offending input and also knows where the parser was
@@ -100,8 +117,15 @@ class LexerNoViableAltException(RecognitionException):
 #
 class NoViableAltException(RecognitionException):
 
-    def __init__(self, recognizer:Parser, input:TokenStream=None, startToken:Token=None,
-                    offendingToken:Token=None, deadEndConfigs:ATNConfigSet=None, ctx:ParserRuleContext=None):
+    def __init__(
+        self,
+        recognizer: Parser,
+        input: TokenStream = None,
+        startToken: Token = None,
+        offendingToken: Token = None,
+        deadEndConfigs: ATNConfigSet = None,
+        ctx: ParserRuleContext = None,
+    ):
         if ctx is None:
             ctx = recognizer._ctx
         if offendingToken is None:
@@ -120,13 +144,18 @@ class NoViableAltException(RecognitionException):
         self.startToken = startToken
         self.offendingToken = offendingToken
 
+
 # This signifies any kind of mismatched input exceptions such as
 #  when the current input does not match the expected token.
 #
 class InputMismatchException(RecognitionException):
 
-    def __init__(self, recognizer:Parser):
-        super().__init__(recognizer=recognizer, input=recognizer.getInputStream(), ctx=recognizer._ctx)
+    def __init__(self, recognizer: Parser):
+        super().__init__(
+            recognizer=recognizer,
+            input=recognizer.getInputStream(),
+            ctx=recognizer._ctx,
+        )
         self.offendingToken = recognizer.getCurrentToken()
 
 
@@ -135,14 +164,20 @@ class InputMismatchException(RecognitionException):
 #  Disambiguating predicate evaluation occurs when we test a predicate during
 #  prediction.
 
+
 class FailedPredicateException(RecognitionException):
 
-    def __init__(self, recognizer:Parser, predicate:str=None, message:str=None):
-        super().__init__(message=self.formatMessage(predicate,message), recognizer=recognizer,
-                         input=recognizer.getInputStream(), ctx=recognizer._ctx)
+    def __init__(self, recognizer: Parser, predicate: str = None, message: str = None):
+        super().__init__(
+            message=self.formatMessage(predicate, message),
+            recognizer=recognizer,
+            input=recognizer.getInputStream(),
+            ctx=recognizer._ctx,
+        )
         s = recognizer._interp.atn.states[recognizer.state]
         trans = s.transitions[0]
         from ..atn.Transition import PredicateTransition
+
         if isinstance(trans, PredicateTransition):
             self.ruleIndex = trans.ruleIndex
             self.predicateIndex = trans.predIndex
@@ -152,15 +187,17 @@ class FailedPredicateException(RecognitionException):
         self.predicate = predicate
         self.offendingToken = recognizer.getCurrentToken()
 
-    def formatMessage(self, predicate:str, message:str):
+    def formatMessage(self, predicate: str, message: str):
         if message is not None:
             return message
         else:
             return "failed predicate: {" + predicate + "}?"
 
+
 class ParseCancellationException(CancellationException):
 
     pass
+
 
 del Token
 del Lexer

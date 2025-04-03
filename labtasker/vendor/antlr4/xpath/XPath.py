@@ -4,6 +4,8 @@
 # can be found in the LICENSE.txt file in the project root.
 #
 
+from io import StringIO
+
 #
 # Represent a subset of XPath XML path syntax for use in identifying nodes in
 # parse trees.
@@ -47,38 +49,47 @@
 # <p>
 # Whitespace is not allowed.</p>
 #
-from .. import CommonTokenStream, DFA, PredictionContextCache, Lexer, LexerATNSimulator, ParserRuleContext, TerminalNode
+from .. import (
+    DFA,
+    CommonTokenStream,
+    Lexer,
+    LexerATNSimulator,
+    ParserRuleContext,
+    PredictionContextCache,
+    TerminalNode,
+)
+from ..atn.ATNDeserializer import ATNDeserializer
+from ..error.ErrorListener import ErrorListener
+from ..error.Errors import LexerNoViableAltException
 from ..InputStream import InputStream
 from ..Parser import Parser
 from ..RuleContext import RuleContext
 from ..Token import Token
-from ..atn.ATNDeserializer import ATNDeserializer
-from ..error.ErrorListener import ErrorListener
-from ..error.Errors import LexerNoViableAltException
 from ..tree.Tree import ParseTree
 from ..tree.Trees import Trees
-from io import StringIO
 from ..xpath.XPathLexer import XPathLexer
 
 
 class XPath(object):
 
-    WILDCARD = "*" # word not operator/separator
-    NOT = "!" # word for invert operator
+    WILDCARD = "*"  # word not operator/separator
+    NOT = "!"  # word for invert operator
 
-    def __init__(self, parser:Parser, path:str):
+    def __init__(self, parser: Parser, path: str):
         self.parser = parser
         self.path = path
         self.elements = self.split(path)
 
-    def split(self, path:str):
+    def split(self, path: str):
         input = InputStream(path)
         lexer = XPathLexer(input)
+
         def recover(self, e):
             raise e
+
         lexer.recover = recover
         lexer.removeErrorListeners()
-        lexer.addErrorListener(ErrorListener()) # XPathErrorListener does no more
+        lexer.addErrorListener(ErrorListener())  # XPathErrorListener does no more
         tokenStream = CommonTokenStream(lexer)
         try:
             tokenStream.fill()
@@ -97,7 +108,7 @@ class XPath(object):
                 anywhere = el.type == XPathLexer.ANYWHERE
                 next_el = next(tokens, None)
                 if not next_el:
-                    raise Exception('Missing element after %s' % el.getText())
+                    raise Exception("Missing element after %s" % el.getText())
                 else:
                     el = next_el
             # Check for bangs
@@ -105,18 +116,25 @@ class XPath(object):
                 invert = True
                 next_el = next(tokens, None)
                 if not next_el:
-                    raise Exception('Missing element after %s' % el.getText())
+                    raise Exception("Missing element after %s" % el.getText())
                 else:
                     el = next_el
             # Add searched element
-            if el.type in [XPathLexer.TOKEN_REF, XPathLexer.RULE_REF, XPathLexer.WILDCARD, XPathLexer.STRING]:
+            if el.type in [
+                XPathLexer.TOKEN_REF,
+                XPathLexer.RULE_REF,
+                XPathLexer.WILDCARD,
+                XPathLexer.STRING,
+            ]:
                 element = self.getXPathElement(el, anywhere)
                 element.invert = invert
                 elements.append(element)
-            elif el.type==Token.EOF:
+            elif el.type == Token.EOF:
                 break
             else:
-                raise Exception("Unknown path element %s" % lexer.symbolicNames[el.type])
+                raise Exception(
+                    "Unknown path element %s" % lexer.symbolicNames[el.type]
+                )
         return elements
 
     #
@@ -124,13 +142,15 @@ class XPath(object):
     # element. {@code anywhere} is {@code true} if {@code //} precedes the
     # word.
     #
-    def getXPathElement(self, wordToken:Token, anywhere:bool):
-        if wordToken.type==Token.EOF:
+    def getXPathElement(self, wordToken: Token, anywhere: bool):
+        if wordToken.type == Token.EOF:
             raise Exception("Missing path element at end of path")
 
         word = wordToken.text
-        if wordToken.type==XPathLexer.WILDCARD :
-            return XPathWildcardAnywhereElement() if anywhere else XPathWildcardElement()
+        if wordToken.type == XPathLexer.WILDCARD:
+            return (
+                XPathWildcardAnywhereElement() if anywhere else XPathWildcardElement()
+            )
 
         elif wordToken.type in [XPathLexer.TOKEN_REF, XPathLexer.STRING]:
             tsource = self.parser.getTokenStream().tokenSource
@@ -144,19 +164,36 @@ class XPath(object):
                     ttype = tsource.literalNames.index(word)
 
             if ttype == Token.INVALID_TYPE:
-                raise Exception("%s at index %d isn't a valid token name" % (word, wordToken.tokenIndex))
-            return XPathTokenAnywhereElement(word, ttype) if anywhere else XPathTokenElement(word, ttype)
+                raise Exception(
+                    "%s at index %d isn't a valid token name"
+                    % (word, wordToken.tokenIndex)
+                )
+            return (
+                XPathTokenAnywhereElement(word, ttype)
+                if anywhere
+                else XPathTokenElement(word, ttype)
+            )
 
         else:
-            ruleIndex = self.parser.ruleNames.index(word) if word in self.parser.ruleNames else -1
+            ruleIndex = (
+                self.parser.ruleNames.index(word)
+                if word in self.parser.ruleNames
+                else -1
+            )
 
             if ruleIndex == -1:
-                raise Exception("%s at index %d isn't a valid rule name" % (word, wordToken.tokenIndex))
-            return XPathRuleAnywhereElement(word, ruleIndex) if anywhere else XPathRuleElement(word, ruleIndex)
-
+                raise Exception(
+                    "%s at index %d isn't a valid rule name"
+                    % (word, wordToken.tokenIndex)
+                )
+            return (
+                XPathRuleAnywhereElement(word, ruleIndex)
+                if anywhere
+                else XPathRuleElement(word, ruleIndex)
+            )
 
     @staticmethod
-    def findAll(tree:ParseTree, xpath:str, parser:Parser):
+    def findAll(tree: ParseTree, xpath: str, parser: Parser):
         p = XPath(parser, xpath)
         return p.evaluate(tree)
 
@@ -165,9 +202,9 @@ class XPath(object):
     # path. The root {@code /} is relative to the node passed to
     # {@link #evaluate}.
     #
-    def evaluate(self, t:ParseTree):
+    def evaluate(self, t: ParseTree):
         dummyRoot = ParserRuleContext()
-        dummyRoot.children = [t] # don't set t's parent.
+        dummyRoot.children = [t]  # don't set t's parent.
 
         work = [dummyRoot]
         for element in self.elements:
@@ -191,13 +228,18 @@ class XPath(object):
 
 class XPathElement(object):
 
-    def __init__(self, nodeName:str):
+    def __init__(self, nodeName: str):
         self.nodeName = nodeName
         self.invert = False
 
     def __str__(self):
-        return type(self).__name__ + "[" + ("!" if self.invert else "") + self.nodeName + "]"
-
+        return (
+            type(self).__name__
+            + "["
+            + ("!" if self.invert else "")
+            + self.nodeName
+            + "]"
+        )
 
 
 #
@@ -205,43 +247,62 @@ class XPathElement(object):
 #
 class XPathRuleAnywhereElement(XPathElement):
 
-    def __init__(self, ruleName:str, ruleIndex:int):
+    def __init__(self, ruleName: str, ruleIndex: int):
         super().__init__(ruleName)
         self.ruleIndex = ruleIndex
 
-    def evaluate(self, t:ParseTree):
+    def evaluate(self, t: ParseTree):
         # return all ParserRuleContext descendants of t that match ruleIndex (or do not match if inverted)
-        return filter(lambda c: isinstance(c, ParserRuleContext) and (self.invert ^ (c.getRuleIndex() == self.ruleIndex)), Trees.descendants(t))
+        return filter(
+            lambda c: isinstance(c, ParserRuleContext)
+            and (self.invert ^ (c.getRuleIndex() == self.ruleIndex)),
+            Trees.descendants(t),
+        )
+
 
 class XPathRuleElement(XPathElement):
 
-    def __init__(self, ruleName:str, ruleIndex:int):
+    def __init__(self, ruleName: str, ruleIndex: int):
         super().__init__(ruleName)
         self.ruleIndex = ruleIndex
 
-    def evaluate(self, t:ParseTree):
+    def evaluate(self, t: ParseTree):
         # return all ParserRuleContext children of t that match ruleIndex (or do not match if inverted)
-        return filter(lambda c: isinstance(c, ParserRuleContext) and (self.invert ^ (c.getRuleIndex() == self.ruleIndex)), Trees.getChildren(t))
+        return filter(
+            lambda c: isinstance(c, ParserRuleContext)
+            and (self.invert ^ (c.getRuleIndex() == self.ruleIndex)),
+            Trees.getChildren(t),
+        )
+
 
 class XPathTokenAnywhereElement(XPathElement):
 
-    def __init__(self, ruleName:str, tokenType:int):
+    def __init__(self, ruleName: str, tokenType: int):
         super().__init__(ruleName)
         self.tokenType = tokenType
 
-    def evaluate(self, t:ParseTree):
+    def evaluate(self, t: ParseTree):
         # return all TerminalNode descendants of t that match tokenType (or do not match if inverted)
-        return filter(lambda c: isinstance(c, TerminalNode) and (self.invert ^ (c.symbol.type == self.tokenType)), Trees.descendants(t))
+        return filter(
+            lambda c: isinstance(c, TerminalNode)
+            and (self.invert ^ (c.symbol.type == self.tokenType)),
+            Trees.descendants(t),
+        )
+
 
 class XPathTokenElement(XPathElement):
 
-    def __init__(self, ruleName:str, tokenType:int):
+    def __init__(self, ruleName: str, tokenType: int):
         super().__init__(ruleName)
         self.tokenType = tokenType
 
-    def evaluate(self, t:ParseTree):
+    def evaluate(self, t: ParseTree):
         # return all TerminalNode children of t that match tokenType (or do not match if inverted)
-        return filter(lambda c: isinstance(c, TerminalNode) and (self.invert ^ (c.symbol.type == self.tokenType)), Trees.getChildren(t))
+        return filter(
+            lambda c: isinstance(c, TerminalNode)
+            and (self.invert ^ (c.symbol.type == self.tokenType)),
+            Trees.getChildren(t),
+        )
 
 
 class XPathWildcardAnywhereElement(XPathElement):
@@ -249,9 +310,9 @@ class XPathWildcardAnywhereElement(XPathElement):
     def __init__(self):
         super().__init__(XPath.WILDCARD)
 
-    def evaluate(self, t:ParseTree):
+    def evaluate(self, t: ParseTree):
         if self.invert:
-            return list() # !* is weird but valid (empty)
+            return list()  # !* is weird but valid (empty)
         else:
             return Trees.descendants(t)
 
@@ -261,9 +322,8 @@ class XPathWildcardElement(XPathElement):
     def __init__(self):
         super().__init__(XPath.WILDCARD)
 
-
-    def evaluate(self, t:ParseTree):
+    def evaluate(self, t: ParseTree):
         if self.invert:
-            return list() # !* is weird but valid (empty)
+            return list()  # !* is weird but valid (empty)
         else:
             return Trees.getChildren(t)

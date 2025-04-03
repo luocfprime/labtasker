@@ -3,32 +3,33 @@
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
 #
+from .error.ErrorListener import ConsoleErrorListener, ProxyErrorListener
 from .RuleContext import RuleContext
 from .Token import Token
-from .error.ErrorListener import ProxyErrorListener, ConsoleErrorListener
 
 # need forward delcaration
 RecognitionException = None
 
+
 class Recognizer(object):
-    __slots__ = ('_listeners', '_interp', '_stateNumber')
+    __slots__ = ("_listeners", "_interp", "_stateNumber")
 
     tokenTypeMapCache = dict()
     ruleIndexMapCache = dict()
 
     def __init__(self):
-        self._listeners = [ ConsoleErrorListener.INSTANCE ]
+        self._listeners = [ConsoleErrorListener.INSTANCE]
         self._interp = None
         self._stateNumber = -1
 
     def extractVersion(self, version):
         pos = version.find(".")
         major = version[0:pos]
-        version = version[pos+1:]
+        version = version[pos + 1 :]
         pos = version.find(".")
-        if pos==-1:
+        if pos == -1:
             pos = version.find("-")
-        if pos==-1:
+        if pos == -1:
             pos = len(version)
         minor = version[0:pos]
         return major, minor
@@ -37,8 +38,13 @@ class Recognizer(object):
         runtimeVersion = "4.11.1"
         rvmajor, rvminor = self.extractVersion(runtimeVersion)
         tvmajor, tvminor = self.extractVersion(toolVersion)
-        if rvmajor!=tvmajor or rvminor!=tvminor:
-            print("ANTLR runtime and generated code versions disagree: "+runtimeVersion+"!="+toolVersion)
+        if rvmajor != tvmajor or rvminor != tvminor:
+            print(
+                "ANTLR runtime and generated code versions disagree: "
+                + runtimeVersion
+                + "!="
+                + toolVersion
+            )
 
     def addErrorListener(self, listener):
         self._listeners.append(listener)
@@ -53,10 +59,13 @@ class Recognizer(object):
         tokenNames = self.getTokenNames()
         if tokenNames is None:
             from .error.Errors import UnsupportedOperationException
-            raise UnsupportedOperationException("The current recognizer does not provide a list of token names.")
+
+            raise UnsupportedOperationException(
+                "The current recognizer does not provide a list of token names."
+            )
         result = self.tokenTypeMapCache.get(tokenNames, None)
         if result is None:
-            result = zip( tokenNames, range(0, len(tokenNames)))
+            result = zip(tokenNames, range(0, len(tokenNames)))
             result["EOF"] = Token.EOF
             self.tokenTypeMapCache[tokenNames] = result
         return result
@@ -69,27 +78,28 @@ class Recognizer(object):
         ruleNames = self.getRuleNames()
         if ruleNames is None:
             from .error.Errors import UnsupportedOperationException
-            raise UnsupportedOperationException("The current recognizer does not provide a list of rule names.")
+
+            raise UnsupportedOperationException(
+                "The current recognizer does not provide a list of rule names."
+            )
         result = self.ruleIndexMapCache.get(ruleNames, None)
         if result is None:
-            result = zip( ruleNames, range(0, len(ruleNames)))
+            result = zip(ruleNames, range(0, len(ruleNames)))
             self.ruleIndexMapCache[ruleNames] = result
         return result
 
-    def getTokenType(self, tokenName:str):
+    def getTokenType(self, tokenName: str):
         ttype = self.getTokenTypeMap().get(tokenName, None)
         if ttype is not None:
             return ttype
         else:
             return Token.INVALID_TYPE
 
-
     # What is the error header, normally line/character position information?#
-    def getErrorHeader(self, e:RecognitionException):
+    def getErrorHeader(self, e: RecognitionException):
         line = e.getOffendingToken().line
         column = e.getOffendingToken().column
-        return "line "+line+":"+column
-
+        return "line " + line + ":" + column
 
     # How should a token be displayed in an error message? The default
     #  is to display just the text, but during development you might
@@ -104,18 +114,18 @@ class Recognizer(object):
     # feature when necessary. For example, see
     # {@link DefaultErrorStrategy#getTokenErrorDisplay}.
     #
-    def getTokenErrorDisplay(self, t:Token):
+    def getTokenErrorDisplay(self, t: Token):
         if t is None:
             return "<no token>"
         s = t.text
         if s is None:
-            if t.type==Token.EOF:
+            if t.type == Token.EOF:
                 s = "<EOF>"
             else:
                 s = "<" + str(t.type) + ">"
-        s = s.replace("\n","\\n")
-        s = s.replace("\r","\\r")
-        s = s.replace("\t","\\t")
+        s = s.replace("\n", "\\n")
+        s = s.replace("\r", "\\r")
+        s = s.replace("\t", "\\t")
         return "'" + s + "'"
 
     def getErrorListenerDispatch(self):
@@ -123,10 +133,10 @@ class Recognizer(object):
 
     # subclass needs to override these if there are sempreds or actions
     # that the ATN interp needs to execute
-    def sempred(self, localctx:RuleContext, ruleIndex:int, actionIndex:int):
+    def sempred(self, localctx: RuleContext, ruleIndex: int, actionIndex: int):
         return True
 
-    def precpred(self, localctx:RuleContext , precedence:int):
+    def precpred(self, localctx: RuleContext, precedence: int):
         return True
 
     @property
@@ -141,7 +151,8 @@ class Recognizer(object):
     #  configuration information.
 
     @state.setter
-    def state(self, atnState:int):
+    def state(self, atnState: int):
         self._stateNumber = atnState
+
 
 del RecognitionException

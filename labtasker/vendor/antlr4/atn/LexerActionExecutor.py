@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-#/
+# /
 
 # Represents an executor for a sequence of lexer actions which traversed during
 # the matching operation of a lexer rule (token).
@@ -12,22 +12,22 @@
 # not cause bloating of the {@link DFA} created for the lexer.</p>
 
 
-from ..InputStream import InputStream
 from ..atn.LexerAction import LexerAction, LexerIndexedCustomAction
+from ..InputStream import InputStream
 
 # need a forward declaration
 Lexer = None
 LexerActionExecutor = None
 
-class LexerActionExecutor(object):
-    __slots__ = ('lexerActions', 'hashCode')
 
-    def __init__(self, lexerActions:list=list()):
+class LexerActionExecutor(object):
+    __slots__ = ("lexerActions", "hashCode")
+
+    def __init__(self, lexerActions: list = list()):
         self.lexerActions = lexerActions
         # Caches the result of {@link #hashCode} since the hash code is an element
         # of the performance-critical {@link LexerATNConfig#hashCode} operation.
         self.hashCode = hash("".join([str(la) for la in lexerActions]))
-
 
     # Creates a {@link LexerActionExecutor} which executes the actions for
     # the input {@code lexerActionExecutor} followed by a specified
@@ -43,11 +43,11 @@ class LexerActionExecutor(object):
     # @return A {@link LexerActionExecutor} for executing the combine actions
     # of {@code lexerActionExecutor} and {@code lexerAction}.
     @staticmethod
-    def append(lexerActionExecutor:LexerActionExecutor , lexerAction:LexerAction ):
+    def append(lexerActionExecutor: LexerActionExecutor, lexerAction: LexerAction):
         if lexerActionExecutor is None:
-            return LexerActionExecutor([ lexerAction ])
+            return LexerActionExecutor([lexerAction])
 
-        lexerActions = lexerActionExecutor.lexerActions + [ lexerAction ]
+        lexerActions = lexerActionExecutor.lexerActions + [lexerAction]
         return LexerActionExecutor(lexerActions)
 
     # Creates a {@link LexerActionExecutor} which encodes the current offset
@@ -77,20 +77,23 @@ class LexerActionExecutor(object):
     #
     # @return A {@link LexerActionExecutor} which stores input stream offsets
     # for all position-dependent lexer actions.
-    #/
-    def fixOffsetBeforeMatch(self, offset:int):
+    # /
+    def fixOffsetBeforeMatch(self, offset: int):
         updatedLexerActions = None
         for i in range(0, len(self.lexerActions)):
-            if self.lexerActions[i].isPositionDependent and not isinstance(self.lexerActions[i], LexerIndexedCustomAction):
+            if self.lexerActions[i].isPositionDependent and not isinstance(
+                self.lexerActions[i], LexerIndexedCustomAction
+            ):
                 if updatedLexerActions is None:
-                    updatedLexerActions = [ la for la in self.lexerActions ]
-                updatedLexerActions[i] = LexerIndexedCustomAction(offset, self.lexerActions[i])
+                    updatedLexerActions = [la for la in self.lexerActions]
+                updatedLexerActions[i] = LexerIndexedCustomAction(
+                    offset, self.lexerActions[i]
+                )
 
         if updatedLexerActions is None:
             return self
         else:
             return LexerActionExecutor(updatedLexerActions)
-
 
     # Execute the actions encapsulated by this executor within the context of a
     # particular {@link Lexer}.
@@ -109,8 +112,8 @@ class LexerActionExecutor(object):
     # @param startIndex The token start index. This value may be passed to
     # {@link IntStream#seek} to set the {@code input} position to the beginning
     # of the token.
-    #/
-    def execute(self, lexer:Lexer, input:InputStream, startIndex:int):
+    # /
+    def execute(self, lexer: Lexer, input: InputStream, startIndex: int):
         requiresSeek = False
         stopIndex = input.index
         try:
@@ -137,7 +140,10 @@ class LexerActionExecutor(object):
         elif not isinstance(other, LexerActionExecutor):
             return False
         else:
-            return self.hashCode == other.hashCode \
+            return (
+                self.hashCode == other.hashCode
                 and self.lexerActions == other.lexerActions
+            )
+
 
 del Lexer

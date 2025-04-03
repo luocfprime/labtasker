@@ -10,12 +10,14 @@
 #
 from .Token import CommonToken
 
+
 class TokenFactory(object):
 
     pass
 
+
 class CommonTokenFactory(TokenFactory):
-    __slots__ = 'copyText'
+    __slots__ = "copyText"
 
     #
     # The default {@link CommonTokenFactory} instance.
@@ -26,7 +28,7 @@ class CommonTokenFactory(TokenFactory):
     #
     DEFAULT = None
 
-    def __init__(self, copyText:bool=False):
+    def __init__(self, copyText: bool = False):
         # Indicates whether {@link CommonToken#setText} should be called after
         # constructing tokens to explicitly set the text. This is useful for cases
         # where the input stream might not be able to provide arbitrary substrings
@@ -43,19 +45,30 @@ class CommonTokenFactory(TokenFactory):
         #
         self.copyText = copyText
 
-    def create(self, source, type:int, text:str, channel:int, start:int, stop:int, line:int, column:int):
+    def create(
+        self,
+        source,
+        type: int,
+        text: str,
+        channel: int,
+        start: int,
+        stop: int,
+        line: int,
+        column: int,
+    ):
         t = CommonToken(source, type, channel, start, stop)
         t.line = line
         t.column = column
         if text is not None:
             t.text = text
         elif self.copyText and source[1] is not None:
-            t.text = source[1].getText(start,stop)
+            t.text = source[1].getText(start, stop)
         return t
 
-    def createThin(self, type:int, text:str):
+    def createThin(self, type: int, text: str):
         t = CommonToken(type=type)
         t.text = text
         return t
+
 
 CommonTokenFactory.DEFAULT = CommonTokenFactory()

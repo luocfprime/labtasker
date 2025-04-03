@@ -10,19 +10,27 @@
 
 import sys
 
+
 class ErrorListener(object):
 
     def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
         pass
 
-    def reportAmbiguity(self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs):
+    def reportAmbiguity(
+        self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs
+    ):
         pass
 
-    def reportAttemptingFullContext(self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs):
+    def reportAttemptingFullContext(
+        self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs
+    ):
         pass
 
-    def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
+    def reportContextSensitivity(
+        self, recognizer, dfa, startIndex, stopIndex, prediction, configs
+    ):
         pass
+
 
 class ConsoleErrorListener(ErrorListener):
     #
@@ -45,7 +53,9 @@ class ConsoleErrorListener(ErrorListener):
     def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
         print("line " + str(line) + ":" + str(column) + " " + msg, file=sys.stderr)
 
+
 ConsoleErrorListener.INSTANCE = ConsoleErrorListener()
+
 
 class ProxyErrorListener(ErrorListener):
 
@@ -59,14 +69,26 @@ class ProxyErrorListener(ErrorListener):
         for delegate in self.delegates:
             delegate.syntaxError(recognizer, offendingSymbol, line, column, msg, e)
 
-    def reportAmbiguity(self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs):
+    def reportAmbiguity(
+        self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs
+    ):
         for delegate in self.delegates:
-            delegate.reportAmbiguity(recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs)
+            delegate.reportAmbiguity(
+                recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs
+            )
 
-    def reportAttemptingFullContext(self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs):
+    def reportAttemptingFullContext(
+        self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs
+    ):
         for delegate in self.delegates:
-            delegate.reportAttemptingFullContext(recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs)
+            delegate.reportAttemptingFullContext(
+                recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs
+            )
 
-    def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
+    def reportContextSensitivity(
+        self, recognizer, dfa, startIndex, stopIndex, prediction, configs
+    ):
         for delegate in self.delegates:
-            delegate.reportContextSensitivity(recognizer, dfa, startIndex, stopIndex, prediction, configs)
+            delegate.reportContextSensitivity(
+                recognizer, dfa, startIndex, stopIndex, prediction, configs
+            )

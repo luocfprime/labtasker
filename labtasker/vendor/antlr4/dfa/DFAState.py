@@ -2,23 +2,25 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-#/
+# /
 
 # Map a predicate to a predicted alternative.#/
 from io import StringIO
+
 from ..atn.ATNConfigSet import ATNConfigSet
 from ..atn.SemanticContext import SemanticContext
 
 
 class PredPrediction(object):
-    __slots__ = ('alt', 'pred')
+    __slots__ = ("alt", "pred")
 
-    def __init__(self, pred:SemanticContext, alt:int):
+    def __init__(self, pred: SemanticContext, alt: int):
         self.alt = alt
         self.pred = pred
 
     def __str__(self):
-        return "(" + str(self.pred) + ", " + str(self.alt) +  ")"
+        return "(" + str(self.pred) + ", " + str(self.alt) + ")"
+
 
 # A DFA state represents a set of possible ATN configurations.
 #  As Aho, Sethi, Ullman p. 117 says "The DFA uses its state
@@ -43,14 +45,20 @@ class PredPrediction(object):
 #  <p>A DFA state may have multiple references to a particular state,
 #  but with different ATN contexts (with same or different alts)
 #  meaning that state was reached via a different set of rule invocations.</p>
-#/
+# /
 class DFAState(object):
     __slots__ = (
-        'stateNumber', 'configs', 'edges', 'isAcceptState', 'prediction',
-        'lexerActionExecutor', 'requiresFullContext', 'predicates'
+        "stateNumber",
+        "configs",
+        "edges",
+        "isAcceptState",
+        "prediction",
+        "lexerActionExecutor",
+        "requiresFullContext",
+        "predicates",
     )
 
-    def __init__(self, stateNumber:int=-1, configs:ATNConfigSet=ATNConfigSet()):
+    def __init__(self, stateNumber: int = -1, configs: ATNConfigSet = ATNConfigSet()):
         self.stateNumber = stateNumber
         self.configs = configs
         # {@code edges[symbol]} points to target of symbol. Shift up by 1 so (-1)
@@ -80,8 +88,6 @@ class DFAState(object):
         #  <p>This list is computed by {@link ParserATNSimulator#predicateDFAState}.</p>
         self.predicates = None
 
-
-
     # Get the set of all alts mentioned by all ATN configurations in this
     #  DFA state.
     def getAltSet(self):
@@ -110,7 +116,7 @@ class DFAState(object):
         elif not isinstance(other, DFAState):
             return False
         else:
-            return self.configs==other.configs
+            return self.configs == other.configs
 
     def __str__(self):
         with StringIO() as buf:

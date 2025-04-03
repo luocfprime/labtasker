@@ -3,52 +3,78 @@
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
 import sys
+
 if sys.version_info[1] > 5:
     from typing import TextIO
 else:
     from typing.io import TextIO
+
+from .atn.ATNDeserializationOptions import ATNDeserializationOptions
+from .atn.ATNDeserializer import ATNDeserializer
 from .BufferedTokenStream import TokenStream
 from .CommonTokenFactory import TokenFactory
+from .error.Errors import RecognitionException, UnsupportedOperationException
 from .error.ErrorStrategy import DefaultErrorStrategy
 from .InputStream import InputStream
+from .Lexer import Lexer
+from .ParserRuleContext import ParserRuleContext
 from .Recognizer import Recognizer
 from .RuleContext import RuleContext
-from .ParserRuleContext import ParserRuleContext
 from .Token import Token
-from .Lexer import Lexer
-from .atn.ATNDeserializer import ATNDeserializer
-from .atn.ATNDeserializationOptions import ATNDeserializationOptions
-from .error.Errors import UnsupportedOperationException, RecognitionException
 from .tree.ParseTreePatternMatcher import ParseTreePatternMatcher
-from .tree.Tree import ParseTreeListener, TerminalNode, ErrorNode
+from .tree.Tree import ErrorNode, ParseTreeListener, TerminalNode
+
 
 class TraceListener(ParseTreeListener):
-    __slots__ = '_parser'
+    __slots__ = "_parser"
 
     def __init__(self, parser):
         self._parser = parser
 
     def enterEveryRule(self, ctx):
-        print("enter   " + self._parser.ruleNames[ctx.getRuleIndex()] + ", LT(1)=" + self._parser._input.LT(1).text, file=self._parser._output)
+        print(
+            "enter   "
+            + self._parser.ruleNames[ctx.getRuleIndex()]
+            + ", LT(1)="
+            + self._parser._input.LT(1).text,
+            file=self._parser._output,
+        )
 
     def visitTerminal(self, node):
 
-        print("consume " + str(node.symbol) + " rule " + self._parser.ruleNames[self._parser._ctx.getRuleIndex()], file=self._parser._output)
+        print(
+            "consume "
+            + str(node.symbol)
+            + " rule "
+            + self._parser.ruleNames[self._parser._ctx.getRuleIndex()],
+            file=self._parser._output,
+        )
 
     def visitErrorNode(self, node):
         pass
 
-
     def exitEveryRule(self, ctx):
-        print("exit    " + self._parser.ruleNames[ctx.getRuleIndex()] + ", LT(1)=" + self._parser._input.LT(1).text, file=self._parser._output)
+        print(
+            "exit    "
+            + self._parser.ruleNames[ctx.getRuleIndex()]
+            + ", LT(1)="
+            + self._parser._input.LT(1).text,
+            file=self._parser._output,
+        )
 
 
 # self is all the parsing support code essentially; most of it is error recovery stuff.#
-class Parser (Recognizer):
+class Parser(Recognizer):
     __slots__ = (
-        '_input', '_output', '_errHandler', '_precedenceStack', '_ctx',
-        'buildParseTrees', '_tracer', '_parseListeners', '_syntaxErrors'
-
+        "_input",
+        "_output",
+        "_errHandler",
+        "_precedenceStack",
+        "_ctx",
+        "buildParseTrees",
+        "_tracer",
+        "_parseListeners",
+        "_syntaxErrors",
     )
     # self field maps from the serialized ATN string to the deserialized {@link ATN} with
     # bypass alternatives.
@@ -57,7 +83,7 @@ class Parser (Recognizer):
     #
     bypassAltsAtnCache = dict()
 
-    def __init__(self, input:TokenStream, output:TextIO = sys.stdout):
+    def __init__(self, input: TokenStream, output: TextIO = sys.stdout):
         super().__init__()
         # The input stream.
         self._input = None
@@ -117,14 +143,14 @@ class Parser (Recognizer):
     # {@code ttype} and the error strategy could not recover from the
     # mismatched symbol
 
-    def match(self, ttype:int):
+    def match(self, ttype: int):
         t = self.getCurrentToken()
-        if t.type==ttype:
+        if t.type == ttype:
             self._errHandler.reportMatch(self)
             self.consume()
         else:
             t = self._errHandler.recoverInline(self)
-            if self.buildParseTrees and t.tokenIndex==-1:
+            if self.buildParseTrees and t.tokenIndex == -1:
                 # we must have conjured up a new token during single token insertion
                 # if it's not the current symbol
                 self._ctx.addErrorNode(t)
@@ -191,7 +217,7 @@ class Parser (Recognizer):
     #
     # @throws NullPointerException if {@code} listener is {@code null}
     #
-    def addParseListener(self, listener:ParseTreeListener):
+    def addParseListener(self, listener: ParseTreeListener):
         if listener is None:
             raise ReferenceError("listener")
         if self._parseListeners is None:
@@ -205,11 +231,11 @@ class Parser (Recognizer):
     # listener, self method does nothing.</p>
     # @param listener the listener to remove
     #
-    def removeParseListener(self, listener:ParseTreeListener):
+    def removeParseListener(self, listener: ParseTreeListener):
         if self._parseListeners is not None:
             self._parseListeners.remove(listener)
-            if len(self._parseListeners)==0:
-                    self._parseListeners = None
+            if len(self._parseListeners) == 0:
+                self._parseListeners = None
 
     # Remove all parse listeners.
     def removeParseListeners(self):
@@ -234,7 +260,6 @@ class Parser (Recognizer):
                 self._ctx.exitRule(listener)
                 listener.exitEveryRule(self._ctx)
 
-
     # Gets the number of syntax errors reported during parsing. This value is
     # incremented each time {@link #notifyErrorListeners} is called.
     #
@@ -247,7 +272,7 @@ class Parser (Recognizer):
         return self._input.tokenSource._factory
 
     # Tell our token source and error strategy about a new way to create tokens.#
-    def setTokenFactory(self, factory:TokenFactory):
+    def setTokenFactory(self, factory: TokenFactory):
         self._input.tokenSource._factory = factory
 
     # The ATN with bypass alternatives is expensive to create so we create it
@@ -259,7 +284,9 @@ class Parser (Recognizer):
     def getATNWithBypassAlts(self):
         serializedAtn = self.getSerializedATN()
         if serializedAtn is None:
-            raise UnsupportedOperationException("The current parser does not support an ATN with bypass alternatives.")
+            raise UnsupportedOperationException(
+                "The current parser does not support an ATN with bypass alternatives."
+            )
         result = self.bypassAltsAtnCache.get(serializedAtn, None)
         if result is None:
             deserializationOptions = ATNDeserializationOptions()
@@ -278,11 +305,13 @@ class Parser (Recognizer):
     # String id = m.get("ID");
     # </pre>
     #
-    def compileParseTreePattern(self, pattern:str, patternRuleIndex:int, lexer:Lexer = None):
+    def compileParseTreePattern(
+        self, pattern: str, patternRuleIndex: int, lexer: Lexer = None
+    ):
         if lexer is None:
             if self.getTokenStream() is not None:
                 tokenSource = self.getTokenStream().tokenSource
-                if isinstance( tokenSource, Lexer ):
+                if isinstance(tokenSource, Lexer):
                     lexer = tokenSource
         if lexer is None:
             raise UnsupportedOperationException("Parser can't discover a lexer to use")
@@ -290,18 +319,17 @@ class Parser (Recognizer):
         m = ParseTreePatternMatcher(lexer, self)
         return m.compile(pattern, patternRuleIndex)
 
-
     def getInputStream(self):
         return self.getTokenStream()
 
-    def setInputStream(self, input:InputStream):
+    def setInputStream(self, input: InputStream):
         self.setTokenStream(input)
 
     def getTokenStream(self):
         return self._input
 
     # Set the token stream and reset the parser.#
-    def setTokenStream(self, input:TokenStream):
+    def setTokenStream(self, input: TokenStream):
         self._input = None
         self.reset()
         self._input = input
@@ -312,7 +340,9 @@ class Parser (Recognizer):
     def getCurrentToken(self):
         return self._input.LT(1)
 
-    def notifyErrorListeners(self, msg:str, offendingToken:Token = None, e:RecognitionException = None):
+    def notifyErrorListeners(
+        self, msg: str, offendingToken: Token = None, e: RecognitionException = None
+    ):
         if offendingToken is None:
             offendingToken = self.getCurrentToken()
         self._syntaxErrors += 1
@@ -346,7 +376,7 @@ class Parser (Recognizer):
         o = self.getCurrentToken()
         if o.type != Token.EOF:
             self.getInputStream().consume()
-        hasListener = self._parseListeners is not None and len(self._parseListeners)>0
+        hasListener = self._parseListeners is not None and len(self._parseListeners) > 0
         if self.buildParseTrees or hasListener:
             if self._errHandler.inErrorRecoveryMode(self):
                 node = self._ctx.addErrorNode(o)
@@ -368,13 +398,13 @@ class Parser (Recognizer):
     # Always called by generated parsers upon entry to a rule. Access field
     # {@link #_ctx} get the current context.
     #
-    def enterRule(self, localctx:ParserRuleContext , state:int , ruleIndex:int):
+    def enterRule(self, localctx: ParserRuleContext, state: int, ruleIndex: int):
         self.state = state
         self._ctx = localctx
         self._ctx.start = self._input.LT(1)
         if self.buildParseTrees:
             self.addContextToParseTree()
-        if self._parseListeners  is not None:
+        if self._parseListeners is not None:
             self.triggerEnterRuleEvent()
 
     def exitRule(self):
@@ -385,7 +415,7 @@ class Parser (Recognizer):
         self.state = self._ctx.invokingState
         self._ctx = self._ctx.parentCtx
 
-    def enterOuterAlt(self, localctx:ParserRuleContext, altNum:int):
+    def enterOuterAlt(self, localctx: ParserRuleContext, altNum: int):
         localctx.setAltNumber(altNum)
         # if we have new localctx, make sure we replace existing ctx
         # that is previous child of parse tree
@@ -401,23 +431,27 @@ class Parser (Recognizer):
     # the parser context is not nested within a precedence rule.
     #
     def getPrecedence(self):
-        if len(self._precedenceStack)==0:
+        if len(self._precedenceStack) == 0:
             return -1
         else:
             return self._precedenceStack[-1]
 
-    def enterRecursionRule(self, localctx:ParserRuleContext, state:int, ruleIndex:int, precedence:int):
+    def enterRecursionRule(
+        self, localctx: ParserRuleContext, state: int, ruleIndex: int, precedence: int
+    ):
         self.state = state
         self._precedenceStack.append(precedence)
         self._ctx = localctx
         self._ctx.start = self._input.LT(1)
         if self._parseListeners is not None:
-            self.triggerEnterRuleEvent() # simulates rule entry for left-recursive rules
+            self.triggerEnterRuleEvent()  # simulates rule entry for left-recursive rules
 
     #
     # Like {@link #enterRule} but for recursive rules.
     #
-    def pushNewRecursionContext(self, localctx:ParserRuleContext, state:int, ruleIndex:int):
+    def pushNewRecursionContext(
+        self, localctx: ParserRuleContext, state: int, ruleIndex: int
+    ):
         previous = self._ctx
         previous.parentCtx = localctx
         previous.invokingState = state
@@ -429,12 +463,12 @@ class Parser (Recognizer):
             self._ctx.addChild(previous)
 
         if self._parseListeners is not None:
-            self.triggerEnterRuleEvent() # simulates rule entry for left-recursive rules
+            self.triggerEnterRuleEvent()  # simulates rule entry for left-recursive rules
 
-    def unrollRecursionContexts(self, parentCtx:ParserRuleContext):
+    def unrollRecursionContexts(self, parentCtx: ParserRuleContext):
         self._precedenceStack.pop()
         self._ctx.stop = self._input.LT(-1)
-        retCtx = self._ctx # save current ctx (return value)
+        retCtx = self._ctx  # save current ctx (return value)
         # unroll so _ctx is as it was before call to recursive method
         if self._parseListeners is not None:
             while self._ctx is not parentCtx:
@@ -450,7 +484,7 @@ class Parser (Recognizer):
             # add return ctx into invoking rule's tree
             parentCtx.addChild(retCtx)
 
-    def getInvokingContext(self, ruleIndex:int):
+    def getInvokingContext(self, ruleIndex: int):
         ctx = self._ctx
         while ctx is not None:
             if ctx.getRuleIndex() == ruleIndex:
@@ -458,11 +492,10 @@ class Parser (Recognizer):
             ctx = ctx.parentCtx
         return None
 
-
-    def precpred(self, localctx:RuleContext , precedence:int):
+    def precpred(self, localctx: RuleContext, precedence: int):
         return precedence >= self._precedenceStack[-1]
 
-    def inContext(self, context:str):
+    def inContext(self, context: str):
         # TODO: useful in parser?
         return False
 
@@ -480,7 +513,7 @@ class Parser (Recognizer):
     # @return {@code true} if {@code symbol} can follow the current state in
     # the ATN, otherwise {@code false}.
     #
-    def isExpectedToken(self, symbol:int):
+    def isExpectedToken(self, symbol: int):
         atn = self._interp.atn
         ctx = self._ctx
         s = atn.states[self.state]
@@ -490,7 +523,7 @@ class Parser (Recognizer):
         if not Token.EPSILON in following:
             return False
 
-        while ctx is not None and ctx.invokingState>=0 and Token.EPSILON in following:
+        while ctx is not None and ctx.invokingState >= 0 and Token.EPSILON in following:
             invokingState = atn.states[ctx.invokingState]
             rt = invokingState.transitions[0]
             following = atn.nextTokens(rt.followState)
@@ -518,7 +551,7 @@ class Parser (Recognizer):
         return atn.nextTokens(s)
 
     # Get a rule's index (i.e., {@code RULE_ruleName} field) or -1 if not found.#
-    def getRuleIndex(self, ruleName:str):
+    def getRuleIndex(self, ruleName: str):
         ruleIndex = self.getRuleIndexMap().get(ruleName, None)
         if ruleIndex is not None:
             return ruleIndex
@@ -532,14 +565,14 @@ class Parser (Recognizer):
     #
     #  this is very useful for error messages.
     #
-    def getRuleInvocationStack(self, p:RuleContext=None):
+    def getRuleInvocationStack(self, p: RuleContext = None):
         if p is None:
             p = self._ctx
         stack = list()
         while p is not None:
             # compute what follows who invoked us
             ruleIndex = p.getRuleIndex()
-            if ruleIndex<0:
+            if ruleIndex < 0:
                 stack.append("n/a")
             else:
                 stack.append(self.ruleNames[ruleIndex])
@@ -548,20 +581,23 @@ class Parser (Recognizer):
 
     # For debugging and other purposes.#
     def getDFAStrings(self):
-        return [ str(dfa) for dfa in self._interp.decisionToDFA]
+        return [str(dfa) for dfa in self._interp.decisionToDFA]
 
     # For debugging and other purposes.#
     def dumpDFA(self):
         seenOne = False
         for i in range(0, len(self._interp.decisionToDFA)):
             dfa = self._interp.decisionToDFA[i]
-            if len(dfa.states)>0:
+            if len(dfa.states) > 0:
                 if seenOne:
                     print(file=self._output)
                 print("Decision " + str(dfa.decision) + ":", file=self._output)
-                print(dfa.toString(self.literalNames, self.symbolicNames), end='', file=self._output)
+                print(
+                    dfa.toString(self.literalNames, self.symbolicNames),
+                    end="",
+                    file=self._output,
+                )
                 seenOne = True
-
 
     def getSourceName(self):
         return self._input.sourceName
@@ -569,7 +605,7 @@ class Parser (Recognizer):
     # During a parse is sometimes useful to listen in on the rule entry and exit
     #  events as well as token matches. self is for quick and dirty debugging.
     #
-    def setTrace(self, trace:bool):
+    def setTrace(self, trace: bool):
         if not trace:
             self.removeParseListener(self._tracer)
             self._tracer = None

@@ -2,18 +2,16 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-from ..atn.ATNState import StarLoopEntryState
-
 from ..atn.ATNConfigSet import ATNConfigSet
-from ..atn.ATNState import DecisionState
+from ..atn.ATNState import DecisionState, StarLoopEntryState
 from ..dfa.DFAState import DFAState
 from ..error.Errors import IllegalStateException
 
 
 class DFA(object):
-    __slots__ = ('atnStartState', 'decision', '_states', 's0', 'precedenceDfa')
+    __slots__ = ("atnStartState", "decision", "_states", "s0", "precedenceDfa")
 
-    def __init__(self, atnStartState:DecisionState, decision:int=0):
+    def __init__(self, atnStartState: DecisionState, decision: int = 0):
         # From which ATN state did we create this DFA?
         self.atnStartState = atnStartState
         self.decision = decision
@@ -35,7 +33,6 @@ class DFA(object):
                 precedenceState.requiresFullContext = False
                 self.s0 = precedenceState
 
-
     # Get the start state for a specific precedence value.
     #
     # @param precedence The current precedence.
@@ -45,9 +42,11 @@ class DFA(object):
     # @throws IllegalStateException if this is not a precedence DFA.
     # @see #isPrecedenceDfa()
 
-    def getPrecedenceStartState(self, precedence:int):
+    def getPrecedenceStartState(self, precedence: int):
         if not self.precedenceDfa:
-            raise IllegalStateException("Only precedence DFAs may contain a precedence start state.")
+            raise IllegalStateException(
+                "Only precedence DFAs may contain a precedence start state."
+            )
 
         # s0.edges is never null for a precedence DFA
         if precedence < 0 or precedence >= len(self.s0.edges):
@@ -63,9 +62,11 @@ class DFA(object):
     # @throws IllegalStateException if this is not a precedence DFA.
     # @see #isPrecedenceDfa()
     #
-    def setPrecedenceStartState(self, precedence:int, startState:DFAState):
+    def setPrecedenceStartState(self, precedence: int, startState: DFAState):
         if not self.precedenceDfa:
-            raise IllegalStateException("Only precedence DFAs may contain a precedence start state.")
+            raise IllegalStateException(
+                "Only precedence DFAs may contain a precedence start state."
+            )
 
         if precedence < 0:
             return
@@ -77,6 +78,7 @@ class DFA(object):
             ext = [None] * (precedence + 1 - len(self.s0.edges))
             self.s0.edges.extend(ext)
         self.s0.edges[precedence] = startState
+
     #
     # Sets whether this is a precedence DFA. If the specified value differs
     # from the current DFA configuration, the following actions are taken;
@@ -94,7 +96,7 @@ class DFA(object):
     # @param precedenceDfa {@code true} if this is a precedence DFA; otherwise,
     # {@code false}
 
-    def setPrecedenceDfa(self, precedenceDfa:bool):
+    def setPrecedenceDfa(self, precedenceDfa: bool):
         if self.precedenceDfa != precedenceDfa:
             self._states = dict()
             if precedenceDfa:
@@ -118,16 +120,18 @@ class DFA(object):
     def __str__(self):
         return self.toString(None)
 
-    def toString(self, literalNames:list=None, symbolicNames:list=None):
+    def toString(self, literalNames: list = None, symbolicNames: list = None):
         if self.s0 is None:
             return ""
         from ..dfa.DFASerializer import DFASerializer
-        serializer = DFASerializer(self,literalNames,symbolicNames)
+
+        serializer = DFASerializer(self, literalNames, symbolicNames)
         return str(serializer)
 
     def toLexerString(self):
         if self.s0 is None:
             return ""
         from ..dfa.DFASerializer import LexerDFASerializer
+
         serializer = LexerDFASerializer(self)
         return str(serializer)
