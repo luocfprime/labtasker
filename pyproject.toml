@@ -24,13 +24,11 @@ classifiers = [
 ]
 
 dependencies = [
-    "python-dotenv (>=1.0.1,<2.0.0)",
     "pymongo (>=4.0.0,<5.0.0)",
     "fastapi (>=0.115.0,<0.116.0)",
     "uvicorn[standard] (>=0.15.0,<0.35.0)",
     "click (>=8.1.0,<9.0.0)",
     "passlib (>=1.7.0,<2.0.0)",
-    "antlr4-python3-runtime (>=4.13.0,<5.0.0)",
     "pydantic-settings (>=2.8.0,<3.0.0)",
     "httpx[socks] (>=0.28.0,<0.29.0)",
     "typer (>=0.15.0,<0.16.0)",
@@ -91,8 +89,19 @@ packages = ["labtasker"]
 
 [tool.black]
 line-length = 88
-target-version = ['py38']
-include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | vendor
+)/
+'''
 
 [tool.isort]
 profile = "black"
@@ -100,6 +109,17 @@ multi_line_output = 3
 line_length = 88
 known_first_party = ["labtasker"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+skip = [
+    ".git",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "labtasker/vendor"
+]
 
 [tool.mypy]
 disable_error_code = [
@@ -128,6 +148,10 @@ files = ["labtasker"]
 
 [[tool.mypy.overrides]]
 module = "labtasker.client.core.cmd_parser.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "labtasker.vendor.*"
 ignore_errors = true
 
 # Add this for Typer-specific code

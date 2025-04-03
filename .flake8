@@ -11,7 +11,8 @@ exclude =
     .tox,
     .mypy_cache,
     .pytest_cache,
-    labtasker/client/core/cmd_parser/generated
+    labtasker/client/core/cmd_parser/generated,
+    labtasker/vendor
 per-file-ignores =
     __init__.py:F401,F403
     tests/*:F841,F811,F401,S101

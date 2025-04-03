@@ -3,7 +3,7 @@
 import sys
 from io import StringIO
 
-from antlr4 import *
+from labtasker.vendor.antlr4 import *
 
 if sys.version_info[1] > 5:
     from typing import TextIO

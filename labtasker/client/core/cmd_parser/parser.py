@@ -1,8 +1,6 @@
 import os
 from typing import Any, Dict, List, Set, Tuple, Union
 
-from antlr4 import CommonTokenStream, InputStream, ParserRuleContext, ParseTreeWalker
-from antlr4.error.ErrorListener import ErrorListener
 from rich import print
 from rich.console import Console
 from rich.text import Text
@@ -17,6 +15,13 @@ from labtasker.client.core.exceptions import (
     CmdTypeError,
 )
 from labtasker.client.core.logging import stderr_console
+from labtasker.vendor.antlr4 import (
+    CommonTokenStream,
+    InputStream,
+    ParserRuleContext,
+    ParseTreeWalker,
+)
+from labtasker.vendor.antlr4.error.ErrorListener import ErrorListener
 
 # Posix quote and windows quote
 if os.name == "nt":
