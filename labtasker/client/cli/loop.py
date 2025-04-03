@@ -55,7 +55,7 @@ def loop(
     option_cmd: str = typer.Option(
         None,
         "--command",
-        "--command",
+        "--cmd",
         "-c",
         help="Specify the command to run with shell=True. Supports the same argument interpolation the same way as the positional argument. Except you need to quote the entire command.",
     ),
