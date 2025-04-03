@@ -163,10 +163,10 @@ def format_print_error(
 
 
 class CmdListener(LabCmdListener):
-    def __init__(self, variable_table, quote_dict: bool):
+    def __init__(self, variable_table, use_quote: bool):
         super().__init__()
         self.variable_table = variable_table
-        self.quote_dict = quote_dict
+        self.use_quote = use_quote
 
         self.result_str = ""
         self.args = set()
@@ -196,12 +196,15 @@ class CmdListener(LabCmdListener):
 
         if isinstance(self.variable, dict):
             # convert dict into bash string
-            if self.quote_dict:
+            # reverse quotes simplifies the conventional Python string representation
+            if self.use_quote:
                 self.result_str += quote(reverse_quotes(str(self.variable)))
             else:
                 self.result_str += reverse_quotes(str(self.variable))
         else:
-            self.result_str += str(self.variable)
+            self.result_str += (
+                quote(str(self.variable)) if self.use_quote else str(self.variable)
+            )
 
         self.variable = None
 
@@ -295,9 +298,7 @@ def cmd_interpolate(
         interpolated_cmd = []
         involved_keys = set()
         for c in cmd:
-            interpolated_str, keys = interpolate_str(
-                c, variable_table, quote_dict=False
-            )
+            interpolated_str, keys = interpolate_str(c, variable_table, use_quote=False)
             interpolated_cmd.append(interpolated_str)
             involved_keys.update(keys)
 
@@ -305,14 +306,14 @@ def cmd_interpolate(
 
 
 def interpolate_str(
-    input_str: str, variable_table: Dict[str, Any], quote_dict: bool = True
+    input_str: str, variable_table: Dict[str, Any], use_quote: bool = True
 ) -> Tuple[str, Set[str]]:
     """
 
     Args:
         input_str:
         variable_table:
-        quote_dict: quote dict string using shlex.quote
+        use_quote: quote dict or strings using shlex.quote
 
     Returns:
         interpolated str, involved keys
@@ -330,7 +331,7 @@ def interpolate_str(
     try:
         tree = parser.command()
         # Walk the parse tree with the custom listener
-        listener = CmdListener(variable_table=variable_table, quote_dict=quote_dict)
+        listener = CmdListener(variable_table=variable_table, use_quote=use_quote)
         walker = ParseTreeWalker()
         walker.walk(listener, tree)
     except CmdParserError as e:

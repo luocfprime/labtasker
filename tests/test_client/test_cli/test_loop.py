@@ -42,6 +42,7 @@ def setup_tasks(db_fixture):
             args={
                 "arg1": i,
                 "arg2": {"arg3": i, "arg4": "foo"},
+                "arg5": 'He said: "What\'s the whether like today?"',
             },
         )
 
@@ -56,7 +57,11 @@ class TestLoop:
         script_path = osp.join(dummy_job_script_dir, "job_1.py")
         result = runner.invoke(
             app,
-            ["loop", "-c", f"python {script_path} --arg1 %(arg1) --arg2 %(arg2)"],
+            [
+                "loop",
+                "-c",
+                f"python {script_path} --arg1 %(arg1) --arg2 %(arg2) --arg5 %(arg5)",
+            ],
         )
         assert result.exit_code == 0, result.output
         output_text = Text.from_ansi(result.output).plain
@@ -75,7 +80,7 @@ class TestLoop:
             [
                 "loop",
                 "-c",
-                f"python {script_path} --arg1 %(arg1) --arg2 %(arg2) && echo '{random_str}'",
+                f"python {script_path} --arg1 %(arg1) --arg2 %(arg2) --arg5 %(arg5) && echo '{random_str}'",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -97,6 +102,8 @@ class TestLoop:
                 "%(arg1)",
                 "--arg2",
                 "%(arg2)",
+                "--arg5",
+                "%(arg5)",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -115,6 +122,7 @@ class TestLoop:
                 script_path,
                 "--arg1=%(arg1)",
                 "--arg2=%(arg2)",
+                "--arg5=%(arg5)",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -125,10 +133,14 @@ class TestLoop:
     @pytest.fixture
     def bash_script(self, dummy_job_script_dir):
         """Fixture to create a temporary bash script."""
-        bash_script_content = """#!/bin/bash
+        script_path = osp.join(dummy_job_script_dir, "job_1.py")
+
+        bash_script_content = f"""#!/bin/bash
         arg1=%(arg1)
         arg2=%(arg2)
-        echo "Running task $arg1"
+        arg5=%(arg5)
+
+        python {script_path} --arg1 "$arg1" --arg2 "$arg2" --arg5 "$arg5"
         """
 
         # Create a temporary file for the script
@@ -151,7 +163,7 @@ class TestLoop:
 
         result = runner.invoke(
             app,
-            ["loop", "--script-path", bash_script],
+            ["loop", "--executable", "/bin/bash", "--script-path", bash_script],
         )
         assert result.exit_code == 0, result.output
         output_text = Text.from_ansi(result.output).plain
