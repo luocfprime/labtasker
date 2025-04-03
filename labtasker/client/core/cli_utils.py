@@ -635,7 +635,11 @@ def make_a_choice(
         default=default,
         keyboard_interrupt_default=keyboard_interrupt_default,
     )
-    return asyncio.run(prompt.prompt_async())
+
+    try:
+        return asyncio.run(prompt.prompt_async())
+    except Exception:  # EOFError:  # e.g. closed connection under special circumstances
+        return default
 
 
 ls_format_iter = {
