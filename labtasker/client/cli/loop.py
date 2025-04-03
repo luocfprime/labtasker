@@ -159,6 +159,7 @@ def loop(
 
         with subprocess.Popen(
             args=interpolated_cmd,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
