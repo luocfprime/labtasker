@@ -1,32 +1,27 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-# /
-from ..atn.ATNState import ATNState, DecisionState
-from ..atn.ATNType import ATNType
+#/
 from ..IntervalSet import IntervalSet
+
 from ..RuleContext import RuleContext
+
 from ..Token import Token
+from ..atn.ATNType import ATNType
+from ..atn.ATNState import ATNState, DecisionState
 
 
 class ATN(object):
     __slots__ = (
-        "grammarType",
-        "maxTokenType",
-        "states",
-        "decisionToState",
-        "ruleToStartState",
-        "ruleToStopState",
-        "modeNameToStartState",
-        "ruleToTokenType",
-        "lexerActions",
-        "modeToStartState",
+        'grammarType', 'maxTokenType', 'states', 'decisionToState',
+        'ruleToStartState', 'ruleToStopState', 'modeNameToStartState',
+        'ruleToTokenType', 'lexerActions', 'modeToStartState'
     )
 
     INVALID_ALT_NUMBER = 0
 
     # Used for runtime deserialization of ATNs from strings#/
-    def __init__(self, grammarType: ATNType, maxTokenType: int):
+    def __init__(self, grammarType:ATNType , maxTokenType:int ):
         # The type of the ATN.
         self.grammarType = grammarType
         # The maximum value for any symbol recognized by a transition in the ATN.
@@ -56,46 +51,43 @@ class ATN(object):
     #  If {@code ctx} is null, the set of tokens will not include what can follow
     #  the rule surrounding {@code s}. In other words, the set will be
     #  restricted to tokens reachable staying within {@code s}'s rule.
-    def nextTokensInContext(self, s: ATNState, ctx: RuleContext):
+    def nextTokensInContext(self, s:ATNState, ctx:RuleContext):
         from ..LL1Analyzer import LL1Analyzer
-
         anal = LL1Analyzer(self)
         return anal.LOOK(s, ctx=ctx)
 
     # Compute the set of valid tokens that can occur starting in {@code s} and
     # staying in same rule. {@link Token#EPSILON} is in set if we reach end of
     # rule.
-    def nextTokensNoContext(self, s: ATNState):
+    def nextTokensNoContext(self, s:ATNState):
         if s.nextTokenWithinRule is not None:
             return s.nextTokenWithinRule
         s.nextTokenWithinRule = self.nextTokensInContext(s, None)
         s.nextTokenWithinRule.readonly = True
         return s.nextTokenWithinRule
 
-    def nextTokens(self, s: ATNState, ctx: RuleContext = None):
-        if ctx == None:
+    def nextTokens(self, s:ATNState, ctx:RuleContext = None):
+        if ctx==None:
             return self.nextTokensNoContext(s)
         else:
             return self.nextTokensInContext(s, ctx)
 
-    def addState(self, state: ATNState):
+    def addState(self, state:ATNState):
         if state is not None:
             state.atn = self
             state.stateNumber = len(self.states)
         self.states.append(state)
 
-    def removeState(self, state: ATNState):
-        self.states[state.stateNumber] = (
-            None  # just free mem, don't shift states in list
-        )
+    def removeState(self, state:ATNState):
+        self.states[state.stateNumber] = None # just free mem, don't shift states in list
 
-    def defineDecisionState(self, s: DecisionState):
+    def defineDecisionState(self, s:DecisionState):
         self.decisionToState.append(s)
-        s.decision = len(self.decisionToState) - 1
+        s.decision = len(self.decisionToState)-1
         return s.decision
 
-    def getDecisionState(self, decision: int):
-        if len(self.decisionToState) == 0:
+    def getDecisionState(self, decision:int):
+        if len(self.decisionToState)==0:
             return None
         else:
             return self.decisionToState[decision]
@@ -117,8 +109,8 @@ class ATN(object):
     # specified state in the specified context.
     # @throws IllegalArgumentException if the ATN does not contain a state with
     # number {@code stateNumber}
-    # /
-    def getExpectedTokens(self, stateNumber: int, ctx: RuleContext):
+    #/
+    def getExpectedTokens(self, stateNumber:int, ctx:RuleContext ):
         if stateNumber < 0 or stateNumber >= len(self.states):
             raise Exception("Invalid state number.")
         s = self.states[stateNumber]
@@ -128,7 +120,7 @@ class ATN(object):
         expected = IntervalSet()
         expected.addSet(following)
         expected.removeOne(Token.EPSILON)
-        while ctx != None and ctx.invokingState >= 0 and Token.EPSILON in following:
+        while (ctx != None and ctx.invokingState >= 0 and Token.EPSILON in following):
             invokingState = self.states[ctx.invokingState]
             rt = invokingState.transitions[0]
             following = self.nextTokens(rt.followState)

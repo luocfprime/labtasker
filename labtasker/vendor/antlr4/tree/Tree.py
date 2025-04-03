@@ -1,40 +1,33 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-# /
+#/
 
 
 # The basic notion of a tree has a parent, a payload, and a list of children.
 #  It is the most abstract interface for all the trees used by ANTLR.
-# /
+#/
 from ..Token import Token
 
 INVALID_INTERVAL = (-1, -2)
 
-
 class Tree(object):
     pass
-
 
 class SyntaxTree(Tree):
     pass
 
-
 class ParseTree(SyntaxTree):
     pass
-
 
 class RuleNode(ParseTree):
     pass
 
-
 class TerminalNode(ParseTree):
     pass
 
-
 class ErrorNode(TerminalNode):
     pass
-
 
 class ParseTreeVisitor(object):
     def visit(self, tree):
@@ -68,39 +61,34 @@ class ParseTreeVisitor(object):
     def shouldVisitNextChild(self, node, currentResult):
         return True
 
-
 ParserRuleContext = None
-
 
 class ParseTreeListener(object):
 
-    def visitTerminal(self, node: TerminalNode):
+    def visitTerminal(self, node:TerminalNode):
         pass
 
-    def visitErrorNode(self, node: ErrorNode):
+    def visitErrorNode(self, node:ErrorNode):
         pass
 
-    def enterEveryRule(self, ctx: ParserRuleContext):
+    def enterEveryRule(self, ctx:ParserRuleContext):
         pass
 
-    def exitEveryRule(self, ctx: ParserRuleContext):
+    def exitEveryRule(self, ctx:ParserRuleContext):
         pass
-
 
 del ParserRuleContext
 
-
 class TerminalNodeImpl(TerminalNode):
-    __slots__ = ("parentCtx", "symbol")
+    __slots__ = ('parentCtx', 'symbol')
 
-    def __init__(self, symbol: Token):
+    def __init__(self, symbol:Token):
         self.parentCtx = None
         self.symbol = symbol
-
     def __setattr__(self, key, value):
         super().__setattr__(key, value)
 
-    def getChild(self, i: int):
+    def getChild(self, i:int):
         return None
 
     def getSymbol(self):
@@ -121,7 +109,7 @@ class TerminalNodeImpl(TerminalNode):
     def getChildCount(self):
         return 0
 
-    def accept(self, visitor: ParseTreeVisitor):
+    def accept(self, visitor:ParseTreeVisitor):
         return visitor.visitTerminal(self)
 
     def getText(self):
@@ -133,20 +121,18 @@ class TerminalNodeImpl(TerminalNode):
         else:
             return self.symbol.text
 
-
 # Represents a token that was consumed during resynchronization
 #  rather than during a valid match operation. For example,
 #  we will create this kind of a node during single token insertion
 #  and deletion as well as during "consume until error recovery set"
 #  upon no viable alternative exceptions.
 
+class ErrorNodeImpl(TerminalNodeImpl,ErrorNode):
 
-class ErrorNodeImpl(TerminalNodeImpl, ErrorNode):
-
-    def __init__(self, token: Token):
+    def __init__(self, token:Token):
         super().__init__(token)
 
-    def accept(self, visitor: ParseTreeVisitor):
+    def accept(self, visitor:ParseTreeVisitor):
         return visitor.visitErrorNode(self)
 
 
@@ -154,14 +140,14 @@ class ParseTreeWalker(object):
 
     DEFAULT = None
 
-    def walk(self, listener: ParseTreeListener, t: ParseTree):
+    def walk(self, listener:ParseTreeListener, t:ParseTree):
         """
-        Performs a walk on the given parse tree starting at the root and going down recursively
-        with depth-first search. On each node, {@link ParseTreeWalker#enterRule} is called before
-        recursively walking down into child nodes, then
-        {@link ParseTreeWalker#exitRule} is called after the recursive call to wind up.
-        @param listener The listener used by the walker to process grammar rules
-        @param t The parse tree to be walked on
+	    Performs a walk on the given parse tree starting at the root and going down recursively
+	    with depth-first search. On each node, {@link ParseTreeWalker#enterRule} is called before
+	    recursively walking down into child nodes, then
+	    {@link ParseTreeWalker#exitRule} is called after the recursive call to wind up.
+	    @param listener The listener used by the walker to process grammar rules
+	    @param t The parse tree to be walked on
         """
         if isinstance(t, ErrorNode):
             listener.visitErrorNode(t)
@@ -180,27 +166,26 @@ class ParseTreeWalker(object):
     # {@link RuleContext}-specific event. First we trigger the generic and then
     # the rule specific. We to them in reverse order upon finishing the node.
     #
-    def enterRule(self, listener: ParseTreeListener, r: RuleNode):
+    def enterRule(self, listener:ParseTreeListener, r:RuleNode):
         """
-        Enters a grammar rule by first triggering the generic event {@link ParseTreeListener#enterEveryRule}
-        then by triggering the event specific to the given parse tree node
-        @param listener The listener responding to the trigger events
-        @param r The grammar rule containing the rule context
+	    Enters a grammar rule by first triggering the generic event {@link ParseTreeListener#enterEveryRule}
+	    then by triggering the event specific to the given parse tree node
+	    @param listener The listener responding to the trigger events
+	    @param r The grammar rule containing the rule context
         """
         ctx = r.getRuleContext()
         listener.enterEveryRule(ctx)
         ctx.enterRule(listener)
 
-    def exitRule(self, listener: ParseTreeListener, r: RuleNode):
+    def exitRule(self, listener:ParseTreeListener, r:RuleNode):
         """
-        Exits a grammar rule by first triggering the event specific to the given parse tree node
-        then by triggering the generic event {@link ParseTreeListener#exitEveryRule}
-        @param listener The listener responding to the trigger events
-        @param r The grammar rule containing the rule context
+	    Exits a grammar rule by first triggering the event specific to the given parse tree node
+	    then by triggering the generic event {@link ParseTreeListener#exitEveryRule}
+	    @param listener The listener responding to the trigger events
+	    @param r The grammar rule containing the rule context
         """
         ctx = r.getRuleContext()
         ctx.exitRule(listener)
         listener.exitEveryRule(ctx)
-
 
 ParseTreeWalker.DEFAULT = ParseTreeWalker()

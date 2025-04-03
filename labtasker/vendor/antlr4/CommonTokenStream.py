@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-# /
+#/
 
 #
 # This class extends {@link BufferedTokenStream} with functionality to filter
@@ -27,7 +27,7 @@
 # {@link Lexer#skip} do not produce tokens at all, so input text matched by
 # such a rule will not be available as part of the token stream, regardless of
 # channel.</p>
-# /
+#/
 
 from .BufferedTokenStream import BufferedTokenStream
 from .Lexer import Lexer
@@ -35,17 +35,17 @@ from .Token import Token
 
 
 class CommonTokenStream(BufferedTokenStream):
-    __slots__ = "channel"
+    __slots__ = 'channel'
 
-    def __init__(self, lexer: Lexer, channel: int = Token.DEFAULT_CHANNEL):
+    def __init__(self, lexer:Lexer, channel:int=Token.DEFAULT_CHANNEL):
         super().__init__(lexer)
         self.channel = channel
 
-    def adjustSeekIndex(self, i: int):
+    def adjustSeekIndex(self, i:int):
         return self.nextTokenOnChannel(i, self.channel)
 
-    def LB(self, k: int):
-        if k == 0 or (self.index - k) < 0:
+    def LB(self, k:int):
+        if k==0 or (self.index-k)<0:
             return None
         i = self.index
         n = 1
@@ -58,14 +58,14 @@ class CommonTokenStream(BufferedTokenStream):
             return None
         return self.tokens[i]
 
-    def LT(self, k: int):
+    def LT(self, k:int):
         self.lazyInit()
         if k == 0:
             return None
         if k < 0:
             return self.LB(-k)
         i = self.index
-        n = 1  # we know tokens[pos] is a good one
+        n = 1 # we know tokens[pos] is a good one
         # find k good tokens
         while n < k:
             # skip off-channel tokens, but make sure to not look past EOF
@@ -80,8 +80,8 @@ class CommonTokenStream(BufferedTokenStream):
         self.fill()
         for i in range(0, len(self.tokens)):
             t = self.tokens[i]
-            if t.channel == self.channel:
+            if t.channel==self.channel:
                 n += 1
-            if t.type == Token.EOF:
+            if t.type==Token.EOF:
                 break
         return n

@@ -1,33 +1,26 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-# /
-
-import sys
+#/
 
 # A lexer is recognizer that draws input symbols from a character stream.
 #  lexer grammars result in a subclass of self object. A Lexer object
 #  uses simplified match() and error recovery mechanisms in the interest
 #  of speed.
-# /
+#/
 from io import StringIO
 
+import sys
 if sys.version_info[1] > 5:
     from typing import TextIO
 else:
     from typing.io import TextIO
-
-from .atn.LexerATNSimulator import LexerATNSimulator
 from .CommonTokenFactory import CommonTokenFactory
-from .error.Errors import (
-    IllegalStateException,
-    LexerNoViableAltException,
-    RecognitionException,
-)
+from .atn.LexerATNSimulator import LexerATNSimulator
 from .InputStream import InputStream
 from .Recognizer import Recognizer
 from .Token import Token
-
+from .error.Errors import IllegalStateException, LexerNoViableAltException, RecognitionException
 
 class TokenSource(object):
 
@@ -36,20 +29,9 @@ class TokenSource(object):
 
 class Lexer(Recognizer, TokenSource):
     __slots__ = (
-        "_input",
-        "_output",
-        "_factory",
-        "_tokenFactorySourcePair",
-        "_token",
-        "_tokenStartCharIndex",
-        "_tokenStartLine",
-        "_tokenStartColumn",
-        "_hitEOF",
-        "_channel",
-        "_type",
-        "_modeStack",
-        "_mode",
-        "_text",
+        '_input', '_output', '_factory', '_tokenFactorySourcePair', '_token',
+        '_tokenStartCharIndex', '_tokenStartLine', '_tokenStartColumn',
+        '_hitEOF', '_channel', '_type', '_modeStack', '_mode', '_text'
     )
 
     DEFAULT_MODE = 0
@@ -61,14 +43,14 @@ class Lexer(Recognizer, TokenSource):
     MIN_CHAR_VALUE = 0x0000
     MAX_CHAR_VALUE = 0x10FFFF
 
-    def __init__(self, input: InputStream, output: TextIO = sys.stdout):
+    def __init__(self, input:InputStream, output:TextIO = sys.stdout):
         super().__init__()
         self._input = input
         self._output = output
         self._factory = CommonTokenFactory.DEFAULT
         self._tokenFactorySourcePair = (self, input)
 
-        self._interp = None  # child classes must populate this
+        self._interp = None # child classes must populate this
 
         # The goal of all lexer rules/methods is to create a token object.
         #  self is an instance variable as multiple rules may collaborate to
@@ -105,13 +87,14 @@ class Lexer(Recognizer, TokenSource):
 
         # You can set the text for the current token to override what is in
         #  the input char buffer.  Use setText() or can set self instance var.
-        # /
+        #/
         self._text = None
+
 
     def reset(self):
         # wack Lexer state variables
         if self._input is not None:
-            self._input.seek(0)  # rewind the input
+            self._input.seek(0) # rewind the input
         self._token = None
         self._type = Token.INVALID_TYPE
         self._channel = Token.DEFAULT_CHANNEL
@@ -153,16 +136,16 @@ class Lexer(Recognizer, TokenSource):
                     try:
                         ttype = self._interp.match(self._input, self._mode)
                     except LexerNoViableAltException as e:
-                        self.notifyListeners(e)  # report error
+                        self.notifyListeners(e)		# report error
                         self.recover(e)
-                    if self._input.LA(1) == Token.EOF:
+                    if self._input.LA(1)==Token.EOF:
                         self._hitEOF = True
                     if self._type == Token.INVALID_TYPE:
                         self._type = ttype
                     if self._type == self.SKIP:
                         continueOuter = True
                         break
-                    if self._type != self.MORE:
+                    if self._type!=self.MORE:
                         break
                 if continueOuter:
                     continue
@@ -179,28 +162,28 @@ class Lexer(Recognizer, TokenSource):
     #  a lexer rule finishes with token set to SKIP_TOKEN.  Recall that
     #  if token==null at end of any token rule, it creates one for you
     #  and emits it.
-    # /
+    #/
     def skip(self):
         self._type = self.SKIP
 
     def more(self):
         self._type = self.MORE
 
-    def mode(self, m: int):
+    def mode(self, m:int):
         self._mode = m
 
-    def pushMode(self, m: int):
+    def pushMode(self, m:int):
         if self._interp.debug:
             print("pushMode " + str(m), file=self._output)
         self._modeStack.append(self._mode)
         self.mode(m)
 
     def popMode(self):
-        if len(self._modeStack) == 0:
+        if len(self._modeStack)==0:
             raise Exception("Empty Stack")
         if self._interp.debug:
-            print("popMode back to " + self._modeStack[:-1], file=self._output)
-        self.mode(self._modeStack.pop())
+            print("popMode back to "+ self._modeStack[:-1], file=self._output)
+        self.mode( self._modeStack.pop() )
         return self._mode
 
     # Set the char stream and reset the lexer#/
@@ -209,7 +192,7 @@ class Lexer(Recognizer, TokenSource):
         return self._input
 
     @inputStream.setter
-    def inputStream(self, input: InputStream):
+    def inputStream(self, input:InputStream):
         self._input = None
         self._tokenFactorySourcePair = (self, self._input)
         self.reset()
@@ -224,8 +207,8 @@ class Lexer(Recognizer, TokenSource):
     #  for efficiency reasons.  Subclass and override self method, nextToken,
     #  and getToken (to push tokens into a list and pull from that list
     #  rather than a single variable as self implementation does).
-    # /
-    def emitToken(self, token: Token):
+    #/
+    def emitToken(self, token:Token):
         self._token = token
 
     # The standard method called to automatically emit a token at the
@@ -233,34 +216,18 @@ class Lexer(Recognizer, TokenSource):
     #  char buffer start..stop.  If there is a text override in 'text',
     #  use that to set the token's text.  Override self method to emit
     #  custom Token objects or provide a new factory.
-    # /
+    #/
     def emit(self):
-        t = self._factory.create(
-            self._tokenFactorySourcePair,
-            self._type,
-            self._text,
-            self._channel,
-            self._tokenStartCharIndex,
-            self.getCharIndex() - 1,
-            self._tokenStartLine,
-            self._tokenStartColumn,
-        )
+        t = self._factory.create(self._tokenFactorySourcePair, self._type, self._text, self._channel, self._tokenStartCharIndex,
+                                 self.getCharIndex()-1, self._tokenStartLine, self._tokenStartColumn)
         self.emitToken(t)
         return t
 
     def emitEOF(self):
         cpos = self.column
         lpos = self.line
-        eof = self._factory.create(
-            self._tokenFactorySourcePair,
-            Token.EOF,
-            None,
-            Token.DEFAULT_CHANNEL,
-            self._input.index,
-            self._input.index - 1,
-            lpos,
-            cpos,
-        )
+        eof = self._factory.create(self._tokenFactorySourcePair, Token.EOF, None, Token.DEFAULT_CHANNEL, self._input.index,
+                                   self._input.index-1, lpos, cpos)
         self.emitToken(eof)
         return eof
 
@@ -269,7 +236,7 @@ class Lexer(Recognizer, TokenSource):
         return self._type
 
     @type.setter
-    def type(self, type: int):
+    def type(self, type:int):
         self._type = type
 
     @property
@@ -277,7 +244,7 @@ class Lexer(Recognizer, TokenSource):
         return self._interp.line
 
     @line.setter
-    def line(self, line: int):
+    def line(self, line:int):
         self._interp.line = line
 
     @property
@@ -285,7 +252,7 @@ class Lexer(Recognizer, TokenSource):
         return self._interp.column
 
     @column.setter
-    def column(self, column: int):
+    def column(self, column:int):
         self._interp.column = column
 
     # What is the index of the current character of lookahead?#/
@@ -304,61 +271,59 @@ class Lexer(Recognizer, TokenSource):
     # Set the complete text of self token; it wipes any previous
     #  changes to the text.
     @text.setter
-    def text(self, txt: str):
+    def text(self, txt:str):
         self._text = txt
 
     # Return a list of all Token objects in input char stream.
     #  Forces load of all tokens. Does not include EOF token.
-    # /
+    #/
     def getAllTokens(self):
         tokens = []
         t = self.nextToken()
-        while t.type != Token.EOF:
+        while t.type!=Token.EOF:
             tokens.append(t)
             t = self.nextToken()
         return tokens
 
-    def notifyListeners(self, e: LexerNoViableAltException):
+    def notifyListeners(self, e:LexerNoViableAltException):
         start = self._tokenStartCharIndex
         stop = self._input.index
         text = self._input.getText(start, stop)
         msg = "token recognition error at: '" + self.getErrorDisplay(text) + "'"
         listener = self.getErrorListenerDispatch()
-        listener.syntaxError(
-            self, None, self._tokenStartLine, self._tokenStartColumn, msg, e
-        )
+        listener.syntaxError(self, None, self._tokenStartLine, self._tokenStartColumn, msg, e)
 
-    def getErrorDisplay(self, s: str):
+    def getErrorDisplay(self, s:str):
         with StringIO() as buf:
             for c in s:
                 buf.write(self.getErrorDisplayForChar(c))
             return buf.getvalue()
 
-    def getErrorDisplayForChar(self, c: str):
-        if ord(c[0]) == Token.EOF:
+    def getErrorDisplayForChar(self, c:str):
+        if ord(c[0])==Token.EOF:
             return "<EOF>"
-        elif c == "\n":
+        elif c=='\n':
             return "\\n"
-        elif c == "\t":
+        elif c=='\t':
             return "\\t"
-        elif c == "\r":
+        elif c=='\r':
             return "\\r"
         else:
             return c
 
-    def getCharErrorDisplay(self, c: str):
+    def getCharErrorDisplay(self, c:str):
         return "'" + self.getErrorDisplayForChar(c) + "'"
 
     # Lexers can normally match any char in it's vocabulary after matching
     #  a token, so do the easy thing and just kill a character and hope
     #  it all works out.  You can instead use the rule invocation stack
     #  to do sophisticated error recovery if you are in a fragment rule.
-    # /
-    def recover(self, re: RecognitionException):
+    #/
+    def recover(self, re:RecognitionException):
         if self._input.LA(1) != Token.EOF:
             if isinstance(re, LexerNoViableAltException):
-                # skip a char and try again
-                self._interp.consume(self._input)
+                    # skip a char and try again
+                    self._interp.consume(self._input)
             else:
                 # TODO: Do we lose character or line position information?
                 self._input.consume()

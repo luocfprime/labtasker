@@ -2,7 +2,7 @@
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
 
-# * A rule invocation record for parsing.
+#* A rule invocation record for parsing.
 #
 #  Contains all of the information about the current rule not stored in the
 #  RuleContext. It handles parse tree children list, Any ATN state
@@ -27,32 +27,22 @@
 
 from .RuleContext import RuleContext
 from .Token import Token
-from .tree.Tree import (
-    INVALID_INTERVAL,
-    ErrorNodeImpl,
-    ParseTree,
-    ParseTreeListener,
-    TerminalNode,
-    TerminalNodeImpl,
-)
+from .tree.Tree import ParseTreeListener, ParseTree, TerminalNodeImpl, ErrorNodeImpl, TerminalNode, \
+    INVALID_INTERVAL
 
 # need forward declaration
 ParserRuleContext = None
 
-
 class ParserRuleContext(RuleContext):
-    __slots__ = ("children", "start", "stop", "exception")
-
-    def __init__(
-        self, parent: ParserRuleContext = None, invokingStateNumber: int = None
-    ):
+    __slots__ = ('children', 'start', 'stop', 'exception')
+    def __init__(self, parent:ParserRuleContext = None, invokingStateNumber:int = None ):
         super().__init__(parent, invokingStateNumber)
-        # * If we are debugging or building a parse tree for a visitor,
+        #* If we are debugging or building a parse tree for a visitor,
         #  we need to track all of the tokens and rule invocations associated
         #  with this rule's context. This is empty for parsing w/o tree constr.
         #  operation because we don't the need to track the details about
         #  how we parse this rule.
-        # /
+        #/
         self.children = None
         self.start = None
         self.stop = None
@@ -60,7 +50,7 @@ class ParserRuleContext(RuleContext):
         # completed, this is {@code null}.
         self.exception = None
 
-    # * COPY a ctx (I'm deliberately not using copy constructor)#/
+    #* COPY a ctx (I'm deliberately not using copy constructor)#/
     #
     # This is used in the generated parser code to flip a generic XContext
     # node for rule X to a YContext for alt label Y. In that sense, it is
@@ -69,8 +59,8 @@ class ParserRuleContext(RuleContext):
     # If we do an error sync() at start of a rule, we might add error nodes
     # to the generic XContext so this function must copy those nodes to
     # the YContext as well else they are lost!
-    # /
-    def copyFrom(self, ctx: ParserRuleContext):
+    #/
+    def copyFrom(self, ctx:ParserRuleContext):
         # from RuleContext
         self.parentCtx = ctx.parentCtx
         self.invokingState = ctx.invokingState
@@ -88,70 +78,70 @@ class ParserRuleContext(RuleContext):
                     child.parentCtx = self
 
     # Double dispatch methods for listeners
-    def enterRule(self, listener: ParseTreeListener):
+    def enterRule(self, listener:ParseTreeListener):
         pass
 
-    def exitRule(self, listener: ParseTreeListener):
+    def exitRule(self, listener:ParseTreeListener):
         pass
 
-    # * Does not set parent link; other add methods do that#/
-    def addChild(self, child: ParseTree):
+    #* Does not set parent link; other add methods do that#/
+    def addChild(self, child:ParseTree):
         if self.children is None:
             self.children = []
         self.children.append(child)
         return child
 
-    # * Used by enterOuterAlt to toss out a RuleContext previously added as
+    #* Used by enterOuterAlt to toss out a RuleContext previously added as
     #  we entered a rule. If we have # label, we will need to remove
     #  generic ruleContext object.
-    # /
+    #/
     def removeLastChild(self):
         if self.children is not None:
-            del self.children[len(self.children) - 1]
+            del self.children[len(self.children)-1]
 
-    def addTokenNode(self, token: Token):
+    def addTokenNode(self, token:Token):
         node = TerminalNodeImpl(token)
         self.addChild(node)
         node.parentCtx = self
         return node
 
-    def addErrorNode(self, badToken: Token):
+    def addErrorNode(self, badToken:Token):
         node = ErrorNodeImpl(badToken)
         self.addChild(node)
         node.parentCtx = self
         return node
 
-    def getChild(self, i: int, ttype: type = None):
+    def getChild(self, i:int, ttype:type = None):
         if ttype is None:
-            return self.children[i] if len(self.children) > i else None
+            return self.children[i] if len(self.children)>i else None
         else:
             for child in self.getChildren():
                 if not isinstance(child, ttype):
                     continue
-                if i == 0:
+                if i==0:
                     return child
                 i -= 1
             return None
 
-    def getChildren(self, predicate=None):
+    def getChildren(self, predicate = None):
         if self.children is not None:
             for child in self.children:
                 if predicate is not None and not predicate(child):
                     continue
                 yield child
 
-    def getToken(self, ttype: int, i: int):
+    def getToken(self, ttype:int, i:int):
         for child in self.getChildren():
             if not isinstance(child, TerminalNode):
                 continue
             if child.symbol.type != ttype:
                 continue
-            if i == 0:
+            if i==0:
                 return child
             i -= 1
         return None
 
-    def getTokens(self, ttype: int):
+    def getTokens(self, ttype:int ):
         if self.getChildren() is None:
             return []
         tokens = []
@@ -163,10 +153,10 @@ class ParserRuleContext(RuleContext):
             tokens.append(child)
         return tokens
 
-    def getTypedRuleContext(self, ctxType: type, i: int):
+    def getTypedRuleContext(self, ctxType:type, i:int):
         return self.getChild(i, ctxType)
 
-    def getTypedRuleContexts(self, ctxType: type):
+    def getTypedRuleContexts(self, ctxType:type):
         children = self.getChildren()
         if children is None:
             return []
@@ -189,11 +179,8 @@ class ParserRuleContext(RuleContext):
 
 RuleContext.EMPTY = ParserRuleContext()
 
-
 class InterpreterRuleContext(ParserRuleContext):
 
-    def __init__(
-        self, parent: ParserRuleContext, invokingStateNumber: int, ruleIndex: int
-    ):
+    def __init__(self, parent:ParserRuleContext, invokingStateNumber:int, ruleIndex:int):
         super().__init__(parent, invokingStateNumber)
         self.ruleIndex = ruleIndex

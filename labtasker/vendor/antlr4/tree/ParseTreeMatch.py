@@ -9,14 +9,12 @@
 # Represents the result of matching a {@link ParseTree} against a tree pattern.
 #
 from io import StringIO
-
 from ..tree.ParseTreePattern import ParseTreePattern
 from ..tree.Tree import ParseTree
 
 
 class ParseTreeMatch(object):
-    __slots__ = ("tree", "pattern", "labels", "mismatchedNode")
-
+    __slots__ = ('tree', 'pattern', 'labels', 'mismatchedNode')
     #
     # Constructs a new instance of {@link ParseTreeMatch} from the specified
     # parse tree and pattern.
@@ -32,13 +30,7 @@ class ParseTreeMatch(object):
     # @exception IllegalArgumentException if {@code pattern} is {@code null}
     # @exception IllegalArgumentException if {@code labels} is {@code null}
     #
-    def __init__(
-        self,
-        tree: ParseTree,
-        pattern: ParseTreePattern,
-        labels: dict,
-        mismatchedNode: ParseTree,
-    ):
+    def __init__(self, tree:ParseTree, pattern:ParseTreePattern, labels:dict, mismatchedNode:ParseTree):
         if tree is None:
             raise Exception("tree cannot be null")
         if pattern is None:
@@ -66,12 +58,12 @@ class ParseTreeMatch(object):
     # @return The last {@link ParseTree} to match a tag with the specified
     # label, or {@code null} if no parse tree matched a tag with the label.
     #
-    def get(self, label: str):
+    def get(self, label:str):
         parseTrees = self.labels.get(label, None)
-        if parseTrees is None or len(parseTrees) == 0:
+        if parseTrees is None or len(parseTrees)==0:
             return None
         else:
-            return parseTrees[len(parseTrees) - 1]
+            return parseTrees[len(parseTrees)-1]
 
     #
     # Return all nodes matching a rule or token tag with the specified label.
@@ -96,12 +88,13 @@ class ParseTreeMatch(object):
     # the specified {@code label}. If no nodes matched the label, an empty list
     # is returned.
     #
-    def getAll(self, label: str):
+    def getAll(self, label:str):
         nodes = self.labels.get(label, None)
         if nodes is None:
             return list()
         else:
             return nodes
+
 
     #
     # Gets a value indicating whether the match operation succeeded.

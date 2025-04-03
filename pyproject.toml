@@ -100,6 +100,7 @@ exclude = '''
   | build
   | dist
   | vendor
+  | generated
 )/
 '''
 
@@ -118,7 +119,8 @@ skip = [
     "buck-out",
     "build",
     "dist",
-    "labtasker/vendor"
+    "labtasker/vendor",
+    "labtasker/client/core/cmd_parser/generated"
 ]
 
 [tool.mypy]

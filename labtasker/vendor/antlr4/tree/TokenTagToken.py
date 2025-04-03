@@ -13,8 +13,7 @@ from ..Token import CommonToken
 
 
 class TokenTagToken(CommonToken):
-    __slots__ = ("tokenName", "label")
-
+    __slots__ = ('tokenName', 'label')
     # Constructs a new instance of {@link TokenTagToken} with the specified
     # token name, type, and label.
     #
@@ -23,7 +22,7 @@ class TokenTagToken(CommonToken):
     # @param label The label associated with the token tag, or {@code null} if
     # the token tag is unlabeled.
     #
-    def __init__(self, tokenName: str, type: int, label: str = None):
+    def __init__(self, tokenName:str, type:int, label:str=None):
         super().__init__(type=type)
         self.tokenName = tokenName
         self.label = label

@@ -1,9 +1,8 @@
 # Generated from labtasker/client/core/cmd_parser/generated/LabCmd.g4 by ANTLR 4.13.2
 # encoding: utf-8
-import sys
-from io import StringIO
-
 from labtasker.vendor.antlr4 import *
+from io import StringIO
+import sys
 
 if sys.version_info[1] > 5:
     from typing import TextIO

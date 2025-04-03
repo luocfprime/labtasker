@@ -18,7 +18,7 @@ from .Token import Token
 
 
 class ListTokenSource(TokenSource):
-    __slots__ = ("tokens", "sourceName", "pos", "eofToken", "_factory")
+    __slots__ = ('tokens', 'sourceName', 'pos', 'eofToken', '_factory')
 
     # Constructs a new {@link ListTokenSource} instance from the specified
     # collection of {@link Token} objects and source name.
@@ -32,7 +32,7 @@ class ListTokenSource(TokenSource):
     #
     # @exception NullPointerException if {@code tokens} is {@code null}
     #
-    def __init__(self, tokens: list, sourceName: str = None):
+    def __init__(self, tokens:list, sourceName:str=None):
         if tokens is None:
             raise ReferenceError("tokens cannot be null")
         self.tokens = tokens
@@ -45,6 +45,7 @@ class ListTokenSource(TokenSource):
         self.eofToken = None
         # This is the backing field for {@link #getTokenFactory} and
         self._factory = CommonTokenFactory.DEFAULT
+
 
     #
     # {@inheritDoc}
@@ -61,7 +62,7 @@ class ListTokenSource(TokenSource):
             lastToken = self.tokens[len(self.tokens) - 1]
             tokenText = lastToken.text
             if tokenText is not None:
-                lastNewLine = tokenText.rfind("\n")
+                lastNewLine = tokenText.rfind('\n')
                 if lastNewLine >= 0:
                     return len(tokenText) - lastNewLine - 1
             return lastToken.column + lastToken.stop - lastToken.start + 1
@@ -82,16 +83,8 @@ class ListTokenSource(TokenSource):
                     if previousStop != -1:
                         start = previousStop + 1
                 stop = max(-1, start - 1)
-                self.eofToken = self._factory.create(
-                    (self, self.getInputStream()),
-                    Token.EOF,
-                    "EOF",
-                    Token.DEFAULT_CHANNEL,
-                    start,
-                    stop,
-                    self.line,
-                    self.column,
-                )
+                self.eofToken = self._factory.create((self, self.getInputStream()),
+                            Token.EOF, "EOF", Token.DEFAULT_CHANNEL, start, stop, self.line, self.column)
             return self.eofToken
         t = self.tokens[self.pos]
         if self.pos == len(self.tokens) - 1 and t.type == Token.EOF:
@@ -115,7 +108,7 @@ class ListTokenSource(TokenSource):
             line = lastToken.line
             tokenText = lastToken.text
             if tokenText is not None:
-                line += tokenText.count("\n")
+                line += tokenText.count('\n')
 
             # if no text is available, assume the token did not contain any newline characters.
             return line

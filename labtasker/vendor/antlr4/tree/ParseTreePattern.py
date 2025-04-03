@@ -14,7 +14,7 @@ from ..xpath.XPathLexer import XPathLexer
 
 
 class ParseTreePattern(object):
-    __slots__ = ("matcher", "patternRuleIndex", "pattern", "patternTree")
+    __slots__ = ('matcher', 'patternRuleIndex', 'pattern', 'patternTree')
 
     # Construct a new instance of the {@link ParseTreePattern} class.
     #
@@ -25,13 +25,7 @@ class ParseTreePattern(object):
     # tree pattern.
     # @param patternTree The tree pattern in {@link ParseTree} form.
     #
-    def __init__(
-        self,
-        matcher: ParseTreePatternMatcher,
-        pattern: str,
-        patternRuleIndex: int,
-        patternTree: ParseTree,
-    ):
+    def __init__(self, matcher:ParseTreePatternMatcher, pattern:str, patternRuleIndex:int , patternTree:ParseTree):
         self.matcher = matcher
         self.patternRuleIndex = patternRuleIndex
         self.pattern = pattern
@@ -45,7 +39,7 @@ class ParseTreePattern(object):
     # match operation. The {@link ParseTreeMatch#succeeded()} method can be
     # used to determine whether or not the match was successful.
     #
-    def match(self, tree: ParseTree):
+    def match(self, tree:ParseTree):
         return self.matcher.match(tree, self)
 
     #
@@ -55,7 +49,7 @@ class ParseTreePattern(object):
     # @return {@code true} if {@code tree} is a match for the current tree
     # pattern; otherwise, {@code false}.
     #
-    def matches(self, tree: ParseTree):
+    def matches(self, tree:ParseTree):
         return self.matcher.match(tree, self).succeeded()
 
     # Find all nodes using XPath and then try to match those subtrees against
@@ -68,7 +62,7 @@ class ParseTreePattern(object):
     # successful matches. Unsuccessful matches are omitted from the result,
     # regardless of the reason for the failure.
     #
-    def findAll(self, tree: ParseTree, xpath: str):
+    def findAll(self, tree:ParseTree, xpath:str):
         subtrees = XPath.findAll(tree, xpath, self.matcher.parser)
         matches = list()
         for t in subtrees:

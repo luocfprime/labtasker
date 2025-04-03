@@ -2,19 +2,15 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-# /
+#/
+from ..PredictionContext import PredictionContextCache, PredictionContext, getCachedPredictionContext
 from ..atn.ATN import ATN
 from ..atn.ATNConfigSet import ATNConfigSet
 from ..dfa.DFAState import DFAState
-from ..PredictionContext import (
-    PredictionContext,
-    PredictionContextCache,
-    getCachedPredictionContext,
-)
 
 
 class ATNSimulator(object):
-    __slots__ = ("atn", "sharedContextCache", "__dict__")
+    __slots__ = ('atn', 'sharedContextCache', '__dict__')
 
     # Must distinguish between missing edge and edge we know leads nowhere#/
     ERROR = DFAState(configs=ATNConfigSet())
@@ -39,12 +35,12 @@ class ATNSimulator(object):
     #  whacked after each adaptivePredict(). It cost a little bit
     #  more time I think and doesn't save on the overall footprint
     #  so it's not worth the complexity.</p>
-    # /
-    def __init__(self, atn: ATN, sharedContextCache: PredictionContextCache):
+    #/
+    def __init__(self, atn:ATN, sharedContextCache:PredictionContextCache):
         self.atn = atn
         self.sharedContextCache = sharedContextCache
 
-    def getCachedContext(self, context: PredictionContext):
+    def getCachedContext(self, context:PredictionContext):
         if self.sharedContextCache is None:
             return context
         visited = dict()

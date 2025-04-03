@@ -68,16 +68,10 @@ from ..atn.Transition import Transition
 
 INITIAL_NUM_TRANSITIONS = 4
 
-
 class ATNState(object):
     __slots__ = (
-        "atn",
-        "stateNumber",
-        "stateType",
-        "ruleIndex",
-        "epsilonOnlyTransitions",
-        "transitions",
-        "nextTokenWithinRule",
+        'atn', 'stateNumber', 'stateType', 'ruleIndex', 'epsilonOnlyTransitions',
+        'transitions', 'nextTokenWithinRule',
     )
 
     # constants for serialization
@@ -96,20 +90,19 @@ class ATNState(object):
     LOOP_END = 12
 
     serializationNames = [
-        "INVALID",
-        "BASIC",
-        "RULE_START",
-        "BLOCK_START",
-        "PLUS_BLOCK_START",
-        "STAR_BLOCK_START",
-        "TOKEN_START",
-        "RULE_STOP",
-        "BLOCK_END",
-        "STAR_LOOP_BACK",
-        "STAR_LOOP_ENTRY",
-        "PLUS_LOOP_BACK",
-        "LOOP_END",
-    ]
+            "INVALID",
+            "BASIC",
+            "RULE_START",
+            "BLOCK_START",
+            "PLUS_BLOCK_START",
+            "STAR_BLOCK_START",
+            "TOKEN_START",
+            "RULE_STOP",
+            "BLOCK_END",
+            "STAR_LOOP_BACK",
+            "STAR_LOOP_ENTRY",
+            "PLUS_LOOP_BACK",
+            "LOOP_END" ]
 
     INVALID_STATE_NUMBER = -1
 
@@ -118,7 +111,7 @@ class ATNState(object):
         self.atn = None
         self.stateNumber = ATNState.INVALID_STATE_NUMBER
         self.stateType = None
-        self.ruleIndex = 0  # at runtime, we don't have Rule objects
+        self.ruleIndex = 0 # at runtime, we don't have Rule objects
         self.epsilonOnlyTransitions = False
         # Track the transitions emanating from this ATN state.
         self.transitions = []
@@ -129,7 +122,7 @@ class ATNState(object):
         return self.stateNumber
 
     def __eq__(self, other):
-        return isinstance(other, ATNState) and self.stateNumber == other.stateNumber
+        return isinstance(other, ATNState) and self.stateNumber==other.stateNumber
 
     def onlyHasEpsilonTransitions(self):
         return self.epsilonOnlyTransitions
@@ -140,17 +133,16 @@ class ATNState(object):
     def __str__(self):
         return str(self.stateNumber)
 
-    def addTransition(self, trans: Transition, index: int = -1):
-        if len(self.transitions) == 0:
+    def addTransition(self, trans:Transition, index:int=-1):
+        if len(self.transitions)==0:
             self.epsilonOnlyTransitions = trans.isEpsilon
         elif self.epsilonOnlyTransitions != trans.isEpsilon:
             self.epsilonOnlyTransitions = False
             # TODO System.err.format(Locale.getDefault(), "ATN state %d has both epsilon and non-epsilon transitions.\n", stateNumber);
-        if index == -1:
+        if index==-1:
             self.transitions.append(trans)
         else:
             self.transitions.insert(index, trans)
-
 
 class BasicState(ATNState):
 
@@ -160,22 +152,19 @@ class BasicState(ATNState):
 
 
 class DecisionState(ATNState):
-    __slots__ = ("decision", "nonGreedy")
-
+    __slots__ = ('decision', 'nonGreedy')
     def __init__(self):
         super().__init__()
         self.decision = -1
         self.nonGreedy = False
 
-
 #  The start of a regular {@code (...)} block.
 class BlockStartState(DecisionState):
-    __slots__ = "endState"
+    __slots__ = 'endState'
 
     def __init__(self):
         super().__init__()
         self.endState = None
-
 
 class BasicBlockStartState(BlockStartState):
 
@@ -183,16 +172,14 @@ class BasicBlockStartState(BlockStartState):
         super().__init__()
         self.stateType = self.BLOCK_START
 
-
 # Terminal node of a simple {@code (a|b|c)} block.
 class BlockEndState(ATNState):
-    __slots__ = "startState"
+    __slots__ = 'startState'
 
     def __init__(self):
         super().__init__()
         self.stateType = self.BLOCK_END
         self.startState = None
-
 
 # The last node in the ATN for a rule, unless that rule is the start symbol.
 #  In that case, there is one transition to EOF. Later, we might encode
@@ -205,16 +192,14 @@ class RuleStopState(ATNState):
         super().__init__()
         self.stateType = self.RULE_STOP
 
-
 class RuleStartState(ATNState):
-    __slots__ = ("stopState", "isPrecedenceRule")
+    __slots__ = ('stopState', 'isPrecedenceRule')
 
     def __init__(self):
         super().__init__()
         self.stateType = self.RULE_START
         self.stopState = None
         self.isPrecedenceRule = False
-
 
 # Decision state for {@code A+} and {@code (A|B)+}.  It has two transitions:
 #  one to the loop back to start of the block and one to exit.
@@ -225,20 +210,18 @@ class PlusLoopbackState(DecisionState):
         super().__init__()
         self.stateType = self.PLUS_LOOP_BACK
 
-
 # Start of {@code (A|B|...)+} loop. Technically a decision state, but
 #  we don't use for code generation; somebody might need it, so I'm defining
 #  it for completeness. In reality, the {@link PlusLoopbackState} node is the
 #  real decision-making note for {@code A+}.
 #
 class PlusBlockStartState(BlockStartState):
-    __slots__ = "loopBackState"
+    __slots__ = 'loopBackState'
 
     def __init__(self):
         super().__init__()
         self.stateType = self.PLUS_BLOCK_START
         self.loopBackState = None
-
 
 # The block that begins a closure loop.
 class StarBlockStartState(BlockStartState):
@@ -246,7 +229,6 @@ class StarBlockStartState(BlockStartState):
     def __init__(self):
         super().__init__()
         self.stateType = self.STAR_BLOCK_START
-
 
 class StarLoopbackState(ATNState):
 
@@ -256,7 +238,7 @@ class StarLoopbackState(ATNState):
 
 
 class StarLoopEntryState(DecisionState):
-    __slots__ = ("loopBackState", "isPrecedenceDecision")
+    __slots__ = ('loopBackState', 'isPrecedenceDecision')
 
     def __init__(self):
         super().__init__()
@@ -265,16 +247,14 @@ class StarLoopEntryState(DecisionState):
         # Indicates whether this state can benefit from a precedence DFA during SLL decision making.
         self.isPrecedenceDecision = None
 
-
 # Mark the end of a * or + loop.
 class LoopEndState(ATNState):
-    __slots__ = "loopBackState"
+    __slots__ = 'loopBackState'
 
     def __init__(self):
         super().__init__()
         self.stateType = self.LOOP_END
         self.loopBackState = None
-
 
 # The Tokens rule start state linking to each lexer rule start state */
 class TokensStartState(DecisionState):

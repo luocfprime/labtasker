@@ -9,18 +9,8 @@
 from io import StringIO
 
 
-class Token(object):
-    __slots__ = (
-        "source",
-        "type",
-        "channel",
-        "start",
-        "stop",
-        "tokenIndex",
-        "line",
-        "column",
-        "_text",
-    )
+class Token (object):
+    __slots__ = ('source', 'type', 'channel', 'start', 'stop', 'tokenIndex', 'line', 'column', '_text')
 
     INVALID_TYPE = 0
 
@@ -45,14 +35,14 @@ class Token(object):
 
     def __init__(self):
         self.source = None
-        self.type = None  # token type of the token
-        self.channel = None  # The parser ignores everything not on DEFAULT_CHANNEL
-        self.start = None  # optional; return -1 if not implemented.
+        self.type = None # token type of the token
+        self.channel = None # The parser ignores everything not on DEFAULT_CHANNEL
+        self.start = None # optional; return -1 if not implemented.
         self.stop = None  # optional; return -1 if not implemented.
-        self.tokenIndex = None  # from 0..n-1 of the token object in the input stream
-        self.line = None  # line=1..n of the 1st character
-        self.column = None  # beginning of the line at which it occurs, 0..n-1
-        self._text = None  # text of the token.
+        self.tokenIndex = None # from 0..n-1 of the token object in the input stream
+        self.line = None # line=1..n of the 1st character
+        self.column = None # beginning of the line at which it occurs, 0..n-1
+        self._text = None # text of the token.
 
     @property
     def text(self):
@@ -67,8 +57,9 @@ class Token(object):
     # of the token.
 
     @text.setter
-    def text(self, text: str):
+    def text(self, text:str):
         self._text = text
+
 
     def getTokenSource(self):
         return self.source[0]
@@ -76,21 +67,13 @@ class Token(object):
     def getInputStream(self):
         return self.source[1]
 
-
 class CommonToken(Token):
 
     # An empty {@link Pair} which is used as the default value of
     # {@link #source} for tokens that do not have a source.
     EMPTY_SOURCE = (None, None)
 
-    def __init__(
-        self,
-        source: tuple = EMPTY_SOURCE,
-        type: int = None,
-        channel: int = Token.DEFAULT_CHANNEL,
-        start: int = -1,
-        stop: int = -1,
-    ):
+    def __init__(self, source:tuple = EMPTY_SOURCE, type:int = None, channel:int=Token.DEFAULT_CHANNEL, start:int=-1, stop:int=-1):
         super().__init__()
         self.source = source
         self.type = type
@@ -115,7 +98,7 @@ class CommonToken(Token):
     # {@link Token#getInputStream}.</p>
     #
     # @param oldToken The token to copy.
-    #
+     #
     def clone(self):
         t = CommonToken(self.source, self.type, self.channel, self.start, self.stop)
         t.tokenIndex = self.tokenIndex
@@ -138,7 +121,7 @@ class CommonToken(Token):
             return "<EOF>"
 
     @text.setter
-    def text(self, text: str):
+    def text(self, text:str):
         self._text = text
 
     def __str__(self):
@@ -152,9 +135,9 @@ class CommonToken(Token):
             buf.write("='")
             txt = self.text
             if txt is not None:
-                txt = txt.replace("\n", "\\n")
-                txt = txt.replace("\r", "\\r")
-                txt = txt.replace("\t", "\\t")
+                txt = txt.replace("\n","\\n")
+                txt = txt.replace("\r","\\r")
+                txt = txt.replace("\t","\\t")
             else:
                 txt = "<no text>"
             buf.write(txt)

@@ -2,20 +2,19 @@
 # Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
 # Use of this file is governed by the BSD 3-clause license that
 # can be found in the LICENSE.txt file in the project root.
-# /
+#/
 
 # A DFA walker that knows how to dump them to serialized strings.#/
 from io import StringIO
-
 from .. import DFA
-from ..dfa.DFAState import DFAState
 from ..Utils import str_list
+from ..dfa.DFAState import DFAState
 
 
 class DFASerializer(object):
-    __slots__ = ("dfa", "literalNames", "symbolicNames")
+    __slots__ = ('dfa', 'literalNames', 'symbolicNames')
 
-    def __init__(self, dfa: DFA, literalNames: list = None, symbolicNames: list = None):
+    def __init__(self, dfa:DFA, literalNames:list=None, symbolicNames:list=None):
         self.dfa = dfa
         self.literalNames = literalNames
         self.symbolicNames = symbolicNames
@@ -37,31 +36,26 @@ class DFASerializer(object):
                         buf.write(label)
                         buf.write("->")
                         buf.write(self.getStateString(t))
-                        buf.write("\n")
+                        buf.write('\n')
             output = buf.getvalue()
-            if len(output) == 0:
+            if len(output)==0:
                 return None
             else:
                 return output
 
-    def getEdgeLabel(self, i: int):
-        if i == 0:
+    def getEdgeLabel(self, i:int):
+        if i==0:
             return "EOF"
-        if self.literalNames is not None and i <= len(self.literalNames):
-            return self.literalNames[i - 1]
-        elif self.symbolicNames is not None and i <= len(self.symbolicNames):
-            return self.symbolicNames[i - 1]
+        if self.literalNames is not None and i<=len(self.literalNames):
+            return self.literalNames[i-1]
+        elif self.symbolicNames is not None and i<=len(self.symbolicNames):
+            return self.symbolicNames[i-1]
         else:
-            return str(i - 1)
+            return str(i-1)
 
-    def getStateString(self, s: DFAState):
+    def getStateString(self, s:DFAState):
         n = s.stateNumber
-        baseStateStr = (
-            (":" if s.isAcceptState else "")
-            + "s"
-            + str(n)
-            + ("^" if s.requiresFullContext else "")
-        )
+        baseStateStr = ( ":" if s.isAcceptState else "") + "s" + str(n) + ( "^" if s.requiresFullContext else "")
         if s.isAcceptState:
             if s.predicates is not None:
                 return baseStateStr + "=>" + str_list(s.predicates)
@@ -70,11 +64,10 @@ class DFASerializer(object):
         else:
             return baseStateStr
 
-
 class LexerDFASerializer(DFASerializer):
 
-    def __init__(self, dfa: DFA):
+    def __init__(self, dfa:DFA):
         super().__init__(dfa, None)
 
-    def getEdgeLabel(self, i: int):
+    def getEdgeLabel(self, i:int):
         return "'" + chr(i) + "'"
