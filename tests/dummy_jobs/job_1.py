@@ -1,10 +1,10 @@
 """
 Dummy job for testing.
-Takes in 2 arguments.
-Prints `arg1`.
 """
 
 import argparse
+import os
+import sys
 from ast import literal_eval
 
 import labtasker
@@ -30,3 +30,10 @@ if __name__ == "__main__":
         task_name == f"test_task_{args.arg1}"
     ), f"task_name: {task_name}, args.arg1: {args.arg1}"
     print(f"Running task {args.arg1}")
+
+    if os.name == "posix":
+        # Check if stdin and stdout are ttys (via pty)
+        # Note: user input is not actually supported. As batched jobs are not supposed to be interactive.
+        assert sys.stdin.isatty(), "stdin is not a tty"
+
+        assert sys.stdout.isatty(), "stdout is not a tty"

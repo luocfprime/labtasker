@@ -1,12 +1,14 @@
 """Implements `labtasker loop xxx`"""
 
 import json
+import os
 import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional
 
+import pexpect
 import typer
 from typing_extensions import Annotated
 
@@ -41,6 +43,16 @@ class InfiniteDefaultDict(defaultdict):
         if key not in self:
             self[key] = InfiniteDefaultDict()
         return super().get(key, default)
+
+
+def _check_pty_available(opt: bool) -> bool:
+    if opt and os.name == "nt":
+        stderr_console.print(
+            "[bold orange1]Warning:[/bold orange1] PTY is not available on Windows. "
+            "Disabling PTY support."
+        )
+        return False
+    return opt
 
 
 @app.command()
@@ -89,6 +101,11 @@ def loop(
     heartbeat_timeout: Optional[float] = typer.Option(
         None,
         help="Time in seconds before a task is considered stalled if no heartbeat is received.",
+    ),
+    use_pty: bool = typer.Option(
+        os.name == "posix",  # enabled by default on POSIX systems
+        callback=_check_pty_available,
+        help="Use pseudo terminal on POSIX systems for better interactive program support.",
     ),
     verbose: bool = typer.Option(  # noqa
         False,
@@ -160,48 +177,73 @@ def loop(
         pass_args_dict=True,
     )
     def run_cmd(args):
-        # Interpolate command
-
-        (
-            interpolated_cmd,
-            _,
-        ) = cmd_interpolate(
-            input_cmd,
-            args,
-        )
+        interpolated_cmd, _ = cmd_interpolate(input_cmd, args)
         logger.info(f"Prepared to run interpolated command: {interpolated_cmd}")
 
-        use_shell = False
-        if isinstance(interpolated_cmd, str):
-            use_shell = True
+        use_shell = isinstance(interpolated_cmd, str)
 
-        with subprocess.Popen(
-            args=interpolated_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            executable=executable,
-            shell=use_shell,
-        ) as process:
-            while True:
-                output = process.stdout.readline()
-                error = process.stderr.readline()
+        try:
+            if use_pty:
+                # Use pexpect with PTY on POSIX systems
+                if use_shell:
+                    shell_exec = executable or "/bin/sh"
+                    child = pexpect.spawn(
+                        shell_exec, ["-c", interpolated_cmd], encoding="utf-8"
+                    )
+                else:
+                    child = pexpect.spawn(
+                        interpolated_cmd[0], interpolated_cmd[1:], encoding="utf-8"
+                    )
 
-                if output:
-                    stdout_console.print(output.strip())
-                if error:
-                    stderr_console.print(error.strip())
+                # Process output with pexpect
+                while True:
+                    index = child.expect(
+                        [pexpect.EOF, pexpect.TIMEOUT, "\r\n", "\n"], timeout=1
+                    )
 
-                # Break loop when process completes and streams are empty
-                if process.poll() is not None and not output and not error:
-                    break
+                    if index == 0:  # EOF - process ended
+                        break
+                    elif index == 1:  # TIMEOUT - continue waiting
+                        continue
+                    elif index in [2, 3] and child.before:  # Got output
+                        stdout_console.print(child.before)
 
-            process.wait()
-            if process.returncode != 0:
-                raise _LabtaskerJobFailed(
-                    "Job process finished with non-zero exit code."
-                )
+                child.close()
+                if child.exitstatus != 0:
+                    raise _LabtaskerJobFailed(
+                        "Job process finished with non-zero exit code."
+                    )
+            else:
+                # Standard subprocess approach for non-PTY execution
+                with subprocess.Popen(
+                    args=interpolated_cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    executable=executable,
+                    shell=use_shell,
+                ) as process:
+                    while True:
+                        output = process.stdout.readline()
+                        error = process.stderr.readline()
+
+                        if output:
+                            stdout_console.print(output.strip())
+                        if error:
+                            stderr_console.print(error.strip())
+
+                        # Break when process completes and streams are empty
+                        if process.poll() is not None and not output and not error:
+                            break
+
+                    if process.returncode != 0:
+                        raise _LabtaskerJobFailed(
+                            "Job process finished with non-zero exit code."
+                        )
+
+        except Exception as e:
+            raise _LabtaskerJobFailed(f"Error running command: {str(e)}")
 
         logger.info(f"Task {task_info().task_id} ended.")
 
