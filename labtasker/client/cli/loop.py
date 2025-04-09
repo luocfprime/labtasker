@@ -27,7 +27,6 @@ from labtasker.client.core.logging import (
     logger,
     set_verbose,
     stderr_console,
-    stdout_console,
     verbose_print,
 )
 
@@ -53,6 +52,66 @@ def _check_pty_available(opt: bool) -> bool:
         )
         return False
     return opt
+
+
+def _stream_child_output(child: pexpect.spawn) -> None:
+    """Stream the output of a pexpect child in real-time, supporting progress bars."""
+    try:
+        while True:
+            try:
+                output = child.read_nonblocking(size=1024, timeout=0.1)
+                if output:
+                    # keep \r
+                    sys.stdout.write(output)
+                    sys.stdout.flush()
+            except pexpect.TIMEOUT:
+                continue
+            except pexpect.EOF:
+                break
+    finally:
+        child.close()
+
+
+def _run_with_pty(cmd, shell_exec=None, use_shell=False):
+    """Run a command with PTY support for interactive programs."""
+    if use_shell:
+        shell_exec = shell_exec or "/bin/sh"
+        child = pexpect.spawn(shell_exec, ["-c", cmd], encoding="utf-8")
+    else:
+        child = pexpect.spawn(cmd[0], cmd[1:], encoding="utf-8")
+
+    _stream_child_output(child)
+
+    return child.exitstatus
+
+
+def _run_with_subprocess(cmd, shell_exec=None, use_shell=False):
+    """Run a command using standard subprocess approach."""
+    with subprocess.Popen(
+        args=cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        executable=shell_exec,
+        shell=use_shell,
+    ) as process:
+        while True:
+            output = process.stdout.readline()
+            error = process.stderr.readline()
+
+            if output:
+                sys.stdout.write(output.strip())
+                sys.stdout.flush()
+            if error:
+                sys.stderr.write(error.strip())
+                sys.stderr.flush()
+
+            # Break when process completes and streams are empty
+            if process.poll() is not None and not output and not error:
+                break
+
+        return process.returncode
 
 
 @app.command()
@@ -185,62 +244,17 @@ def loop(
         try:
             if use_pty:
                 # Use pexpect with PTY on POSIX systems
-                if use_shell:
-                    shell_exec = executable or "/bin/sh"
-                    child = pexpect.spawn(
-                        shell_exec, ["-c", interpolated_cmd], encoding="utf-8"
-                    )
-                else:
-                    child = pexpect.spawn(
-                        interpolated_cmd[0], interpolated_cmd[1:], encoding="utf-8"
-                    )
-
-                # Process output with pexpect
-                while True:
-                    index = child.expect(
-                        [pexpect.EOF, pexpect.TIMEOUT, "\r\n", "\n"], timeout=1
-                    )
-
-                    if index == 0:  # EOF - process ended
-                        break
-                    elif index == 1:  # TIMEOUT - continue waiting
-                        continue
-                    elif index in [2, 3] and child.before:  # Got output
-                        stdout_console.print(child.before)
-
-                child.close()
-                if child.exitstatus != 0:
-                    raise _LabtaskerJobFailed(
-                        "Job process finished with non-zero exit code."
-                    )
+                exit_code = _run_with_pty(interpolated_cmd, executable, use_shell)
             else:
                 # Standard subprocess approach for non-PTY execution
-                with subprocess.Popen(
-                    args=interpolated_cmd,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    executable=executable,
-                    shell=use_shell,
-                ) as process:
-                    while True:
-                        output = process.stdout.readline()
-                        error = process.stderr.readline()
+                exit_code = _run_with_subprocess(
+                    interpolated_cmd, executable, use_shell
+                )
 
-                        if output:
-                            stdout_console.print(output.strip())
-                        if error:
-                            stderr_console.print(error.strip())
-
-                        # Break when process completes and streams are empty
-                        if process.poll() is not None and not output and not error:
-                            break
-
-                    if process.returncode != 0:
-                        raise _LabtaskerJobFailed(
-                            "Job process finished with non-zero exit code."
-                        )
+            if exit_code != 0:
+                raise _LabtaskerJobFailed(
+                    f"Job process finished with non-zero exit code: {exit_code}"
+                )
 
         except Exception as e:
             raise _LabtaskerJobFailed(f"Error running command: {str(e)}")
