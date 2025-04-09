@@ -233,12 +233,15 @@ def loop_run(
                             #    B. Ignore: Reset task to back to PENDING with retries count set to 0, as if this crashed run never happened
 
                             # 1. log exception
-                            logger.error(f"Task {current_task_id()} failed")
-                            if not isinstance(e, _LabtaskerJobFailed):
-                                stderr_console.print_exception(
-                                    # hide traceback from internals
-                                    suppress=[labtasker]
-                                )
+                            if isinstance(e, KeyboardInterrupt):
+                                logger.warning("KeyboardInterrupt detected")
+                            else:
+                                logger.error(f"Task {current_task_id()} failed")
+                                if not isinstance(e, _LabtaskerJobFailed):
+                                    stderr_console.print_exception(
+                                        # hide traceback from internals
+                                        suppress=[labtasker]
+                                    )
 
                             # 2. ask the user
                             _next_action = "report"  # one of ["report", "ignore"]
@@ -256,7 +259,7 @@ def loop_run(
                                     ),
                                 ]
                                 choice = make_a_choice(
-                                    question="Task failed with the above exception. You have 10 seconds to make a choice:",
+                                    question="Task interrupted or failed with the above info. You have 10 seconds to make a choice:",
                                     options=choices,
                                     # if timed out while waiting for user input, we assume the user is not present and report this crash by default
                                     default=choices[0],
