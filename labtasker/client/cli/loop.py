@@ -54,7 +54,7 @@ def _check_pty_available(opt: bool) -> bool:
     return opt
 
 
-def _stream_child_output(child: pexpect.spawn) -> None:
+def _stream_child_output(child) -> None:
     """Stream the output of a pexpect child in real-time, supporting progress bars."""
     try:
         while True:
