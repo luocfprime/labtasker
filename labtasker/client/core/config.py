@@ -99,7 +99,7 @@ def requires_client_config(
             if not _config and not get_labtasker_client_config_path().exists():
                 stderr_console.print(
                     "[bold red]Error:[/bold red] Configuration not initialized. "
-                    "Run [orange1]`labtasker config`[/orange1] to initialize configuration."
+                    "Run [orange1]`labtasker init`[/orange1] to initialize configuration."
                 )
                 raise typer.Exit(-1)
 
