@@ -18,9 +18,7 @@ from labtasker.server.fsm import TaskState
 from labtasker.utils import get_current_time
 from tests.test_client.test_cli.test_queue import cli_create_queue_from_config
 
-runner = CliRunner(
-    mix_stderr=False
-)  # mix_stderr must be set to False to access result.stderr
+runner = CliRunner()
 
 # Mark the entire file as e2e, integration and unit tests
 pytestmark = [
