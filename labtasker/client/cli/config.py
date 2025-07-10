@@ -48,9 +48,10 @@ def config(
         # 1.1 Copy existing configuration to the temporary file (if it exists)
         config_path = get_labtasker_client_config_path()
         if config_path.exists():
-            with open(config_path, "rb") as existing_config, open(
-                temp_file_path, "wb"
-            ) as temp_file:
+            with (
+                open(config_path, "rb") as existing_config,
+                open(temp_file_path, "wb") as temp_file,
+            ):
                 temp_file.write(existing_config.read())
 
         # 1.2 Open the temporary file in the editor and validate changes

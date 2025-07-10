@@ -706,8 +706,8 @@ class QueryTranspiler(ast.NodeVisitor):
         # Python 3.8 and earlier uses an Index node
         if isinstance(node.slice, ast.Index):
             # Extract the value from the Index node
-            if isinstance(node.slice.value, ast.Constant):
-                index = node.slice.value.value
+            if isinstance(node.slice.value, ast.Constant):  # type: ignore[attr-defined]
+                index = node.slice.value.value  # type: ignore[attr-defined]
                 # Type check: only allow string and integer subscripts
                 if isinstance(index, (str, int)):
                     return f"{value}.{index}"
@@ -719,16 +719,16 @@ class QueryTranspiler(ast.NodeVisitor):
                         exception=QueryTranspilerValueError,
                     )
             # Handle negative indexing with unary operations
-            elif isinstance(node.slice.value, ast.UnaryOp) and isinstance(
-                node.slice.value.op, ast.USub
+            elif isinstance(node.slice.value, ast.UnaryOp) and isinstance(  # type: ignore[attr-defined]
+                node.slice.value.op, ast.USub  # type: ignore[attr-defined]
             ):
                 # Get the operand value if possible
                 operand_info = ""
                 try:
-                    if isinstance(node.slice.value.operand, ast.Constant):
-                        operand_info = f" (value: -{node.slice.value.operand.value})"
-                    elif isinstance(node.slice.value.operand, ast.Name):
-                        operand_info = f" (variable: -{node.slice.value.operand.id})"
+                    if isinstance(node.slice.value.operand, ast.Constant):  # type: ignore[attr-defined]
+                        operand_info = f" (value: -{node.slice.value.operand.value})"  # type: ignore[attr-defined]
+                    elif isinstance(node.slice.value.operand, ast.Name):  # type: ignore[attr-defined]
+                        operand_info = f" (variable: -{node.slice.value.operand.id})"  # type: ignore[attr-defined]
                 except AttributeError:
                     pass
 
@@ -742,7 +742,7 @@ class QueryTranspiler(ast.NodeVisitor):
                 self._report_error(
                     # More specific node location
                     node=node.slice.value,  # type: ignore
-                    msg=f"Unsupported index value type: {type(node.slice.value).__name__}",
+                    msg=f"Unsupported index value type: {type(node.slice.value).__name__}",  # type: ignore[attr-defined]
                     exception=QueryTranspilerValueError,
                 )
 
