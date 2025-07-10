@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,14 +9,12 @@ description = "A task queue system for lab experiments"
 authors = [{ name = "Your Name", email = "your.email@example.com" }]
 license = { text = "Apache License 2.0" }
 readme = "README.md"
-requires-python = ">=3.8.1,<4.0"
+requires-python = ">=3.10,<4.0"
 classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -27,7 +25,7 @@ dependencies = [
     "pymongo (>=4.0.0,<5.0.0)",
     "fastapi (>=0.115.0,<0.116.0)",
     "uvicorn[standard] (>=0.15.0,<0.35.0)",
-    "click (>=8.1.0,<9.0.0)",
+    "click (>=8.2.0,<9.0.0)",
     "passlib (>=1.7.0,<2.0.0)",
     "pydantic-settings (>=2.8.0,<3.0.0)",
     "httpx[socks] (>=0.28.0,<0.29.0)",
@@ -130,7 +128,7 @@ disable_error_code = [
     "no-redef",
     "import-untyped"
 ]
-python_version = "3.8"
+python_version = "3.10"
 warn_unused_configs = true
 ignore_missing_imports = true
 show_error_codes = true

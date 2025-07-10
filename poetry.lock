@@ -12,9 +12,6 @@ files = [
     {file = "annotated_types-0.7.0.tar.gz", hash = "sha256:aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89"},
 ]
 
-[package.dependencies]
-typing-extensions = {version = ">=4.0.0", markers = "python_version < \"3.9\""}
-
 [[package]]
 name = "anyio"
 version = "4.5.2"
@@ -87,9 +84,6 @@ files = [
     {file = "babel-2.17.0-py3-none-any.whl", hash = "sha256:4d0b53093fdfb4b21c92b5213dba5a1b23885afa8383709427046b21c366e5f2"},
     {file = "babel-2.17.0.tar.gz", hash = "sha256:0c54cffb19f690cdcc52a3b50bcbf71e07a808d1c80d549f2459b9d2cf0afb9d"},
 ]
-
-[package.dependencies]
-pytz = {version = ">=2015.7", markers = "python_version < \"3.9\""}
 
 [package.extras]
 dev = ["backports.zoneinfo ; python_version < \"3.9\"", "freezegun (>=1.0,<2.0)", "jinja2 (>=3.0)", "pytest (>=6.0)", "pytest-cov", "pytz", "setuptools", "tzdata ; sys_platform == \"win32\""]
@@ -318,14 +312,14 @@ files = [
 
 [[package]]
 name = "click"
-version = "8.1.8"
+version = "8.2.1"
 description = "Composable command line interface toolkit"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2"},
-    {file = "click-8.1.8.tar.gz", hash = "sha256:ed53c9d8990d83c2a27deae68e4ee337473f6330c040a31d4225c9574d16096a"},
+    {file = "click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b"},
+    {file = "click-8.2.1.tar.gz", hash = "sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202"},
 ]
 
 [package.dependencies]
@@ -474,7 +468,7 @@ description = "Backport of PEP 654 (exception groups)"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "python_version < \"3.11\""
+markers = "python_version == \"3.10\""
 files = [
     {file = "exceptiongroup-1.2.2-py3-none-any.whl", hash = "sha256:3111b9d131c238bec2f8f516e123e14ba243563fb135d3fe885990585aa7795b"},
     {file = "exceptiongroup-1.2.2.tar.gz", hash = "sha256:47c2edf7c6738fafb49fd34290706d1a1a2f4d1c6df275526b62cbb4aa5393cc"},
@@ -771,9 +765,6 @@ files = [
     {file = "importlib_resources-6.4.5.tar.gz", hash = "sha256:980862a1d16c9e147a59603677fa2aa5fd82b87f223b6cb870695bcfce830065"},
 ]
 
-[package.dependencies]
-zipp = {version = ">=3.1.0", markers = "python_version < \"3.10\""}
-
 [package.extras]
 check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\""]
 cover = ["pytest-cov"]
@@ -912,9 +903,6 @@ files = [
     {file = "Markdown-3.7-py3-none-any.whl", hash = "sha256:7eb6df5690b81a1d7942992c97fad2938e956e79df20cbc6186e9c3a77b1c803"},
     {file = "markdown-3.7.tar.gz", hash = "sha256:2ae2471477cfd02dbbf038d5d9bc226d40def84b4fe2986e49b59b6b472bbed2"},
 ]
-
-[package.dependencies]
-importlib-metadata = {version = ">=4.4", markers = "python_version < \"3.10\""}
 
 [package.extras]
 docs = ["mdx-gh-links (>=0.2)", "mkdocs (>=1.5)", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-nature (>=0.6)", "mkdocs-section-index", "mkdocstrings[python]"]
@@ -1098,7 +1086,6 @@ files = [
 click = ">=7.0"
 colorama = {version = ">=0.4", markers = "platform_system == \"Windows\""}
 ghp-import = ">=1.0"
-importlib-metadata = {version = ">=4.4", markers = "python_version < \"3.10\""}
 jinja2 = ">=2.11.1"
 markdown = ">=3.3.6"
 markupsafe = ">=2.0.1"
@@ -1128,7 +1115,6 @@ files = [
 ]
 
 [package.dependencies]
-importlib-metadata = {version = ">=4.3", markers = "python_version < \"3.10\""}
 mergedeep = ">=1.3.4"
 platformdirs = ">=2.2.0"
 pyyaml = ">=5.1"
@@ -2300,7 +2286,6 @@ files = [
 
 [package.dependencies]
 tenacity = "*"
-typing-extensions = {version = "*", markers = "python_version < \"3.10\""}
 
 [package.extras]
 dev = ["anyio", "dirty-equals", "mypy (>=1.4)", "nox (>=2024.3.2)", "prometheus-client", "pytest", "structlog", "tomli ; python_version < \"3.11\"", "trio", "uv"]
@@ -2322,7 +2307,6 @@ files = [
 
 [package.dependencies]
 anyio = ">=3.4.0,<5"
-typing-extensions = {version = ">=3.10.0", markers = "python_version < \"3.10\""}
 
 [package.extras]
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
@@ -2906,5 +2890,5 @@ plugins = ["labtasker-plugin-script-generate", "labtasker-plugin-task-count"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.8.1,<4.0"
-content-hash = "3e0ce24ca24f74ccf29723d74d08da09716f367b284e6c499c6bbf25a83eb85e"
+python-versions = ">=3.10,<4.0"
+content-hash = "437fe426273b0226aa981ced9118984d1e83c8fbf422de173517f2ef6b4d8d29"
