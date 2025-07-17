@@ -183,6 +183,7 @@ def loop_run(
                         start_heartbeat=True,
                         required_fields=required_fields,
                         extra_filter=extra_filter,
+                        cmd=cmd,
                     )
                     if not resp.found:  # task run complete
                         logger.info(
@@ -190,11 +191,7 @@ def loop_run(
                         )
                         break
 
-                    # update the "cmd" field of the current task, and get the updated task info
-                    task = update_tasks(
-                        [TaskUpdateRequest(task_id=resp.task.task_id, cmd=cmd)],  # noqa
-                        reset_pending=False,
-                    ).content[0]
+                    task = resp.task
 
                     logger.info(
                         f"Prepared to run task {task.task_id} with args {task.args}."

@@ -263,6 +263,7 @@ def fetch_task(
         start_heartbeat=task_request.start_heartbeat,
         required_fields=task_request.required_fields,
         extra_filter=task_request.extra_filter,
+        cmd=task_request.cmd,
     )
 
     if not task:

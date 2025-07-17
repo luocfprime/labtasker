@@ -521,6 +521,7 @@ class DBService:
         start_heartbeat: bool = True,
         required_fields: Optional[List[str]] = None,
         extra_filter: Optional[Dict[str, Any]] = None,
+        cmd: Optional[Union[str, List[str]]] = None,
     ) -> Optional[Mapping[str, Any]]:
         """
         Fetch next available task from queue.
@@ -538,6 +539,7 @@ class DBService:
             start_heartbeat (bool): Whether to start heartbeat.
             required_fields (list, optional): Which fields are required. If None, no constraint is put on which fields should exist in args dict.
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
+            cmd (Optional[Union[str, List[str]]]): The command that runs the job.
         """
         task_timeout = parse_timeout(eta_max) if eta_max else None
 
@@ -611,6 +613,7 @@ class DBService:
                         "last_heartbeat": now if start_heartbeat else None,
                         "last_modified": now,
                         "worker_id": worker_id,
+                        "cmd": cmd,
                     }
                 }
 
@@ -741,7 +744,7 @@ class DBService:
                 )
 
         for event_handle in event_handles:
-            event_handle.update_fsm_event(task, commit=True)
+            event_handle.commit()
 
         return True
 
@@ -774,7 +777,7 @@ class DBService:
                 )
 
         for event_handle in event_handles:
-            event_handle.update_fsm_event(task, commit=True)
+            event_handle.commit()
         return True
 
     def _report_task_status(

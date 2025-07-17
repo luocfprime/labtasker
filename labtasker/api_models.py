@@ -126,6 +126,7 @@ class TaskFetchRequest(BaseRequestModel):
     start_heartbeat: bool = True
     required_fields: Optional[List[str]] = None
     extra_filter: Optional[Dict[str, Any]] = None
+    cmd: Optional[Union[str, List[str]]] = None
 
 
 class Task(
@@ -149,7 +150,7 @@ class Task(
     priority: int
     metadata: Dict
     args: Dict
-    cmd: Union[str, List[str]]
+    cmd: Optional[Union[str, List[str]]]
     summary: Dict
     worker_id: Optional[str]
 

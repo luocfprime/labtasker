@@ -195,6 +195,7 @@ def fetch_task(
     required_fields: Optional[List[str]] = None,
     extra_filter: Optional[Dict[str, Any]] = None,
     client: Optional[httpx.Client] = None,
+    cmd: Optional[Union[str, List[str]]] = None,
 ) -> TaskFetchResponse:
     """Fetch the next available task from the queue."""
     if client is None:
@@ -212,6 +213,7 @@ def fetch_task(
         start_heartbeat=start_heartbeat,
         required_fields=required_fields,
         extra_filter=extra_filter,
+        cmd=cmd,
     ).model_dump()
     response = client.post("/api/v1/queues/me/tasks/next", json=payload)
     if response.status_code == HTTP_403_FORBIDDEN:
