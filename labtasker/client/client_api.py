@@ -1,7 +1,12 @@
 from typing import Any, Dict, List, Optional, Union
 
 from labtasker.client.core.api import *  # noqa: F403
-from labtasker.client.core.context import current_task_id, current_worker_id, task_info
+from labtasker.client.core.context import (
+    current_task_id,
+    current_worker_id,
+    is_enabled,
+    task_info,
+)
 from labtasker.client.core.events import EventListener, connect_events
 from labtasker.client.core.exceptions import LabtaskerTypeError, LabtaskerValueError
 from labtasker.client.core.job_runner import (
@@ -10,6 +15,7 @@ from labtasker.client.core.job_runner import (
     set_loop_internal_error_handler,
     set_prompt_on_task_failure,
 )
+from labtasker.client.core.paths import get_labtasker_log_dir
 from labtasker.client.core.resolver import (
     Required,
     get_params_from_function,
@@ -29,6 +35,8 @@ __all__ = [
     "task_info",
     "current_task_id",
     "current_worker_id",
+    "is_enabled",
+    "get_labtasker_log_dir",
     # event api
     "connect_events",
     "EventListener",

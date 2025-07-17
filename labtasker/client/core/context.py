@@ -52,3 +52,8 @@ def set_current_task_id(task_id: str):
 def set_current_worker_id(worker_id: Optional[str]):
     os.environ["LABTASKER_WORKER_ID"] = worker_id if worker_id else ""
     _current_worker_id.set(worker_id)
+
+
+def is_enabled() -> bool:
+    """Whether current script is executed under Labtasker context."""
+    return current_worker_id() is not None
