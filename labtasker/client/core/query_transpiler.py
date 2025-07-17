@@ -726,7 +726,7 @@ class QueryTranspiler(ast.NodeVisitor):
                 operand_info = ""
                 try:
                     if isinstance(node.slice.value.operand, ast.Constant):  # type: ignore[attr-defined]
-                        operand_info = f" (value: -{node.slice.value.operand.value})"  # type: ignore[attr-defined]
+                        operand_info = f" (value: -{node.slice.value.operand.value!s})"  # type: ignore[attr-defined]
                     elif isinstance(node.slice.value.operand, ast.Name):  # type: ignore[attr-defined]
                         operand_info = f" (variable: -{node.slice.value.operand.id})"  # type: ignore[attr-defined]
                 except AttributeError:
@@ -769,7 +769,7 @@ class QueryTranspiler(ast.NodeVisitor):
             operand_info = ""
             try:
                 if isinstance(node.slice.operand, ast.Constant):
-                    operand_info = f" (value: -{node.slice.operand.value})"
+                    operand_info = f" (value: -{node.slice.operand.value})"  # type: ignore[str-bytes-safe]
                 elif isinstance(node.slice.operand, ast.Name):
                     operand_info = f" (variable: -{node.slice.operand.id})"
             except AttributeError:
