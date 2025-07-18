@@ -12,7 +12,7 @@ from labtasker.client.core.api import health_check
 from labtasker.client.core.config import requires_client_config
 from labtasker.client.core.exceptions import LabtaskerNetworkError
 from labtasker.client.core.logging import stderr_console, stdout_console
-from labtasker.client.core.version_checker import check_pypi_status
+from labtasker.client.core.version_checker import check_package_version
 
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 
@@ -20,7 +20,7 @@ app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 def version_callback(value: bool):
     if value:
         stdout_console.print(f"Labtasker Version: {__version__}")
-        check_pypi_status(force_check=True, blocking=True)
+        check_package_version(force_check=True, blocking=True)
         raise typer.Exit()
 
 

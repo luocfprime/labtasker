@@ -1,3 +1,5 @@
+import json
+import subprocess
 import threading
 from contextvars import ContextVar
 from datetime import datetime, timedelta
@@ -5,7 +7,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-import httpx
 from packaging import version
 
 from labtasker import __version__
@@ -75,38 +76,54 @@ def should_check() -> bool:
     return get_current_time() - last_checked() >= CHECK_INTERVAL
 
 
-def _check_pypi_status() -> None:
-    """Check PyPI for version updates or yanked status"""
-    current_version = version.parse(__version__)
+def _check_pip_versions() -> None:
+    """Check package versions using pip index versions"""
+    current_version_str = __version__
+    current_version = version.parse(current_version_str)
 
     try:
-        response = httpx.get(f"https://pypi.org/pypi/{PACKAGE_NAME}/json", timeout=5.0)
-        if response.status_code != 200:
-            return
-
-        data = response.json()
-        releases = data.get("releases", {})
-        parsed_releases = {version.parse(k): v for k, v in releases.items()}
-
-        # Check if current version is yanked
-        if current_version in parsed_releases:
-            release_info = parsed_releases[current_version]
-            if release_info and all(file.get("yanked", False) for file in release_info):
-                stderr_console.print(
-                    f"[bold orange1]Warning:[/bold orange1] Currently used {PACKAGE_NAME} "
-                    f"version {current_version} is yanked/deprecated. "
-                    f"You should update to a newer version. Update via `pip install -U labtasker`."
-                )
-
-        # Check for newer version
-        all_versions = sorted(
-            (version.parse(ver) for ver in releases.keys()), reverse=True
+        # Run pip index versions with JSON output
+        result = subprocess.run(
+            ["pip", "index", "versions", PACKAGE_NAME, "--json"],
+            capture_output=True,
+            text=True,
+            timeout=5.0,
         )
 
-        if all_versions and all_versions[0] > current_version:
+        if result.returncode != 0:
+            return
+
+        # Parse JSON output
+        data = json.loads(result.stdout)
+        available_versions = data.get("versions", [])
+        latest_version_str = data.get("latest")
+
+        if not latest_version_str or not available_versions:
+            return
+
+        latest_version = version.parse(latest_version_str)
+
+        # Check if current version is yanked/deprecated
+        # A version is considered yanked if:
+        # 1. It's not in the available versions list, AND
+        # 2. It's smaller than the latest version
+        is_yanked = (
+            current_version_str not in available_versions
+            and current_version < latest_version
+        )
+
+        if is_yanked:
+            stderr_console.print(
+                f"[bold orange1]Warning:[/bold orange1] Currently used {PACKAGE_NAME} "
+                f"version {current_version} is yanked/deprecated. "
+                f"You should update to a newer version. Update via `pip install -U labtasker`."
+            )
+
+        # Check for newer version
+        if latest_version > current_version:
             stdout_console.print(
                 f"[bold sea_green3]Tip:[/bold sea_green3] {PACKAGE_NAME} has a new version "
-                f"available! Current: {current_version}, newest: {all_versions[0]}. Update via `pip install -U labtasker`."
+                f"available! Current: {current_version}, newest: {latest_version}. Update via `pip install -U labtasker`."
             )
 
     except Exception:
@@ -114,8 +131,8 @@ def _check_pypi_status() -> None:
         pass
 
 
-def check_pypi_status(force_check: bool = False, blocking: bool = False) -> None:
-    """Run the PyPI status check in a thread or directly"""
+def check_package_version(force_check: bool = False, blocking: bool = False) -> None:
+    """Run the package version check in a thread or directly"""
     global _process_checked
 
     # Check if a thread is already running
@@ -132,7 +149,7 @@ def check_pypi_status(force_check: bool = False, blocking: bool = False) -> None
     _process_checked = True
     update_last_checked()
 
-    new_thread = threading.Thread(target=_check_pypi_status, daemon=True)
+    new_thread = threading.Thread(target=_check_pip_versions, daemon=True)
     _check_thread.set(new_thread)
     new_thread.start()
 

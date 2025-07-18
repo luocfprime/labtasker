@@ -1,9 +1,10 @@
+import os
 from datetime import datetime, timedelta
 
 import pytest
 
 from labtasker.client.core.version_checker import (
-    check_pypi_status,
+    check_package_version,
     get_last_version_check_path,
     should_check,
 )
@@ -27,7 +28,7 @@ def patch_checked(monkeypatch):
 
 def test_yanked_version_warning(patch_yanked_version, capture_output):
     print("test_yanked_version_warning")
-    check_pypi_status(force_check=True, blocking=True)
+    check_package_version(force_check=True, blocking=True)
     assert "yanked" in capture_output.stderr, (
         capture_output.stdout,
         capture_output.stderr,
@@ -36,9 +37,9 @@ def test_yanked_version_warning(patch_yanked_version, capture_output):
 
 def test_multiple_calls(patch_yanked_version, capture_output):
     """When called multiple times, only display once"""
-    check_pypi_status(force_check=True, blocking=False)
+    check_package_version(force_check=True, blocking=False)
     # the second call should wait until the first one is done
-    check_pypi_status(blocking=True)
+    check_package_version(blocking=True)
     # assert "yanked" only appeared once
     assert capture_output.stderr.count("yanked") == 1, (
         capture_output.stdout,
@@ -50,7 +51,7 @@ def test_check_once_per_day(
     monkeypatch, patch_yanked_version, labtasker_test_root, capture_output
 ):
     assert not get_last_version_check_path().exists()
-    check_pypi_status(force_check=True, blocking=True)
+    check_package_version(force_check=True, blocking=True)
     # after the first call, the file should exist
     assert get_last_version_check_path().exists()
 
