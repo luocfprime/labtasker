@@ -12,7 +12,7 @@
         <link rel="prev" href="../manual_task/">
       
       
-        <link rel="next" href="../../develop/development/">
+        <link rel="next" href="../prompt_template/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -321,6 +321,25 @@
   
 
     
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../prompt_template/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  AI Prompt Templates
+
+      </a>
+    </li>
   
 
       
@@ -924,6 +943,28 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../prompt_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AI Prompt Templates
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
       
@@ -1184,7 +1225,7 @@ It follows a strict <strong>"No More, No Less"</strong> principle:</p>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--prompt&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--guidance_scale&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
 </code></pre></div>
-<p>If you run <code>labtasker loop -- python job.py %(prompt)</code>, it fetches the task.
+<p>If you run <code>labtasker loop -- python job.py '%(prompt)'</code>, it fetches the task.
 However, since you didn’t specify <code>guidance_scale</code> in the command, <code>job.py</code> will use the default value (<code>100</code>), even though the task’s <code>args</code> says <code>guidance_scale: 7.5</code>. This mismatch can cause confusion because:</p>
 <ul>
 <li>The task’s recorded <code>args</code> don’t match what was actually used during execution.</li>
@@ -1195,7 +1236,7 @@ incorrect assumptions.</li>
 <h4 id="case-2-the-no-less-rule"><strong>Case 2: The "No Less" Rule</strong><a class="headerlink" href="#case-2-the-no-less-rule" title="Permanent link">&para;</a></h4>
 <p><em>Tasks must include all required fields.</em></p>
 <p>For instance, imagine you need to run this command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span>%<span class="o">(</span>prompt<span class="o">)</span><span class="w"> </span>%<span class="o">(</span>guidance_scale<span class="o">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span><span class="s1">&#39;%(prompt)&#39;</span><span class="w"> </span><span class="s1">&#39;%(guidance_scale)&#39;</span>
 </code></pre></div>
 <p>But the task fetched looks like this:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">task_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
@@ -1211,7 +1252,7 @@ the right fields—no extra or missing ones—to avoid errors and inconsistencie
 <p><strong>Can this be bypassed?</strong></p>
 <p>What if you still want to fetch tasks with extra fields, even though it might have drawbacks? Is it possible?</p>
 <p>The answer is yes, and there’s a simple workaround:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">echo</span><span class="w"> </span>%<span class="o">(</span>guidance_scale<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>labtasker<span class="w"> </span>loop<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span>%<span class="o">(</span>prompt<span class="o">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;%(guidance_scale)&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>labtasker<span class="w"> </span>loop<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span><span class="s1">&#39;%(prompt)&#39;</span>
 </code></pre></div>
 <p>This trick makes Labtasker think you’ve used the extra field. However, it’s always better to be explicit.
 If you want to ignore extra fields, make sure to do it intentionally.</p>
