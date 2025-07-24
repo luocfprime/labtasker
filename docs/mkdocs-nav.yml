@@ -11,6 +11,7 @@ nav:
       - queue: guide/manual_queue.md
       - task: guide/manual_task.md
       - loop (run job): guide/manual_loop.md
+  - AI Prompt Templates: guide/prompt_template.md
   - Development Guide:
     - Development: develop/development.md
     - Documentation: develop/documentation.md

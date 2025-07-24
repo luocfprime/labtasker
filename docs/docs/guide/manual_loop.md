@@ -71,7 +71,7 @@ It does the following steps (mainly):
     parser.add_argument("--guidance_scale", type=float, default=100)
     ```
 
-    If you run `labtasker loop -- python job.py %(prompt)`, it fetches the task.
+    If you run `labtasker loop -- python job.py '%(prompt)'`, it fetches the task.
     However, since you didn’t specify `guidance_scale` in the command, `job.py` will use the default value (`100`), even though the task’s `args` says `guidance_scale: 7.5`. This mismatch can cause confusion because:
 
     - The task’s recorded `args` don’t match what was actually used during execution.
@@ -87,7 +87,7 @@ It does the following steps (mainly):
     For instance, imagine you need to run this command:
 
     ```bash
-    labtasker loop -- python job.py %(prompt) %(guidance_scale)
+    labtasker loop -- python job.py '%(prompt)' '%(guidance_scale)'
     ```
 
     But the task fetched looks like this:
@@ -115,7 +115,7 @@ It does the following steps (mainly):
     The answer is yes, and there’s a simple workaround:
 
     ```bash
-    echo %(guidance_scale) > /dev/null && labtasker loop -- python job.py %(prompt)
+    echo '%(guidance_scale)' > /dev/null && labtasker loop -- python job.py '%(prompt)'
     ```
 
     This trick makes Labtasker think you’ve used the extra field. However, it’s always better to be explicit.
