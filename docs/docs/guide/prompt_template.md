@@ -28,6 +28,8 @@ This is a simple prompt to tell AI how to turn your serial task script into Labt
     ### Original Script
     ```bash
     #!/bin/bash
+    # Simple parameter grid search
+    # tags: experimental
 
     for arg1 in {0..2}; do
         for arg2 in {3..5}; do
@@ -39,10 +41,11 @@ This is a simple prompt to tell AI how to turn your serial task script into Labt
     ### Submit Script
     ```bash
     #!/bin/bash
+    submit_date=$(date +%s)
 
     for arg1 in {0..2}; do
         for arg2 in {3..5}; do
-            labtasker task submit -- --arg1=$arg1 --arg2=$arg2
+            labtasker task submit --name simple_grid_search --metadata "{'tags': ['experimental', '$submit_date']}" -- --arg1=$arg1 --arg2=$arg2
         done
     done
     ```
@@ -201,13 +204,17 @@ This is a simple prompt to tell AI how to turn your serial task script into Labt
 
     ## Key Points to Remember
 
-    - All variables passed to `labtasker task submit` become available as `%(variable_name)` in the run script
+    - All variables passed to `labtasker task submit` become available as `%(variable_name)` in the run script. All submitted variables MUST be used in the run script. All variables used in the run script MUST be submitted in advance.
+    - DO NOT APPLY NORMALIZATION ON YOUR OWN. E.g. this is prohibited: original: `--value_a=1`; run: `--value_a 1`. Your script should respect the original format.
+    - The submitted arguments WILL BE normalized. E.g. `--value-a=1` will be normalized to `--value-a=%(value_a)`
     - Complex values with spaces or special characters should be properly quoted
     - Environment variables and preprocessing can be included in the submit script
     - Environment variables should also be preserved in the run script in case they're needed
     - The run script acts as a template that's filled with task-specific values at runtime
     - For special characters in submit script, e.g. negative numbers `--value=-1` or empty strings `--value=""` or `--value=" "`, you should use `--value=<value>` instead of just `--value <value>`
     - Argument interpolation using %(variable_name) syntax is only valid under `labtasker loop` command. If bash script needs some %(variable_name) syntax, use the `--script-path` option to specify a path to a script that contains the interpolation syntax.
+    - Properly handle env variables: wrong: `labtasker loop -- CUDA_VISIBLE_DEVICES=0 python main.py ...`; right: `CUDA_VISIBLE_DEVICES=0 labtasker loop -- python main.py ...`.
+    - If user provided with task relevant info such as name or tags or description, consider using `--name` or `--metadata` to record more information. Remember that `--metadata` must be a JSON string that can be converted to a Python dict using literal_eval.
 
     Now, I will provide an original script that needs to be decomposed for Labtasker. You need to decompose it as per the above steps.
 

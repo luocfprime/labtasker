@@ -115,7 +115,7 @@ It does the following steps (mainly):
     The answer is yes, and there’s a simple workaround:
 
     ```bash
-    echo '%(guidance_scale)' > /dev/null && labtasker loop -- python job.py '%(prompt)'
+    labtasker loop -- echo '%(guidance_scale)' > /dev/null && python job.py '%(prompt)'
     ```
 
     This trick makes Labtasker think you’ve used the extra field. However, it’s always better to be explicit.
