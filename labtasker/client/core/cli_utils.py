@@ -337,11 +337,19 @@ def confirm(
 
 
 def ls_jsonl_format_iter(
-    iterator: Iterable[BaseModel], exclude_unset: bool = False, use_rich: bool = True
+    iterator: Iterable[BaseModel],
+    exclude_unset: bool = False,
+    use_rich: bool = True,
+    ansi: bool = True,
 ):
     console = Console()
     for item in iterator:
         json_str = item.model_dump_json(indent=4, exclude_unset=exclude_unset) + "\n"
+
+        if not ansi:
+            yield json_str
+            continue
+
         if use_rich:
             yield JSON(json_str)
         else:
@@ -352,7 +360,10 @@ def ls_jsonl_format_iter(
 
 
 def ls_yaml_format_iter(
-    iterator: Iterable[BaseModel], exclude_unset: bool = False, use_rich: bool = True
+    iterator: Iterable[BaseModel],
+    exclude_unset: bool = False,
+    use_rich: bool = True,
+    ansi: bool = True,
 ):
     console = Console()
     for item in iterator:
@@ -365,6 +376,10 @@ def ls_yaml_format_iter(
             )
             + "\n"
         )
+
+        if not ansi:
+            yield yaml_str
+            continue
 
         syntax = Syntax(yaml_str, "yaml")
         if use_rich:

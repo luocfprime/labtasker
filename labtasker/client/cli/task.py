@@ -237,6 +237,10 @@ def ls(
         help="Only show task IDs that match the query, rather than full entry. "
         "Useful when using in bash scripts.",
     ),
+    ansi: bool = typer.Option(
+        sys.stdout.isatty(),
+        help="Enable ANSI colors.",
+    ),
     pager: bool = typer.Option(
         True,
         help="Enable pagination.",
@@ -325,12 +329,14 @@ def ls(
             ls_format_iter[fmt](
                 page_iter,
                 use_rich=False,
+                ansi=ansi,
             )
         )
     else:
         for item in ls_format_iter[fmt](
             page_iter,
             use_rich=True,
+            ansi=ansi,
         ):
             stdout_console.print(item)
 
@@ -569,11 +575,11 @@ def handle_editor_mode(old_tasks, readonly_fields, editor):
                     raise typer.Abort()
                 # Continue the loop with the current file state
 
+        return task_updates
+
     finally:
         if temp_file_path and temp_file_path.exists():
             temp_file_path.unlink()
-
-    return task_updates
 
 
 def handle_non_editor_mode(old_tasks, updates, readonly_fields):
