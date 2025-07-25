@@ -90,7 +90,7 @@ def _run_with_subprocess(cmd, shell_exec=None, use_shell=False):
     """Run a command using standard subprocess approach with real-time output.
 
     This implementation uses threads to handle stdout and stderr streams separately,
-    providing good cross-platform compatibility.
+    providing good cross-platform compatibility with improved real-time output.
 
     Args:
         cmd: Command to execute, either as a string or a list of arguments
@@ -102,26 +102,31 @@ def _run_with_subprocess(cmd, shell_exec=None, use_shell=False):
     """
 
     def read_stream(stream, is_stdout):
-        """Read from a stream line by line and write to appropriate output.
+        """Read from a stream in small chunks for more immediate output.
+
+        This approach avoids line-buffering issues and ensures output appears
+        in real-time even when the subprocess doesn't output complete lines.
 
         Args:
             stream: The stream to read from (process stdout or stderr)
             is_stdout: Boolean indicating if this is stdout (True) or stderr (False)
         """
-        for line in iter(stream.readline, ""):
+        # Read in small chunks (64 bytes) instead of lines for more responsive output
+        for chunk in iter(lambda: stream.read(64), b""):
             if is_stdout:
-                sys.stdout.write(line)
-                sys.stdout.flush()
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
             else:
-                sys.stderr.write(line)
-                sys.stderr.flush()
+                sys.stderr.buffer.write(chunk)
+                sys.stderr.buffer.flush()
 
     with subprocess.Popen(
         args=cmd,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
+        text=False,  # Use binary mode for more direct control
+        bufsize=0,  # Disable buffering for immediate output
         executable=shell_exec,
         shell=use_shell,
     ) as process:
