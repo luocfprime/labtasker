@@ -6,7 +6,7 @@
 for arg1 in {0..2}; do
     for arg2 in {3..5}; do
         echo "Submitting with arg1=$arg1, arg2=$arg2"
-        labtasker task submit -- --arg1 $arg1 --arg2 $arg2
+        labtasker task submit -- --arg1=$arg1 --arg2=$arg2
         # Also an alternative equivalent fashion (easy to understand)
         # labtasker task submit --args '{"arg1": '$arg1', "arg2": '$arg2'}'
     done

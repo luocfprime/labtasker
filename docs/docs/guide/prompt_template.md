@@ -42,7 +42,7 @@ This is a simple prompt to tell AI how to turn your serial task script into Labt
 
     for arg1 in {0..2}; do
         for arg2 in {3..5}; do
-            labtasker task submit -- --arg1 $arg1 --arg2 $arg2
+            labtasker task submit -- --arg1=$arg1 --arg2=$arg2
         done
     done
     ```
@@ -114,11 +114,11 @@ This is a simple prompt to tell AI how to turn your serial task script into Labt
         echo "Submitting task for dataset: $DATASET, model: $MODEL"
 
         labtasker task submit -- \
-                        --dataset "$DATASET" \
-                        --dataset-description "$DATASET_DESCRIPTION" \
-                        --model "$MODEL" \
-                        --cuda-home "$CUDA_HOME" \
-                        --log-dir "$LOG_DIR"
+                        --dataset="$DATASET" \
+                        --dataset-description="$DATASET_DESCRIPTION" \
+                        --model="$MODEL" \
+                        --cuda-home="$CUDA_HOME" \
+                        --log-dir="$LOG_DIR"
       done
     done
 
@@ -138,6 +138,67 @@ This is a simple prompt to tell AI how to turn your serial task script into Labt
                 --log-dir '%(log_dir)'
     ```
 
+    ## Example 3: Complex Scripts (Using `labtasker loop --script-path` option)
+
+    ### Original Script
+    ```bash
+    #!/bin/bash
+
+    export CUDA_HOME=/usr/local/cuda-12.1
+
+    for dataset in imagenet cifar10 mnist; do
+      for model in resnet50 vit transformer; do
+        LOG_DIR=/path/to/logs/$dataset/$model
+        python train.py --dataset $dataset \
+          --model $model \
+          --cuda-home $CUDA_HOME \
+          --log-dir $LOG_DIR
+      done
+    done
+
+    echo "done"
+    ```
+
+    ### Submit Script
+
+    ```bash
+    #!/bin/bash
+    export CUDA_HOME=/usr/local/cuda-12.1
+
+    for dataset in imagenet cifar10 mnist; do
+      for model in resnet50 vit transformer; do
+        LOG_DIR=/path/to/logs/$dataset/$model
+
+        labtasker task submit -- --CUDA_HOME="$CUDA_HOME" --LOG_DIR="$LOG_DIR" --dataset="$dataset" --model="$model"
+
+      done
+    done
+    ```
+
+    ### Run Script
+    ```bash
+    #!/bin/bash
+
+    export CUDA_HOME=/usr/local/cuda-12.1
+
+    LABTASKER_TASK_SCRIPT=$(mktemp)
+
+    cat <<'LABTASKER_LOOP_EOF' > "$LABTASKER_TASK_SCRIPT"
+    CUDA_HOME=%(CUDA_HOME)
+    LOG_DIR=%(LOG_DIR)
+    dataset=%(dataset)
+    model=%(model)
+        python train.py --dataset $dataset \
+          --model $model \
+          --cuda-home $CUDA_HOME \
+          --log-dir $LOG_DIR
+    LABTASKER_LOOP_EOF
+
+    labtasker loop --executable /bin/bash --script-path $LABTASKER_TASK_SCRIPT
+
+    echo "done"
+    ```
+
     ## Key Points to Remember
 
     - All variables passed to `labtasker task submit` become available as `%(variable_name)` in the run script
@@ -145,6 +206,8 @@ This is a simple prompt to tell AI how to turn your serial task script into Labt
     - Environment variables and preprocessing can be included in the submit script
     - Environment variables should also be preserved in the run script in case they're needed
     - The run script acts as a template that's filled with task-specific values at runtime
+    - For special characters in submit script, e.g. negative numbers `--value=-1` or empty strings `--value=""` or `--value=" "`, you should use `--value=<value>` instead of just `--value <value>`
+    - Argument interpolation using %(variable_name) syntax is only valid under `labtasker loop` command. If bash script needs some %(variable_name) syntax, use the `--script-path` option to specify a path to a script that contains the interpolation syntax.
 
     Now, I will provide an original script that needs to be decomposed for Labtasker. You need to decompose it as per the above steps.
 
