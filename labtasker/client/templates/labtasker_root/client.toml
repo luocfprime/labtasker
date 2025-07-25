@@ -1,7 +1,7 @@
 # Client configuration
 
 display_server_notifications_level = "medium"  # server notification level
-enable_traceback_filter = true  # prettify the traceback and filter sensitive content like token etc.
+enable_traceback_filter = false  # prettify the traceback and filter sensitive content like token etc.
 version_check = true    # check if current version is obsolete or new version is available (non-blocking, best effort)
 
 [endpoint]

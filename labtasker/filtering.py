@@ -76,7 +76,7 @@ def install_traceback_filter():
             sanitized_exc.__str__()
         ) or sanitized_exc.__repr__() != sanitize_text(sanitized_exc.__repr__()):
             console_stderr.print(
-                "[bold orange1]Warning:[/bold orange1] Trackback sensitive content filtering failed. Traceback is intercepted and omitted from printing."
+                "[bold orange1]Warning:[/bold orange1] Traceback output has been suppressed due to an unexpected error in the traceback filtering hook. The traceback was intercepted and prevented from displaying. To view tracebacks, set `enable_traceback_filter` to `false` in your .labtasker/client.toml configuration file."
             )
             return
 

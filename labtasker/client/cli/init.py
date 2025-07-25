@@ -211,12 +211,12 @@ def setup_queue(base_url, base_url_verified) -> Tuple[str, str]:
 def confirm_set_traceback_filter() -> bool:
     choices = [
         Choice(
-            "Yes: I want better exception formatting and sensitive text filtering.",
-            data=True,
+            "No: I want more compatibility than security.",
+            data=False,
         ),
         Choice(
-            "No: I just want compatibility.",
-            data=False,
+            "Yes: I want better exception formatting and sensitive text filtering.",
+            data=True,
         ),
     ]
     choice = ListPrompt(
