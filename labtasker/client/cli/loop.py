@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional
@@ -86,7 +87,35 @@ def _run_with_pty(cmd, shell_exec=None, use_shell=False):
 
 
 def _run_with_subprocess(cmd, shell_exec=None, use_shell=False):
-    """Run a command using standard subprocess approach."""
+    """Run a command using standard subprocess approach with real-time output.
+
+    This implementation uses threads to handle stdout and stderr streams separately,
+    providing good cross-platform compatibility.
+
+    Args:
+        cmd: Command to execute, either as a string or a list of arguments
+        shell_exec: Shell executable to use (if any)
+        use_shell: Whether to run the command through the shell
+
+    Returns:
+        The return code from the subprocess
+    """
+
+    def read_stream(stream, is_stdout):
+        """Read from a stream line by line and write to appropriate output.
+
+        Args:
+            stream: The stream to read from (process stdout or stderr)
+            is_stdout: Boolean indicating if this is stdout (True) or stderr (False)
+        """
+        for line in iter(stream.readline, ""):
+            if is_stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+            else:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+
     with subprocess.Popen(
         args=cmd,
         stdin=subprocess.PIPE,
@@ -96,20 +125,29 @@ def _run_with_subprocess(cmd, shell_exec=None, use_shell=False):
         executable=shell_exec,
         shell=use_shell,
     ) as process:
-        while True:
-            output = process.stdout.readline()
-            error = process.stderr.readline()
+        # Create threads to handle output streams
+        stdout_thread = threading.Thread(
+            target=read_stream, args=(process.stdout, True)
+        )
+        stderr_thread = threading.Thread(
+            target=read_stream, args=(process.stderr, False)
+        )
 
-            if output:
-                sys.stdout.write(output.strip())
-                sys.stdout.flush()
-            if error:
-                sys.stderr.write(error.strip())
-                sys.stderr.flush()
+        # Set as daemon threads to avoid blocking when main process exits
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
 
-            # Break when process completes and streams are empty
-            if process.poll() is not None and not output and not error:
-                break
+        # Start the threads
+        stdout_thread.start()
+        stderr_thread.start()
+
+        # Wait for process to complete
+        process.wait()
+
+        # Wait for output processing to complete
+        # Use a timeout to prevent potential deadlocks
+        stdout_thread.join(timeout=1.0)
+        stderr_thread.join(timeout=1.0)
 
         return process.returncode
 
