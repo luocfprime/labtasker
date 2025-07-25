@@ -1,6 +1,7 @@
 import ast
 from typing import Any, Dict, List, NoReturn, Type
 
+import dateparser
 from rich.console import Console
 from rich.text import Text
 
@@ -857,7 +858,7 @@ class QueryTranspiler(ast.NodeVisitor):
             for key, value in zip(node.keys, node.values)
         }
 
-    def visit_Call(self, node: ast.Call) -> Dict[str, Any]:
+    def visit_Call(self, node: ast.Call):
         """
         Process function calls
         Python: regex(field, pattern), exists(field), list(field), dict(field), etc.
@@ -885,6 +886,29 @@ class QueryTranspiler(ast.NodeVisitor):
             field = self.visit(node.args[0])
             pattern = self.visit(node.args[1])
             return {field: {"$regex": pattern}}
+
+        elif func_name == "date":
+            if len(node.args) != 1:
+                self._report_error(
+                    node=node,
+                    msg="date('Y-M-D H:M:S') requires one argument: date string",
+                    exception=QueryTranspilerValueError,
+                )
+            arg = self.visit(node.args[0])
+            if not isinstance(arg, str):
+                self._report_error(
+                    node=node,
+                    msg="date() argument must be a literal string, e.g. date('Y-M-D H:M:S') or date('7/25 23:33') or date('3 hours ago') etc.",
+                    exception=QueryTranspilerValueError,
+                )
+            parsed_date = dateparser.parse(arg)
+            if not parsed_date:
+                self._report_error(
+                    node=node,
+                    msg="Invalid date string. Try using date('Y-M-D H:M:S') or date('7/25 23:33') or date('3 hours ago') etc.",
+                    exception=QueryTranspilerValueError,
+                )
+            return parsed_date
 
         elif func_name == "exists":
             # Field existence check

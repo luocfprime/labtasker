@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 
 from labtasker.client.core.exceptions import (
@@ -208,6 +210,11 @@ class TestQueryTranspiler:
             (
                 "regex(name, '^J.*') and exists(email)",
                 {"$and": [{"name": {"$regex": "^J.*"}}, {"email": {"$exists": True}}]},
+            ),
+            # date
+            (
+                "last_modified > date('2025/7/25 23:41')",
+                {"last_modified": {"$gt": datetime.datetime(2025, 7, 25, 23, 41)}},
             ),
         ],
     )

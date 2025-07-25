@@ -1,6 +1,5 @@
 """Manage workers (CRUD operations)."""
 
-import json
 import sys
 from functools import partial
 from typing import List, Optional
@@ -28,6 +27,7 @@ from labtasker.client.core.cli_utils import (
 )
 from labtasker.client.core.exceptions import LabtaskerHTTPStatusError
 from labtasker.client.core.logging import set_verbose, stdout_console, verbose_print
+from labtasker.client.core.utils import json_serializer
 
 app = typer.Typer()
 
@@ -156,7 +156,7 @@ def ls(
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
     extra_filter = parse_filter(extra_filter)
-    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
+    verbose_print(f"Parsed filter: {json_serializer(extra_filter, indent=4)}")
 
     page_iter = pager_iterator(
         fetch_function=partial(

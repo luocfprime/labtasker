@@ -195,20 +195,42 @@ class TestLs:
         assert result.exit_code == 0, result.output
         assert task_name in result.output
 
-    def test_ls_tasks_with_filter(self, db_fixture, setup_tasks):
-        result = runner.invoke(app, ["task", "ls", "--task-name", "task-1"])
+    @pytest.mark.parametrize(
+        "filter_args,expected_in_output,expected_not_in_output",
+        [
+            (
+                ["--task-name", "task-1"],
+                ["task-1"],
+                ["task-0", "task-2"],
+            ),
+            (
+                ["--extra-filter", '{"metadata.tag": "test-1"}'],
+                ["task-1"],
+                ["task-0", "task-2"],
+            ),
+            (
+                ["--extra-filter", "last_modified > date('10 sec ago')"],
+                ["task-0", "task-1", "task-2"],
+                [],
+            ),
+        ],
+    )
+    def test_ls_tasks_with_filter(
+        self,
+        db_fixture,
+        setup_tasks,
+        filter_args,
+        expected_in_output,
+        expected_not_in_output,
+    ):
+        result = runner.invoke(app, ["task", "ls"] + filter_args)
         assert result.exit_code == 0, result.output
-        assert "task-1" in result.output
-        assert "task-0" not in result.output
-        assert "task-2" not in result.output
 
-        result = runner.invoke(
-            app, ["task", "ls", "--extra-filter", '{"metadata.tag": "test-1"}']
-        )
-        assert result.exit_code == 0, result.output
-        assert "task-1" in result.output
-        assert "task-0" not in result.output
-        assert "task-2" not in result.output
+        for expected in expected_in_output:
+            assert expected in result.output
+
+        for unexpected in expected_not_in_output:
+            assert unexpected not in result.output
 
     def test_ls_tasks_with_status(self, db_fixture, setup_tasks):
         result = runner.invoke(app, ["task", "ls", "-s", "pending"])

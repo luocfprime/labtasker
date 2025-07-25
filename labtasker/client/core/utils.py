@@ -1,7 +1,9 @@
+import json
 from functools import wraps
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import httpx
+from pydantic_core import to_jsonable_python
 
 from labtasker.api_models import BaseResponseModel
 from labtasker.client.core.config import get_client_config
@@ -25,6 +27,10 @@ server_notification_level = {
     "medium": 1,
     "high": 2,
 }
+
+
+def json_serializer(obj: Any, **kwargs) -> str:
+    return json.dumps(to_jsonable_python(obj), **kwargs)
 
 
 def display_server_notifications(

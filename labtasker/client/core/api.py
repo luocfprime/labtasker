@@ -179,7 +179,7 @@ def submit_task(
         task_timeout=task_timeout,
         max_retries=max_retries,
         priority=priority,
-    ).model_dump()  # Convert to dict for JSON serialization
+    ).model_dump(mode="json")
     response = client.post("/api/v1/queues/me/tasks", json=payload)
     raise_for_status(response)
     return TaskSubmitResponse(**response.json())
@@ -214,7 +214,7 @@ def fetch_task(
         required_fields=required_fields,
         extra_filter=extra_filter,
         cmd=cmd,
-    ).model_dump()
+    ).model_dump(mode="json")
     response = client.post("/api/v1/queues/me/tasks/next", json=payload)
     if response.status_code == HTTP_403_FORBIDDEN:
         raise WorkerSuspended(
@@ -254,7 +254,7 @@ def report_task_status(
         status=status,
         worker_id=worker_id,
         summary=summary,
-    ).model_dump()
+    ).model_dump(mode="json")
     response = client.post(f"/api/v1/queues/me/tasks/{task_id}/status", json=payload)
     if response.status_code == HTTP_409_CONFLICT:
         raise LabtaskerRuntimeError(
@@ -291,7 +291,7 @@ def create_worker(
         worker_name=worker_name,
         metadata=metadata,
         max_retries=max_retries,
-    ).model_dump()
+    ).model_dump(mode="json")
     response = client.post("/api/v1/queues/me/workers", json=payload)
     raise_for_status(response)
     return WorkerCreateResponse(**response.json()).worker_id
@@ -320,7 +320,7 @@ def ls_workers(
         limit=limit,
         offset=offset,
         sort=sort,
-    ).model_dump()
+    ).model_dump(mode="json")
     response = client.post("/api/v1/queues/me/workers/search", json=payload)
     raise_for_status(response)
     return WorkerLsResponse(**response.json())
@@ -342,7 +342,7 @@ def report_worker_status(
 
     if client is None:
         client = get_httpx_client()
-    payload = WorkerStatusUpdateRequest(status=status).model_dump()
+    payload = WorkerStatusUpdateRequest(status=status).model_dump(mode="json")
     response = client.post(
         f"/api/v1/queues/me/workers/{worker_id}/status", json=payload
     )
@@ -381,7 +381,7 @@ def ls_tasks(
         limit=limit,
         offset=offset,
         sort=sort,
-    ).model_dump()
+    ).model_dump(mode="json")
     response = client.post("/api/v1/queues/me/tasks/search", json=payload)
     raise_for_status(response)
     return TaskLsResponse(**response.json())
@@ -396,7 +396,9 @@ def update_tasks(
 ) -> TaskLsResponse:
     if client is None:
         client = get_httpx_client()
-    payload = [task.model_dump(exclude_unset=True) for task in task_updates]
+    payload = [
+        task.model_dump(exclude_unset=True, mode="json") for task in task_updates
+    ]
     response = client.put(
         "/api/v1/queues/me/tasks", json=payload, params={"reset_pending": reset_pending}
     )

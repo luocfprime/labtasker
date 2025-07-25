@@ -1,7 +1,6 @@
 """Manage tasks (CRUD operations)."""
 
 import io
-import json
 import os
 import sys
 import tempfile
@@ -15,6 +14,7 @@ import rich
 import ruamel.yaml
 import typer
 import yaml
+from pydantic.json import pydantic_encoder
 from rich.syntax import Syntax
 from starlette.status import HTTP_404_NOT_FOUND
 from typing_extensions import Annotated
@@ -47,6 +47,7 @@ from labtasker.client.core.logging import (
     stdout_console,
     verbose_print,
 )
+from labtasker.client.core.utils import json_serializer
 from labtasker.constants import Priority
 
 app = typer.Typer()
@@ -305,7 +306,7 @@ def ls(
     get_queue()  # validate auth and queue existence, prevent err swallowed by pager
 
     extra_filter = parse_filter(extra_filter)
-    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
+    verbose_print(f"Parsed filter: {json_serializer(extra_filter, indent=4)}")
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_tasks,
@@ -440,7 +441,7 @@ def update(
 
     updates = updates or option_updates
     extra_filter = parse_filter(extra_filter)
-    verbose_print(f"Parsed filter: {json.dumps(extra_filter, indent=4)}")
+    verbose_print(f"Parsed filter: {json_serializer(extra_filter, indent=4)}")
 
     # readonly fields
     readonly_fields: Set[str] = (

@@ -1,6 +1,5 @@
 """Implements `labtasker loop xxx`"""
 
-import json
 import os
 import subprocess
 import sys
@@ -11,6 +10,7 @@ from typing import List, Optional
 
 import pexpect
 import typer
+from pydantic.json import pydantic_encoder
 from typing_extensions import Annotated
 
 from labtasker.client.cli.cli import app
@@ -30,6 +30,7 @@ from labtasker.client.core.logging import (
     stderr_console,
     verbose_print,
 )
+from labtasker.client.core.utils import json_serializer
 
 
 class InfiniteDefaultDict(defaultdict):
@@ -254,7 +255,7 @@ def loop(
         )
 
     parsed_filter = parse_filter(extra_filter)
-    verbose_print(f"Parsed filter: {json.dumps(parsed_filter, indent=4)}")
+    verbose_print(f"Parsed filter: {json_serializer(parsed_filter, indent=4)}")
 
     if heartbeat_timeout is None:
         heartbeat_timeout = get_client_config().task.heartbeat_interval * 3
