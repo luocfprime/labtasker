@@ -1252,7 +1252,7 @@ the right fields—no extra or missing ones—to avoid errors and inconsistencie
 <p><strong>Can this be bypassed?</strong></p>
 <p>What if you still want to fetch tasks with extra fields, even though it might have drawbacks? Is it possible?</p>
 <p>The answer is yes, and there’s a simple workaround:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;%(guidance_scale)&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>labtasker<span class="w"> </span>loop<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span><span class="s1">&#39;%(prompt)&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>labtasker<span class="w"> </span>loop<span class="w"> </span>--<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;%(guidance_scale)&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python<span class="w"> </span>job.py<span class="w"> </span><span class="s1">&#39;%(prompt)&#39;</span>
 </code></pre></div>
 <p>This trick makes Labtasker think you’ve used the extra field. However, it’s always better to be explicit.
 If you want to ignore extra fields, make sure to do it intentionally.</p>
