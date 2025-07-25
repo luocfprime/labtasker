@@ -1,8 +1,17 @@
+import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from packaging.version import Version
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from labtasker import __version__
 from labtasker.constants import Priority
@@ -10,11 +19,35 @@ from labtasker.utils import validate_dict_keys
 
 
 class BaseApiModel(BaseModel):
-    """
-    Base API model for all API models.
-    """
+    """Base API model for all API models."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    unknown_fields: Dict[str, Any] = Field(
+        default_factory=dict, exclude=True
+    )  # marked as excluded from serialization
+
+    @model_validator(mode="before")
+    @classmethod
+    def collect_unknown_fields(
+        cls, data: Dict[str, Any], info: ValidationInfo
+    ) -> Dict[str, Any]:
+        if isinstance(data, dict):
+            # Get the set of model field names
+            model_field_names = set(cls.model_fields.keys())  # type: ignore
+
+            unknown_fields = {
+                k: v for k, v in data.items() if k not in model_field_names
+            }
+
+            if unknown_fields:
+                warnings.warn(
+                    f"Unknown fields provided to {cls.__name__}: {', '.join(unknown_fields.keys())}; "
+                    f"It could be that your client and server version mismatch. Try upgrading both to latest versions.",
+                    UserWarning,
+                )
+                data["_unknown_fields"] = unknown_fields
+
+        return data
 
 
 class BaseRequestModel(BaseApiModel):
