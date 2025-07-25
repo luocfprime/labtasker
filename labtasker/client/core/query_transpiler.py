@@ -199,11 +199,36 @@ class QueryTranspiler(ast.NodeVisitor):
         """
         Process the root of the AST (the module node) to make sure the input is an expression
         """
-        if node.body and isinstance(
-            node.body[0], ast.Expr
-        ):  # Check if the first item is an expression
-            return self.visit(node.body[0].value)  # type: ignore
+        if node.body:
+            if isinstance(node.body[0], ast.Expr):
+                # It's an expression, process normally
+                return self.visit(node.body[0].value)  # type: ignore
+            elif isinstance(node.body[0], ast.Assign):
+                # It's an assignment, provide a helpful error message
+                assignment = node.body[0]
+                target_name = ""
+                if isinstance(assignment.targets[0], ast.Name):  # type: ignore
+                    target_name = assignment.targets[0].id  # type: ignore
 
+                # Get the original line with the assignment
+                line_no = getattr(assignment, "lineno", 1)
+                lines = self.query_str.split("\n")
+                error_line = (
+                    lines[line_no - 1] if line_no <= len(lines) else self.query_str
+                )
+
+                # Create suggestion with == instead of =
+                suggestion = error_line.replace("=", "==", 1)
+
+                self._report_error(
+                    node=assignment.targets[0],  # type: ignore
+                    msg=f"Assignment '{target_name} = ...' not allowed in query. "
+                    f"If you meant to check equality, use '==' instead of '='. "
+                    f"Suggested correction: {suggestion}",
+                    exception=QueryTranspilerValueError,
+                )
+
+        # If we get here, there was other issue
         self._report_error(
             node=node,
             msg="Expected an expression in the module",
