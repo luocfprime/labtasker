@@ -10,7 +10,6 @@ from typing import List, Optional
 
 import pexpect
 import typer
-from pydantic.json import pydantic_encoder
 from typing_extensions import Annotated
 
 from labtasker.client.cli.cli import app

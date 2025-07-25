@@ -14,7 +14,6 @@ import rich
 import ruamel.yaml
 import typer
 import yaml
-from pydantic.json import pydantic_encoder
 from rich.syntax import Syntax
 from starlette.status import HTTP_404_NOT_FOUND
 from typing_extensions import Annotated
@@ -548,7 +547,7 @@ def handle_editor_mode(old_tasks, readonly_fields, editor):
                     try:
                         task_updates.append(
                             TaskUpdateRequest(
-                                _id=old_tasks[i].task_id,
+                                task_id=old_tasks[i].task_id,
                                 replace_fields=replace_fields,
                                 **ud,
                             )
@@ -602,7 +601,7 @@ def handle_non_editor_mode(old_tasks, updates, readonly_fields):
     for i, task in enumerate(old_tasks):
         task_updates.append(
             TaskUpdateRequest(
-                _id=task.task_id, replace_fields=replace_fields, **update_dict
+                task_id=task.task_id, replace_fields=replace_fields, **update_dict
             )
         )
 

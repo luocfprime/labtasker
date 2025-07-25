@@ -6,7 +6,6 @@ import traceback
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from pydantic_core import to_jsonable_python
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 import labtasker
