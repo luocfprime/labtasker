@@ -17,7 +17,7 @@ jobs:
 
       - name: Install linter dependencies
         run: |
-          pip install flake8 mypy
+          pip install ".[dev]"
 
       - name: Run linter
         run: make lint
