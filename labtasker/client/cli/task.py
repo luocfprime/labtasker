@@ -21,7 +21,6 @@ from typing_extensions import Annotated
 from labtasker.api_models import Task, TaskUpdateRequest
 from labtasker.client.core.api import (
     delete_task,
-    get_queue,
     ls_tasks,
     submit_task,
     update_tasks,
@@ -30,6 +29,8 @@ from labtasker.client.core.cli_utils import (
     LsFmtChoices,
     cli_utils_decorator,
     confirm,
+    get_editor,
+    is_piped_io,
     ls_format_iter,
     pager_iterator,
     parse_dict,
@@ -46,6 +47,7 @@ from labtasker.client.core.logging import (
     stdout_console,
     verbose_print,
 )
+from labtasker.client.core.pager import echo_via_pager_no_check_isatty
 from labtasker.client.core.utils import json_serializer
 from labtasker.constants import Priority
 
@@ -238,7 +240,7 @@ def ls(
         "Useful when using in bash scripts.",
     ),
     ansi: bool = typer.Option(
-        sys.stdout.isatty(),
+        True,
         help="Enable ANSI colors.",
     ),
     pager: bool = typer.Option(
@@ -272,6 +274,11 @@ def ls(
         callback=set_verbose,
         is_eager=True,
     ),
+    piped_in: bool = typer.Option(
+        False,
+        "--piped-in",
+        help="Read from stdin. Useful in cascaded commands to display final result. e.g. `labtasker xxx | labtasker ls --piped-in`",
+    ),
 ):
     """
     List and filter tasks in the queue.
@@ -302,10 +309,34 @@ def ls(
     else:
         parsed_sort = parse_sort(sort)
 
-    get_queue()  # validate auth and queue existence, prevent err swallowed by pager
-
     extra_filter = parse_filter(extra_filter)
     verbose_print(f"Parsed filter: {json_serializer(extra_filter, indent=4)}")
+
+    # Check for piped input (task ids could be passed through cascaded commands e.g. labtasker xxx | labtasker yyy)
+    if piped_in:
+        if any([task_id, task_name, status, extra_filter]):
+            raise typer.BadParameter(
+                "Cannot use --task-id, --task-name, --status, or --extra-filter with piped input --piped-in enabled."
+            )
+        # Read task IDs from stdin (pipe)
+        piped_task_ids = [line.strip() for line in sys.stdin if line.strip()]
+        verbose_print(f"Received {len(piped_task_ids)} task IDs from pipe")
+
+        # If we have piped task IDs but no task_id is specified yet
+        if piped_task_ids:
+            # If there's only one task ID from pipe and no task_id specified, use it directly
+            if len(piped_task_ids) == 1 and not task_id:
+                task_id = piped_task_ids[0]
+                verbose_print(f"Using single piped task ID: {task_id}")
+            # If there are multiple task IDs, use them to build an extra filter
+            elif len(piped_task_ids) > 1:
+                # Build a filter to include all piped task IDs
+                extra_filter = {"_id": {"$in": piped_task_ids}}
+
+                verbose_print(
+                    f"Created filter from {len(piped_task_ids)} piped task IDs"
+                )
+
     page_iter = pager_iterator(
         fetch_function=partial(
             ls_tasks,
@@ -325,12 +356,12 @@ def ls(
         raise typer.Exit()  # exit directly without other printing
 
     if pager:
-        click.echo_via_pager(
+        echo_via_pager_no_check_isatty(
             ls_format_iter[fmt](
                 page_iter,
                 use_rich=False,
                 ansi=ansi,
-            )
+            ),
         )
     else:
         for item in ls_format_iter[fmt](
@@ -403,9 +434,9 @@ def update(
         "-q",
         help="Disable interactive mode and confirmations. Set this to true if you are using this in a bash script.",
     ),
-    editor: Optional[str] = typer.Option(
-        None,
-        help="Editor to use for modifying task data incase you didn't specify --update.",
+    editor: str = typer.Option(
+        get_editor(),
+        help="Editor to use for modifying task data in case you didn't specify --update.",
     ),
     verbose: bool = typer.Option(
         False,
@@ -423,10 +454,14 @@ def update(
     priority, and other settings. You can update multiple tasks at once by using
     filters, and either specify updates directly or use an interactive editor.
 
+    You can also pipe task IDs from other commands, for example:
+    `labtasker task ls -q | labtasker task update -u 'status=cancelled'`
+
     Examples:
         labtasker task update --id "task-123" -- priority=10
         labtasker task update --status pending -- metadata.tag=important
         labtasker task update --name "training" --editor vim  # Open in editor
+        labtasker task ls -q | labtasker task update -u status=cancelled  # `task ls` can be replaced with one of the self-implemented plugin commands.
     """
     if updates and option_updates:
         raise typer.BadParameter(
@@ -441,6 +476,27 @@ def update(
     updates = updates or option_updates
     extra_filter = parse_filter(extra_filter)
     verbose_print(f"Parsed filter: {json_serializer(extra_filter, indent=4)}")
+
+    # Check for piped input (task ids could be passed through cascaded commands e.g. labtasker xxx | labtasker yyy)
+    if is_piped_io() and not any([task_id, task_name, status, extra_filter]):
+        # Read task IDs from stdin (pipe)
+        piped_task_ids = [line.strip() for line in sys.stdin if line.strip()]
+        verbose_print(f"Received {len(piped_task_ids)} task IDs from pipe")
+
+        # If we have piped task IDs but no task_id is specified yet
+        if piped_task_ids:
+            # If there's only one task ID from pipe and no task_id specified, use it directly
+            if len(piped_task_ids) == 1 and not task_id:
+                task_id = piped_task_ids[0]
+                verbose_print(f"Using single piped task ID: {task_id}")
+            # If there are multiple task IDs, use them to build an extra filter
+            elif len(piped_task_ids) > 1:
+                # Build a filter to include all piped task IDs
+                extra_filter = {"_id": {"$in": piped_task_ids}}
+
+                verbose_print(
+                    f"Created filter from {len(piped_task_ids)} piped task IDs"
+                )
 
     # readonly fields
     readonly_fields: Set[str] = (
@@ -661,6 +717,9 @@ def display_updated_tasks(updated_tasks, update_dicts):
     console = rich.console.Console()
     with console.capture() as capture:
         console.print(Syntax(s.getvalue(), "yaml"))
+
+    # use normal pager instead of echo_via_pager_no_check_isatty
+    # because it would break the test cases for update task
     click.echo_via_pager(capture.get())
 
 
@@ -668,7 +727,7 @@ def display_updated_tasks(updated_tasks, update_dicts):
 @cli_utils_decorator
 def delete(
     task_ids: List[str] = typer.Argument(
-        ... if sys.stdin.isatty() else None,
+        ... if not is_piped_io() else None,
         help="IDs of the task to delete.",
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),

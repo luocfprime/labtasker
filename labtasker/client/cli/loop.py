@@ -13,6 +13,7 @@ from labtasker.client.cli.cli import app
 from labtasker.client.core.cli_utils import (
     cli_utils_decorator,
     eta_max_validation,
+    is_piped_io,
     parse_filter,
 )
 from labtasker.client.core.cmd_parser import cmd_interpolate
@@ -133,7 +134,7 @@ def loop(
             input_cmd = f.read().strip()
 
     # 3. Try reading from stdin if shell mode is enabled
-    if not input_cmd and not sys.stdin.isatty():
+    if not input_cmd and is_piped_io():
         input_cmd = sys.stdin.read().strip()
 
     # Final validation: ensure a command is present

@@ -171,7 +171,7 @@ class TestLs:
 
     @pytest.mark.parametrize("fmt", ["jsonl", "yaml"])
     def test_ls_tasks(self, db_fixture, setup_tasks, fmt):
-        result = runner.invoke(app, ["task", "ls", "--fmt", fmt])
+        result = runner.invoke(app, ["task", "ls", "--fmt", fmt, "--no-pager"])
         assert result.exit_code == 0, result.output
 
         # Check that the output contains the created tasks
@@ -184,13 +184,20 @@ class TestLs:
         task_id = task.task_id
 
         # using the --task-id option
-        result = runner.invoke(app, ["task", "ls", "--task-id", task_id])
+        result = runner.invoke(app, ["task", "ls", "--task-id", task_id, "--no-pager"])
         assert result.exit_code == 0, result.output
         assert task_name in result.output
 
         # using the extra filter
         result = runner.invoke(
-            app, ["task", "ls", "--extra-filter", f'{{"task_id": "{task_id}"}}']
+            app,
+            [
+                "task",
+                "ls",
+                "--extra-filter",
+                f'{{"task_id": "{task_id}"}}',
+                "--no-pager",
+            ],
         )
         assert result.exit_code == 0, result.output
         assert task_name in result.output
@@ -223,7 +230,7 @@ class TestLs:
         expected_in_output,
         expected_not_in_output,
     ):
-        result = runner.invoke(app, ["task", "ls"] + filter_args)
+        result = runner.invoke(app, ["task", "ls", "--no-pager"] + filter_args)
         assert result.exit_code == 0, result.output
 
         for expected in expected_in_output:
@@ -233,13 +240,15 @@ class TestLs:
             assert unexpected not in result.output
 
     def test_ls_tasks_with_status(self, db_fixture, setup_tasks):
-        result = runner.invoke(app, ["task", "ls", "-s", "pending"])
+        result = runner.invoke(app, ["task", "ls", "-s", "pending", "--no-pager"])
         assert result.exit_code == 0, result.output
         assert "task-1" in result.output
         assert "task-0" in result.output
         assert "task-2" in result.output
 
-        result = runner.invoke(app, ["task", "ls", "-s", "non-existent-status"])
+        result = runner.invoke(
+            app, ["task", "ls", "-s", "non-existent-status", "--no-pager"]
+        )
         assert result.exit_code != 0, result.output + result.stderr
         assert "Invalid value" in result.stderr
 
@@ -309,7 +318,7 @@ class TestLs:
         assert "Invalid value" in result.stderr
 
     def test_ls_tasks_empty(self, db_fixture, cli_create_queue_from_config):
-        result = runner.invoke(app, ["task", "ls"])
+        result = runner.invoke(app, ["task", "ls", "--no-pager"])
         assert result.exit_code == 0, result.output
 
 

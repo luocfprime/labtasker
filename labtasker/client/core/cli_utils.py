@@ -2,10 +2,12 @@ import asyncio
 import os
 import re
 import shlex
+import sys
 import warnings
 from ast import literal_eval
 from enum import Enum
 from functools import wraps
+from shutil import which
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 import httpx
@@ -416,6 +418,29 @@ def pager_iterator(
             yield item  # Yield each item
 
         offset += limit  # Increment offset for the next batch
+
+
+def is_piped_io():
+    return not sys.stdin.isatty() or not sys.stdout.isatty()
+
+
+def get_editor(editor: Optional[str] = None) -> str:
+    """
+    Get system default editor.
+    Adapted from https://github.com/pallets/click/blob/a8b41c077b225c30921a78190507a463a20ebb1b/src/click/_termui_impl.py#L567
+    """
+    if editor is not None:
+        return editor
+    for key in "VISUAL", "EDITOR":
+        rv = os.environ.get(key)
+        if rv:
+            return rv
+    if sys.platform.startswith("win"):
+        return "notepad"
+    for editor in "sensible-editor", "vim", "nano":
+        if which(editor) is not None:
+            return editor
+    return "vi"
 
 
 def requires_server_connection(func: Optional[Callable] = None, /):

@@ -20,6 +20,7 @@ from labtasker.client.core.api import (
 from labtasker.client.core.cli_utils import (
     LsFmtChoices,
     cli_utils_decorator,
+    is_piped_io,
     ls_format_iter,
     pager_iterator,
     parse_filter,
@@ -115,7 +116,7 @@ def ls(
         help="Only show worker IDs that match the query, rather than full entry. Useful when using in bash scripts.",
     ),
     ansi: bool = typer.Option(
-        sys.stdout.isatty(),
+        True,
         help="Enable ANSI colors.",
     ),
     pager: bool = typer.Option(
@@ -214,7 +215,7 @@ def report(
 @cli_utils_decorator
 def delete(
     worker_ids: List[str] = typer.Argument(
-        ... if sys.stdin.isatty() else None, help="IDs of the worker to delete."
+        ... if not is_piped_io() else None, help="IDs of the worker to delete."
     ),
     cascade_update: bool = typer.Option(
         True,
