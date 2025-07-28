@@ -86,30 +86,34 @@ By default, `labtasker task ls` displays all tasks in the queue. Output is shown
 You can filter tasks using:
 
 - `--task-id` or `--task-name` for basic filtering
-- `--extra-filter` for advanced queries
+- `--extra-filter / -f` for advanced queries
 
-### Using Extra Filters
+### Using Filters
 
 Choose between two filter syntaxes:
 
 1. **Python Native Syntax**: Intuitive to use but less powerful.
    ```bash
    # Find tasks where args.foo.bar > 0.1
-   labtasker task ls --extra-filter 'args.foo.bar > 0.1' --quiet --no-pager
+   labtasker task ls -f 'args.foo.bar > 0.1' --quiet --no-pager
    ```
    ==Note:== Does not support `not in`, `not expr`, or `!=` due to null value ambiguities
 
 2. **MongoDB Syntax**: More powerful but requires MongoDB knowledge.
    ```bash
    # Find tasks where args.foo.bar > 0.1
-   labtasker task ls --extra-filter '{"args.foo.bar": {"$gt": 0.1}}' --quiet --no-pager
+   labtasker task ls -f '{"args.foo.bar": {"$gt": 0.1}}' --quiet --no-pager
    ```
 
 You can see the transpiled query using `--verbose` option.
 
+See detail in [How to Use Filter](./filter.md).
+
 ## Modify (update) tasks
 
 By default, `labtasker task update` will open terminal editor (such as vim) to allow you edit the task info.
+
+The read-only fields are marked with a comment `# Read-only. DO NOT modify!`.
 
 However, you may specify the `--update` option or the `[UPDATES]` argument to specify the fields to update instead of
 opening the editor.
@@ -130,8 +134,21 @@ opening the editor.
 
 If you wish to use this command in a bash script, use `--quiet` option to disable unnecessary output and confirmations.
 
+If you want to filter out which tasks to update, use `--extra-filter / -f` option.
+
+See detail in [How to Use Filter](./filter.md).
+
 ## Delete tasks
 
 ```bash
 labtasker task delete --help
+```
+
+To batch delete tasks, you can use Unix pipes.
+
+Example:
+
+```bash
+# -f: filter out tasks; -q: quiet so that only task_ids are printed; -y: skip confirmation
+labtasker task ls -f 'created_at > date("10 minutes ago")' -q | labtasker task delete -y
 ```

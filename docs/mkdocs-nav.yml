@@ -7,6 +7,7 @@ nav:
     - Tutorial:
       - Basic Workflow: guide/basic.md
       - Advanced Features: guide/advanced.md
+      - How to Use Filter: guide/filter.md
     - Manual:
       - queue: guide/manual_queue.md
       - task: guide/manual_task.md

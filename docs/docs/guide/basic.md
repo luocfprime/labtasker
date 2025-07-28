@@ -9,14 +9,6 @@
     - Python Demo: Modify your Python Demo code with a few lines of changes to support Labtasker.
     - Bash Demo: No modification to your Python Demo code is required. Simply wrap your command with `labtasker loop ...`.
 
-!!! note "demo step by step"
-
-    This is a step-by-step demo of the basic workflow described in this page.
-
-    **Note: During the port configuration step, you can specify your own port.**
-
-    <script src="https://asciinema.org/a/tRC0sFsoITjBr0Ik4e9DLXLEm.js" id="asciicast-tRC0sFsoITjBr0Ik4e9DLXLEm" async="true"></script>
-
 ## Prerequisites
 
 **Make sure you have a deployed server.**
