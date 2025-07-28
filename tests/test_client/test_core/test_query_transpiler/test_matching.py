@@ -1,4 +1,5 @@
 import datetime
+from datetime import timezone
 
 import pytest
 
@@ -214,7 +215,13 @@ class TestQueryTranspiler:
             # date
             (
                 "last_modified > date('2025/7/25 23:41')",
-                {"last_modified": {"$gt": datetime.datetime(2025, 7, 25, 23, 41)}},
+                {
+                    "last_modified": {
+                        "$gt": datetime.datetime(2025, 7, 25, 23, 41).astimezone(
+                            timezone.utc
+                        )
+                    }
+                },
             ),
         ],
     )
