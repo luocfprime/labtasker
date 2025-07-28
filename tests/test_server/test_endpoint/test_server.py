@@ -637,9 +637,9 @@ class TestUpdateTasks:
 
         # Prepare update request
         update_request = [
-            TaskUpdateRequest(_id=task_id, task_name="updated_task_name").model_dump(
-                exclude_unset=True
-            )
+            TaskUpdateRequest(
+                task_id=task_id, task_name="updated_task_name"
+            ).model_dump(exclude_unset=True)
         ]
 
         # Update the task
@@ -656,9 +656,9 @@ class TestUpdateTasks:
     def test_update_tasks_invalid_id(self, test_app, setup_queue, auth_headers):
         # Prepare update request with an invalid task ID
         update_request = [
-            TaskUpdateRequest(_id="invalid_task_id", task_name="new_name").model_dump(
-                exclude_unset=True
-            )
+            TaskUpdateRequest(
+                task_id="invalid_task_id", task_name="new_name"
+            ).model_dump(exclude_unset=True)
         ]
 
         # Attempt to update the task
@@ -683,7 +683,7 @@ class TestUpdateTasks:
 
         # Prepare update request with no changes
         update_request = [
-            TaskUpdateRequest(_id=task_id).model_dump(exclude_unset=True)  # noqa
+            TaskUpdateRequest(task_id=task_id).model_dump(exclude_unset=True)  # noqa
         ]
 
         # Update the task

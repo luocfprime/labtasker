@@ -214,7 +214,7 @@ def fetch_task(
         required_fields=required_fields,
         extra_filter=extra_filter,
         cmd=cmd,
-    ).model_dump(mode="json")
+    ).dump_to_json_dict()  # make sure datetime is correctly serialized
     response = client.post("/api/v1/queues/me/tasks/next", json=payload)
     if response.status_code == HTTP_403_FORBIDDEN:
         raise WorkerSuspended(
@@ -320,7 +320,7 @@ def ls_workers(
         limit=limit,
         offset=offset,
         sort=sort,
-    ).model_dump(mode="json")
+    ).dump_to_json_dict()  # make sure datetime is correctly serialized
     response = client.post("/api/v1/queues/me/workers/search", json=payload)
     raise_for_status(response)
     return WorkerLsResponse(**response.json())
@@ -381,7 +381,7 @@ def ls_tasks(
         limit=limit,
         offset=offset,
         sort=sort,
-    ).model_dump(mode="json")
+    ).dump_to_json_dict()  # make sure datetime is correctly serialized
     response = client.post("/api/v1/queues/me/tasks/search", json=payload)
     raise_for_status(response)
     return TaskLsResponse(**response.json())

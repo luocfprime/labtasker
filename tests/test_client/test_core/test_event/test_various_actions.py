@@ -50,7 +50,7 @@ def job_flow_submit_update_cancel_run():
     update_tasks(
         task_updates=[
             TaskUpdateRequest(
-                _id=task_ids[i], args={"baz": f"baz_{i}"}, replace_fields=["args"]
+                task_id=task_ids[i], args={"baz": f"baz_{i}"}, replace_fields=["args"]
             )  # noqa
             for i in range(num_tasks)
         ],
@@ -121,7 +121,7 @@ def job_flow_update_and_run():
     update_tasks(
         task_updates=[
             TaskUpdateRequest(
-                _id=task_id, args={"updated": "new_value"}, replace_fields=["args"]
+                task_id=task_id, args={"updated": "new_value"}, replace_fields=["args"]
             )  # noqa
             for task_id in task_ids
         ],

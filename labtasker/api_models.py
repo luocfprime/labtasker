@@ -1,6 +1,6 @@
 import warnings
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypeVar, Union
 
 from packaging.version import Version
 from pydantic import (
@@ -152,7 +152,93 @@ class TaskSubmitRequest(
     priority: int = Priority.MEDIUM
 
 
-class TaskFetchRequest(BaseRequestModel):
+T = TypeVar("T", bound="DatetimeSerializationMixin")
+
+
+class DatetimeSerializationMixin:
+    """
+    A mixin that enables proper serialization and deserialization of datetime objects
+    in the extra_filter field.
+
+    This mixin should be used with BaseModel.
+    Example: class MyModel(DatetimeSerializationMixin, BaseModel):
+    """
+
+    # Define a model validator to process datetime markers in input data
+    @model_validator(mode="before")
+    @classmethod
+    def process_datetime_markers(cls, data: Any) -> Any:
+        """Process incoming data to convert datetime markers in extra_filter field"""
+        if (
+            isinstance(data, dict)
+            and "extra_filter" in data
+            and data["extra_filter"] is not None
+        ):
+            data["extra_filter"] = cls._process_datetime_markers(data["extra_filter"])
+        return data
+
+    # Add a field validator for extra_filter field
+    @field_validator("extra_filter", mode="before")
+    @classmethod
+    def validate_extra_filter(
+        cls, value: Optional[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """Validate and process extra_filter field"""
+        if value is None:
+            return None
+        return cls._process_datetime_markers(value)
+
+    @classmethod
+    def _process_datetime_markers(cls, obj: Any) -> Any:
+        """Process data recursively to convert datetime markers to datetime objects"""
+        if isinstance(obj, dict):
+            # Check if it's a datetime marker
+            if "_dt" in obj and len(obj) == 1 and isinstance(obj["_dt"], str):
+                try:
+                    return datetime.fromisoformat(obj["_dt"])
+                except ValueError:
+                    pass
+            # Process regular dictionary
+            return {k: cls._process_datetime_markers(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [cls._process_datetime_markers(item) for item in obj]
+        return obj
+
+    def dump_to_json_dict(self) -> Dict[str, Any]:
+        """
+        Dump the model to a JSON-serializable dictionary with datetime objects
+        in extra_filter converted to {"_dt": iso_format} representation.
+
+        This method doesn't modify the model_config, but provides a way to
+        properly serialize datetime objects in the extra_filter field.
+
+        Returns:
+            Dict[str, Any]: A JSON-serializable dictionary
+        """
+        # First get the standard model dump
+        data = self.model_dump()  # type: ignore[attr-defined]
+
+        # Process extra_filter field if it exists
+        if "extra_filter" in data and data["extra_filter"] is not None:
+            data["extra_filter"] = self._process_datetime_objects(data["extra_filter"])
+
+        return data
+
+    def _process_datetime_objects(self, obj: Any) -> Any:
+        """Process data recursively to convert datetime objects to markers"""
+        if isinstance(obj, dict):
+            return {k: self._process_datetime_objects(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._process_datetime_objects(item) for item in obj]
+        elif isinstance(obj, datetime):
+            return {"_dt": obj.isoformat()}
+        elif isinstance(obj, tuple):
+            # Convert tuples to lists for JSON serialization
+            return [self._process_datetime_objects(item) for item in obj]
+        return obj
+
+
+class TaskFetchRequest(DatetimeSerializationMixin, BaseRequestModel):  # type: ignore[misc]
     worker_id: Optional[str] = None
     eta_max: Optional[str] = None
     heartbeat_timeout: Optional[float] = None
@@ -238,7 +324,7 @@ class TaskFetchResponse(BaseResponseModel):
     task: Optional[Task] = None
 
 
-class TaskLsRequest(BaseRequestModel):
+class TaskLsRequest(DatetimeSerializationMixin, BaseRequestModel):  # type: ignore[misc]
     offset: int = Field(0, ge=0)
     limit: int = Field(100, gt=0, le=1000)
     task_id: Optional[str] = None
@@ -300,7 +386,7 @@ class WorkerStatusUpdateRequest(BaseRequestModel):
     status: str = Field(..., pattern=r"^(active|suspended|crashed)$")
 
 
-class WorkerLsRequest(BaseRequestModel):
+class WorkerLsRequest(DatetimeSerializationMixin, BaseRequestModel):  # type: ignore[misc]
     offset: int = Field(0, ge=0)
     limit: int = Field(100, gt=0, le=1000)
     worker_id: Optional[str] = None

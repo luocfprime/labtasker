@@ -10,7 +10,7 @@ pytestmark = [pytest.mark.unit]
 def test_validate_metadata_key():
     with pytest.raises(pydantic.ValidationError):
         QueueGetResponse(
-            _id="test",
+            queue_id="test",
             queue_name="test",
             created_at=get_current_time(),
             last_modified=get_current_time(),
