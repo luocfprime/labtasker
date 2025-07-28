@@ -34,7 +34,7 @@ from labtasker.api_models import (
     WorkerLsResponse,
 )
 from labtasker.security import get_auth_headers
-from labtasker.utils import get_current_time
+from labtasker.utils import get_current_time, parse_obj_as
 from tests.fixtures.server import test_app
 
 # Mark the entire file as integration and unit tests
@@ -549,7 +549,7 @@ class TestWorkerEndpoints:
             f"/api/v1/queues/me/workers/{worker_id}", headers=auth_headers
         )
         assert get_response.status_code == HTTP_200_OK
-        worker_data = Worker(**get_response.json())
+        worker_data = parse_obj_as(Worker, get_response.json())
         assert worker_data.worker_name == "test_worker"
 
     def test_get_non_existent_worker(self, test_app, setup_queue, auth_headers):

@@ -1,5 +1,7 @@
+import contextlib
 import os
 import re
+from contextvars import ContextVar
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any, Dict, Type, Union
@@ -280,7 +282,23 @@ def risky(description: str):
 #     return decorator
 
 
-def parse_obj_as(dst_type: Type[Any], obj: Any) -> Any:
+def parse_obj_as(
+    dst_type: Type[Any], obj: Any, check_unknown_fields_disabled: bool = True
+) -> Any:
+    """
+
+    Args:
+        dst_type:
+        obj:
+        check_unknown_fields_disabled: if True, api_models pydantic models does not check for unknown fields.
+
+    Returns:
+
+    """
+    if check_unknown_fields_disabled:
+        with disable_unknown_fields_check():
+            return TypeAdapter(dst_type).validate_python(obj)
+
     return TypeAdapter(dst_type).validate_python(obj)
 
 
@@ -312,3 +330,19 @@ def validate_dict_keys(d: Dict[str, Any]):
             raise ValueError(
                 f"Key '{key}' is not valid. Keys must be valid dot-separated strings. Got '{key}'"
             )
+
+
+# A context flag to check whether to check for unknown fields
+_disable_check_var: ContextVar[bool] = ContextVar(
+    "disable_unknown_fields_check", default=False
+)
+
+
+@contextlib.contextmanager
+def disable_unknown_fields_check():
+    """Context manager to disable unknown fields check temporarily"""
+    token = _disable_check_var.set(True)
+    try:
+        yield
+    finally:
+        _disable_check_var.reset(token)

@@ -528,7 +528,7 @@ def get_worker(
     worker = db.get_worker(queue_id=queue["_id"], worker_id=worker_id)
     if not worker:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Worker not found")
-    return worker
+    return parse_obj_as(Worker, worker)
 
 
 @app.get("/api/v1/queues/me/events")

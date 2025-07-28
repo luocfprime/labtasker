@@ -15,7 +15,7 @@ from pydantic import (
 
 from labtasker import __version__
 from labtasker.constants import Priority
-from labtasker.utils import validate_dict_keys
+from labtasker.utils import _disable_check_var, validate_dict_keys
 
 
 class BaseApiModel(BaseModel):
@@ -31,6 +31,9 @@ class BaseApiModel(BaseModel):
     def collect_unknown_fields(
         cls, data: Dict[str, Any], info: ValidationInfo
     ) -> Dict[str, Any]:
+        if _disable_check_var.get():  # if check is disabled, return data
+            return data
+
         if isinstance(data, dict):
             # Get the set of model field names
             model_field_names = set(cls.model_fields.keys())  # type: ignore
