@@ -1,4 +1,5 @@
 import ast
+from datetime import timezone
 from typing import Any, Dict, List, NoReturn, Type
 
 import dateparser
@@ -901,7 +902,7 @@ class QueryTranspiler(ast.NodeVisitor):
                     msg="date() argument must be a literal string, e.g. date('Y-M-D H:M:S') or date('7/25 23:33') or date('3 hours ago') etc.",
                     exception=QueryTranspilerValueError,
                 )
-            parsed_date = dateparser.parse(arg)
+            parsed_date = dateparser.parse(arg).astimezone(timezone.utc)
             if not parsed_date:
                 self._report_error(
                     node=node,
