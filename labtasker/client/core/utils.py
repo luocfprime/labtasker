@@ -1,8 +1,13 @@
 import json
+import os
+import subprocess
+import sys
+import threading
 from functools import wraps
 from typing import Any, Callable, Optional
 
 import httpx
+import pexpect
 from pydantic_core import to_jsonable_python
 
 from labtasker.api_models import BaseResponseModel
@@ -118,3 +123,115 @@ def raise_for_status(r: httpx.Response) -> httpx.Response:
         raise httpx.HTTPStatusError(
             enhanced_message, request=e.request, response=e.response
         ) from None
+
+
+def run_with_pty(cmd, shell_exec=None, use_shell=False):
+    """Run a command with PTY support for interactive programs."""
+    if use_shell:
+        shell_exec = shell_exec or "/bin/sh"
+        child = pexpect.spawn(shell_exec, ["-c", cmd], encoding="utf-8")
+    else:
+        child = pexpect.spawn(cmd[0], cmd[1:], encoding="utf-8")
+
+    stream_child_output(child)
+
+    return child.exitstatus
+
+
+def run_with_subprocess(cmd, shell_exec=None, use_shell=False):
+    """Run a command using standard subprocess approach with real-time output.
+
+    This implementation uses threads to handle stdout and stderr streams separately,
+    providing good cross-platform compatibility with improved real-time output.
+
+    Args:
+        cmd: Command to execute, either as a string or a list of arguments
+        shell_exec: Shell executable to use (if any)
+        use_shell: Whether to run the command through the shell
+
+    Returns:
+        The return code from the subprocess
+    """
+
+    def read_stream(stream, is_stdout):
+        """Read from a stream in small chunks for more immediate output.
+
+        This approach avoids line-buffering issues and ensures output appears
+        in real-time even when the subprocess doesn't output complete lines.
+
+        Args:
+            stream: The stream to read from (process stdout or stderr)
+            is_stdout: Boolean indicating if this is stdout (True) or stderr (False)
+        """
+        # Read in small chunks (64 bytes) instead of lines for more responsive output
+        for chunk in iter(lambda: stream.read(64), b""):
+            if is_stdout:
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
+            else:
+                sys.stderr.buffer.write(chunk)
+                sys.stderr.buffer.flush()
+
+    with subprocess.Popen(
+        args=cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=False,  # Use binary mode for more direct control
+        bufsize=0,  # Disable buffering for immediate output
+        executable=shell_exec,
+        shell=use_shell,
+    ) as process:
+        # Create threads to handle output streams
+        stdout_thread = threading.Thread(
+            target=read_stream, args=(process.stdout, True)
+        )
+        stderr_thread = threading.Thread(
+            target=read_stream, args=(process.stderr, False)
+        )
+
+        # Set as daemon threads to avoid blocking when main process exits
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+
+        # Start the threads
+        stdout_thread.start()
+        stderr_thread.start()
+
+        # Wait for process to complete
+        process.wait()
+
+        # Wait for output processing to complete
+        # Use a timeout to prevent potential deadlocks
+        stdout_thread.join(timeout=1.0)
+        stderr_thread.join(timeout=1.0)
+
+        return process.returncode
+
+
+def check_pty_available(opt: bool) -> bool:
+    if opt and os.name == "nt":
+        stderr_console.print(
+            "[bold orange1]Warning:[/bold orange1] PTY is not available on Windows. "
+            "Disabling PTY support."
+        )
+        return False
+    return opt
+
+
+def stream_child_output(child) -> None:
+    """Stream the output of a pexpect child in real-time, supporting progress bars."""
+    try:
+        while True:
+            try:
+                output = child.read_nonblocking(size=1024, timeout=0.1)
+                if output:
+                    # keep \r
+                    sys.stdout.write(output)
+                    sys.stdout.flush()
+            except pexpect.TIMEOUT:
+                continue
+            except pexpect.EOF:
+                break
+    finally:
+        child.close()

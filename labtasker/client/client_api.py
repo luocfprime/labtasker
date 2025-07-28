@@ -22,6 +22,7 @@ from labtasker.client.core.resolver import (
     get_required_fields,
     resolve_args_partial,
 )
+from labtasker.client.core.utils import run_with_pty, run_with_subprocess
 from labtasker.utils import validate_required_fields
 
 __all__ = [
@@ -57,6 +58,9 @@ __all__ = [
     "ls_workers",
     "refresh_task_heartbeat",
     "report_task_status",
+    # utilities
+    "run_with_pty",
+    "run_with_subprocess",
 ]
 
 
