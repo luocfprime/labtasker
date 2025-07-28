@@ -6,7 +6,7 @@ import pytest
 from labtasker.utils import (
     flatten_dict,
     get_timeout_delta,
-    parse_timeout,
+    parse_time_interval,
     risky,
     unflatten_dict,
 )
@@ -16,90 +16,90 @@ from labtasker.utils import (
 def test_parse_timeout_single_unit():
     """Test parsing single unit timeouts."""
     # Test direct seconds
-    assert parse_timeout("1") == 1
-    assert parse_timeout("60.5") == 60.5
+    assert parse_time_interval("1") == 1
+    assert parse_time_interval("60.5") == 60.5
 
     # Test hours
-    assert parse_timeout("1h") == 3600
-    assert parse_timeout("1.5h") == 5400
-    assert parse_timeout("24h") == 86400
-    assert parse_timeout("1 hour") == 3600
-    assert parse_timeout("2 hours") == 7200
+    assert parse_time_interval("1h") == 3600
+    assert parse_time_interval("1.5h") == 5400
+    assert parse_time_interval("24h") == 86400
+    assert parse_time_interval("1 hour") == 3600
+    assert parse_time_interval("2 hours") == 7200
 
     # Test minutes
-    assert parse_timeout("30m") == 1800
-    assert parse_timeout("1.5m") == 90
-    assert parse_timeout("60m") == 3600
-    assert parse_timeout("1 minute") == 60
-    assert parse_timeout("30 minutes") == 1800
-    assert parse_timeout("30 min") == 1800
+    assert parse_time_interval("30m") == 1800
+    assert parse_time_interval("1.5m") == 90
+    assert parse_time_interval("60m") == 3600
+    assert parse_time_interval("1 minute") == 60
+    assert parse_time_interval("30 minutes") == 1800
+    assert parse_time_interval("30 min") == 1800
 
     # Test seconds
-    assert parse_timeout("60s") == 60
-    assert parse_timeout("1.5s") == 1.5
-    assert parse_timeout("3600s") == 3600
-    assert parse_timeout("60 seconds") == 60
-    assert parse_timeout("1 second") == 1
-    assert parse_timeout("30 sec") == 30
+    assert parse_time_interval("60s") == 60
+    assert parse_time_interval("1.5s") == 1.5
+    assert parse_time_interval("3600s") == 3600
+    assert parse_time_interval("60 seconds") == 60
+    assert parse_time_interval("1 second") == 1
+    assert parse_time_interval("30 sec") == 30
 
 
 @pytest.mark.unit
 def test_parse_timeout_compound():
     """Test parsing compound timeouts."""
-    assert parse_timeout("1h30m") == 5400
-    assert parse_timeout("1 hour 30 minutes") == 5400
-    assert parse_timeout("1 hour, 30 minutes") == 5400
-    assert parse_timeout("1h, 30m") == 5400
-    assert parse_timeout("1.5h 30m") == 5400 + 1800
+    assert parse_time_interval("1h30m") == 5400
+    assert parse_time_interval("1 hour 30 minutes") == 5400
+    assert parse_time_interval("1 hour, 30 minutes") == 5400
+    assert parse_time_interval("1h, 30m") == 5400
+    assert parse_time_interval("1.5h 30m") == 5400 + 1800
 
-    assert parse_timeout("5m30s") == 330
-    assert parse_timeout("5 minutes 30 seconds") == 330
-    assert parse_timeout("5 min, 30 sec") == 330
+    assert parse_time_interval("5m30s") == 330
+    assert parse_time_interval("5 minutes 30 seconds") == 330
+    assert parse_time_interval("5 min, 30 sec") == 330
 
-    assert parse_timeout("1h 30m 45s") == 5445
-    assert parse_timeout("1 hour, 30 minutes, 45 seconds") == 5445
+    assert parse_time_interval("1h 30m 45s") == 5445
+    assert parse_time_interval("1 hour, 30 minutes, 45 seconds") == 5445
 
 
 @pytest.mark.unit
 def test_parse_timeout_formatting():
     """Test timeout string formatting."""
     # Test whitespace handling
-    assert parse_timeout(" 1h ") == 3600
-    assert parse_timeout("2m  ") == 120
-    assert parse_timeout("  1h  30m  ") == 5400
+    assert parse_time_interval(" 1h ") == 3600
+    assert parse_time_interval("2m  ") == 120
+    assert parse_time_interval("  1h  30m  ") == 5400
 
     # Test case insensitivity
-    assert parse_timeout("1H") == 3600
-    assert parse_timeout("30M") == 1800
-    assert parse_timeout("1Hour") == 3600
-    assert parse_timeout("1HOUR") == 3600
+    assert parse_time_interval("1H") == 3600
+    assert parse_time_interval("30M") == 1800
+    assert parse_time_interval("1Hour") == 3600
+    assert parse_time_interval("1HOUR") == 3600
 
     # Test comma variations
-    assert parse_timeout("1h, 30m") == 5400
-    assert parse_timeout("1h,30m") == 5400
-    assert parse_timeout("1 hour,30 minutes") == 5400
+    assert parse_time_interval("1h, 30m") == 5400
+    assert parse_time_interval("1h,30m") == 5400
+    assert parse_time_interval("1 hour,30 minutes") == 5400
 
 
 @pytest.mark.unit
 def test_parse_timeout_errors():
     """Test error handling in timeout parsing."""
     with pytest.raises(ValueError):
-        parse_timeout("1d")  # Invalid unit
+        parse_time_interval("1d")  # Invalid unit
 
     with pytest.raises(ValueError):
-        parse_timeout("abc")  # No number
+        parse_time_interval("abc")  # No number
 
     with pytest.raises(ValueError):
-        parse_timeout("")  # Empty string
+        parse_time_interval("")  # Empty string
 
     with pytest.raises(ValueError):
-        parse_timeout("1h30")  # Missing unit
+        parse_time_interval("1h30")  # Missing unit
 
     with pytest.raises(ValueError):
-        parse_timeout(None)  # type: ignore
+        parse_time_interval(None)  # type: ignore
 
     with pytest.raises(ValueError):
-        parse_timeout("h1")  # Invalid unit
+        parse_time_interval("h1")  # Invalid unit
 
 
 @pytest.mark.unit

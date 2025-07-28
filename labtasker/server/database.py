@@ -38,7 +38,7 @@ from labtasker.server.logging import logger
 from labtasker.utils import (
     add_key_prefix,
     get_current_time,
-    parse_timeout,
+    parse_time_interval,
     risky,
     unflatten_dict,
 )
@@ -541,7 +541,7 @@ class DBService:
             extra_filter (Dict[str, Any], optional): Additional filter criteria for the task.
             cmd (Optional[Union[str, List[str]]]): The command that runs the job.
         """
-        task_timeout = parse_timeout(eta_max) if eta_max else None
+        task_timeout = parse_time_interval(eta_max) if eta_max else None
 
         required_fields = required_fields or []
 

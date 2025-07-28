@@ -37,7 +37,7 @@ from labtasker.client.core.exceptions import (
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import log_to_file, logger, stderr_console
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
-from labtasker.utils import parse_timeout
+from labtasker.utils import parse_time_interval
 
 __all__ = [
     "loop_run",
@@ -135,7 +135,7 @@ def loop_run(
 
     if eta_max is not None:
         try:
-            parse_timeout(eta_max)
+            parse_time_interval(eta_max)
         except ValueError:
             raise LabtaskerValueError(
                 f"Invalid eta_max {eta_max}. ETA max must be a valid duration string (e.g. '1h', '1h30m', '50s')"

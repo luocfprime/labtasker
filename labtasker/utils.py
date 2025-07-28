@@ -11,42 +11,40 @@ from pydantic import TypeAdapter
 from labtasker.constants import DOT_SEPARATED_KEY_PATTERN
 
 
-def parse_timeout(timeout_str: str) -> float:
-    """Convert timeout string to seconds.
+def parse_time_interval(interval: str) -> float:
+    """Convert time interval string to seconds.
 
     Supports formats:
-    - Timeout in seconds: "1.5", "60"
+    - Time in seconds: "1.5", "60"
     - Single unit: "1.5h", "30m", "60s"
     - Multiple units: "1h30m", "5m30s", "1h30m15s"
     - Full words: "1 hour", "30 minutes", "1 hour, 30 minutes"
 
     Args:
-        timeout_str: Timeout string to parse
+        interval: Time interval string to parse
 
     Returns:
-        Number of seconds (rounded to nearest integer)
+        Number of seconds
 
     Raises:
         ValueError: If format is invalid
     """
     try:
-        value = float(timeout_str)  # try directly as a number (in seconds)
+        value = float(interval)  # try directly as a number (in seconds)
         return value
     except (TypeError, ValueError):
         pass
 
-    if not timeout_str or not isinstance(timeout_str, str):
-        raise ValueError("Timeout must be a non-empty string")
+    if not interval or not isinstance(interval, str):
+        raise ValueError("Time interval must be a non-empty string")
 
     # Clean up input
-    timeout_str = timeout_str.lower().strip()
-    timeout_str = re.sub(
-        r"[:,\s]+", "", timeout_str
-    )  # Remove all spaces, commas, and colons
+    interval = interval.lower().strip()
+    interval = re.sub(r"[:,\s]+", "", interval)  # Remove all spaces, commas, and colons
 
     # Handle pure numbers (assume seconds)
-    if timeout_str.isdigit():
-        return int(timeout_str)
+    if interval.isdigit():
+        return int(interval)
 
     # Unit mappings
     unit_map = {
@@ -66,9 +64,9 @@ def parse_timeout(timeout_str: str) -> float:
     total_seconds = 0.0
 
     # Match alternating number-unit pairs
-    matches = re.findall(r"(\d+\.?\d*)([a-z]+)", timeout_str)
-    if not matches or "".join(num + unit for num, unit in matches) != timeout_str:
-        raise ValueError(f"Invalid timeout format: {timeout_str}")
+    matches = re.findall(r"(\d+\.?\d*)([a-z]+)", interval)
+    if not matches or "".join(num + unit for num, unit in matches) != interval:
+        raise ValueError(f"Invalid time interval format: {interval}")
 
     for value_str, unit in matches:
         try:
@@ -99,7 +97,7 @@ def get_timeout_delta(timeout: Union[int, str]) -> timedelta:
         return timedelta(seconds=timeout)
 
     if isinstance(timeout, str):
-        seconds = parse_timeout(timeout)
+        seconds = parse_time_interval(timeout)
         return timedelta(seconds=seconds)
 
     raise TypeError("Timeout must be an integer or string")

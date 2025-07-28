@@ -35,7 +35,7 @@ from labtasker.client.core.exceptions import (
 )
 from labtasker.client.core.logging import stderr_console
 from labtasker.client.core.query_transpiler import transpile_query
-from labtasker.utils import parse_timeout, unflatten_dict
+from labtasker.utils import parse_time_interval, unflatten_dict
 
 DT = TypeVar("DT")
 RT = TypeVar("RT")
@@ -297,7 +297,7 @@ def eta_max_validation(value: Optional[str]):
     if value is None:
         return None
     try:
-        parse_timeout(value)
+        parse_time_interval(value)
     except Exception:
         raise typer.BadParameter(
             "ETA max must be a valid duration string (e.g. '1h', '1h30m', '50s')"
