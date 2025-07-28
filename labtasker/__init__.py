@@ -1,4 +1,4 @@
-__version__ = "0.2.8"
+__version__ = "0.2.9"
 
 from labtasker.client.client_api import *
 from labtasker.client.core.config import get_client_config
