@@ -41,6 +41,8 @@ pip install labtasker-plugin-task-count
     To write your own CLI plugin, see [Setuptools Doc](https://setuptools.pypa.io/en/latest/userguide/entry_point.html)
     and [Typer Doc](https://typer.tiangolo.com/tutorial/subcommands/nested-subcommands/) for details.
 
+    There is a cookiecutter plugin template [here](https://github.com/luocfprime/labtasker-plugin-template).
+
 ### Workflow plugins [WIP]
 
 ## Custom resolvers
