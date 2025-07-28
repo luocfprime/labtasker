@@ -83,6 +83,7 @@ Repository = "https://github.com/luocfprime/labtasker.git"
 
 [project.scripts]
 labtasker = "labtasker.__main__:main"
+lt = "labtasker.__main__:main"  # short aliass
 labtasker-server = "labtasker.server.cli:main"
 
 [tool.setuptools]
