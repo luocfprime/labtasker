@@ -42,26 +42,30 @@ __all__ = [
     "connect_events",
     "EventListener",
     # http api (you should be careful with these unless you know what you are doing)
+    "get_httpx_client",
     "close_httpx_client",
     "health_check",
-    "submit_task",
-    "delete_worker",
     "create_queue",
-    "create_worker",
-    "delete_queue",
-    "delete_task",
-    "delete_worker",
-    "fetch_task",
     "get_queue",
-    "health_check",
-    "ls_tasks",
-    "ls_workers",
-    "refresh_task_heartbeat",
+    "delete_queue",
+    "submit_task",
+    "fetch_task",
     "report_task_status",
+    "refresh_task_heartbeat",
+    "create_worker",
+    "ls_workers",
+    "report_worker_status",
+    "ls_tasks",
+    "update_tasks",
+    "delete_task",
+    "update_queue",
+    "delete_worker",
     # utilities
     "run_with_pty",
     "run_with_subprocess",
 ]
+
+assert len(set(__all__)) == len(__all__), "Duplicated symbols in __all__"
 
 
 def loop(
