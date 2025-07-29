@@ -43,7 +43,7 @@ Originally, Labtasker filter comes with 2 syntaxes:
     ```
 === "Date time comparison"
     ```bash
-    labtasker task ls -f 'created_at >= date("3 hours ago")
+    labtasker task ls -f 'created_at >= date("3 hours ago")'
     ```
 
 !!! note "Why `!=`, `not in`, `not` is not supported"
