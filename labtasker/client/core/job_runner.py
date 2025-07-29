@@ -270,12 +270,9 @@ def loop_run(
                                 resp = update_tasks(
                                     task_updates=[
                                         TaskUpdateRequest(
-                                            **{
-                                                "task_id": current_task_id(),
-                                                "status": "pending",  # running -> pending
-                                                "retries": 0,
-                                                "worker_id": None,
-                                            }
+                                            task_id=current_task_id(),  # noqa
+                                            status="pending",  # running -> pending
+                                            retries=0,
                                         )
                                     ]
                                 )
