@@ -614,6 +614,7 @@ class DBService:
                         "last_modified": now,
                         "worker_id": worker_id,
                         "cmd": cmd,
+                        "summary": {},  # clear previous summary before fetched
                     }
                 }
 
