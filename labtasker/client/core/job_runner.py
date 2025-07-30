@@ -12,6 +12,7 @@ import labtasker
 from labtasker.api_models import TaskUpdateRequest
 from labtasker.client.core.api import (
     create_worker,
+    delete_worker,
     fetch_task,
     get_queue,
     report_task_status,
@@ -155,9 +156,12 @@ def loop_run(
         raise e
 
     # Create worker if not exists
+    auto_create_worker = False
+
     if current_worker_id() is None:
-        new_worker_id = worker_id or create_worker(**(create_worker_kwargs or {}))
-        set_current_worker_id(new_worker_id)
+        auto_create_worker = worker_id is None
+        worker_id = worker_id or create_worker(**(create_worker_kwargs or {}))
+        set_current_worker_id(worker_id)
 
     if cmd is None:
         cmd = sys.argv
@@ -333,6 +337,10 @@ def loop_run(
                                 finish(status="success")
                             end_heartbeat()
                 except _LabtaskerLoopExit:
+                    # clean up the worker
+                    if auto_create_worker:  # worker is managed automatically
+                        delete_worker(worker_id=current_worker_id())
+
                     logger.info("Exiting task loop.")
                     break
                 except WorkerSuspended:
