@@ -68,7 +68,13 @@ def _network_err_retry(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         return stamina.retry(
-            on=httpx.TransportError, attempts=5, wait_initial=0.5, wait_max=10.0
+            on=httpx.TransportError,
+            attempts=10,
+            timeout=100.0,
+            wait_initial=0.5,
+            wait_max=16.0,
+            wait_jitter=1.0,
+            wait_exp_base=2.0,
         )(func)(*args, **kwargs)
 
     return wrapper
