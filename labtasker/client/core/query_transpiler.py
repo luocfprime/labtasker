@@ -1,6 +1,7 @@
 import ast
+import difflib
 from datetime import timezone
-from typing import Any, Dict, List, NoReturn, Type
+from typing import Any, Dict, List, NoReturn, Optional, Type
 
 import dateparser
 from rich.console import Console
@@ -154,9 +155,10 @@ class QueryTranspiler(ast.NodeVisitor):
         ast.Or: "$or",  # a or b -> {$or: [a, b]}
     }
 
-    def __init__(self, query_str: str):
+    def __init__(self, query_str: str, allowed_fields: Optional[List[str]] = None):
         super().__init__()
         self.query_str = query_str
+        self.allowed_fields = allowed_fields
 
     def _report_error(
         self, node: ast.AST, msg: str, exception: Type[QueryTranspilerError]
@@ -701,6 +703,20 @@ class QueryTranspiler(ast.NodeVisitor):
         Python: field_name
         MongoDB: "field_name" (as a field reference)
         """
+        if self.allowed_fields and node.id not in self.allowed_fields:
+            suggestions = difflib.get_close_matches(
+                node.id, self.allowed_fields, n=1, cutoff=0.6
+            )
+            suggestion_msg = (
+                f" Maybe you meant '{suggestions[0]}'?" if suggestions else ""
+            )
+
+            self._report_error(
+                node=node,
+                msg=f"Field '{node.id}' is unknown or not allowed.{suggestion_msg}"
+                f"\nAllowed fields: {', '.join(sorted(self.allowed_fields))}",
+                exception=QueryTranspilerValueError,
+            )
         return node.id
 
     def visit_Attribute(self, node: ast.Attribute) -> str:
@@ -960,7 +976,9 @@ class QueryTranspiler(ast.NodeVisitor):
         )
 
 
-def transpile_query(query_str: str) -> Dict[str, Any]:
+def transpile_query(
+    query_str: str, allowed_fields: Optional[List[str]] = None
+) -> Dict[str, Any]:
     """
     Transpile a Python-like query string and convert it to a MongoDB query object.
 
@@ -969,6 +987,7 @@ def transpile_query(query_str: str) -> Dict[str, Any]:
 
     Args:
         query_str: A string containing a Python-like expression to be converted
+        allowed_fields: A list of allowed fields (e.g. ast.Name.id). If None, allowed_fields will not be checked.
 
     Returns:
         A dictionary representing the equivalent MongoDB query
@@ -979,7 +998,7 @@ def transpile_query(query_str: str) -> Dict[str, Any]:
     try:
         query_str = query_str.strip()
         parsed_ast = ast.parse(query_str)
-        visitor = QueryTranspiler(query_str=query_str)
+        visitor = QueryTranspiler(query_str=query_str, allowed_fields=allowed_fields)
         result = visitor.visit(parsed_ast)
 
         if isinstance(result, bool) or isinstance(result, int):

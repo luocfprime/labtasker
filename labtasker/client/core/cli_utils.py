@@ -84,7 +84,30 @@ def parse_filter(filter_str: Optional[str]) -> Optional[Dict[str, Any]]:
         return parse_dict(d_str=filter_str)
     except typer.BadParameter:
         try:
-            return transpile_query(query_str=filter_str)  # type: ignore[arg-type]
+            return transpile_query(
+                query_str=filter_str,
+                allowed_fields=[
+                    "task_id",
+                    "queue_id",
+                    "status",
+                    "task_name",
+                    "created_at",
+                    "start_time",
+                    "last_heartbeat",
+                    "last_modified",
+                    "heartbeat_timeout",
+                    "task_timeout",
+                    "max_retries",
+                    "retries",
+                    "priority",
+                    "metadata",
+                    "args",
+                    "cmd",
+                    "summary",
+                    "worker_id",
+                    "worker_name",
+                ],
+            )  # type: ignore[arg-type]
         except QueryTranspilerError as e:
             raise typer.BadParameter(f"Invalid filter str: {e}") from e
 
