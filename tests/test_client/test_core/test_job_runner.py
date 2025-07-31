@@ -90,6 +90,42 @@ def test_job_success(setup_tasks):
         assert task.status == "success"
 
 
+def test_job_str_filter(setup_tasks):
+    """Test if Pythonic query str as extra_filter works"""
+    tasks = ls_tasks()
+    assert tasks.found
+    assert len(tasks.content) == TOTAL_TASKS
+
+    idx = -1
+
+    @loop_run(
+        required_fields=["arg1", "arg2"],
+        eta_max="1h",
+        pass_args_dict=True,
+        extra_filter="args.arg2.arg3 < 2",  # only run the first two tasks
+    )
+    def job(args):
+        nonlocal idx
+        idx += 1
+        task_name = task_info().task_name
+        assert task_name == f"test_task_{idx}"
+        assert args["arg1"] == idx
+        assert args["arg2"]["arg3"] == idx
+
+        time.sleep(0.5)  # a tiny delay to ensure the tasks api request are processed
+
+        finish("success")
+
+    job()
+
+    assert idx + 1 == 2, idx
+
+    tasks = ls_tasks(extra_filter="args.arg2.arg3 < 2")
+    assert tasks.found
+    for task in tasks.content:
+        assert task.status == "success"
+
+
 def test_job_manual_failure(setup_tasks):
     cnt = 0
 

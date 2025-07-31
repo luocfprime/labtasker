@@ -70,7 +70,7 @@ assert len(set(__all__)) == len(__all__), "Duplicated symbols in __all__"
 
 def loop(
     required_fields: Optional[List[str]] = None,
-    extra_filter: Optional[Dict[str, Any]] = None,
+    extra_filter: Optional[Union[str, Dict[str, Any]]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
     worker_id: Optional[str] = None,
     create_worker_kwargs: Optional[Dict[str, Any]] = None,
@@ -82,7 +82,7 @@ def loop(
 
     Args:
         required_fields: Fields (or extra fields other than specified using Required(...)) required for task execution in a dot-separated manner. E.g. ["arg1.arg11", "arg2.arg22"]
-        extra_filter: Additional filtering criteria for tasks
+        extra_filter: Additional filtering criteria for tasks. Dict in MongoDB syntax or string in Python syntax is allowed.
         cmd: Command line arguments that runs current process. Default to sys.argv
         worker_id: Specific worker ID to use
         create_worker_kwargs: Arguments for default worker creation

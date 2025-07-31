@@ -38,6 +38,7 @@ from labtasker.client.core.exceptions import (
 from labtasker.client.core.heartbeat import end_heartbeat, start_heartbeat
 from labtasker.client.core.logging import log_to_file, logger, stderr_console
 from labtasker.client.core.paths import get_labtasker_log_dir, set_labtasker_log_dir
+from labtasker.client.core.utils import transpile_query_safe
 from labtasker.utils import parse_time_interval
 
 __all__ = [
@@ -106,7 +107,7 @@ def dump_task_info():
 
 def loop_run(
     required_fields: List[str],
-    extra_filter: Optional[Dict[str, Any]] = None,
+    extra_filter: Optional[Union[str, Dict[str, Any]]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
     worker_id: Optional[str] = None,
     create_worker_kwargs: Optional[Dict[str, Any]] = None,
@@ -141,6 +142,9 @@ def loop_run(
             raise LabtaskerValueError(
                 f"Invalid eta_max {eta_max}. ETA max must be a valid duration string (e.g. '1h', '1h30m', '50s')"
             )
+
+    if isinstance(extra_filter, str):  # transpile to mongodb query
+        extra_filter = transpile_query_safe(query_str=extra_filter)
 
     # Check connection and authentication
     try:

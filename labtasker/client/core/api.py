@@ -35,6 +35,7 @@ from labtasker.client.core.utils import (
     cast_http_error,
     display_server_notifications,
     raise_for_status,
+    transpile_query_safe,
 )
 from labtasker.constants import Priority
 from labtasker.security import SecretStr, get_auth_headers
@@ -193,7 +194,7 @@ def fetch_task(
     heartbeat_timeout: Optional[float] = None,
     start_heartbeat: bool = True,
     required_fields: Optional[List[str]] = None,
-    extra_filter: Optional[Dict[str, Any]] = None,
+    extra_filter: Optional[Union[str, Dict[str, Any]]] = None,
     client: Optional[httpx.Client] = None,
     cmd: Optional[Union[str, List[str]]] = None,
 ) -> TaskFetchResponse:
@@ -205,6 +206,9 @@ def fetch_task(
         raise LabtaskerValueError(
             "Either eta_max or start_heartbeat must be specified."
         )
+
+    if isinstance(extra_filter, str):  # transpile to mongodb query
+        extra_filter = transpile_query_safe(query_str=extra_filter)
 
     payload = TaskFetchRequest(
         worker_id=worker_id,
@@ -303,7 +307,7 @@ def ls_workers(
     worker_id: Optional[str] = None,
     worker_name: Optional[str] = None,
     status: Optional[str] = None,
-    extra_filter: Optional[Dict[str, Any]] = None,
+    extra_filter: Optional[Union[str, Dict[str, Any]]] = None,
     limit: int = 100,
     offset: int = 0,
     sort: Optional[List[Tuple[str, int]]] = None,
@@ -312,6 +316,10 @@ def ls_workers(
     """List workers."""
     if client is None:
         client = get_httpx_client()
+
+    if isinstance(extra_filter, str):  # transpile to mongodb query
+        extra_filter = transpile_query_safe(query_str=extra_filter)
+
     payload = WorkerLsRequest(
         worker_id=worker_id,
         worker_name=worker_name,
@@ -364,7 +372,7 @@ def ls_tasks(
     task_id: Optional[str] = None,
     task_name: Optional[str] = None,
     status: Optional[str] = None,
-    extra_filter: Optional[Dict[str, Any]] = None,
+    extra_filter: Optional[Union[str, Dict[str, Any]]] = None,
     limit: int = 100,
     offset: int = 0,
     sort: Optional[List[Tuple[str, int]]] = None,
@@ -373,6 +381,10 @@ def ls_tasks(
     """List tasks in a queue."""
     if client is None:
         client = get_httpx_client()
+
+    if isinstance(extra_filter, str):  # transpile to mongodb query
+        extra_filter = transpile_query_safe(query_str=extra_filter)
+
     payload = TaskLsRequest(
         task_id=task_id,
         task_name=task_name,

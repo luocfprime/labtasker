@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 import threading
-from functools import wraps
+from functools import partial, wraps
 from typing import Any, Callable, Optional
 
 import httpx
@@ -20,6 +20,7 @@ from labtasker.client.core.exceptions import (
 )
 from labtasker.client.core.logging import stderr_console, stdout_console
 from labtasker.client.core.paths import get_labtasker_client_config_path
+from labtasker.client.core.query_transpiler import transpile_query
 
 server_notification_prefix = {
     "info": "[bold dodger_blue1]INFO(notification):[/bold dodger_blue1] ",
@@ -32,6 +33,31 @@ server_notification_level = {
     "medium": 1,
     "high": 2,
 }
+
+transpile_query_safe = partial(
+    transpile_query,
+    allowed_fields=[
+        "task_id",
+        "queue_id",
+        "status",
+        "task_name",
+        "created_at",
+        "start_time",
+        "last_heartbeat",
+        "last_modified",
+        "heartbeat_timeout",
+        "task_timeout",
+        "max_retries",
+        "retries",
+        "priority",
+        "metadata",
+        "args",
+        "cmd",
+        "summary",
+        "worker_id",
+        "worker_name",
+    ],
+)
 
 
 def json_serializer(obj: Any, **kwargs) -> str:
