@@ -176,9 +176,9 @@ class EventListener:
             self._retry_context_iter = stamina.retry_context(
                 on=httpx.TransportError,
                 attempts=10,
-                timeout=60,
+                timeout=100.0,
                 wait_initial=0.5,
-                wait_max=8.0,
+                wait_max=16.0,
                 wait_jitter=1.0,
                 wait_exp_base=2.0,
             ).__iter__()
