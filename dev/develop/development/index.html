@@ -1063,10 +1063,10 @@
 </code></pre></div>
 <h2 id="development-utilities">Development utilities<a class="headerlink" href="#development-utilities" title="Permanent link">&para;</a></h2>
 <h3 id="format-code">Format code<a class="headerlink" href="#format-code" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>format
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>just<span class="w"> </span>format
 </code></pre></div>
 <h3 id="run-linters">Run linters<a class="headerlink" href="#run-linters" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>lint
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>just<span class="w"> </span>lint
 </code></pre></div>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h2>
 <h3 id="test-setups">Test setups<a class="headerlink" href="#test-setups" title="Permanent link">&para;</a></h3>
@@ -1105,17 +1105,17 @@ Some test cases are shared between unit tests, integration tests and end-to-end 
 </div>
 <h3 id="run-tests">Run tests<a class="headerlink" href="#run-tests" title="Permanent link">&para;</a></h3>
 <p>Unit tests:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>unit-test
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>just<span class="w"> </span>unit-test
 </code></pre></div>
 <div class="admonition danger">
 <p class="admonition-title">Do not run integration and e2e tests in production env</p>
 <p>Do not run integration and e2e tests in production env, as they will erase the database for testing.</p>
 </div>
 <p>Integration tests:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>make<span class="w"> </span>integration-test
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>just<span class="w"> </span>integration-test
 </code></pre></div>
 <p>End-to-end tests (quite time-consuming):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>e2e-test
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>just<span class="w"> </span>e2e-test
 </code></pre></div>
 
 
