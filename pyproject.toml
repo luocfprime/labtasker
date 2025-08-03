@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "labtasker"
-version = "0.2.10"
+version = "0.2.11"
 description = "A task queue system for lab experiments"
 authors = [{ name = "Your Name", email = "your.email@example.com" }]
 license = { text = "Apache License 2.0" }
@@ -133,7 +133,7 @@ disable_error_code = [
     "no-redef",
     "import-untyped"
 ]
-python_version = "3.10"
+python_version = "0.2.11"
 warn_unused_configs = true
 ignore_missing_imports = true
 show_error_codes = true
