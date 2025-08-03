@@ -64,6 +64,7 @@ dev = [
     "tox (>=4.24.0,<4.29.0)",
     "pytest-dependency (>=0.6.0,<0.7.0)",
     "pytest-sugar (>=1.0.0,<2.0.0)",
+    "rust-just (>=1.42.4,<2.0.0)",
 ]
 doc = [
     "mkdocs-material (>=9.6.5,<9.7.0)",

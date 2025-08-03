@@ -896,6 +896,22 @@ files = [
 labtasker = "*"
 
 [[package]]
+name = "labtasker-plugin-task-recency"
+version = "0.1.1"
+description = "A Labtasker plugin that groups tasks according to recency."
+optional = true
+python-versions = "<4.0,>=3.9"
+groups = ["main"]
+markers = "extra == \"plugins\""
+files = [
+    {file = "labtasker_plugin_task_recency-0.1.1-py3-none-any.whl", hash = "sha256:6b6d40c429098962f6a685df2e876d9ce10906a512e876e8ea732ac69cceb93f"},
+    {file = "labtasker_plugin_task_recency-0.1.1.tar.gz", hash = "sha256:c96b1ba0749d926ea7254f1ededcebf360ef175c7f96c7728f7f8bea4b1d7c8b"},
+]
+
+[package.dependencies]
+labtasker = "*"
+
+[[package]]
 name = "loguru"
 version = "0.7.3"
 description = "Python logging made (stupidly) simple"
@@ -2309,6 +2325,31 @@ files = [
 ]
 
 [[package]]
+name = "rust-just"
+version = "1.42.4"
+description = "🤖 Just a command runner"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "rust_just-1.42.4-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:881252a47b9d242e54aebf8c8a51c8954f4dbc0afc0c9eebb6bb1b886aeb4fcf"},
+    {file = "rust_just-1.42.4-py3-none-macosx_11_0_arm64.whl", hash = "sha256:624017b124499a0328ed4b63582da4332143eb6777b2b557d9e98413a73add90"},
+    {file = "rust_just-1.42.4-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8c1d01f5cc39285a2f3ac13a814f0730ad045fb21990d9e2925b2aef0c70f6d0"},
+    {file = "rust_just-1.42.4-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:0fba47d942fc03ab3a1f2dd59eec7d3f8c43f90fc6af9f4dc8605b0b24f5c7ca"},
+    {file = "rust_just-1.42.4-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:e54d0e54a6fa1e17f9def689f3135c12b865ab76f9678852e1303aa46524acab"},
+    {file = "rust_just-1.42.4-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:32315ad82051e13e08dd919ea8ae752508a4b9239886026a53e6c7e0dc7f9cc1"},
+    {file = "rust_just-1.42.4-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:1cb48b4c5644094a49527aeda39c8549464d3a637af4807239e061aba5f5f43f"},
+    {file = "rust_just-1.42.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:20f018fc62bfd26e4d17c92bada600a009c94c949cdf2af054de9453c6073c77"},
+    {file = "rust_just-1.42.4-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:4c399281125c3a83930a43083a993ea1fbea6d067d0039938ad14ca55d43a5be"},
+    {file = "rust_just-1.42.4-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:a74be43f220d114510bee63ea51e1d82764a0554639e5e931e4196e2b6fcd606"},
+    {file = "rust_just-1.42.4-py3-none-musllinux_1_2_i686.whl", hash = "sha256:2e5c251a1974dd3026eaccde3a74919f223f4ca90b96fa5f2d003a7a09748fe3"},
+    {file = "rust_just-1.42.4-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:679ad008facc231b1a9fe926d209c77c1d971bfc05a87f3a848df6121d1cb057"},
+    {file = "rust_just-1.42.4-py3-none-win32.whl", hash = "sha256:2726667ca074cdf7b7bbefd358ae4f91c2e859e5d4ed723cd33898d10c7a07cc"},
+    {file = "rust_just-1.42.4-py3-none-win_amd64.whl", hash = "sha256:5b8f15a11f28a18550ddebe5935f49162769d8dd3ec53afa6ad3edf713e362c0"},
+    {file = "rust_just-1.42.4.tar.gz", hash = "sha256:7af0987b74fa174abd01bd055faa75fffb962998d4f30385973ff73a281b44e1"},
+]
+
+[[package]]
 name = "sentinels"
 version = "1.0.0"
 description = "Various objects to denote special meanings in python"
@@ -3054,9 +3095,9 @@ type = ["pytest-mypy"]
 [extras]
 dev = ["asgi-lifespan", "black", "flake8", "freezegun", "isort", "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-cov", "pytest-dependency", "pytest-docker", "pytest-sugar", "tox"]
 doc = ["mike", "mkdocs-glightbox", "mkdocs-material"]
-plugins = ["labtasker-plugin-script-generate", "labtasker-plugin-task-count"]
+plugins = ["labtasker-plugin-script-generate", "labtasker-plugin-task-count", "labtasker-plugin-task-recency"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "232326237cc6a62d8757b457a3bd4c390acfc5ae65720dbc528bc20bce52d660"
+content-hash = "7d1fc4f2df8d5fdea5ddfaa1102183b33993250e49ab48e87f85d530343372e4"

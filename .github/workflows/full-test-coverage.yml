@@ -28,7 +28,7 @@ jobs:
         run: mkdir -p coverage
 
       - name: Start Docker Compose
-        run: make pytest-docker-up
+        run: just pytest-docker-up
 
       - name: Unit Test
         run: |
@@ -46,10 +46,10 @@ jobs:
           mv .coverage coverage/.coverage.e2e
 
       - name: Stop Docker Compose
-        run: make pytest-docker-down
+        run: just pytest-docker-down
 
       - name: Merge Coverage
-        run: make merge-coverage
+        run: just merge-coverage
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5

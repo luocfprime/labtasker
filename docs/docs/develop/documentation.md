@@ -28,7 +28,7 @@ mkdocs serve
 To check list of documentation versions:
 
 ```bash
-make list
+just list
 ```
 
 Check other utilities in `PROJECT_ROOT/docs/Makefile`.

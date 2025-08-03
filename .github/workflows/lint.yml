@@ -20,4 +20,4 @@ jobs:
           pip install ".[dev]"
 
       - name: Run linter
-        run: make lint
+        run: just lint

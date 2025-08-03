@@ -21,13 +21,13 @@ pip install -e ".[dev]"
 ### Format code
 
 ```bash
-make format
+just format
 ```
 
 ### Run linters
 
 ```bash
-make lint
+just lint
 ```
 
 ## Tests
@@ -54,7 +54,7 @@ Some test cases are shared between unit tests, integration tests and end-to-end 
 Unit tests:
 
 ```bash
-make unit-test
+just unit-test
 ```
 
 !!! danger "Do not run integration and e2e tests in production env"
@@ -64,11 +64,11 @@ make unit-test
 Integration tests:
 
 ```bash
-make integration-test
+just integration-test
 ```
 
 End-to-end tests (quite time-consuming):
 
 ```bash
-make e2e-test
+just e2e-test
 ```

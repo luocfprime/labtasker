@@ -1,0 +1,70 @@
+# Documentation management with mkdocs and mike
+# Variables
+
+MKDOCS := "mkdocs"
+MIKE := "mike"
+VERSION := "latest"
+ALIAS := "latest"
+MESSAGE := "Documentation update"
+
+# List available commands
+default:
+    @echo "Available commands:"
+    @just --list
+
+# Serve documentation locally
+serve:
+    @echo "Serving documentation locally..."
+    {{ MKDOCS }} serve
+
+# Clean up documentation site
+clean:
+    @echo "Cleaning up site..."
+    rm -rf site
+
+# Deploy a new stable version (with version number and alias "latest")
+deploy:
+    #!/usr/bin/env bash
+    if [ "{{ VERSION }}" = "latest" ]; then
+        echo "Error: Please specify a version number (e.g. just deploy VERSION=1.0.0)"
+        exit 1
+    fi
+    echo "Deploying version {{ VERSION }} with alias {{ ALIAS }}..."
+    {{ MIKE }} deploy --update-aliases {{ VERSION }} {{ ALIAS }} --message {{ MESSAGE }}
+    just clean
+
+# Deploy development version
+deploy-dev:
+    @echo "Deploying development version..."
+    {{ MIKE }} deploy dev --message "Documentation update"
+    just clean
+
+# Push documentation to GitHub Pages
+push:
+    @echo "Pushing documentation to GitHub Pages..."
+    git push origin gh-pages
+
+# List all available versions
+list:
+    @echo "Available documentation versions:"
+    {{ MIKE }} list
+
+# Delete a specific version
+delete:
+    #!/usr/bin/env bash
+    if [ "{{ VERSION }}" = "latest" ]; then
+        echo "Error: Please specify a version to delete (e.g. just delete VERSION=1.0.0)"
+        exit 1
+    fi
+    echo "Deleting version {{ VERSION }}..."
+    {{ MIKE }} delete {{ VERSION }}
+
+# Delete all versions
+delete-all:
+    @echo "Deleting all versions..."
+    {{ MIKE }} delete --all
+
+# Fix code snippet annotations broken by formatters
+fix-code-snippet:
+    # The formatter breaks --8<-- annotation, we fix it here
+    find . -type f -exec perl -i -pe 's/--\s*8\s*<\s*--/--8<--/g' {} \;
