@@ -31,7 +31,7 @@ update-version VERSION:
         toml_content = f.read()
 
     with open("pyproject.toml", "w") as f:
-        f.write(re.sub(r'version = "[^"]+"', f'version = "{{ VERSION }}"', toml_content))
+        f.write(re.sub(r'^version = "[^"]+"', f'version = "{{ VERSION }}"', toml_content))
 
     # Commit the changes
     subprocess.run(["git", "add", "labtasker/__init__.py", "pyproject.toml"])
