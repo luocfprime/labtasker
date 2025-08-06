@@ -1,9 +1,9 @@
 import asyncio
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 from starlette.status import (
     HTTP_201_CREATED,
@@ -309,16 +309,14 @@ def report_task_status(
 )
 def refresh_task_heartbeat(
     task_id: str,
+    worker_id: Optional[str] = Query(None),  # use query param
     queue: Dict[str, Any] = Depends(get_verified_queue_dependency),
     db: DBService = Depends(get_db),
 ):
     """Update task heartbeat timestamp."""
-    done = db.refresh_task_heartbeat(
-        queue_id=queue["_id"],
-        task_id=task_id,
+    db.refresh_task_heartbeat(
+        queue_id=queue["_id"], task_id=task_id, worker_id=worker_id
     )
-    if not done:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Task not found.")
 
 
 @app.get(

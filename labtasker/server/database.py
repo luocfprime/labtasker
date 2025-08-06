@@ -674,21 +674,51 @@ class DBService:
     @retry_on_transient
     @validate_arg
     def refresh_task_heartbeat(
-        self,
-        queue_id: str,
-        task_id: str,
-    ) -> bool:
+        self, queue_id: str, task_id: str, worker_id: Optional[str] = None
+    ):
         """Update task heartbeat timestamp."""
+        query = {"_id": task_id, "queue_id": queue_id, "status": "running"}
+
         with self._client.start_session() as session:
             with session.start_transaction():
-                return (
-                    self._tasks.update_one(
-                        {"_id": task_id, "queue_id": queue_id},
-                        {"$set": {"last_heartbeat": get_current_time()}},
-                        session=session,
-                    ).modified_count
-                    > 0
+                # Find the task in a single query
+                task = self._tasks.find_one(query)
+                if not task:
+                    raise HTTPException(
+                        status_code=HTTP_404_NOT_FOUND,
+                        detail=f"Task '{task_id}' not found in queue '{queue_id}' or not in 'running' state",
+                    )
+
+                # Validate worker if provided
+                if worker_id:
+                    if task["worker_id"] != worker_id:
+                        raise HTTPException(
+                            status_code=HTTP_403_FORBIDDEN,
+                            detail=f"Task '{task_id}' is assigned to worker '{task['worker_id']}', not '{worker_id}'",
+                        )
+
+                    # Check worker status in a single query
+                    worker = self._workers.find_one(
+                        {"_id": worker_id, "status": WorkerState.ACTIVE}
+                    )
+                    if not worker:
+                        raise HTTPException(
+                            status_code=HTTP_404_NOT_FOUND,
+                            detail=f"Worker '{worker_id}' not found or not active",
+                        )
+
+                # Update the task heartbeat
+                result = self._tasks.update_one(
+                    query,
+                    {"$set": {"last_heartbeat": get_current_time()}},
+                    session=session,
                 )
+
+                if result.modified_count == 0:
+                    raise HTTPException(
+                        status_code=HTTP_404_NOT_FOUND,
+                        detail=f"Failed to update heartbeat for task '{task_id}' - it may have changed state during the operation",
+                    )
 
     @retry_on_transient
     @validate_arg

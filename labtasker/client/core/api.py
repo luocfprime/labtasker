@@ -64,11 +64,15 @@ __all__ = [
 ]
 
 
+def _is_network_transient_error(exception):
+    return isinstance(exception, (httpx.TransportError, ConnectionError, TimeoutError))
+
+
 def _network_err_retry(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         return stamina.retry(
-            on=httpx.TransportError,
+            on=_is_network_transient_error,
             attempts=10,
             timeout=100.0,
             wait_initial=0.5,
@@ -278,12 +282,15 @@ def report_task_status(
 @_network_err_retry
 def refresh_task_heartbeat(
     task_id: str,
+    worker_id: Optional[str] = None,
     client: Optional[httpx.Client] = None,
 ) -> None:
     """Refresh the heartbeat of a task."""
     if client is None:
         client = get_httpx_client()
-    response = client.post(f"/api/v1/queues/me/tasks/{task_id}/heartbeat")
+    response = client.post(
+        f"/api/v1/queues/me/tasks/{task_id}/heartbeat", params={"worker_id": worker_id}
+    )
     raise_for_status(response)
 
 

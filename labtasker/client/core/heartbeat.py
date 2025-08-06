@@ -18,8 +18,9 @@ __all__ = [
 
 class Heartbeat:
 
-    def __init__(self, task_id, heartbeat_interval):
+    def __init__(self, task_id, worker_id, heartbeat_interval):
         self.task_id = task_id
+        self.worker_id = worker_id
         self.heartbeat_interval = heartbeat_interval
 
         self._thread = None
@@ -39,6 +40,7 @@ class Heartbeat:
         self._thread.start()
 
     def delay(self, interval: float) -> bool:
+        """Returns False if it should exit."""
         slice_t = 0.05  # check for stop event
         start_time = time.perf_counter()
         while True:
@@ -67,11 +69,12 @@ class Heartbeat:
         """Refresh heartbeat periodically"""
         while True:
             try:
-                refresh_task_heartbeat(task_id=self.task_id)
+                refresh_task_heartbeat(task_id=self.task_id, worker_id=self.worker_id)
             except Exception as e:
-                logger.error(f"Heartbeat failed for task {self.task_id}: {e}")
+                logger.error(f"Failed to refresh heartbeat: {str(e)}")
+                raise
 
-            # check if heartbeat should stop
+            # Check if heartbeat should stop
             if not self.delay(self.heartbeat_interval):
                 break
 
@@ -85,6 +88,9 @@ class Heartbeat:
             except FileNotFoundError:
                 pass
 
+    def is_alive(self):
+        return self._thread and self._thread.is_alive()
+
 
 _current_heartbeat: ContextVar[Optional[Heartbeat]] = ContextVar(
     "heartbeat", default=None
@@ -92,7 +98,10 @@ _current_heartbeat: ContextVar[Optional[Heartbeat]] = ContextVar(
 
 
 def start_heartbeat(
-    task_id, heartbeat_interval: Optional[float] = None, raise_error=True
+    task_id,
+    worker_id: Optional[str] = None,
+    heartbeat_interval: Optional[float] = None,
+    raise_error=True,
 ):
     logger.debug("Try starting heartbeat.")
     if _current_heartbeat.get() is not None:
@@ -102,12 +111,14 @@ def start_heartbeat(
 
     heartbeat_manager = Heartbeat(
         task_id=task_id,
+        worker_id=worker_id,
         heartbeat_interval=heartbeat_interval
         or get_client_config().task.heartbeat_interval,
     )
     heartbeat_manager.start()
     _current_heartbeat.set(heartbeat_manager)
     logger.debug("Heartbeat started.")
+    return heartbeat_manager
 
 
 def end_heartbeat(raise_error=True):

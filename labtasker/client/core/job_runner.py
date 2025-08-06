@@ -220,7 +220,9 @@ def loop_run(
                     dump_task_info()
 
                     with log_to_file(file_path=get_labtasker_log_dir() / "run.log"):
-                        start_heartbeat(task_id=current_task_id())
+                        start_heartbeat(
+                            task_id=current_task_id(), worker_id=current_worker_id()
+                        )
                         success_flag = False
                         try:
                             func_args = (task.args, *args) if pass_args_dict else args
