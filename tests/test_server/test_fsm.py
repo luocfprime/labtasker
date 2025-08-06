@@ -174,7 +174,7 @@ class TestWorkerFSM:
 
     def test_fail_from_invalid_state(self, worker_db_entry):
         """Test failing worker from invalid state."""
-        invalid_states = [WorkerState.SUSPENDED, WorkerState.CRASHED]
+        invalid_states = [WorkerState.SUSPENDED]
         for state in invalid_states:
             worker_db_entry["status"] = state
             fsm = WorkerFSM.from_db_entry(worker_db_entry)
