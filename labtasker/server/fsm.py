@@ -43,7 +43,12 @@ class StateTransitionEventHandle:
             self.commit()
 
     def commit(self):
-        event_data = StateTransitionEvent(
+        event_data = self._create_event_data()
+        self._publish_event(event_data)
+        self._entity_data = None
+
+    def _create_event_data(self):
+        return StateTransitionEvent(
             entity_type=self.entity_type,
             queue_id=self.queue_id,
             entity_id=self.entity_id,
@@ -54,9 +59,17 @@ class StateTransitionEventHandle:
             entity_data=self._entity_data,
         )
 
+    def _publish_event(self, event_data):
         # Use fully synchronous event publishing
         event_manager.publish_event(self.queue_id, event_data)
-        self._entity_data = None
+
+
+class NullEventHandle(StateTransitionEventHandle):
+    """A placeholder that does nothing. (Used for cases where triggering event publishing is undesired)"""
+
+    def _publish_event(self, event_data):
+        # Override to do nothing
+        pass
 
 
 class State(str, Enum):
@@ -140,6 +153,18 @@ class BaseFSM:
     def state(self):
         return self._state
 
+    def null_transition(self) -> NullEventHandle:
+        """Perform a null transition and return a handle"""
+        return NullEventHandle(
+            entity_type=self.ENTITY_TYPE,
+            entity_id=self.entity_id,
+            queue_id=self.queue_id,
+            old_state=str(self._state),
+            new_state=str(self._state),
+            transition_time=get_current_time(),
+            metadata=self.metadata,
+        )
+
     def transition_to(self, new_state: State) -> StateTransitionEventHandle:
         """Perform state transition and return a handle"""
         old_state = self._state
@@ -190,6 +215,7 @@ class TaskFSM(BaseFSM):
         TaskState.FAILED: {
             TaskState.PENDING,
             TaskState.CANCELLED,
+            TaskState.FAILED,  # null transition (for more tolerance)
         },  # Can be reset and requeued
         TaskState.CANCELLED: {
             TaskState.PENDING,
@@ -280,11 +306,15 @@ class TaskFSM(BaseFSM):
         Transitions:
         - RUNNING -> PENDING (if retries < max_retries)
         - RUNNING -> FAILED (if retries >= max_retries)
+        - FAILED -> FAILED (null transition, does nothing)
         - Others -> InvalidStateTransition (invalid)
 
         Note: FAILED state can transition back to PENDING for retries
         until max_retries is reached.
         """
+        if self.state == TaskState.FAILED:
+            return self.null_transition()
+
         if self.state != TaskState.RUNNING:
             raise InvalidStateTransition(f"Cannot fail task in {self.state} state")
 
@@ -305,7 +335,10 @@ class WorkerFSM(BaseFSM):
             WorkerState.CRASHED,
         },
         WorkerState.SUSPENDED: {WorkerState.ACTIVE},  # Manual transition
-        WorkerState.CRASHED: {WorkerState.ACTIVE},  # Manual transition
+        WorkerState.CRASHED: {
+            WorkerState.ACTIVE,  # Manual transition
+            WorkerState.CRASHED,  # null transition (for more tolerance)
+        },
     }
 
     def __init__(
@@ -366,7 +399,11 @@ class WorkerFSM(BaseFSM):
         Transitions:
         - ACTIVE -> ACTIVE
         - ACTIVE -> CRASHED (retries >= max_retries)
+        - CRASHED -> CRASHED (null transition, does nothing)
         """
+        if self.state == WorkerState.CRASHED:
+            return self.null_transition()
+
         if self.state != WorkerState.ACTIVE:
             raise InvalidStateTransition(f"Cannot fail worker in {self.state} state")
 
