@@ -102,6 +102,12 @@ def ls(
         "--name",
         help="Filter by worker name.",
     ),
+    status: Optional[str] = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="Filter by worker status. One of `active`, `suspended`, `crashed`.",
+    ),
     extra_filter: Optional[str] = typer.Option(
         None,
         "--extra-filter",
@@ -164,6 +170,7 @@ def ls(
             ls_workers,
             worker_id=worker_id,
             worker_name=worker_name,
+            status=status,
             extra_filter=extra_filter,
         ),
         offset=offset,
