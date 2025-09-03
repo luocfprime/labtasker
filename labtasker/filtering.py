@@ -4,11 +4,14 @@ from contextlib import contextmanager
 from types import TracebackType
 from typing import Optional, Set, Type
 
-from rich.traceback import Traceback
-from typer.main import console_stderr
-
 _registered_sensitive_texts: Set[str] = set()
 _hook_enabled = True
+
+
+def _get_rich_stderr_console():
+    from rich.console import Console
+
+    return Console(stderr=True)
 
 
 def register_sensitive_text(text: str):
@@ -75,7 +78,7 @@ def install_traceback_filter():
         if sanitized_exc.__str__() != sanitize_text(
             sanitized_exc.__str__()
         ) or sanitized_exc.__repr__() != sanitize_text(sanitized_exc.__repr__()):
-            console_stderr.print(
+            _get_rich_stderr_console().print(
                 "[bold orange1]Warning:[/bold orange1] Traceback output has been suppressed due to an unexpected error in the traceback filtering hook. The traceback was intercepted and prevented from displaying. To view tracebacks, set `enable_traceback_filter` to `false` in your .labtasker/client.toml configuration file."
             )
             return
@@ -86,6 +89,8 @@ def install_traceback_filter():
         ]
 
         # Use rich traceback for pretty output
+        from rich.traceback import Traceback
+
         rich_tb = Traceback.from_exception(
             type(sanitized_exc),
             sanitized_exc,
@@ -94,7 +99,7 @@ def install_traceback_filter():
             suppress=suppress_internal_dir_names,
             width=80,  # Set a default width
         )
-        console_stderr.print(rich_tb)
+        _get_rich_stderr_console().print(rich_tb)
 
     # Install the custom excepthook
     sys.excepthook = filtered_excepthook
