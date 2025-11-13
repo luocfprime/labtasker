@@ -23,13 +23,13 @@ classifiers = [
 
 dependencies = [
     "pymongo (>=4.0.0,<5.0.0)",
-    "fastapi (>=0.115.0,<0.119.0)",
-    "uvicorn[standard] (>=0.15.0,<0.38.0)",
+    "fastapi (>=0.115.0,<0.122.0)",
+    "uvicorn[standard] (>=0.15.0,<0.39.0)",
     "click (>=8.2.0,<9.0.0)",
     "passlib (>=1.7.0,<2.0.0)",
     "pydantic-settings (>=2.8.0,<3.0.0)",
     "httpx[socks] (>=0.28.0,<0.29.0)",
-    "typer (>=0.16.0,<0.20.0)",
+    "typer (>=0.16.0,<0.21.0)",
     "loguru (>=0.7.0,<0.8.0)",
     "ruamel-yaml (>=0.18.10,<0.19.0)",
     "pyyaml (>=6.0.0,<7.0.0)",
@@ -50,24 +50,24 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest (>=8.0.0,<9.0.0)",
+    "pytest (>=8.0.0,<10.0.0)",
     "pytest-cov (>=5.0.0,<8.0.0)",
     "black (>=24.0.0,<26.0.0)",
-    "isort (>=5.13.0,<7.0.0)",
+    "isort (>=5.13.0,<8.0.0)",
     "mypy (>=1.14.0,<2.0.0)",
     "flake8 (>=7.0.0,<8.0.0)",
     "pre-commit (>=3.0.0,<5.0.0)",
     "freezegun (>=1.5.0,<2.0.0)",
     "pytest-docker (>=3.0.0,<4.0.0)",
-    "pytest-asyncio (>=0.24.0,<1.3.0)",
+    "pytest-asyncio (>=0.24.0,<1.4.0)",
     "asgi-lifespan (>=2.1.0,<3.0.0)",
-    "tox (>=4.24.0,<4.32.0)",
+    "tox (>=4.24.0,<4.33.0)",
     "pytest-dependency (>=0.6.0,<0.7.0)",
     "pytest-sugar (>=1.0.0,<2.0.0)",
     "rust-just (>=1.42.4,<2.0.0)",
 ]
 doc = [
-    "mkdocs-material (>=9.6.5,<9.7.0)",
+    "mkdocs-material (>=9.6.5,<9.8.0)",
     "mkdocs-glightbox (>=0.4.0,<0.6.0)",
     "mike (>=2.1.3,<2.2.0)",
 ]
