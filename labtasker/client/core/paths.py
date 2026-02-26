@@ -6,12 +6,13 @@ from pathlib import Path
 from labtasker.client.core.exceptions import LabtaskerRuntimeError
 from labtasker.utils import get_current_time
 
-_LABTASKER_ROOT = Path(os.environ.get("LABTASKER_ROOT", ".labtasker"))
+# Use absolute path to avoid issues when working directory changes
+_LABTASKER_ROOT = Path(os.environ.get("LABTASKER_ROOT", ".labtasker")).resolve()
 
 _labtasker_log_dir = contextvars.ContextVar(
     "labtasker_root",
     default=(
-        Path(os.environ["LABTASKER_LOG_DIR"])
+        Path(os.environ["LABTASKER_LOG_DIR"]).resolve()
         if "LABTASKER_LOG_DIR" in os.environ
         else None
     ),
