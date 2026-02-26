@@ -341,7 +341,8 @@ def loop_run(
                             if success_flag:
                                 # Default finish. Can be overridden by the user if called somewhere deep in the wrapped func().
                                 finish(status="success")
-                            end_heartbeat()
+                            # finish() already calls end_heartbeat(), but use raise_error=False as safety net
+                            end_heartbeat(raise_error=False)
                 except _LabtaskerLoopExit:
                     # clean up the worker
                     if auto_create_worker:  # worker is managed automatically
@@ -390,6 +391,10 @@ def finish(
                 "Current job is not run by labtasker loop. "
                 "You can either use @labtasker.loop() decorator or labtasker loop cli to run job."
             )
+
+    # Stop heartbeat before reporting status to avoid race condition
+    # where heartbeat thread tries to refresh a non-running task
+    end_heartbeat(raise_error=False)
 
     summary_file_path = get_labtasker_log_dir() / "summary.json"
     if summary_file_path.exists():
