@@ -1,4 +1,7 @@
-__version__ = "0.2.13"
+from importlib.metadata import version
+
+__application__ = "labtasker"
+__version__: str = version(__application__)
 
 from labtasker.client.client_api import *
 from labtasker.client.core.config import get_client_config

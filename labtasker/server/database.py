@@ -951,6 +951,10 @@ class DBService:
                     return_document=ReturnDocument.AFTER,
                 )
 
+                assert (
+                    updated_task is not None
+                ), f"Task {task_id} not found after update"
+
                 # if the FSM state is modified by user manually
                 if not reset_pending and updated_task["status"] != task["status"]:
                     event_handle = fsm.transition_to(updated_task["status"])
@@ -1021,6 +1025,8 @@ class DBService:
             session=session,
             return_document=ReturnDocument.AFTER,
         )
+
+        assert updated_worker is not None, f"Worker {worker_id} not found after update"
 
         # Update the event with entity data and publish
         event_handle.update_fsm_event(updated_worker)
@@ -1191,6 +1197,10 @@ class DBService:
                             return_document=ReturnDocument.AFTER,
                             session=session,
                         )
+
+                        assert (
+                            updated_task is not None
+                        ), f"Task {task['_id']} not found after update"
 
                         event_handle.update_fsm_event(updated_task)
                         fsm_event_handles.append(event_handle)
