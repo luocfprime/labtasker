@@ -8,7 +8,7 @@ repo_url: https://github.com/luocfprime/labtasker
 theme:
   name: material
   # custom_dir: overrides
-  favicon: assets/logo.png
+  favicon: assets/favicon.png
   logo: assets/logo.png
   icon:
     annotation: material/help-circle
