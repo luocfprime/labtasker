@@ -1,0 +1,18 @@
+{
+  "name": "labtasker",
+  "owner": {
+    "name": "lcf",
+    "email": "luocfprime@gmail.com"
+  },
+  "metadata": {
+    "description": "Labtasker Claude Code skill marketplace"
+  },
+  "plugins": [
+    {
+      "name": "labtasker-skill",
+      "source": "./",
+      "description": "Labtasker skill for Claude Code — helps AI assistants manage ML experiment task queues",
+      "version": "1.0.0"
+    }
+  ]
+}

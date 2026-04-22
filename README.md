@@ -101,7 +101,12 @@ Then, use `labtasker submit` to submit tasks and use `labtasker loop` to run tas
 > [!TIP]
 > Use AI to help decompose your experiment scripts. Install the Labtasker skill for your agent:
 >
-> **Claude Code** — copy [`docs/docs/guide/skill.md`](docs/docs/guide/skill.md) (Claude Code section) to `~/.claude/skills/labtasker/SKILL.md`
+> **Claude Code** — install via marketplace:
+> ```
+> /plugin marketplace add luocfprime/labtasker
+> /plugin install labtasker-skill@labtasker
+> ```
+> Or copy [`skills/labtasker/SKILL.md`](skills/labtasker/SKILL.md) to `~/.claude/skills/labtasker/SKILL.md`
 
 ## 📚 Documentation
 
