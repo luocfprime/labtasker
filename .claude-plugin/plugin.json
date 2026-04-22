@@ -2,5 +2,5 @@
   "name": "labtasker-skill",
   "description": "Labtasker skill for Claude Code — helps AI assistants manage ML experiment task queues",
   "version": "1.0.0",
-  "skills": "skills/"
+  "skills": "./skills"
 }
