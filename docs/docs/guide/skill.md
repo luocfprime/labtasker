@@ -306,7 +306,24 @@ def main(lr: float = Required(), model: str = Required()):
     )
 ```
 
-To cancel a task mid-run (e.g., on NaN loss) — use `status="cancelled"` then `return`. The loop preserves the cancelled status and will NOT retry it:
+To finish a task early with a final status from deep inside your code — use `labtasker.finish()`. It stops the heartbeat, writes `summary.json` to the local log directory, and reports to the server. The loop will not overwrite a status already set by `finish()`. Only accepts `"success"` or `"failed"`.
+
+**Retry behavior**: `finish(status="failed")` behaves like an exception — the server increments `retries` and resets the task to `pending` if `retries < max_retries` (so it WILL be retried). To permanently stop retries without marking as failed, use `report_task_status(status="cancelled")` instead.
+
+**Idempotent**: calling `finish()` twice is safe — the second call is silently skipped.
+
+```python
+@labtasker.loop()
+def main(lr: float = Required(), model: str = Required()):
+    acc = train(lr=lr, model=model)
+    if acc < 0.01:
+        # Marks as failed — will be retried if retries < max_retries
+        labtasker.finish(status="failed", summary={"acc": acc, "reason": "too_low"})
+        return
+    labtasker.finish(status="success", summary={"acc": acc})
+```
+
+To cancel a task mid-run (e.g., on NaN loss) — use `report_task_status(status="cancelled")` then `return`. The loop preserves the cancelled status and will NOT retry it:
 
 ```python
 @labtasker.loop()
@@ -484,7 +501,8 @@ for task in response.content:
 | List by status | `labtasker task ls -s failed` | `labtasker.ls_tasks(status="failed")` |
 | List with filter | `labtasker task ls -f 'expr'` | `labtasker.ls_tasks(extra_filter='expr')` |
 | Sort | `labtasker task ls -S created_at:desc` | `sorted(response.content, key=lambda t: ...)` |
-| Write summary | — | `labtasker.report_task_status(task_id=..., status="running", summary={...})` |
+| Write intermediate summary | — | `labtasker.report_task_status(task_id=..., status="running", summary={...})` |
+| Finish task (final status) | — | `labtasker.finish(status="success"\|"failed", summary={...})` |
 | Update | `labtasker task update --id X -u 'args.k=v'` | `labtasker.update_tasks([TaskUpdateRequest(...)])` |
 | Cancel | `... -q \| xargs ... -u 'status=cancelled'` | `TaskUpdateRequest(**{"_id": id, "status": "cancelled"})` |
 | Retry failed | `--reset-pending` | `update_tasks(updates, reset_pending=True)` |
@@ -567,6 +585,20 @@ labtasker.task_info() -> Task     # available inside @labtasker.loop() only
     # .task_id  .task_name  .args  .metadata  .summary
     # .status   .retries    .priority  .max_retries
     # .created_at  .last_modified  .start_time  .worker_id
+
+labtasker.finish(
+    status: str,                      # "success"|"failed" only
+    summary: Dict = None,             # merges into existing summary; None = no change
+    skip_if_no_labtasker: bool = True,# silently skip if not running inside a loop
+) -> None
+# Terminal call from inside the loop — stops heartbeat, writes summary.json to local log dir,
+# reports final status to server. Loop will NOT overwrite a status already set by finish().
+# Use when you want to early-exit with a final status from deep inside your function.
+# NOTE: only "success"/"failed" — use report_task_status for "cancelled"/"running".
+# RETRY: finish(status="failed") behaves like an exception — server increments retries and
+#   resets to pending if retries < max_retries (task WILL be retried). For permanent no-retry,
+#   use report_task_status(status="cancelled").
+# IDEMPOTENT: calling finish() twice is safe — second call is silently skipped.
 
 labtasker.report_task_status(
     task_id: str,
