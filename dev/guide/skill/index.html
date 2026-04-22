@@ -1563,363 +1563,395 @@
 <a id="__codelineno-0-297" name="__codelineno-0-297" href="#__codelineno-0-297"></a>    <span class="p">)</span>
 <a id="__codelineno-0-298" name="__codelineno-0-298" href="#__codelineno-0-298"></a><span class="sb">```</span>
 <a id="__codelineno-0-299" name="__codelineno-0-299" href="#__codelineno-0-299"></a>
-<a id="__codelineno-0-300" name="__codelineno-0-300" href="#__codelineno-0-300"></a>To cancel a task mid-run (e.g., on NaN loss) — use <span class="sb">`status="cancelled"`</span> then <span class="sb">`return`</span>. The loop preserves the cancelled status and will NOT retry it:
+<a id="__codelineno-0-300" name="__codelineno-0-300" href="#__codelineno-0-300"></a>To finish a task early with a final status from deep inside your code — use <span class="sb">`labtasker.finish()`</span>. It stops the heartbeat, writes <span class="sb">`summary.json`</span> to the local log directory, and reports to the server. The loop will not overwrite a status already set by <span class="sb">`finish()`</span>. Only accepts <span class="sb">`"success"`</span> or <span class="sb">`"failed"`</span>.
 <a id="__codelineno-0-301" name="__codelineno-0-301" href="#__codelineno-0-301"></a>
-<a id="__codelineno-0-302" name="__codelineno-0-302" href="#__codelineno-0-302"></a><span class="sb">```python</span>
-<a id="__codelineno-0-303" name="__codelineno-0-303" href="#__codelineno-0-303"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">()</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304" href="#__codelineno-0-304"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Required</span><span class="p">(),</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Required</span><span class="p">()):</span>
-<a id="__codelineno-0-305" name="__codelineno-0-305" href="#__codelineno-0-305"></a>    <span class="n">task</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">task_info</span><span class="p">()</span>
-<a id="__codelineno-0-306" name="__codelineno-0-306" href="#__codelineno-0-306"></a>    <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">retries</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307" href="#__codelineno-0-307"></a>        <span class="n">data</span> <span class="o">=</span> <span class="n">expensive_preprocess</span><span class="p">()</span>  <span class="c1"># only on first attempt</span>
-<a id="__codelineno-0-308" name="__codelineno-0-308" href="#__codelineno-0-308"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309" href="#__codelineno-0-309"></a>        <span class="n">data</span> <span class="o">=</span> <span class="n">load_cached_data</span><span class="p">()</span>      <span class="c1"># skip on retries</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310" href="#__codelineno-0-310"></a>
-<a id="__codelineno-0-311" name="__codelineno-0-311" href="#__codelineno-0-311"></a>    <span class="n">loss</span> <span class="o">=</span> <span class="n">train_step</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312" href="#__codelineno-0-312"></a>    <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">loss</span><span class="p">):</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313" href="#__codelineno-0-313"></a>        <span class="n">labtasker</span><span class="o">.</span><span class="n">report_task_status</span><span class="p">(</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314" href="#__codelineno-0-314"></a>            <span class="n">task_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315" href="#__codelineno-0-315"></a>            <span class="n">status</span><span class="o">=</span><span class="s2">"cancelled"</span><span class="p">,</span>  <span class="c1"># preserves cancelled — loop will not overwrite</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316" href="#__codelineno-0-316"></a>        <span class="p">)</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317" href="#__codelineno-0-317"></a>        <span class="k">return</span>  <span class="c1"># stop this task; loop moves to next pending task</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318" href="#__codelineno-0-318"></a><span class="sb">```</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319" href="#__codelineno-0-319"></a>
-<a id="__codelineno-0-320" name="__codelineno-0-320" href="#__codelineno-0-320"></a><span class="gu">### Reading summaries after tasks complete</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321" href="#__codelineno-0-321"></a>
-<a id="__codelineno-0-322" name="__codelineno-0-322" href="#__codelineno-0-322"></a><span class="sb">```python</span>
-<a id="__codelineno-0-323" name="__codelineno-0-323" href="#__codelineno-0-323"></a><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
-<a id="__codelineno-0-324" name="__codelineno-0-324" href="#__codelineno-0-324"></a>
-<a id="__codelineno-0-325" name="__codelineno-0-325" href="#__codelineno-0-325"></a><span class="c1"># Fetch all successful tasks and print their summaries</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326" href="#__codelineno-0-326"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"success"</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
-<a id="__codelineno-0-327" name="__codelineno-0-327" href="#__codelineno-0-327"></a><span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">:</span>
-<a id="__codelineno-0-328" name="__codelineno-0-328" href="#__codelineno-0-328"></a>    <span class="nb">print</span><span class="p">(</span>
-<a id="__codelineno-0-329" name="__codelineno-0-329" href="#__codelineno-0-329"></a>        <span class="sa">f</span><span class="s2">"task_id=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="si">}</span><span class="s2"> "</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330" href="#__codelineno-0-330"></a>        <span class="sa">f</span><span class="s2">"args=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">args</span><span class="si">}</span><span class="s2"> "</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331" href="#__codelineno-0-331"></a>        <span class="sa">f</span><span class="s2">"summary=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">summary</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-0-332" name="__codelineno-0-332" href="#__codelineno-0-332"></a>    <span class="p">)</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333" href="#__codelineno-0-333"></a>
-<a id="__codelineno-0-334" name="__codelineno-0-334" href="#__codelineno-0-334"></a><span class="c1"># Aggregate: collect metric from summary and rank</span>
-<a id="__codelineno-0-335" name="__codelineno-0-335" href="#__codelineno-0-335"></a><span class="n">results</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-336" name="__codelineno-0-336" href="#__codelineno-0-336"></a>    <span class="p">{</span><span class="s2">"lr"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">"lr"</span><span class="p">],</span> <span class="s2">"model"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">"model"</span><span class="p">],</span> <span class="s2">"acc"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"acc"</span><span class="p">)}</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337" href="#__codelineno-0-337"></a>    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
-<a id="__codelineno-0-338" name="__codelineno-0-338" href="#__codelineno-0-338"></a><span class="p">]</span>
-<a id="__codelineno-0-339" name="__codelineno-0-339" href="#__codelineno-0-339"></a><span class="n">results</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s2">"acc"</span><span class="p">]</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340" href="#__codelineno-0-340"></a><span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
-<a id="__codelineno-0-341" name="__codelineno-0-341" href="#__codelineno-0-341"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
-<a id="__codelineno-0-342" name="__codelineno-0-342" href="#__codelineno-0-342"></a><span class="sb">```</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343" href="#__codelineno-0-343"></a>
-<a id="__codelineno-0-344" name="__codelineno-0-344" href="#__codelineno-0-344"></a>---
-<a id="__codelineno-0-345" name="__codelineno-0-345" href="#__codelineno-0-345"></a>
-<a id="__codelineno-0-346" name="__codelineno-0-346" href="#__codelineno-0-346"></a><span class="gu">## 5. Updating Tasks</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347" href="#__codelineno-0-347"></a>
-<a id="__codelineno-0-348" name="__codelineno-0-348" href="#__codelineno-0-348"></a><span class="gu">### Update semantics</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349" href="#__codelineno-0-349"></a>
-<a id="__codelineno-0-350" name="__codelineno-0-350" href="#__codelineno-0-350"></a><span class="gs">**CLI `-u 'field=value'`**</span> patches individual dot-nested fields: <span class="sb">`-u 'args.lr=0.005'`</span> sets only <span class="sb">`args.lr`</span>, all other args untouched.
-<a id="__codelineno-0-351" name="__codelineno-0-351" href="#__codelineno-0-351"></a>
-<a id="__codelineno-0-352" name="__codelineno-0-352" href="#__codelineno-0-352"></a><span class="gs">**Python `TaskUpdateRequest`**</span> merges by default: only the keys you include inside a dict field are written; other existing keys inside that dict are preserved. Unspecified top-level optional fields (<span class="sb">`args`</span>, <span class="sb">`metadata`</span>, <span class="sb">`summary`</span>, <span class="sb">`priority`</span>, etc.) are not touched. To <span class="gs">**replace**</span> a dict field entirely (overwrite, not merge), add it to <span class="sb">`replace_fields`</span>: <span class="sb">`TaskUpdateRequest(**{"_id": id, "args": {...}, "replace_fields": ["args"]})`</span>.
-<a id="__codelineno-0-353" name="__codelineno-0-353" href="#__codelineno-0-353"></a>
-<a id="__codelineno-0-354" name="__codelineno-0-354" href="#__codelineno-0-354"></a><span class="gs">**`reset_pending=True`**</span> sets <span class="sb">`status → pending`</span> AND resets <span class="sb">`retries → 0`</span>. Setting <span class="sb">`"status": "pending"`</span> in <span class="sb">`TaskUpdateRequest`</span> alone changes status but does <span class="gs">**not**</span> reset the retry counter. Always prefer <span class="sb">`reset_pending=True`</span> when re-queuing failed tasks.
-<a id="__codelineno-0-355" name="__codelineno-0-355" href="#__codelineno-0-355"></a>
-<a id="__codelineno-0-356" name="__codelineno-0-356" href="#__codelineno-0-356"></a><span class="gu">### CLI</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357" href="#__codelineno-0-357"></a>
-<a id="__codelineno-0-358" name="__codelineno-0-358" href="#__codelineno-0-358"></a><span class="sb">```bash</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359" href="#__codelineno-0-359"></a><span class="c1"># Update a specific task's args (patches only args.lr; other args unchanged)</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360" href="#__codelineno-0-360"></a>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span>&lt;task_id&gt;<span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361" href="#__codelineno-0-361"></a>
-<a id="__codelineno-0-362" name="__codelineno-0-362" href="#__codelineno-0-362"></a><span class="c1"># Update multiple fields</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363" href="#__codelineno-0-363"></a>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span>&lt;task_id&gt;<span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'metadata.tags=["v2"]'</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302" href="#__codelineno-0-302"></a><span class="gs">**Retry behavior**</span>: <span class="sb">`finish(status="failed")`</span> behaves like an exception — the server increments <span class="sb">`retries`</span> and resets the task to <span class="sb">`pending`</span> if <span class="sb">`retries &lt; max_retries`</span> (so it WILL be retried). To permanently stop retries without marking as failed, use <span class="sb">`report_task_status(status="cancelled")`</span> instead.
+<a id="__codelineno-0-303" name="__codelineno-0-303" href="#__codelineno-0-303"></a>
+<a id="__codelineno-0-304" name="__codelineno-0-304" href="#__codelineno-0-304"></a><span class="gs">**Idempotent**</span>: calling <span class="sb">`finish()`</span> twice is safe — the second call is silently skipped.
+<a id="__codelineno-0-305" name="__codelineno-0-305" href="#__codelineno-0-305"></a>
+<a id="__codelineno-0-306" name="__codelineno-0-306" href="#__codelineno-0-306"></a><span class="sb">```python</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307" href="#__codelineno-0-307"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">()</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308" href="#__codelineno-0-308"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Required</span><span class="p">(),</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Required</span><span class="p">()):</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309" href="#__codelineno-0-309"></a>    <span class="n">acc</span> <span class="o">=</span> <span class="n">train</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
+<a id="__codelineno-0-310" name="__codelineno-0-310" href="#__codelineno-0-310"></a>    <span class="k">if</span> <span class="n">acc</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311" href="#__codelineno-0-311"></a>        <span class="c1"># Marks as failed — will be retried if retries &lt; max_retries</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312" href="#__codelineno-0-312"></a>        <span class="n">labtasker</span><span class="o">.</span><span class="n">finish</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"failed"</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="p">{</span><span class="s2">"acc"</span><span class="p">:</span> <span class="n">acc</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="s2">"too_low"</span><span class="p">})</span>
+<a id="__codelineno-0-313" name="__codelineno-0-313" href="#__codelineno-0-313"></a>        <span class="k">return</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314" href="#__codelineno-0-314"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">finish</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"success"</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="p">{</span><span class="s2">"acc"</span><span class="p">:</span> <span class="n">acc</span><span class="p">})</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315" href="#__codelineno-0-315"></a><span class="sb">```</span>
+<a id="__codelineno-0-316" name="__codelineno-0-316" href="#__codelineno-0-316"></a>
+<a id="__codelineno-0-317" name="__codelineno-0-317" href="#__codelineno-0-317"></a>To cancel a task mid-run (e.g., on NaN loss) — use <span class="sb">`report_task_status(status="cancelled")`</span> then <span class="sb">`return`</span>. The loop preserves the cancelled status and will NOT retry it:
+<a id="__codelineno-0-318" name="__codelineno-0-318" href="#__codelineno-0-318"></a>
+<a id="__codelineno-0-319" name="__codelineno-0-319" href="#__codelineno-0-319"></a><span class="sb">```python</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320" href="#__codelineno-0-320"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">()</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321" href="#__codelineno-0-321"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Required</span><span class="p">(),</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Required</span><span class="p">()):</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322" href="#__codelineno-0-322"></a>    <span class="n">task</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">task_info</span><span class="p">()</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323" href="#__codelineno-0-323"></a>    <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">retries</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-324" name="__codelineno-0-324" href="#__codelineno-0-324"></a>        <span class="n">data</span> <span class="o">=</span> <span class="n">expensive_preprocess</span><span class="p">()</span>  <span class="c1"># only on first attempt</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325" href="#__codelineno-0-325"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326" href="#__codelineno-0-326"></a>        <span class="n">data</span> <span class="o">=</span> <span class="n">load_cached_data</span><span class="p">()</span>      <span class="c1"># skip on retries</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327" href="#__codelineno-0-327"></a>
+<a id="__codelineno-0-328" name="__codelineno-0-328" href="#__codelineno-0-328"></a>    <span class="n">loss</span> <span class="o">=</span> <span class="n">train_step</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329" href="#__codelineno-0-329"></a>    <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">loss</span><span class="p">):</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330" href="#__codelineno-0-330"></a>        <span class="n">labtasker</span><span class="o">.</span><span class="n">report_task_status</span><span class="p">(</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331" href="#__codelineno-0-331"></a>            <span class="n">task_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332" href="#__codelineno-0-332"></a>            <span class="n">status</span><span class="o">=</span><span class="s2">"cancelled"</span><span class="p">,</span>  <span class="c1"># preserves cancelled — loop will not overwrite</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333" href="#__codelineno-0-333"></a>        <span class="p">)</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334" href="#__codelineno-0-334"></a>        <span class="k">return</span>  <span class="c1"># stop this task; loop moves to next pending task</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335" href="#__codelineno-0-335"></a><span class="sb">```</span>
+<a id="__codelineno-0-336" name="__codelineno-0-336" href="#__codelineno-0-336"></a>
+<a id="__codelineno-0-337" name="__codelineno-0-337" href="#__codelineno-0-337"></a><span class="gu">### Reading summaries after tasks complete</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338" href="#__codelineno-0-338"></a>
+<a id="__codelineno-0-339" name="__codelineno-0-339" href="#__codelineno-0-339"></a><span class="sb">```python</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340" href="#__codelineno-0-340"></a><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341" href="#__codelineno-0-341"></a>
+<a id="__codelineno-0-342" name="__codelineno-0-342" href="#__codelineno-0-342"></a><span class="c1"># Fetch all successful tasks and print their summaries</span>
+<a id="__codelineno-0-343" name="__codelineno-0-343" href="#__codelineno-0-343"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"success"</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344" href="#__codelineno-0-344"></a><span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">:</span>
+<a id="__codelineno-0-345" name="__codelineno-0-345" href="#__codelineno-0-345"></a>    <span class="nb">print</span><span class="p">(</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346" href="#__codelineno-0-346"></a>        <span class="sa">f</span><span class="s2">"task_id=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="si">}</span><span class="s2"> "</span>
+<a id="__codelineno-0-347" name="__codelineno-0-347" href="#__codelineno-0-347"></a>        <span class="sa">f</span><span class="s2">"args=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">args</span><span class="si">}</span><span class="s2"> "</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348" href="#__codelineno-0-348"></a>        <span class="sa">f</span><span class="s2">"summary=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">summary</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349" href="#__codelineno-0-349"></a>    <span class="p">)</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350" href="#__codelineno-0-350"></a>
+<a id="__codelineno-0-351" name="__codelineno-0-351" href="#__codelineno-0-351"></a><span class="c1"># Aggregate: collect metric from summary and rank</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352" href="#__codelineno-0-352"></a><span class="n">results</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353" href="#__codelineno-0-353"></a>    <span class="p">{</span><span class="s2">"lr"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">"lr"</span><span class="p">],</span> <span class="s2">"model"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s2">"model"</span><span class="p">],</span> <span class="s2">"acc"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"acc"</span><span class="p">)}</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354" href="#__codelineno-0-354"></a>    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355" href="#__codelineno-0-355"></a><span class="p">]</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356" href="#__codelineno-0-356"></a><span class="n">results</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s2">"acc"</span><span class="p">]</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357" href="#__codelineno-0-357"></a><span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+<a id="__codelineno-0-358" name="__codelineno-0-358" href="#__codelineno-0-358"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359" href="#__codelineno-0-359"></a><span class="sb">```</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360" href="#__codelineno-0-360"></a>
+<a id="__codelineno-0-361" name="__codelineno-0-361" href="#__codelineno-0-361"></a>---
+<a id="__codelineno-0-362" name="__codelineno-0-362" href="#__codelineno-0-362"></a>
+<a id="__codelineno-0-363" name="__codelineno-0-363" href="#__codelineno-0-363"></a><span class="gu">## 5. Updating Tasks</span>
 <a id="__codelineno-0-364" name="__codelineno-0-364" href="#__codelineno-0-364"></a>
-<a id="__codelineno-0-365" name="__codelineno-0-365" href="#__codelineno-0-365"></a><span class="c1"># Batch update: fix args and reset to pending (also resets retries)</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366" href="#__codelineno-0-366"></a><span class="c1"># NOTE: add --limit 10000 to avoid silently missing tasks beyond the default 100</span>
-<a id="__codelineno-0-367" name="__codelineno-0-367" href="#__codelineno-0-367"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'status == "failed" and args.model == "resnet"'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368" href="#__codelineno-0-368"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-I<span class="o">{}</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="o">{}</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span><span class="w"> </span>--reset-pending<span class="w"> </span>--quiet
-<a id="__codelineno-0-369" name="__codelineno-0-369" href="#__codelineno-0-369"></a>
-<a id="__codelineno-0-370" name="__codelineno-0-370" href="#__codelineno-0-370"></a><span class="c1"># Alternative: task update supports filter flags directly (no pipe needed)</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371" href="#__codelineno-0-371"></a>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>-s<span class="w"> </span>failed<span class="w"> </span>-f<span class="w"> </span><span class="s1">'args.model == "resnet"'</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span><span class="w"> </span>--reset-pending<span class="w"> </span>--quiet
+<a id="__codelineno-0-365" name="__codelineno-0-365" href="#__codelineno-0-365"></a><span class="gu">### Update semantics</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366" href="#__codelineno-0-366"></a>
+<a id="__codelineno-0-367" name="__codelineno-0-367" href="#__codelineno-0-367"></a><span class="gs">**CLI `-u 'field=value'`**</span> patches individual dot-nested fields: <span class="sb">`-u 'args.lr=0.005'`</span> sets only <span class="sb">`args.lr`</span>, all other args untouched.
+<a id="__codelineno-0-368" name="__codelineno-0-368" href="#__codelineno-0-368"></a>
+<a id="__codelineno-0-369" name="__codelineno-0-369" href="#__codelineno-0-369"></a><span class="gs">**Python `TaskUpdateRequest`**</span> merges by default: only the keys you include inside a dict field are written; other existing keys inside that dict are preserved. Unspecified top-level optional fields (<span class="sb">`args`</span>, <span class="sb">`metadata`</span>, <span class="sb">`summary`</span>, <span class="sb">`priority`</span>, etc.) are not touched. To <span class="gs">**replace**</span> a dict field entirely (overwrite, not merge), add it to <span class="sb">`replace_fields`</span>: <span class="sb">`TaskUpdateRequest(**{"_id": id, "args": {...}, "replace_fields": ["args"]})`</span>.
+<a id="__codelineno-0-370" name="__codelineno-0-370" href="#__codelineno-0-370"></a>
+<a id="__codelineno-0-371" name="__codelineno-0-371" href="#__codelineno-0-371"></a><span class="gs">**`reset_pending=True`**</span> sets <span class="sb">`status → pending`</span> AND resets <span class="sb">`retries → 0`</span>. Setting <span class="sb">`"status": "pending"`</span> in <span class="sb">`TaskUpdateRequest`</span> alone changes status but does <span class="gs">**not**</span> reset the retry counter. Always prefer <span class="sb">`reset_pending=True`</span> when re-queuing failed tasks.
 <a id="__codelineno-0-372" name="__codelineno-0-372" href="#__codelineno-0-372"></a>
-<a id="__codelineno-0-373" name="__codelineno-0-373" href="#__codelineno-0-373"></a><span class="c1"># Cancel pending tasks (keep records, mark as cancelled)</span>
-<a id="__codelineno-0-374" name="__codelineno-0-374" href="#__codelineno-0-374"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-s<span class="w"> </span>pending<span class="w"> </span>-f<span class="w"> </span><span class="s1">'args.lr &gt; 0.05'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375" href="#__codelineno-0-375"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-I<span class="o">{}</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="o">{}</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'status=cancelled'</span><span class="w"> </span>--quiet
-<a id="__codelineno-0-376" name="__codelineno-0-376" href="#__codelineno-0-376"></a>
-<a id="__codelineno-0-377" name="__codelineno-0-377" href="#__codelineno-0-377"></a><span class="c1"># Bump priority on urgent pending tasks</span>
-<a id="__codelineno-0-378" name="__codelineno-0-378" href="#__codelineno-0-378"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'"urgent" in list(metadata.tags)'</span><span class="w"> </span>-s<span class="w"> </span>pending<span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-379" name="__codelineno-0-379" href="#__codelineno-0-379"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-I<span class="o">{}</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="o">{}</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'priority=100'</span><span class="w"> </span>--quiet
-<a id="__codelineno-0-380" name="__codelineno-0-380" href="#__codelineno-0-380"></a><span class="sb">```</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373" href="#__codelineno-0-373"></a><span class="gu">### CLI</span>
+<a id="__codelineno-0-374" name="__codelineno-0-374" href="#__codelineno-0-374"></a>
+<a id="__codelineno-0-375" name="__codelineno-0-375" href="#__codelineno-0-375"></a><span class="sb">```bash</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376" href="#__codelineno-0-376"></a><span class="c1"># Update a specific task's args (patches only args.lr; other args unchanged)</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377" href="#__codelineno-0-377"></a>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span>&lt;task_id&gt;<span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span>
+<a id="__codelineno-0-378" name="__codelineno-0-378" href="#__codelineno-0-378"></a>
+<a id="__codelineno-0-379" name="__codelineno-0-379" href="#__codelineno-0-379"></a><span class="c1"># Update multiple fields</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380" href="#__codelineno-0-380"></a>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span>&lt;task_id&gt;<span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'metadata.tags=["v2"]'</span>
 <a id="__codelineno-0-381" name="__codelineno-0-381" href="#__codelineno-0-381"></a>
-<a id="__codelineno-0-382" name="__codelineno-0-382" href="#__codelineno-0-382"></a><span class="gu">### Python</span>
-<a id="__codelineno-0-383" name="__codelineno-0-383" href="#__codelineno-0-383"></a>
-<a id="__codelineno-0-384" name="__codelineno-0-384" href="#__codelineno-0-384"></a><span class="sb">```python</span>
-<a id="__codelineno-0-385" name="__codelineno-0-385" href="#__codelineno-0-385"></a><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
-<a id="__codelineno-0-386" name="__codelineno-0-386" href="#__codelineno-0-386"></a><span class="kn">from</span><span class="w"> </span><span class="nn">labtasker.api_models</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskUpdateRequest</span>
-<a id="__codelineno-0-387" name="__codelineno-0-387" href="#__codelineno-0-387"></a>
-<a id="__codelineno-0-388" name="__codelineno-0-388" href="#__codelineno-0-388"></a><span class="c1"># Update a single task — only specified keys are merged/updated</span>
-<a id="__codelineno-0-389" name="__codelineno-0-389" href="#__codelineno-0-389"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">([</span>
-<a id="__codelineno-0-390" name="__codelineno-0-390" href="#__codelineno-0-390"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span> <span class="s2">"args"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"lr"</span><span class="p">:</span> <span class="mf">0.005</span><span class="p">}})</span>
-<a id="__codelineno-0-391" name="__codelineno-0-391" href="#__codelineno-0-391"></a><span class="p">])</span>
-<a id="__codelineno-0-392" name="__codelineno-0-392" href="#__codelineno-0-392"></a>
-<a id="__codelineno-0-393" name="__codelineno-0-393" href="#__codelineno-0-393"></a><span class="c1"># Batch: fix lr and reset to pending (also resets retries=0)</span>
-<a id="__codelineno-0-394" name="__codelineno-0-394" href="#__codelineno-0-394"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"failed"</span><span class="p">)</span>
-<a id="__codelineno-0-395" name="__codelineno-0-395" href="#__codelineno-0-395"></a><span class="n">updates</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-396" name="__codelineno-0-396" href="#__codelineno-0-396"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span>
-<a id="__codelineno-0-397" name="__codelineno-0-397" href="#__codelineno-0-397"></a>        <span class="s2">"_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span>
-<a id="__codelineno-0-398" name="__codelineno-0-398" href="#__codelineno-0-398"></a>        <span class="s2">"args"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"lr"</span><span class="p">:</span> <span class="mf">0.005</span><span class="p">},</span>   <span class="c1"># merges into existing args; other keys preserved</span>
-<a id="__codelineno-0-399" name="__codelineno-0-399" href="#__codelineno-0-399"></a>    <span class="p">})</span>
-<a id="__codelineno-0-400" name="__codelineno-0-400" href="#__codelineno-0-400"></a>    <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
-<a id="__codelineno-0-401" name="__codelineno-0-401" href="#__codelineno-0-401"></a><span class="p">]</span>
-<a id="__codelineno-0-402" name="__codelineno-0-402" href="#__codelineno-0-402"></a><span class="k">if</span> <span class="n">updates</span><span class="p">:</span>
-<a id="__codelineno-0-403" name="__codelineno-0-403" href="#__codelineno-0-403"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">(</span><span class="n">updates</span><span class="p">,</span> <span class="n">reset_pending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-0-382" name="__codelineno-0-382" href="#__codelineno-0-382"></a><span class="c1"># Batch update: fix args and reset to pending (also resets retries)</span>
+<a id="__codelineno-0-383" name="__codelineno-0-383" href="#__codelineno-0-383"></a><span class="c1"># NOTE: add --limit 10000 to avoid silently missing tasks beyond the default 100</span>
+<a id="__codelineno-0-384" name="__codelineno-0-384" href="#__codelineno-0-384"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'status == "failed" and args.model == "resnet"'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-385" name="__codelineno-0-385" href="#__codelineno-0-385"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-I<span class="o">{}</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="o">{}</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span><span class="w"> </span>--reset-pending<span class="w"> </span>--quiet
+<a id="__codelineno-0-386" name="__codelineno-0-386" href="#__codelineno-0-386"></a>
+<a id="__codelineno-0-387" name="__codelineno-0-387" href="#__codelineno-0-387"></a><span class="c1"># Alternative: task update supports filter flags directly (no pipe needed)</span>
+<a id="__codelineno-0-388" name="__codelineno-0-388" href="#__codelineno-0-388"></a>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>-s<span class="w"> </span>failed<span class="w"> </span>-f<span class="w"> </span><span class="s1">'args.model == "resnet"'</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'args.lr=0.005'</span><span class="w"> </span>--reset-pending<span class="w"> </span>--quiet
+<a id="__codelineno-0-389" name="__codelineno-0-389" href="#__codelineno-0-389"></a>
+<a id="__codelineno-0-390" name="__codelineno-0-390" href="#__codelineno-0-390"></a><span class="c1"># Cancel pending tasks (keep records, mark as cancelled)</span>
+<a id="__codelineno-0-391" name="__codelineno-0-391" href="#__codelineno-0-391"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-s<span class="w"> </span>pending<span class="w"> </span>-f<span class="w"> </span><span class="s1">'args.lr &gt; 0.05'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-392" name="__codelineno-0-392" href="#__codelineno-0-392"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-I<span class="o">{}</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="o">{}</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'status=cancelled'</span><span class="w"> </span>--quiet
+<a id="__codelineno-0-393" name="__codelineno-0-393" href="#__codelineno-0-393"></a>
+<a id="__codelineno-0-394" name="__codelineno-0-394" href="#__codelineno-0-394"></a><span class="c1"># Bump priority on urgent pending tasks</span>
+<a id="__codelineno-0-395" name="__codelineno-0-395" href="#__codelineno-0-395"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'"urgent" in list(metadata.tags)'</span><span class="w"> </span>-s<span class="w"> </span>pending<span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-396" name="__codelineno-0-396" href="#__codelineno-0-396"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>xargs<span class="w"> </span>-I<span class="o">{}</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="o">{}</span><span class="w"> </span>-u<span class="w"> </span><span class="s1">'priority=100'</span><span class="w"> </span>--quiet
+<a id="__codelineno-0-397" name="__codelineno-0-397" href="#__codelineno-0-397"></a><span class="sb">```</span>
+<a id="__codelineno-0-398" name="__codelineno-0-398" href="#__codelineno-0-398"></a>
+<a id="__codelineno-0-399" name="__codelineno-0-399" href="#__codelineno-0-399"></a><span class="gu">### Python</span>
+<a id="__codelineno-0-400" name="__codelineno-0-400" href="#__codelineno-0-400"></a>
+<a id="__codelineno-0-401" name="__codelineno-0-401" href="#__codelineno-0-401"></a><span class="sb">```python</span>
+<a id="__codelineno-0-402" name="__codelineno-0-402" href="#__codelineno-0-402"></a><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
+<a id="__codelineno-0-403" name="__codelineno-0-403" href="#__codelineno-0-403"></a><span class="kn">from</span><span class="w"> </span><span class="nn">labtasker.api_models</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskUpdateRequest</span>
 <a id="__codelineno-0-404" name="__codelineno-0-404" href="#__codelineno-0-404"></a>
-<a id="__codelineno-0-405" name="__codelineno-0-405" href="#__codelineno-0-405"></a><span class="c1"># Cancel pending tasks matching a filter</span>
-<a id="__codelineno-0-406" name="__codelineno-0-406" href="#__codelineno-0-406"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span>
-<a id="__codelineno-0-407" name="__codelineno-0-407" href="#__codelineno-0-407"></a>    <span class="n">status</span><span class="o">=</span><span class="s2">"pending"</span><span class="p">,</span>
-<a id="__codelineno-0-408" name="__codelineno-0-408" href="#__codelineno-0-408"></a>    <span class="n">extra_filter</span><span class="o">=</span><span class="s1">'args.lr &gt; 0.05'</span><span class="p">,</span>
-<a id="__codelineno-0-409" name="__codelineno-0-409" href="#__codelineno-0-409"></a><span class="p">)</span>
-<a id="__codelineno-0-410" name="__codelineno-0-410" href="#__codelineno-0-410"></a><span class="n">updates</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-411" name="__codelineno-0-411" href="#__codelineno-0-411"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"cancelled"</span><span class="p">})</span>
-<a id="__codelineno-0-412" name="__codelineno-0-412" href="#__codelineno-0-412"></a>    <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
-<a id="__codelineno-0-413" name="__codelineno-0-413" href="#__codelineno-0-413"></a><span class="p">]</span>
-<a id="__codelineno-0-414" name="__codelineno-0-414" href="#__codelineno-0-414"></a><span class="k">if</span> <span class="n">updates</span><span class="p">:</span>
-<a id="__codelineno-0-415" name="__codelineno-0-415" href="#__codelineno-0-415"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">(</span><span class="n">updates</span><span class="p">)</span>
-<a id="__codelineno-0-416" name="__codelineno-0-416" href="#__codelineno-0-416"></a>
-<a id="__codelineno-0-417" name="__codelineno-0-417" href="#__codelineno-0-417"></a><span class="c1"># Update metadata from inside a loop (merges new field without losing existing ones)</span>
-<a id="__codelineno-0-418" name="__codelineno-0-418" href="#__codelineno-0-418"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">()</span>
-<a id="__codelineno-0-419" name="__codelineno-0-419" href="#__codelineno-0-419"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Required</span><span class="p">(),</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Required</span><span class="p">()):</span>
-<a id="__codelineno-0-420" name="__codelineno-0-420" href="#__codelineno-0-420"></a>    <span class="n">train</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
-<a id="__codelineno-0-421" name="__codelineno-0-421" href="#__codelineno-0-421"></a>    <span class="n">task</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">task_info</span><span class="p">()</span>
-<a id="__codelineno-0-422" name="__codelineno-0-422" href="#__codelineno-0-422"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">([</span>
-<a id="__codelineno-0-423" name="__codelineno-0-423" href="#__codelineno-0-423"></a>        <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span> <span class="s2">"metadata"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"run_note"</span><span class="p">:</span> <span class="s2">"done"</span><span class="p">}})</span>
-<a id="__codelineno-0-424" name="__codelineno-0-424" href="#__codelineno-0-424"></a>    <span class="p">])</span>  <span class="c1"># merges "run_note" into existing metadata; other metadata keys preserved</span>
-<a id="__codelineno-0-425" name="__codelineno-0-425" href="#__codelineno-0-425"></a><span class="sb">```</span>
-<a id="__codelineno-0-426" name="__codelineno-0-426" href="#__codelineno-0-426"></a>
-<a id="__codelineno-0-427" name="__codelineno-0-427" href="#__codelineno-0-427"></a>---
-<a id="__codelineno-0-428" name="__codelineno-0-428" href="#__codelineno-0-428"></a>
-<a id="__codelineno-0-429" name="__codelineno-0-429" href="#__codelineno-0-429"></a><span class="gu">## 6. Deleting Tasks</span>
-<a id="__codelineno-0-430" name="__codelineno-0-430" href="#__codelineno-0-430"></a>
-<a id="__codelineno-0-431" name="__codelineno-0-431" href="#__codelineno-0-431"></a><span class="gu">### CLI</span>
-<a id="__codelineno-0-432" name="__codelineno-0-432" href="#__codelineno-0-432"></a>
-<a id="__codelineno-0-433" name="__codelineno-0-433" href="#__codelineno-0-433"></a><span class="sb">```bash</span>
-<a id="__codelineno-0-434" name="__codelineno-0-434" href="#__codelineno-0-434"></a><span class="c1"># Delete by id (positional argument)</span>
-<a id="__codelineno-0-435" name="__codelineno-0-435" href="#__codelineno-0-435"></a>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>&lt;task_id&gt;
-<a id="__codelineno-0-436" name="__codelineno-0-436" href="#__codelineno-0-436"></a>
-<a id="__codelineno-0-437" name="__codelineno-0-437" href="#__codelineno-0-437"></a><span class="c1"># Batch delete via pipe: -q prints only ids, -y skips confirmation</span>
-<a id="__codelineno-0-438" name="__codelineno-0-438" href="#__codelineno-0-438"></a><span class="c1"># NOTE: add --limit 10000 to avoid silently missing tasks beyond the default 100</span>
-<a id="__codelineno-0-439" name="__codelineno-0-439" href="#__codelineno-0-439"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'created_at &lt; date("10 minutes ago")'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>-y
-<a id="__codelineno-0-440" name="__codelineno-0-440" href="#__codelineno-0-440"></a>
-<a id="__codelineno-0-441" name="__codelineno-0-441" href="#__codelineno-0-441"></a><span class="c1"># Delete all failed tasks</span>
-<a id="__codelineno-0-442" name="__codelineno-0-442" href="#__codelineno-0-442"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-s<span class="w"> </span>failed<span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>-y
+<a id="__codelineno-0-405" name="__codelineno-0-405" href="#__codelineno-0-405"></a><span class="c1"># Update a single task — only specified keys are merged/updated</span>
+<a id="__codelineno-0-406" name="__codelineno-0-406" href="#__codelineno-0-406"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">([</span>
+<a id="__codelineno-0-407" name="__codelineno-0-407" href="#__codelineno-0-407"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span> <span class="s2">"args"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"lr"</span><span class="p">:</span> <span class="mf">0.005</span><span class="p">}})</span>
+<a id="__codelineno-0-408" name="__codelineno-0-408" href="#__codelineno-0-408"></a><span class="p">])</span>
+<a id="__codelineno-0-409" name="__codelineno-0-409" href="#__codelineno-0-409"></a>
+<a id="__codelineno-0-410" name="__codelineno-0-410" href="#__codelineno-0-410"></a><span class="c1"># Batch: fix lr and reset to pending (also resets retries=0)</span>
+<a id="__codelineno-0-411" name="__codelineno-0-411" href="#__codelineno-0-411"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"failed"</span><span class="p">)</span>
+<a id="__codelineno-0-412" name="__codelineno-0-412" href="#__codelineno-0-412"></a><span class="n">updates</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-413" name="__codelineno-0-413" href="#__codelineno-0-413"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span>
+<a id="__codelineno-0-414" name="__codelineno-0-414" href="#__codelineno-0-414"></a>        <span class="s2">"_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span>
+<a id="__codelineno-0-415" name="__codelineno-0-415" href="#__codelineno-0-415"></a>        <span class="s2">"args"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"lr"</span><span class="p">:</span> <span class="mf">0.005</span><span class="p">},</span>   <span class="c1"># merges into existing args; other keys preserved</span>
+<a id="__codelineno-0-416" name="__codelineno-0-416" href="#__codelineno-0-416"></a>    <span class="p">})</span>
+<a id="__codelineno-0-417" name="__codelineno-0-417" href="#__codelineno-0-417"></a>    <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
+<a id="__codelineno-0-418" name="__codelineno-0-418" href="#__codelineno-0-418"></a><span class="p">]</span>
+<a id="__codelineno-0-419" name="__codelineno-0-419" href="#__codelineno-0-419"></a><span class="k">if</span> <span class="n">updates</span><span class="p">:</span>
+<a id="__codelineno-0-420" name="__codelineno-0-420" href="#__codelineno-0-420"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">(</span><span class="n">updates</span><span class="p">,</span> <span class="n">reset_pending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-0-421" name="__codelineno-0-421" href="#__codelineno-0-421"></a>
+<a id="__codelineno-0-422" name="__codelineno-0-422" href="#__codelineno-0-422"></a><span class="c1"># Cancel pending tasks matching a filter</span>
+<a id="__codelineno-0-423" name="__codelineno-0-423" href="#__codelineno-0-423"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span>
+<a id="__codelineno-0-424" name="__codelineno-0-424" href="#__codelineno-0-424"></a>    <span class="n">status</span><span class="o">=</span><span class="s2">"pending"</span><span class="p">,</span>
+<a id="__codelineno-0-425" name="__codelineno-0-425" href="#__codelineno-0-425"></a>    <span class="n">extra_filter</span><span class="o">=</span><span class="s1">'args.lr &gt; 0.05'</span><span class="p">,</span>
+<a id="__codelineno-0-426" name="__codelineno-0-426" href="#__codelineno-0-426"></a><span class="p">)</span>
+<a id="__codelineno-0-427" name="__codelineno-0-427" href="#__codelineno-0-427"></a><span class="n">updates</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-428" name="__codelineno-0-428" href="#__codelineno-0-428"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"cancelled"</span><span class="p">})</span>
+<a id="__codelineno-0-429" name="__codelineno-0-429" href="#__codelineno-0-429"></a>    <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
+<a id="__codelineno-0-430" name="__codelineno-0-430" href="#__codelineno-0-430"></a><span class="p">]</span>
+<a id="__codelineno-0-431" name="__codelineno-0-431" href="#__codelineno-0-431"></a><span class="k">if</span> <span class="n">updates</span><span class="p">:</span>
+<a id="__codelineno-0-432" name="__codelineno-0-432" href="#__codelineno-0-432"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">(</span><span class="n">updates</span><span class="p">)</span>
+<a id="__codelineno-0-433" name="__codelineno-0-433" href="#__codelineno-0-433"></a>
+<a id="__codelineno-0-434" name="__codelineno-0-434" href="#__codelineno-0-434"></a><span class="c1"># Update metadata from inside a loop (merges new field without losing existing ones)</span>
+<a id="__codelineno-0-435" name="__codelineno-0-435" href="#__codelineno-0-435"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">()</span>
+<a id="__codelineno-0-436" name="__codelineno-0-436" href="#__codelineno-0-436"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Required</span><span class="p">(),</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Required</span><span class="p">()):</span>
+<a id="__codelineno-0-437" name="__codelineno-0-437" href="#__codelineno-0-437"></a>    <span class="n">train</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
+<a id="__codelineno-0-438" name="__codelineno-0-438" href="#__codelineno-0-438"></a>    <span class="n">task</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">task_info</span><span class="p">()</span>
+<a id="__codelineno-0-439" name="__codelineno-0-439" href="#__codelineno-0-439"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">([</span>
+<a id="__codelineno-0-440" name="__codelineno-0-440" href="#__codelineno-0-440"></a>        <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">,</span> <span class="s2">"metadata"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"run_note"</span><span class="p">:</span> <span class="s2">"done"</span><span class="p">}})</span>
+<a id="__codelineno-0-441" name="__codelineno-0-441" href="#__codelineno-0-441"></a>    <span class="p">])</span>  <span class="c1"># merges "run_note" into existing metadata; other metadata keys preserved</span>
+<a id="__codelineno-0-442" name="__codelineno-0-442" href="#__codelineno-0-442"></a><span class="sb">```</span>
 <a id="__codelineno-0-443" name="__codelineno-0-443" href="#__codelineno-0-443"></a>
-<a id="__codelineno-0-444" name="__codelineno-0-444" href="#__codelineno-0-444"></a><span class="c1"># Delete by task name pattern</span>
-<a id="__codelineno-0-445" name="__codelineno-0-445" href="#__codelineno-0-445"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'regex(task_name, "^debug-.*")'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>-y
-<a id="__codelineno-0-446" name="__codelineno-0-446" href="#__codelineno-0-446"></a><span class="sb">```</span>
+<a id="__codelineno-0-444" name="__codelineno-0-444" href="#__codelineno-0-444"></a>---
+<a id="__codelineno-0-445" name="__codelineno-0-445" href="#__codelineno-0-445"></a>
+<a id="__codelineno-0-446" name="__codelineno-0-446" href="#__codelineno-0-446"></a><span class="gu">## 6. Deleting Tasks</span>
 <a id="__codelineno-0-447" name="__codelineno-0-447" href="#__codelineno-0-447"></a>
-<a id="__codelineno-0-448" name="__codelineno-0-448" href="#__codelineno-0-448"></a><span class="gu">### Python</span>
+<a id="__codelineno-0-448" name="__codelineno-0-448" href="#__codelineno-0-448"></a><span class="gu">### CLI</span>
 <a id="__codelineno-0-449" name="__codelineno-0-449" href="#__codelineno-0-449"></a>
-<a id="__codelineno-0-450" name="__codelineno-0-450" href="#__codelineno-0-450"></a><span class="sb">```python</span>
-<a id="__codelineno-0-451" name="__codelineno-0-451" href="#__codelineno-0-451"></a><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
-<a id="__codelineno-0-452" name="__codelineno-0-452" href="#__codelineno-0-452"></a>
-<a id="__codelineno-0-453" name="__codelineno-0-453" href="#__codelineno-0-453"></a><span class="c1"># Delete a single task</span>
-<a id="__codelineno-0-454" name="__codelineno-0-454" href="#__codelineno-0-454"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="o">=</span><span class="s2">"&lt;task_id&gt;"</span><span class="p">)</span>
-<a id="__codelineno-0-455" name="__codelineno-0-455" href="#__codelineno-0-455"></a>
-<a id="__codelineno-0-456" name="__codelineno-0-456" href="#__codelineno-0-456"></a><span class="c1"># Batch delete matching a filter</span>
-<a id="__codelineno-0-457" name="__codelineno-0-457" href="#__codelineno-0-457"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span>
-<a id="__codelineno-0-458" name="__codelineno-0-458" href="#__codelineno-0-458"></a>    <span class="n">extra_filter</span><span class="o">=</span><span class="s1">'created_at &lt; date("10 minutes ago")'</span>
-<a id="__codelineno-0-459" name="__codelineno-0-459" href="#__codelineno-0-459"></a><span class="p">)</span>
-<a id="__codelineno-0-460" name="__codelineno-0-460" href="#__codelineno-0-460"></a><span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">:</span>
-<a id="__codelineno-0-461" name="__codelineno-0-461" href="#__codelineno-0-461"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">)</span>
-<a id="__codelineno-0-462" name="__codelineno-0-462" href="#__codelineno-0-462"></a><span class="sb">```</span>
-<a id="__codelineno-0-463" name="__codelineno-0-463" href="#__codelineno-0-463"></a>
-<a id="__codelineno-0-464" name="__codelineno-0-464" href="#__codelineno-0-464"></a>---
-<a id="__codelineno-0-465" name="__codelineno-0-465" href="#__codelineno-0-465"></a>
-<a id="__codelineno-0-466" name="__codelineno-0-466" href="#__codelineno-0-466"></a><span class="gu">## Quick Reference</span>
-<a id="__codelineno-0-467" name="__codelineno-0-467" href="#__codelineno-0-467"></a>
-<a id="__codelineno-0-468" name="__codelineno-0-468" href="#__codelineno-0-468"></a>| Operation | CLI | Python |
-<a id="__codelineno-0-469" name="__codelineno-0-469" href="#__codelineno-0-469"></a>|-----------|-----|--------|
-<a id="__codelineno-0-470" name="__codelineno-0-470" href="#__codelineno-0-470"></a>| Submit | <span class="sb">`labtasker task submit -- --k=v`</span> | <span class="sb">`labtasker.submit_task(args={...}, metadata={...})`</span> |
-<a id="__codelineno-0-471" name="__codelineno-0-471" href="#__codelineno-0-471"></a>| Submit with tags | <span class="sb">`--metadata '{"tags": ["v1"]}'`</span> | <span class="sb">`metadata={"tags": ["v1"]}`</span> |
-<a id="__codelineno-0-472" name="__codelineno-0-472" href="#__codelineno-0-472"></a>| Run loop | <span class="sb">`labtasker loop -- cmd '%(arg)'`</span> | <span class="sb">`@labtasker.loop()`</span> + <span class="sb">`Required()`</span> |
-<a id="__codelineno-0-473" name="__codelineno-0-473" href="#__codelineno-0-473"></a>| Run with filter | <span class="sb">`--extra-filter 'filter'`</span> | <span class="sb">`@labtasker.loop(extra_filter='...')`</span> |
-<a id="__codelineno-0-474" name="__codelineno-0-474" href="#__codelineno-0-474"></a>| Parallel workers | <span class="sb">`CUDA_VISIBLE_DEVICES=N labtasker loop ... &amp;`</span> | run multiple processes |
-<a id="__codelineno-0-475" name="__codelineno-0-475" href="#__codelineno-0-475"></a>| List by status | <span class="sb">`labtasker task ls -s failed`</span> | <span class="sb">`labtasker.ls_tasks(status="failed")`</span> |
-<a id="__codelineno-0-476" name="__codelineno-0-476" href="#__codelineno-0-476"></a>| List with filter | <span class="sb">`labtasker task ls -f 'expr'`</span> | <span class="sb">`labtasker.ls_tasks(extra_filter='expr')`</span> |
-<a id="__codelineno-0-477" name="__codelineno-0-477" href="#__codelineno-0-477"></a>| Sort | <span class="sb">`labtasker task ls -S created_at:desc`</span> | <span class="sb">`sorted(response.content, key=lambda t: ...)`</span> |
-<a id="__codelineno-0-478" name="__codelineno-0-478" href="#__codelineno-0-478"></a>| Write summary | — | <span class="sb">`labtasker.report_task_status(task_id=..., status="running", summary={...})`</span> |
-<a id="__codelineno-0-479" name="__codelineno-0-479" href="#__codelineno-0-479"></a>| Update | <span class="sb">`labtasker task update --id X -u 'args.k=v'`</span> | <span class="sb">`labtasker.update_tasks([TaskUpdateRequest(...)])`</span> |
-<a id="__codelineno-0-480" name="__codelineno-0-480" href="#__codelineno-0-480"></a>| Cancel | <span class="sb">`... -q \| xargs ... -u 'status=cancelled'`</span> | <span class="sb">`TaskUpdateRequest(**{"_id": id, "status": "cancelled"})`</span> |
-<a id="__codelineno-0-481" name="__codelineno-0-481" href="#__codelineno-0-481"></a>| Retry failed | <span class="sb">`--reset-pending`</span> | <span class="sb">`update_tasks(updates, reset_pending=True)`</span> |
-<a id="__codelineno-0-482" name="__codelineno-0-482" href="#__codelineno-0-482"></a>| Delete | <span class="sb">`labtasker task ls -s failed -q \| labtasker task delete -y`</span> | <span class="sb">`labtasker.delete_task(task_id=...)`</span> |
-<a id="__codelineno-0-483" name="__codelineno-0-483" href="#__codelineno-0-483"></a>| Current task | — | <span class="sb">`labtasker.task_info()`</span> |
+<a id="__codelineno-0-450" name="__codelineno-0-450" href="#__codelineno-0-450"></a><span class="sb">```bash</span>
+<a id="__codelineno-0-451" name="__codelineno-0-451" href="#__codelineno-0-451"></a><span class="c1"># Delete by id (positional argument)</span>
+<a id="__codelineno-0-452" name="__codelineno-0-452" href="#__codelineno-0-452"></a>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>&lt;task_id&gt;
+<a id="__codelineno-0-453" name="__codelineno-0-453" href="#__codelineno-0-453"></a>
+<a id="__codelineno-0-454" name="__codelineno-0-454" href="#__codelineno-0-454"></a><span class="c1"># Batch delete via pipe: -q prints only ids, -y skips confirmation</span>
+<a id="__codelineno-0-455" name="__codelineno-0-455" href="#__codelineno-0-455"></a><span class="c1"># NOTE: add --limit 10000 to avoid silently missing tasks beyond the default 100</span>
+<a id="__codelineno-0-456" name="__codelineno-0-456" href="#__codelineno-0-456"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'created_at &lt; date("10 minutes ago")'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>-y
+<a id="__codelineno-0-457" name="__codelineno-0-457" href="#__codelineno-0-457"></a>
+<a id="__codelineno-0-458" name="__codelineno-0-458" href="#__codelineno-0-458"></a><span class="c1"># Delete all failed tasks</span>
+<a id="__codelineno-0-459" name="__codelineno-0-459" href="#__codelineno-0-459"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-s<span class="w"> </span>failed<span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>-y
+<a id="__codelineno-0-460" name="__codelineno-0-460" href="#__codelineno-0-460"></a>
+<a id="__codelineno-0-461" name="__codelineno-0-461" href="#__codelineno-0-461"></a><span class="c1"># Delete by task name pattern</span>
+<a id="__codelineno-0-462" name="__codelineno-0-462" href="#__codelineno-0-462"></a>labtasker<span class="w"> </span>task<span class="w"> </span>ls<span class="w"> </span>-f<span class="w"> </span><span class="s1">'regex(task_name, "^debug-.*")'</span><span class="w"> </span>-q<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>-y
+<a id="__codelineno-0-463" name="__codelineno-0-463" href="#__codelineno-0-463"></a><span class="sb">```</span>
+<a id="__codelineno-0-464" name="__codelineno-0-464" href="#__codelineno-0-464"></a>
+<a id="__codelineno-0-465" name="__codelineno-0-465" href="#__codelineno-0-465"></a><span class="gu">### Python</span>
+<a id="__codelineno-0-466" name="__codelineno-0-466" href="#__codelineno-0-466"></a>
+<a id="__codelineno-0-467" name="__codelineno-0-467" href="#__codelineno-0-467"></a><span class="sb">```python</span>
+<a id="__codelineno-0-468" name="__codelineno-0-468" href="#__codelineno-0-468"></a><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
+<a id="__codelineno-0-469" name="__codelineno-0-469" href="#__codelineno-0-469"></a>
+<a id="__codelineno-0-470" name="__codelineno-0-470" href="#__codelineno-0-470"></a><span class="c1"># Delete a single task</span>
+<a id="__codelineno-0-471" name="__codelineno-0-471" href="#__codelineno-0-471"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="o">=</span><span class="s2">"&lt;task_id&gt;"</span><span class="p">)</span>
+<a id="__codelineno-0-472" name="__codelineno-0-472" href="#__codelineno-0-472"></a>
+<a id="__codelineno-0-473" name="__codelineno-0-473" href="#__codelineno-0-473"></a><span class="c1"># Batch delete matching a filter</span>
+<a id="__codelineno-0-474" name="__codelineno-0-474" href="#__codelineno-0-474"></a><span class="n">response</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span>
+<a id="__codelineno-0-475" name="__codelineno-0-475" href="#__codelineno-0-475"></a>    <span class="n">extra_filter</span><span class="o">=</span><span class="s1">'created_at &lt; date("10 minutes ago")'</span>
+<a id="__codelineno-0-476" name="__codelineno-0-476" href="#__codelineno-0-476"></a><span class="p">)</span>
+<a id="__codelineno-0-477" name="__codelineno-0-477" href="#__codelineno-0-477"></a><span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">:</span>
+<a id="__codelineno-0-478" name="__codelineno-0-478" href="#__codelineno-0-478"></a>    <span class="n">labtasker</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">task_id</span><span class="p">)</span>
+<a id="__codelineno-0-479" name="__codelineno-0-479" href="#__codelineno-0-479"></a><span class="sb">```</span>
+<a id="__codelineno-0-480" name="__codelineno-0-480" href="#__codelineno-0-480"></a>
+<a id="__codelineno-0-481" name="__codelineno-0-481" href="#__codelineno-0-481"></a>---
+<a id="__codelineno-0-482" name="__codelineno-0-482" href="#__codelineno-0-482"></a>
+<a id="__codelineno-0-483" name="__codelineno-0-483" href="#__codelineno-0-483"></a><span class="gu">## Quick Reference</span>
 <a id="__codelineno-0-484" name="__codelineno-0-484" href="#__codelineno-0-484"></a>
-<a id="__codelineno-0-485" name="__codelineno-0-485" href="#__codelineno-0-485"></a>---
-<a id="__codelineno-0-486" name="__codelineno-0-486" href="#__codelineno-0-486"></a>
-<a id="__codelineno-0-487" name="__codelineno-0-487" href="#__codelineno-0-487"></a><span class="gu">## API Signatures</span>
-<a id="__codelineno-0-488" name="__codelineno-0-488" href="#__codelineno-0-488"></a>
-<a id="__codelineno-0-489" name="__codelineno-0-489" href="#__codelineno-0-489"></a>For queue and worker management, see the [<span class="nt">full documentation</span>](<span class="na">https://luocfprime.github.io/labtasker/latest/</span>).
-<a id="__codelineno-0-490" name="__codelineno-0-490" href="#__codelineno-0-490"></a>
-<a id="__codelineno-0-491" name="__codelineno-0-491" href="#__codelineno-0-491"></a><span class="gu">### CLI</span>
-<a id="__codelineno-0-492" name="__codelineno-0-492" href="#__codelineno-0-492"></a>
-<a id="__codelineno-0-493" name="__codelineno-0-493" href="#__codelineno-0-493"></a><span class="sb">```</span>
-<a id="__codelineno-0-494" name="__codelineno-0-494" href="#__codelineno-0-494"></a><span class="sb">labtasker task submit</span>
-<a id="__codelineno-0-495" name="__codelineno-0-495" href="#__codelineno-0-495"></a><span class="sb">    [ARGS...]                     # task args as CLI flags after --  e.g. -- --lr=0.01 --model=vit</span>
-<a id="__codelineno-0-496" name="__codelineno-0-496" href="#__codelineno-0-496"></a><span class="sb">    [--args JSON_STR]             # alternative: pass args as JSON dict string</span>
-<a id="__codelineno-0-497" name="__codelineno-0-497" href="#__codelineno-0-497"></a><span class="sb">    [--name NAME]                 # task name for identification</span>
-<a id="__codelineno-0-498" name="__codelineno-0-498" href="#__codelineno-0-498"></a><span class="sb">    [--metadata JSON_STR]         # e.g. '{"tags": ["v1"], "note": "baseline"}'</span>
-<a id="__codelineno-0-499" name="__codelineno-0-499" href="#__codelineno-0-499"></a><span class="sb">    [--max-retries INT]           # retry attempts on failure (default: 3)</span>
-<a id="__codelineno-0-500" name="__codelineno-0-500" href="#__codelineno-0-500"></a><span class="sb">    [--priority INT]              # higher = higher priority (default: 0)</span>
-<a id="__codelineno-0-501" name="__codelineno-0-501" href="#__codelineno-0-501"></a>
-<a id="__codelineno-0-502" name="__codelineno-0-502" href="#__codelineno-0-502"></a><span class="sb">labtasker loop</span>
-<a id="__codelineno-0-503" name="__codelineno-0-503" href="#__codelineno-0-503"></a><span class="sb">    [-- CMD ARGS]                 # command with %(key) placeholders; %(key) = top-level args only</span>
-<a id="__codelineno-0-504" name="__codelineno-0-504" href="#__codelineno-0-504"></a><span class="sb">    [--script-path FILE]          # path to script file with %(key) placeholders (for multi-line logic)</span>
-<a id="__codelineno-0-505" name="__codelineno-0-505" href="#__codelineno-0-505"></a><span class="sb">    [-f / --extra-filter EXPR]    # Python query string to filter which tasks to run</span>
-<a id="__codelineno-0-506" name="__codelineno-0-506" href="#__codelineno-0-506"></a><span class="sb">    # For nested dict args, use the Python @labtasker.loop() instead of CLI loop</span>
-<a id="__codelineno-0-507" name="__codelineno-0-507" href="#__codelineno-0-507"></a>
-<a id="__codelineno-0-508" name="__codelineno-0-508" href="#__codelineno-0-508"></a><span class="sb">labtasker task ls</span>
-<a id="__codelineno-0-509" name="__codelineno-0-509" href="#__codelineno-0-509"></a><span class="sb">    [--id TASK_ID]                # filter by task ID</span>
-<a id="__codelineno-0-510" name="__codelineno-0-510" href="#__codelineno-0-510"></a><span class="sb">    [--name TASK_NAME]            # filter by task name</span>
-<a id="__codelineno-0-511" name="__codelineno-0-511" href="#__codelineno-0-511"></a><span class="sb">    [-s / --status STATUS]        # pending|running|success|failed|cancelled</span>
-<a id="__codelineno-0-512" name="__codelineno-0-512" href="#__codelineno-0-512"></a><span class="sb">    [-f / --extra-filter EXPR]    # Python query string (supports args.field, metadata.field, summary.field)</span>
-<a id="__codelineno-0-513" name="__codelineno-0-513" href="#__codelineno-0-513"></a><span class="sb">    [-q / --quiet]                # print task IDs only (for piping)</span>
-<a id="__codelineno-0-514" name="__codelineno-0-514" href="#__codelineno-0-514"></a><span class="sb">    [--no-pager]                  # disable pager output</span>
-<a id="__codelineno-0-515" name="__codelineno-0-515" href="#__codelineno-0-515"></a><span class="sb">    [--limit INT]                 # max results (default: 100)</span>
-<a id="__codelineno-0-516" name="__codelineno-0-516" href="#__codelineno-0-516"></a><span class="sb">    [-S / --sort FIELD:asc|desc]  # e.g. -S created_at:desc  or  -S summary.acc:desc</span>
-<a id="__codelineno-0-517" name="__codelineno-0-517" href="#__codelineno-0-517"></a>
-<a id="__codelineno-0-518" name="__codelineno-0-518" href="#__codelineno-0-518"></a><span class="sb">labtasker task update</span>
-<a id="__codelineno-0-519" name="__codelineno-0-519" href="#__codelineno-0-519"></a><span class="sb">    [--id TASK_ID]                # filter by task ID</span>
-<a id="__codelineno-0-520" name="__codelineno-0-520" href="#__codelineno-0-520"></a><span class="sb">    [--name TASK_NAME]            # filter by task name</span>
-<a id="__codelineno-0-521" name="__codelineno-0-521" href="#__codelineno-0-521"></a><span class="sb">    [-s / --status STATUS]        # filter by status</span>
-<a id="__codelineno-0-522" name="__codelineno-0-522" href="#__codelineno-0-522"></a><span class="sb">    [-f / --extra-filter EXPR]    # filter by Python query</span>
-<a id="__codelineno-0-523" name="__codelineno-0-523" href="#__codelineno-0-523"></a><span class="sb">    [-u / --update 'field=value'] # patch a field (repeatable); dot-notation for nested: -u args.lr=0.01</span>
-<a id="__codelineno-0-524" name="__codelineno-0-524" href="#__codelineno-0-524"></a><span class="sb">    [-- field=value ...]          # positional update syntax (alternative to -u)</span>
-<a id="__codelineno-0-525" name="__codelineno-0-525" href="#__codelineno-0-525"></a><span class="sb">    [--reset-pending]             # set status=pending AND reset retries=0</span>
-<a id="__codelineno-0-526" name="__codelineno-0-526" href="#__codelineno-0-526"></a><span class="sb">    [-q / --quiet]                # skip confirmations (for scripts/pipes)</span>
-<a id="__codelineno-0-527" name="__codelineno-0-527" href="#__codelineno-0-527"></a>
-<a id="__codelineno-0-528" name="__codelineno-0-528" href="#__codelineno-0-528"></a><span class="sb">labtasker task delete</span>
-<a id="__codelineno-0-529" name="__codelineno-0-529" href="#__codelineno-0-529"></a><span class="sb">    [TASK_IDS...]                 # task IDs to delete (positional, or piped from stdin)</span>
-<a id="__codelineno-0-530" name="__codelineno-0-530" href="#__codelineno-0-530"></a><span class="sb">    [-y / --yes]                  # skip confirmation prompt</span>
-<a id="__codelineno-0-531" name="__codelineno-0-531" href="#__codelineno-0-531"></a><span class="sb">```</span>
-<a id="__codelineno-0-532" name="__codelineno-0-532" href="#__codelineno-0-532"></a>
-<a id="__codelineno-0-533" name="__codelineno-0-533" href="#__codelineno-0-533"></a><span class="gu">### Python</span>
-<a id="__codelineno-0-534" name="__codelineno-0-534" href="#__codelineno-0-534"></a>
-<a id="__codelineno-0-535" name="__codelineno-0-535" href="#__codelineno-0-535"></a><span class="sb">```python</span>
-<a id="__codelineno-0-536" name="__codelineno-0-536" href="#__codelineno-0-536"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">submit_task</span><span class="p">(</span>
-<a id="__codelineno-0-537" name="__codelineno-0-537" href="#__codelineno-0-537"></a>    <span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-538" name="__codelineno-0-538" href="#__codelineno-0-538"></a>    <span class="n">args</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>            <span class="c1"># task args — keys must match Required() params exactly</span>
-<a id="__codelineno-0-539" name="__codelineno-0-539" href="#__codelineno-0-539"></a>    <span class="n">metadata</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>        <span class="c1"># e.g. {"tags": ["v1"], "note": "baseline"}</span>
-<a id="__codelineno-0-540" name="__codelineno-0-540" href="#__codelineno-0-540"></a>    <span class="n">max_retries</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-0-541" name="__codelineno-0-541" href="#__codelineno-0-541"></a>    <span class="n">priority</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>            <span class="c1"># higher = higher priority</span>
-<a id="__codelineno-0-542" name="__codelineno-0-542" href="#__codelineno-0-542"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskSubmitResponse</span>           <span class="c1"># .task_id: str</span>
-<a id="__codelineno-0-543" name="__codelineno-0-543" href="#__codelineno-0-543"></a>
-<a id="__codelineno-0-544" name="__codelineno-0-544" href="#__codelineno-0-544"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">(</span>
-<a id="__codelineno-0-545" name="__codelineno-0-545" href="#__codelineno-0-545"></a>    <span class="n">extra_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>          <span class="c1"># Python query string</span>
-<a id="__codelineno-0-546" name="__codelineno-0-546" href="#__codelineno-0-546"></a>    <span class="n">required_fields</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="c1"># explicit field list (auto-inferred from Required() if unset)</span>
-<a id="__codelineno-0-547" name="__codelineno-0-547" href="#__codelineno-0-547"></a>    <span class="n">pass_args_dict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>      <span class="c1"># pass args as dict instead of keyword args</span>
-<a id="__codelineno-0-548" name="__codelineno-0-548" href="#__codelineno-0-548"></a><span class="p">)</span>
-<a id="__codelineno-0-549" name="__codelineno-0-549" href="#__codelineno-0-549"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span>
-<a id="__codelineno-0-550" name="__codelineno-0-550" href="#__codelineno-0-550"></a>    <span class="n">param</span><span class="p">:</span> <span class="n">Type</span> <span class="o">=</span> <span class="n">Required</span><span class="p">(),</span>          <span class="c1"># param name must match args key; type-cast automatically</span>
-<a id="__codelineno-0-551" name="__codelineno-0-551" href="#__codelineno-0-551"></a>    <span class="n">param</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">T</span><span class="p">,</span> <span class="n">Required</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">fn</span><span class="p">)]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span>  <span class="c1"># resolver receives args[param_name]</span>
-<a id="__codelineno-0-552" name="__codelineno-0-552" href="#__codelineno-0-552"></a>    <span class="n">param</span><span class="o">=</span><span class="n">Required</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">fn</span><span class="p">),</span>       <span class="c1"># shorthand form without Annotated</span>
-<a id="__codelineno-0-553" name="__codelineno-0-553" href="#__codelineno-0-553"></a><span class="p">):</span>
-<a id="__codelineno-0-554" name="__codelineno-0-554" href="#__codelineno-0-554"></a>    <span class="o">...</span>
-<a id="__codelineno-0-555" name="__codelineno-0-555" href="#__codelineno-0-555"></a><span class="c1"># Loop exits automatically when no more pending tasks match.</span>
-<a id="__codelineno-0-556" name="__codelineno-0-556" href="#__codelineno-0-556"></a>
-<a id="__codelineno-0-557" name="__codelineno-0-557" href="#__codelineno-0-557"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">task_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Task</span>     <span class="c1"># available inside @labtasker.loop() only</span>
-<a id="__codelineno-0-558" name="__codelineno-0-558" href="#__codelineno-0-558"></a>    <span class="c1"># .task_id  .task_name  .args  .metadata  .summary</span>
-<a id="__codelineno-0-559" name="__codelineno-0-559" href="#__codelineno-0-559"></a>    <span class="c1"># .status   .retries    .priority  .max_retries</span>
-<a id="__codelineno-0-560" name="__codelineno-0-560" href="#__codelineno-0-560"></a>    <span class="c1"># .created_at  .last_modified  .start_time  .worker_id</span>
+<a id="__codelineno-0-485" name="__codelineno-0-485" href="#__codelineno-0-485"></a>| Operation | CLI | Python |
+<a id="__codelineno-0-486" name="__codelineno-0-486" href="#__codelineno-0-486"></a>|-----------|-----|--------|
+<a id="__codelineno-0-487" name="__codelineno-0-487" href="#__codelineno-0-487"></a>| Submit | <span class="sb">`labtasker task submit -- --k=v`</span> | <span class="sb">`labtasker.submit_task(args={...}, metadata={...})`</span> |
+<a id="__codelineno-0-488" name="__codelineno-0-488" href="#__codelineno-0-488"></a>| Submit with tags | <span class="sb">`--metadata '{"tags": ["v1"]}'`</span> | <span class="sb">`metadata={"tags": ["v1"]}`</span> |
+<a id="__codelineno-0-489" name="__codelineno-0-489" href="#__codelineno-0-489"></a>| Run loop | <span class="sb">`labtasker loop -- cmd '%(arg)'`</span> | <span class="sb">`@labtasker.loop()`</span> + <span class="sb">`Required()`</span> |
+<a id="__codelineno-0-490" name="__codelineno-0-490" href="#__codelineno-0-490"></a>| Run with filter | <span class="sb">`--extra-filter 'filter'`</span> | <span class="sb">`@labtasker.loop(extra_filter='...')`</span> |
+<a id="__codelineno-0-491" name="__codelineno-0-491" href="#__codelineno-0-491"></a>| Parallel workers | <span class="sb">`CUDA_VISIBLE_DEVICES=N labtasker loop ... &amp;`</span> | run multiple processes |
+<a id="__codelineno-0-492" name="__codelineno-0-492" href="#__codelineno-0-492"></a>| List by status | <span class="sb">`labtasker task ls -s failed`</span> | <span class="sb">`labtasker.ls_tasks(status="failed")`</span> |
+<a id="__codelineno-0-493" name="__codelineno-0-493" href="#__codelineno-0-493"></a>| List with filter | <span class="sb">`labtasker task ls -f 'expr'`</span> | <span class="sb">`labtasker.ls_tasks(extra_filter='expr')`</span> |
+<a id="__codelineno-0-494" name="__codelineno-0-494" href="#__codelineno-0-494"></a>| Sort | <span class="sb">`labtasker task ls -S created_at:desc`</span> | <span class="sb">`sorted(response.content, key=lambda t: ...)`</span> |
+<a id="__codelineno-0-495" name="__codelineno-0-495" href="#__codelineno-0-495"></a>| Write intermediate summary | — | <span class="sb">`labtasker.report_task_status(task_id=..., status="running", summary={...})`</span> |
+<a id="__codelineno-0-496" name="__codelineno-0-496" href="#__codelineno-0-496"></a>| Finish task (final status) | — | <span class="sb">`labtasker.finish(status="success"\|"failed", summary={...})`</span> |
+<a id="__codelineno-0-497" name="__codelineno-0-497" href="#__codelineno-0-497"></a>| Update | <span class="sb">`labtasker task update --id X -u 'args.k=v'`</span> | <span class="sb">`labtasker.update_tasks([TaskUpdateRequest(...)])`</span> |
+<a id="__codelineno-0-498" name="__codelineno-0-498" href="#__codelineno-0-498"></a>| Cancel | <span class="sb">`... -q \| xargs ... -u 'status=cancelled'`</span> | <span class="sb">`TaskUpdateRequest(**{"_id": id, "status": "cancelled"})`</span> |
+<a id="__codelineno-0-499" name="__codelineno-0-499" href="#__codelineno-0-499"></a>| Retry failed | <span class="sb">`--reset-pending`</span> | <span class="sb">`update_tasks(updates, reset_pending=True)`</span> |
+<a id="__codelineno-0-500" name="__codelineno-0-500" href="#__codelineno-0-500"></a>| Delete | <span class="sb">`labtasker task ls -s failed -q \| labtasker task delete -y`</span> | <span class="sb">`labtasker.delete_task(task_id=...)`</span> |
+<a id="__codelineno-0-501" name="__codelineno-0-501" href="#__codelineno-0-501"></a>| Current task | — | <span class="sb">`labtasker.task_info()`</span> |
+<a id="__codelineno-0-502" name="__codelineno-0-502" href="#__codelineno-0-502"></a>
+<a id="__codelineno-0-503" name="__codelineno-0-503" href="#__codelineno-0-503"></a>---
+<a id="__codelineno-0-504" name="__codelineno-0-504" href="#__codelineno-0-504"></a>
+<a id="__codelineno-0-505" name="__codelineno-0-505" href="#__codelineno-0-505"></a><span class="gu">## API Signatures</span>
+<a id="__codelineno-0-506" name="__codelineno-0-506" href="#__codelineno-0-506"></a>
+<a id="__codelineno-0-507" name="__codelineno-0-507" href="#__codelineno-0-507"></a>For queue and worker management, see the [<span class="nt">full documentation</span>](<span class="na">https://luocfprime.github.io/labtasker/latest/</span>).
+<a id="__codelineno-0-508" name="__codelineno-0-508" href="#__codelineno-0-508"></a>
+<a id="__codelineno-0-509" name="__codelineno-0-509" href="#__codelineno-0-509"></a><span class="gu">### CLI</span>
+<a id="__codelineno-0-510" name="__codelineno-0-510" href="#__codelineno-0-510"></a>
+<a id="__codelineno-0-511" name="__codelineno-0-511" href="#__codelineno-0-511"></a><span class="sb">```</span>
+<a id="__codelineno-0-512" name="__codelineno-0-512" href="#__codelineno-0-512"></a><span class="sb">labtasker task submit</span>
+<a id="__codelineno-0-513" name="__codelineno-0-513" href="#__codelineno-0-513"></a><span class="sb">    [ARGS...]                     # task args as CLI flags after --  e.g. -- --lr=0.01 --model=vit</span>
+<a id="__codelineno-0-514" name="__codelineno-0-514" href="#__codelineno-0-514"></a><span class="sb">    [--args JSON_STR]             # alternative: pass args as JSON dict string</span>
+<a id="__codelineno-0-515" name="__codelineno-0-515" href="#__codelineno-0-515"></a><span class="sb">    [--name NAME]                 # task name for identification</span>
+<a id="__codelineno-0-516" name="__codelineno-0-516" href="#__codelineno-0-516"></a><span class="sb">    [--metadata JSON_STR]         # e.g. '{"tags": ["v1"], "note": "baseline"}'</span>
+<a id="__codelineno-0-517" name="__codelineno-0-517" href="#__codelineno-0-517"></a><span class="sb">    [--max-retries INT]           # retry attempts on failure (default: 3)</span>
+<a id="__codelineno-0-518" name="__codelineno-0-518" href="#__codelineno-0-518"></a><span class="sb">    [--priority INT]              # higher = higher priority (default: 0)</span>
+<a id="__codelineno-0-519" name="__codelineno-0-519" href="#__codelineno-0-519"></a>
+<a id="__codelineno-0-520" name="__codelineno-0-520" href="#__codelineno-0-520"></a><span class="sb">labtasker loop</span>
+<a id="__codelineno-0-521" name="__codelineno-0-521" href="#__codelineno-0-521"></a><span class="sb">    [-- CMD ARGS]                 # command with %(key) placeholders; %(key) = top-level args only</span>
+<a id="__codelineno-0-522" name="__codelineno-0-522" href="#__codelineno-0-522"></a><span class="sb">    [--script-path FILE]          # path to script file with %(key) placeholders (for multi-line logic)</span>
+<a id="__codelineno-0-523" name="__codelineno-0-523" href="#__codelineno-0-523"></a><span class="sb">    [-f / --extra-filter EXPR]    # Python query string to filter which tasks to run</span>
+<a id="__codelineno-0-524" name="__codelineno-0-524" href="#__codelineno-0-524"></a><span class="sb">    # For nested dict args, use the Python @labtasker.loop() instead of CLI loop</span>
+<a id="__codelineno-0-525" name="__codelineno-0-525" href="#__codelineno-0-525"></a>
+<a id="__codelineno-0-526" name="__codelineno-0-526" href="#__codelineno-0-526"></a><span class="sb">labtasker task ls</span>
+<a id="__codelineno-0-527" name="__codelineno-0-527" href="#__codelineno-0-527"></a><span class="sb">    [--id TASK_ID]                # filter by task ID</span>
+<a id="__codelineno-0-528" name="__codelineno-0-528" href="#__codelineno-0-528"></a><span class="sb">    [--name TASK_NAME]            # filter by task name</span>
+<a id="__codelineno-0-529" name="__codelineno-0-529" href="#__codelineno-0-529"></a><span class="sb">    [-s / --status STATUS]        # pending|running|success|failed|cancelled</span>
+<a id="__codelineno-0-530" name="__codelineno-0-530" href="#__codelineno-0-530"></a><span class="sb">    [-f / --extra-filter EXPR]    # Python query string (supports args.field, metadata.field, summary.field)</span>
+<a id="__codelineno-0-531" name="__codelineno-0-531" href="#__codelineno-0-531"></a><span class="sb">    [-q / --quiet]                # print task IDs only (for piping)</span>
+<a id="__codelineno-0-532" name="__codelineno-0-532" href="#__codelineno-0-532"></a><span class="sb">    [--no-pager]                  # disable pager output</span>
+<a id="__codelineno-0-533" name="__codelineno-0-533" href="#__codelineno-0-533"></a><span class="sb">    [--limit INT]                 # max results (default: 100)</span>
+<a id="__codelineno-0-534" name="__codelineno-0-534" href="#__codelineno-0-534"></a><span class="sb">    [-S / --sort FIELD:asc|desc]  # e.g. -S created_at:desc  or  -S summary.acc:desc</span>
+<a id="__codelineno-0-535" name="__codelineno-0-535" href="#__codelineno-0-535"></a>
+<a id="__codelineno-0-536" name="__codelineno-0-536" href="#__codelineno-0-536"></a><span class="sb">labtasker task update</span>
+<a id="__codelineno-0-537" name="__codelineno-0-537" href="#__codelineno-0-537"></a><span class="sb">    [--id TASK_ID]                # filter by task ID</span>
+<a id="__codelineno-0-538" name="__codelineno-0-538" href="#__codelineno-0-538"></a><span class="sb">    [--name TASK_NAME]            # filter by task name</span>
+<a id="__codelineno-0-539" name="__codelineno-0-539" href="#__codelineno-0-539"></a><span class="sb">    [-s / --status STATUS]        # filter by status</span>
+<a id="__codelineno-0-540" name="__codelineno-0-540" href="#__codelineno-0-540"></a><span class="sb">    [-f / --extra-filter EXPR]    # filter by Python query</span>
+<a id="__codelineno-0-541" name="__codelineno-0-541" href="#__codelineno-0-541"></a><span class="sb">    [-u / --update 'field=value'] # patch a field (repeatable); dot-notation for nested: -u args.lr=0.01</span>
+<a id="__codelineno-0-542" name="__codelineno-0-542" href="#__codelineno-0-542"></a><span class="sb">    [-- field=value ...]          # positional update syntax (alternative to -u)</span>
+<a id="__codelineno-0-543" name="__codelineno-0-543" href="#__codelineno-0-543"></a><span class="sb">    [--reset-pending]             # set status=pending AND reset retries=0</span>
+<a id="__codelineno-0-544" name="__codelineno-0-544" href="#__codelineno-0-544"></a><span class="sb">    [-q / --quiet]                # skip confirmations (for scripts/pipes)</span>
+<a id="__codelineno-0-545" name="__codelineno-0-545" href="#__codelineno-0-545"></a>
+<a id="__codelineno-0-546" name="__codelineno-0-546" href="#__codelineno-0-546"></a><span class="sb">labtasker task delete</span>
+<a id="__codelineno-0-547" name="__codelineno-0-547" href="#__codelineno-0-547"></a><span class="sb">    [TASK_IDS...]                 # task IDs to delete (positional, or piped from stdin)</span>
+<a id="__codelineno-0-548" name="__codelineno-0-548" href="#__codelineno-0-548"></a><span class="sb">    [-y / --yes]                  # skip confirmation prompt</span>
+<a id="__codelineno-0-549" name="__codelineno-0-549" href="#__codelineno-0-549"></a><span class="sb">```</span>
+<a id="__codelineno-0-550" name="__codelineno-0-550" href="#__codelineno-0-550"></a>
+<a id="__codelineno-0-551" name="__codelineno-0-551" href="#__codelineno-0-551"></a><span class="gu">### Python</span>
+<a id="__codelineno-0-552" name="__codelineno-0-552" href="#__codelineno-0-552"></a>
+<a id="__codelineno-0-553" name="__codelineno-0-553" href="#__codelineno-0-553"></a><span class="sb">```python</span>
+<a id="__codelineno-0-554" name="__codelineno-0-554" href="#__codelineno-0-554"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">submit_task</span><span class="p">(</span>
+<a id="__codelineno-0-555" name="__codelineno-0-555" href="#__codelineno-0-555"></a>    <span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-556" name="__codelineno-0-556" href="#__codelineno-0-556"></a>    <span class="n">args</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>            <span class="c1"># task args — keys must match Required() params exactly</span>
+<a id="__codelineno-0-557" name="__codelineno-0-557" href="#__codelineno-0-557"></a>    <span class="n">metadata</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>        <span class="c1"># e.g. {"tags": ["v1"], "note": "baseline"}</span>
+<a id="__codelineno-0-558" name="__codelineno-0-558" href="#__codelineno-0-558"></a>    <span class="n">max_retries</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-0-559" name="__codelineno-0-559" href="#__codelineno-0-559"></a>    <span class="n">priority</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>            <span class="c1"># higher = higher priority</span>
+<a id="__codelineno-0-560" name="__codelineno-0-560" href="#__codelineno-0-560"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskSubmitResponse</span>           <span class="c1"># .task_id: str</span>
 <a id="__codelineno-0-561" name="__codelineno-0-561" href="#__codelineno-0-561"></a>
-<a id="__codelineno-0-562" name="__codelineno-0-562" href="#__codelineno-0-562"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">report_task_status</span><span class="p">(</span>
-<a id="__codelineno-0-563" name="__codelineno-0-563" href="#__codelineno-0-563"></a>    <span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-564" name="__codelineno-0-564" href="#__codelineno-0-564"></a>    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>           <span class="c1"># "running"|"success"|"failed"|"cancelled"</span>
-<a id="__codelineno-0-565" name="__codelineno-0-565" href="#__codelineno-0-565"></a>    <span class="n">summary</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="c1"># merges into existing summary; None = no change</span>
-<a id="__codelineno-0-566" name="__codelineno-0-566" href="#__codelineno-0-566"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-<a id="__codelineno-0-567" name="__codelineno-0-567" href="#__codelineno-0-567"></a><span class="c1"># Inside loop: status="running" writes metrics (loop auto-marks success/failed on return/exception,</span>
-<a id="__codelineno-0-568" name="__codelineno-0-568" href="#__codelineno-0-568"></a><span class="c1">#   UNLESS you already called this with "cancelled" — that terminal status is preserved).</span>
-<a id="__codelineno-0-569" name="__codelineno-0-569" href="#__codelineno-0-569"></a><span class="c1"># status="cancelled" inside loop: cancels task, will not be retried. Return immediately after.</span>
-<a id="__codelineno-0-570" name="__codelineno-0-570" href="#__codelineno-0-570"></a><span class="c1"># Outside loop (post-processing): call with the task's current status to update summary only,</span>
-<a id="__codelineno-0-571" name="__codelineno-0-571" href="#__codelineno-0-571"></a><span class="c1">#   e.g. report_task_status(task_id=t.task_id, status="success", summary={"rank": 1})</span>
-<a id="__codelineno-0-572" name="__codelineno-0-572" href="#__codelineno-0-572"></a>
-<a id="__codelineno-0-573" name="__codelineno-0-573" href="#__codelineno-0-573"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span>
-<a id="__codelineno-0-574" name="__codelineno-0-574" href="#__codelineno-0-574"></a>    <span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-575" name="__codelineno-0-575" href="#__codelineno-0-575"></a>    <span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-576" name="__codelineno-0-576" href="#__codelineno-0-576"></a>    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>           <span class="c1"># pending|running|success|failed|cancelled</span>
-<a id="__codelineno-0-577" name="__codelineno-0-577" href="#__codelineno-0-577"></a>    <span class="n">extra_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>     <span class="c1"># Python query string; dot-notation on any field</span>
-<a id="__codelineno-0-578" name="__codelineno-0-578" href="#__codelineno-0-578"></a>    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>             <span class="c1"># WARNING: default 100 — set limit=10000 for batch ops to avoid silent truncation</span>
-<a id="__codelineno-0-579" name="__codelineno-0-579" href="#__codelineno-0-579"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskLsResponse</span>               <span class="c1"># .content: List[Task]</span>
-<a id="__codelineno-0-580" name="__codelineno-0-580" href="#__codelineno-0-580"></a><span class="c1"># NOTE: no sort parameter — sort in Python: sorted(response.content, key=lambda t: ...)</span>
-<a id="__codelineno-0-581" name="__codelineno-0-581" href="#__codelineno-0-581"></a><span class="c1"># NOTE: summary is always a dict (never None) — t.summary.get("key") is always safe</span>
-<a id="__codelineno-0-582" name="__codelineno-0-582" href="#__codelineno-0-582"></a>
-<a id="__codelineno-0-583" name="__codelineno-0-583" href="#__codelineno-0-583"></a><span class="c1"># Task fields (on objects from ls_tasks and task_info):</span>
-<a id="__codelineno-0-584" name="__codelineno-0-584" href="#__codelineno-0-584"></a><span class="c1">#   task_id, task_name, status, args, metadata, summary</span>
-<a id="__codelineno-0-585" name="__codelineno-0-585" href="#__codelineno-0-585"></a><span class="c1">#   priority, max_retries, retries</span>
-<a id="__codelineno-0-586" name="__codelineno-0-586" href="#__codelineno-0-586"></a><span class="c1">#   created_at, last_modified, start_time, worker_id</span>
-<a id="__codelineno-0-587" name="__codelineno-0-587" href="#__codelineno-0-587"></a>
-<a id="__codelineno-0-588" name="__codelineno-0-588" href="#__codelineno-0-588"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">(</span>
-<a id="__codelineno-0-589" name="__codelineno-0-589" href="#__codelineno-0-589"></a>    <span class="n">task_updates</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">TaskUpdateRequest</span><span class="p">],</span>
-<a id="__codelineno-0-590" name="__codelineno-0-590" href="#__codelineno-0-590"></a>    <span class="n">reset_pending</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>  <span class="c1"># sets status=pending AND resets retries=0</span>
-<a id="__codelineno-0-591" name="__codelineno-0-591" href="#__codelineno-0-591"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskLsResponse</span>
-<a id="__codelineno-0-592" name="__codelineno-0-592" href="#__codelineno-0-592"></a><span class="c1"># Default: MERGE semantics — only keys you include in args/metadata/summary are changed;</span>
-<a id="__codelineno-0-593" name="__codelineno-0-593" href="#__codelineno-0-593"></a><span class="c1"># other existing keys inside those dicts are preserved.</span>
-<a id="__codelineno-0-594" name="__codelineno-0-594" href="#__codelineno-0-594"></a>
-<a id="__codelineno-0-595" name="__codelineno-0-595" href="#__codelineno-0-595"></a><span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span>
-<a id="__codelineno-0-596" name="__codelineno-0-596" href="#__codelineno-0-596"></a>    <span class="s2">"_id"</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>                  <span class="c1"># task_id — use "_id" alias key (or keyword: task_id=...)</span>
-<a id="__codelineno-0-597" name="__codelineno-0-597" href="#__codelineno-0-597"></a>    <span class="s2">"status"</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>               <span class="c1"># optional — "cancelled", "pending", etc.</span>
-<a id="__codelineno-0-598" name="__codelineno-0-598" href="#__codelineno-0-598"></a>    <span class="s2">"args"</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span>                <span class="c1"># optional — merged by default; add to replace_fields to overwrite entirely</span>
-<a id="__codelineno-0-599" name="__codelineno-0-599" href="#__codelineno-0-599"></a>    <span class="s2">"metadata"</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span>            <span class="c1"># optional — merged by default</span>
-<a id="__codelineno-0-600" name="__codelineno-0-600" href="#__codelineno-0-600"></a>    <span class="s2">"summary"</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span>             <span class="c1"># optional — merged by default; use to update summary from outside loop</span>
-<a id="__codelineno-0-601" name="__codelineno-0-601" href="#__codelineno-0-601"></a>    <span class="s2">"priority"</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>             <span class="c1"># optional</span>
-<a id="__codelineno-0-602" name="__codelineno-0-602" href="#__codelineno-0-602"></a>    <span class="s2">"max_retries"</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>          <span class="c1"># optional</span>
-<a id="__codelineno-0-603" name="__codelineno-0-603" href="#__codelineno-0-603"></a>    <span class="s2">"replace_fields"</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="c1"># optional — fields to REPLACE entirely instead of merge</span>
-<a id="__codelineno-0-604" name="__codelineno-0-604" href="#__codelineno-0-604"></a>                                 <span class="c1"># e.g. replace_fields=["args"] replaces whole args dict (not merge)</span>
-<a id="__codelineno-0-605" name="__codelineno-0-605" href="#__codelineno-0-605"></a><span class="p">})</span>
-<a id="__codelineno-0-606" name="__codelineno-0-606" href="#__codelineno-0-606"></a>
-<a id="__codelineno-0-607" name="__codelineno-0-607" href="#__codelineno-0-607"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-<a id="__codelineno-0-608" name="__codelineno-0-608" href="#__codelineno-0-608"></a>
-<a id="__codelineno-0-609" name="__codelineno-0-609" href="#__codelineno-0-609"></a><span class="c1"># To force-cancel a running task from OUTSIDE the loop (e.g., hung job detection):</span>
-<a id="__codelineno-0-610" name="__codelineno-0-610" href="#__codelineno-0-610"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">([</span>
-<a id="__codelineno-0-611" name="__codelineno-0-611" href="#__codelineno-0-611"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"cancelled"</span><span class="p">})</span>
-<a id="__codelineno-0-612" name="__codelineno-0-612" href="#__codelineno-0-612"></a><span class="p">])</span>
-<a id="__codelineno-0-613" name="__codelineno-0-613" href="#__codelineno-0-613"></a><span class="sb">```</span>
+<a id="__codelineno-0-562" name="__codelineno-0-562" href="#__codelineno-0-562"></a><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">(</span>
+<a id="__codelineno-0-563" name="__codelineno-0-563" href="#__codelineno-0-563"></a>    <span class="n">extra_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>          <span class="c1"># Python query string</span>
+<a id="__codelineno-0-564" name="__codelineno-0-564" href="#__codelineno-0-564"></a>    <span class="n">required_fields</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="c1"># explicit field list (auto-inferred from Required() if unset)</span>
+<a id="__codelineno-0-565" name="__codelineno-0-565" href="#__codelineno-0-565"></a>    <span class="n">pass_args_dict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>      <span class="c1"># pass args as dict instead of keyword args</span>
+<a id="__codelineno-0-566" name="__codelineno-0-566" href="#__codelineno-0-566"></a><span class="p">)</span>
+<a id="__codelineno-0-567" name="__codelineno-0-567" href="#__codelineno-0-567"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span>
+<a id="__codelineno-0-568" name="__codelineno-0-568" href="#__codelineno-0-568"></a>    <span class="n">param</span><span class="p">:</span> <span class="n">Type</span> <span class="o">=</span> <span class="n">Required</span><span class="p">(),</span>          <span class="c1"># param name must match args key; type-cast automatically</span>
+<a id="__codelineno-0-569" name="__codelineno-0-569" href="#__codelineno-0-569"></a>    <span class="n">param</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">T</span><span class="p">,</span> <span class="n">Required</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">fn</span><span class="p">)]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span>  <span class="c1"># resolver receives args[param_name]</span>
+<a id="__codelineno-0-570" name="__codelineno-0-570" href="#__codelineno-0-570"></a>    <span class="n">param</span><span class="o">=</span><span class="n">Required</span><span class="p">(</span><span class="n">resolver</span><span class="o">=</span><span class="n">fn</span><span class="p">),</span>       <span class="c1"># shorthand form without Annotated</span>
+<a id="__codelineno-0-571" name="__codelineno-0-571" href="#__codelineno-0-571"></a><span class="p">):</span>
+<a id="__codelineno-0-572" name="__codelineno-0-572" href="#__codelineno-0-572"></a>    <span class="o">...</span>
+<a id="__codelineno-0-573" name="__codelineno-0-573" href="#__codelineno-0-573"></a><span class="c1"># Loop exits automatically when no more pending tasks match.</span>
+<a id="__codelineno-0-574" name="__codelineno-0-574" href="#__codelineno-0-574"></a>
+<a id="__codelineno-0-575" name="__codelineno-0-575" href="#__codelineno-0-575"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">task_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Task</span>     <span class="c1"># available inside @labtasker.loop() only</span>
+<a id="__codelineno-0-576" name="__codelineno-0-576" href="#__codelineno-0-576"></a>    <span class="c1"># .task_id  .task_name  .args  .metadata  .summary</span>
+<a id="__codelineno-0-577" name="__codelineno-0-577" href="#__codelineno-0-577"></a>    <span class="c1"># .status   .retries    .priority  .max_retries</span>
+<a id="__codelineno-0-578" name="__codelineno-0-578" href="#__codelineno-0-578"></a>    <span class="c1"># .created_at  .last_modified  .start_time  .worker_id</span>
+<a id="__codelineno-0-579" name="__codelineno-0-579" href="#__codelineno-0-579"></a>
+<a id="__codelineno-0-580" name="__codelineno-0-580" href="#__codelineno-0-580"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">finish</span><span class="p">(</span>
+<a id="__codelineno-0-581" name="__codelineno-0-581" href="#__codelineno-0-581"></a>    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>                      <span class="c1"># "success"|"failed" only</span>
+<a id="__codelineno-0-582" name="__codelineno-0-582" href="#__codelineno-0-582"></a>    <span class="n">summary</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>             <span class="c1"># merges into existing summary; None = no change</span>
+<a id="__codelineno-0-583" name="__codelineno-0-583" href="#__codelineno-0-583"></a>    <span class="n">skip_if_no_labtasker</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span><span class="c1"># silently skip if not running inside a loop</span>
+<a id="__codelineno-0-584" name="__codelineno-0-584" href="#__codelineno-0-584"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<a id="__codelineno-0-585" name="__codelineno-0-585" href="#__codelineno-0-585"></a><span class="c1"># Terminal call from inside the loop — stops heartbeat, writes summary.json to local log dir,</span>
+<a id="__codelineno-0-586" name="__codelineno-0-586" href="#__codelineno-0-586"></a><span class="c1"># reports final status to server. Loop will NOT overwrite a status already set by finish().</span>
+<a id="__codelineno-0-587" name="__codelineno-0-587" href="#__codelineno-0-587"></a><span class="c1"># Use when you want to early-exit with a final status from deep inside your function.</span>
+<a id="__codelineno-0-588" name="__codelineno-0-588" href="#__codelineno-0-588"></a><span class="c1"># NOTE: only "success"/"failed" — use report_task_status for "cancelled"/"running".</span>
+<a id="__codelineno-0-589" name="__codelineno-0-589" href="#__codelineno-0-589"></a><span class="c1"># RETRY: finish(status="failed") behaves like an exception — server increments retries and</span>
+<a id="__codelineno-0-590" name="__codelineno-0-590" href="#__codelineno-0-590"></a><span class="c1">#   resets to pending if retries &lt; max_retries (task WILL be retried). For permanent no-retry,</span>
+<a id="__codelineno-0-591" name="__codelineno-0-591" href="#__codelineno-0-591"></a><span class="c1">#   use report_task_status(status="cancelled").</span>
+<a id="__codelineno-0-592" name="__codelineno-0-592" href="#__codelineno-0-592"></a><span class="c1"># IDEMPOTENT: calling finish() twice is safe — second call is silently skipped.</span>
+<a id="__codelineno-0-593" name="__codelineno-0-593" href="#__codelineno-0-593"></a>
+<a id="__codelineno-0-594" name="__codelineno-0-594" href="#__codelineno-0-594"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">report_task_status</span><span class="p">(</span>
+<a id="__codelineno-0-595" name="__codelineno-0-595" href="#__codelineno-0-595"></a>    <span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-596" name="__codelineno-0-596" href="#__codelineno-0-596"></a>    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>           <span class="c1"># "running"|"success"|"failed"|"cancelled"</span>
+<a id="__codelineno-0-597" name="__codelineno-0-597" href="#__codelineno-0-597"></a>    <span class="n">summary</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="c1"># merges into existing summary; None = no change</span>
+<a id="__codelineno-0-598" name="__codelineno-0-598" href="#__codelineno-0-598"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<a id="__codelineno-0-599" name="__codelineno-0-599" href="#__codelineno-0-599"></a><span class="c1"># Inside loop: status="running" writes metrics (loop auto-marks success/failed on return/exception,</span>
+<a id="__codelineno-0-600" name="__codelineno-0-600" href="#__codelineno-0-600"></a><span class="c1">#   UNLESS you already called this with "cancelled" — that terminal status is preserved).</span>
+<a id="__codelineno-0-601" name="__codelineno-0-601" href="#__codelineno-0-601"></a><span class="c1"># status="cancelled" inside loop: cancels task, will not be retried. Return immediately after.</span>
+<a id="__codelineno-0-602" name="__codelineno-0-602" href="#__codelineno-0-602"></a><span class="c1"># Outside loop (post-processing): call with the task's current status to update summary only,</span>
+<a id="__codelineno-0-603" name="__codelineno-0-603" href="#__codelineno-0-603"></a><span class="c1">#   e.g. report_task_status(task_id=t.task_id, status="success", summary={"rank": 1})</span>
+<a id="__codelineno-0-604" name="__codelineno-0-604" href="#__codelineno-0-604"></a>
+<a id="__codelineno-0-605" name="__codelineno-0-605" href="#__codelineno-0-605"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">ls_tasks</span><span class="p">(</span>
+<a id="__codelineno-0-606" name="__codelineno-0-606" href="#__codelineno-0-606"></a>    <span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-607" name="__codelineno-0-607" href="#__codelineno-0-607"></a>    <span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-608" name="__codelineno-0-608" href="#__codelineno-0-608"></a>    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>           <span class="c1"># pending|running|success|failed|cancelled</span>
+<a id="__codelineno-0-609" name="__codelineno-0-609" href="#__codelineno-0-609"></a>    <span class="n">extra_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>     <span class="c1"># Python query string; dot-notation on any field</span>
+<a id="__codelineno-0-610" name="__codelineno-0-610" href="#__codelineno-0-610"></a>    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>             <span class="c1"># WARNING: default 100 — set limit=10000 for batch ops to avoid silent truncation</span>
+<a id="__codelineno-0-611" name="__codelineno-0-611" href="#__codelineno-0-611"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskLsResponse</span>               <span class="c1"># .content: List[Task]</span>
+<a id="__codelineno-0-612" name="__codelineno-0-612" href="#__codelineno-0-612"></a><span class="c1"># NOTE: no sort parameter — sort in Python: sorted(response.content, key=lambda t: ...)</span>
+<a id="__codelineno-0-613" name="__codelineno-0-613" href="#__codelineno-0-613"></a><span class="c1"># NOTE: summary is always a dict (never None) — t.summary.get("key") is always safe</span>
 <a id="__codelineno-0-614" name="__codelineno-0-614" href="#__codelineno-0-614"></a>
-<a id="__codelineno-0-615" name="__codelineno-0-615" href="#__codelineno-0-615"></a><span class="gu">### Filter Query Syntax</span>
-<a id="__codelineno-0-616" name="__codelineno-0-616" href="#__codelineno-0-616"></a>
-<a id="__codelineno-0-617" name="__codelineno-0-617" href="#__codelineno-0-617"></a><span class="sb">```</span>
-<a id="__codelineno-0-618" name="__codelineno-0-618" href="#__codelineno-0-618"></a><span class="sb"># Comparison</span>
-<a id="__codelineno-0-619" name="__codelineno-0-619" href="#__codelineno-0-619"></a><span class="sb">field == value    field &gt; value    field &gt;= value</span>
-<a id="__codelineno-0-620" name="__codelineno-0-620" href="#__codelineno-0-620"></a><span class="sb">field &lt; value     field &lt;= value</span>
-<a id="__codelineno-0-621" name="__codelineno-0-621" href="#__codelineno-0-621"></a>
-<a id="__codelineno-0-622" name="__codelineno-0-622" href="#__codelineno-0-622"></a><span class="sb"># Membership (array field)</span>
-<a id="__codelineno-0-623" name="__codelineno-0-623" href="#__codelineno-0-623"></a><span class="sb">"val" in list(field)</span>
-<a id="__codelineno-0-624" name="__codelineno-0-624" href="#__codelineno-0-624"></a>
-<a id="__codelineno-0-625" name="__codelineno-0-625" href="#__codelineno-0-625"></a><span class="sb"># Logic</span>
-<a id="__codelineno-0-626" name="__codelineno-0-626" href="#__codelineno-0-626"></a><span class="sb">expr and expr    expr or expr</span>
-<a id="__codelineno-0-627" name="__codelineno-0-627" href="#__codelineno-0-627"></a>
-<a id="__codelineno-0-628" name="__codelineno-0-628" href="#__codelineno-0-628"></a><span class="sb"># Functions</span>
-<a id="__codelineno-0-629" name="__codelineno-0-629" href="#__codelineno-0-629"></a><span class="sb">date("3 hours ago")          # datetime: "X ago" means X before now</span>
-<a id="__codelineno-0-630" name="__codelineno-0-630" href="#__codelineno-0-630"></a><span class="sb">regex(field, "^pattern.*")   # regex match on string field</span>
-<a id="__codelineno-0-631" name="__codelineno-0-631" href="#__codelineno-0-631"></a>
-<a id="__codelineno-0-632" name="__codelineno-0-632" href="#__codelineno-0-632"></a><span class="sb"># Dot-notation works on any field:</span>
-<a id="__codelineno-0-633" name="__codelineno-0-633" href="#__codelineno-0-633"></a><span class="sb">args.lr &gt; 0.01</span>
-<a id="__codelineno-0-634" name="__codelineno-0-634" href="#__codelineno-0-634"></a><span class="sb">metadata.group == "A"</span>
-<a id="__codelineno-0-635" name="__codelineno-0-635" href="#__codelineno-0-635"></a><span class="sb">summary.acc &gt; 0.9</span>
-<a id="__codelineno-0-636" name="__codelineno-0-636" href="#__codelineno-0-636"></a><span class="sb">created_at &gt;= date("7 days ago")</span>
-<a id="__codelineno-0-637" name="__codelineno-0-637" href="#__codelineno-0-637"></a>
-<a id="__codelineno-0-638" name="__codelineno-0-638" href="#__codelineno-0-638"></a><span class="sb"># NOT supported: !=  not  not in</span>
-<a id="__codelineno-0-639" name="__codelineno-0-639" href="#__codelineno-0-639"></a><span class="sb"># Workaround for status negation: use -s STATUS flag (CLI) or status= param (Python)</span>
-<a id="__codelineno-0-640" name="__codelineno-0-640" href="#__codelineno-0-640"></a><span class="sb"># Workaround for OR over statuses: use  status == "pending" or status == "failed"</span>
-<a id="__codelineno-0-641" name="__codelineno-0-641" href="#__codelineno-0-641"></a><span class="sb">```</span>
-<a id="__codelineno-0-642" name="__codelineno-0-642" href="#__codelineno-0-642"></a>
-<a id="__codelineno-0-643" name="__codelineno-0-643" href="#__codelineno-0-643"></a><span class="k">&gt; </span><span class="ge">**Event system (SSE)**: For real-time task lifecycle events and workflow automation,</span>
-<a id="__codelineno-0-644" name="__codelineno-0-644" href="#__codelineno-0-644"></a><span class="k">&gt; </span><span class="ge">see [Advanced Features](https://luocfprime.github.io/labtasker/latest/guide/advanced/).</span>
-<a id="__codelineno-0-645" name="__codelineno-0-645" href="#__codelineno-0-645"></a>
-<a id="__codelineno-0-646" name="__codelineno-0-646" href="#__codelineno-0-646"></a>---
-<a id="__codelineno-0-647" name="__codelineno-0-647" href="#__codelineno-0-647"></a>
-<a id="__codelineno-0-648" name="__codelineno-0-648" href="#__codelineno-0-648"></a><span class="gu">## Workflow</span>
-<a id="__codelineno-0-649" name="__codelineno-0-649" href="#__codelineno-0-649"></a>
-<a id="__codelineno-0-650" name="__codelineno-0-650" href="#__codelineno-0-650"></a><span class="k">1.</span> Identify the serial loop in the user's script; choose CLI or Python based on their code style.
-<a id="__codelineno-0-651" name="__codelineno-0-651" href="#__codelineno-0-651"></a><span class="k">2.</span> <span class="gs">**Submit script**</span>: iterate parameter grid, call <span class="sb">`submit_task`</span>/<span class="sb">`labtasker task submit`</span> with matching <span class="sb">`args`</span> and any <span class="sb">`metadata`</span> tags needed.
-<a id="__codelineno-0-652" name="__codelineno-0-652" href="#__codelineno-0-652"></a><span class="k">3.</span> <span class="gs">**Run script**</span>: declare exactly the same keys as <span class="sb">`Required()`</span> params or <span class="sb">`%(key)`</span> placeholders — no more, no less.
-<a id="__codelineno-0-653" name="__codelineno-0-653" href="#__codelineno-0-653"></a><span class="k">4.</span> For parallel runs: each worker independently executes the run script; all pull from the same queue.
-<a id="__codelineno-0-654" name="__codelineno-0-654" href="#__codelineno-0-654"></a><span class="k">5.</span> Env vars must go outside the <span class="sb">`labtasker loop`</span> command (CLI).
-<a id="__codelineno-0-655" name="__codelineno-0-655" href="#__codelineno-0-655"></a><span class="k">6.</span> To retry failures: use <span class="sb">`update_tasks(updates, reset_pending=True)`</span> (resets status AND retries); or <span class="sb">`--reset-pending`</span> in CLI.
-<a id="__codelineno-0-656" name="__codelineno-0-656" href="#__codelineno-0-656"></a><span class="k">7.</span> To review results: <span class="sb">`ls_tasks(status="success")`</span> and inspect <span class="sb">`.summary`</span> and <span class="sb">`.args`</span> on each task.
+<a id="__codelineno-0-615" name="__codelineno-0-615" href="#__codelineno-0-615"></a><span class="c1"># Task fields (on objects from ls_tasks and task_info):</span>
+<a id="__codelineno-0-616" name="__codelineno-0-616" href="#__codelineno-0-616"></a><span class="c1">#   task_id, task_name, status, args, metadata, summary</span>
+<a id="__codelineno-0-617" name="__codelineno-0-617" href="#__codelineno-0-617"></a><span class="c1">#   priority, max_retries, retries</span>
+<a id="__codelineno-0-618" name="__codelineno-0-618" href="#__codelineno-0-618"></a><span class="c1">#   created_at, last_modified, start_time, worker_id</span>
+<a id="__codelineno-0-619" name="__codelineno-0-619" href="#__codelineno-0-619"></a>
+<a id="__codelineno-0-620" name="__codelineno-0-620" href="#__codelineno-0-620"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">(</span>
+<a id="__codelineno-0-621" name="__codelineno-0-621" href="#__codelineno-0-621"></a>    <span class="n">task_updates</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">TaskUpdateRequest</span><span class="p">],</span>
+<a id="__codelineno-0-622" name="__codelineno-0-622" href="#__codelineno-0-622"></a>    <span class="n">reset_pending</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>  <span class="c1"># sets status=pending AND resets retries=0</span>
+<a id="__codelineno-0-623" name="__codelineno-0-623" href="#__codelineno-0-623"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskLsResponse</span>
+<a id="__codelineno-0-624" name="__codelineno-0-624" href="#__codelineno-0-624"></a><span class="c1"># Default: MERGE semantics — only keys you include in args/metadata/summary are changed;</span>
+<a id="__codelineno-0-625" name="__codelineno-0-625" href="#__codelineno-0-625"></a><span class="c1"># other existing keys inside those dicts are preserved.</span>
+<a id="__codelineno-0-626" name="__codelineno-0-626" href="#__codelineno-0-626"></a>
+<a id="__codelineno-0-627" name="__codelineno-0-627" href="#__codelineno-0-627"></a><span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span>
+<a id="__codelineno-0-628" name="__codelineno-0-628" href="#__codelineno-0-628"></a>    <span class="s2">"_id"</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>                  <span class="c1"># task_id — use "_id" alias key (or keyword: task_id=...)</span>
+<a id="__codelineno-0-629" name="__codelineno-0-629" href="#__codelineno-0-629"></a>    <span class="s2">"status"</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>               <span class="c1"># optional — "cancelled", "pending", etc.</span>
+<a id="__codelineno-0-630" name="__codelineno-0-630" href="#__codelineno-0-630"></a>    <span class="s2">"args"</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span>                <span class="c1"># optional — merged by default; add to replace_fields to overwrite entirely</span>
+<a id="__codelineno-0-631" name="__codelineno-0-631" href="#__codelineno-0-631"></a>    <span class="s2">"metadata"</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span>            <span class="c1"># optional — merged by default</span>
+<a id="__codelineno-0-632" name="__codelineno-0-632" href="#__codelineno-0-632"></a>    <span class="s2">"summary"</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span>             <span class="c1"># optional — merged by default; use to update summary from outside loop</span>
+<a id="__codelineno-0-633" name="__codelineno-0-633" href="#__codelineno-0-633"></a>    <span class="s2">"priority"</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>             <span class="c1"># optional</span>
+<a id="__codelineno-0-634" name="__codelineno-0-634" href="#__codelineno-0-634"></a>    <span class="s2">"max_retries"</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>          <span class="c1"># optional</span>
+<a id="__codelineno-0-635" name="__codelineno-0-635" href="#__codelineno-0-635"></a>    <span class="s2">"replace_fields"</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="c1"># optional — fields to REPLACE entirely instead of merge</span>
+<a id="__codelineno-0-636" name="__codelineno-0-636" href="#__codelineno-0-636"></a>                                 <span class="c1"># e.g. replace_fields=["args"] replaces whole args dict (not merge)</span>
+<a id="__codelineno-0-637" name="__codelineno-0-637" href="#__codelineno-0-637"></a><span class="p">})</span>
+<a id="__codelineno-0-638" name="__codelineno-0-638" href="#__codelineno-0-638"></a>
+<a id="__codelineno-0-639" name="__codelineno-0-639" href="#__codelineno-0-639"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<a id="__codelineno-0-640" name="__codelineno-0-640" href="#__codelineno-0-640"></a>
+<a id="__codelineno-0-641" name="__codelineno-0-641" href="#__codelineno-0-641"></a><span class="c1"># To force-cancel a running task from OUTSIDE the loop (e.g., hung job detection):</span>
+<a id="__codelineno-0-642" name="__codelineno-0-642" href="#__codelineno-0-642"></a><span class="n">labtasker</span><span class="o">.</span><span class="n">update_tasks</span><span class="p">([</span>
+<a id="__codelineno-0-643" name="__codelineno-0-643" href="#__codelineno-0-643"></a>    <span class="n">TaskUpdateRequest</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"cancelled"</span><span class="p">})</span>
+<a id="__codelineno-0-644" name="__codelineno-0-644" href="#__codelineno-0-644"></a><span class="p">])</span>
+<a id="__codelineno-0-645" name="__codelineno-0-645" href="#__codelineno-0-645"></a><span class="sb">```</span>
+<a id="__codelineno-0-646" name="__codelineno-0-646" href="#__codelineno-0-646"></a>
+<a id="__codelineno-0-647" name="__codelineno-0-647" href="#__codelineno-0-647"></a><span class="gu">### Filter Query Syntax</span>
+<a id="__codelineno-0-648" name="__codelineno-0-648" href="#__codelineno-0-648"></a>
+<a id="__codelineno-0-649" name="__codelineno-0-649" href="#__codelineno-0-649"></a><span class="sb">```</span>
+<a id="__codelineno-0-650" name="__codelineno-0-650" href="#__codelineno-0-650"></a><span class="sb"># Comparison</span>
+<a id="__codelineno-0-651" name="__codelineno-0-651" href="#__codelineno-0-651"></a><span class="sb">field == value    field &gt; value    field &gt;= value</span>
+<a id="__codelineno-0-652" name="__codelineno-0-652" href="#__codelineno-0-652"></a><span class="sb">field &lt; value     field &lt;= value</span>
+<a id="__codelineno-0-653" name="__codelineno-0-653" href="#__codelineno-0-653"></a>
+<a id="__codelineno-0-654" name="__codelineno-0-654" href="#__codelineno-0-654"></a><span class="sb"># Membership (array field)</span>
+<a id="__codelineno-0-655" name="__codelineno-0-655" href="#__codelineno-0-655"></a><span class="sb">"val" in list(field)</span>
+<a id="__codelineno-0-656" name="__codelineno-0-656" href="#__codelineno-0-656"></a>
+<a id="__codelineno-0-657" name="__codelineno-0-657" href="#__codelineno-0-657"></a><span class="sb"># Logic</span>
+<a id="__codelineno-0-658" name="__codelineno-0-658" href="#__codelineno-0-658"></a><span class="sb">expr and expr    expr or expr</span>
+<a id="__codelineno-0-659" name="__codelineno-0-659" href="#__codelineno-0-659"></a>
+<a id="__codelineno-0-660" name="__codelineno-0-660" href="#__codelineno-0-660"></a><span class="sb"># Functions</span>
+<a id="__codelineno-0-661" name="__codelineno-0-661" href="#__codelineno-0-661"></a><span class="sb">date("3 hours ago")          # datetime: "X ago" means X before now</span>
+<a id="__codelineno-0-662" name="__codelineno-0-662" href="#__codelineno-0-662"></a><span class="sb">regex(field, "^pattern.*")   # regex match on string field</span>
+<a id="__codelineno-0-663" name="__codelineno-0-663" href="#__codelineno-0-663"></a>
+<a id="__codelineno-0-664" name="__codelineno-0-664" href="#__codelineno-0-664"></a><span class="sb"># Dot-notation works on any field:</span>
+<a id="__codelineno-0-665" name="__codelineno-0-665" href="#__codelineno-0-665"></a><span class="sb">args.lr &gt; 0.01</span>
+<a id="__codelineno-0-666" name="__codelineno-0-666" href="#__codelineno-0-666"></a><span class="sb">metadata.group == "A"</span>
+<a id="__codelineno-0-667" name="__codelineno-0-667" href="#__codelineno-0-667"></a><span class="sb">summary.acc &gt; 0.9</span>
+<a id="__codelineno-0-668" name="__codelineno-0-668" href="#__codelineno-0-668"></a><span class="sb">created_at &gt;= date("7 days ago")</span>
+<a id="__codelineno-0-669" name="__codelineno-0-669" href="#__codelineno-0-669"></a>
+<a id="__codelineno-0-670" name="__codelineno-0-670" href="#__codelineno-0-670"></a><span class="sb"># NOT supported: !=  not  not in</span>
+<a id="__codelineno-0-671" name="__codelineno-0-671" href="#__codelineno-0-671"></a><span class="sb"># Workaround for status negation: use -s STATUS flag (CLI) or status= param (Python)</span>
+<a id="__codelineno-0-672" name="__codelineno-0-672" href="#__codelineno-0-672"></a><span class="sb"># Workaround for OR over statuses: use  status == "pending" or status == "failed"</span>
+<a id="__codelineno-0-673" name="__codelineno-0-673" href="#__codelineno-0-673"></a><span class="sb">```</span>
+<a id="__codelineno-0-674" name="__codelineno-0-674" href="#__codelineno-0-674"></a>
+<a id="__codelineno-0-675" name="__codelineno-0-675" href="#__codelineno-0-675"></a><span class="k">&gt; </span><span class="ge">**Event system (SSE)**: For real-time task lifecycle events and workflow automation,</span>
+<a id="__codelineno-0-676" name="__codelineno-0-676" href="#__codelineno-0-676"></a><span class="k">&gt; </span><span class="ge">see [Advanced Features](https://luocfprime.github.io/labtasker/latest/guide/advanced/).</span>
+<a id="__codelineno-0-677" name="__codelineno-0-677" href="#__codelineno-0-677"></a>
+<a id="__codelineno-0-678" name="__codelineno-0-678" href="#__codelineno-0-678"></a>---
+<a id="__codelineno-0-679" name="__codelineno-0-679" href="#__codelineno-0-679"></a>
+<a id="__codelineno-0-680" name="__codelineno-0-680" href="#__codelineno-0-680"></a><span class="gu">## Workflow</span>
+<a id="__codelineno-0-681" name="__codelineno-0-681" href="#__codelineno-0-681"></a>
+<a id="__codelineno-0-682" name="__codelineno-0-682" href="#__codelineno-0-682"></a><span class="k">1.</span> Identify the serial loop in the user's script; choose CLI or Python based on their code style.
+<a id="__codelineno-0-683" name="__codelineno-0-683" href="#__codelineno-0-683"></a><span class="k">2.</span> <span class="gs">**Submit script**</span>: iterate parameter grid, call <span class="sb">`submit_task`</span>/<span class="sb">`labtasker task submit`</span> with matching <span class="sb">`args`</span> and any <span class="sb">`metadata`</span> tags needed.
+<a id="__codelineno-0-684" name="__codelineno-0-684" href="#__codelineno-0-684"></a><span class="k">3.</span> <span class="gs">**Run script**</span>: declare exactly the same keys as <span class="sb">`Required()`</span> params or <span class="sb">`%(key)`</span> placeholders — no more, no less.
+<a id="__codelineno-0-685" name="__codelineno-0-685" href="#__codelineno-0-685"></a><span class="k">4.</span> For parallel runs: each worker independently executes the run script; all pull from the same queue.
+<a id="__codelineno-0-686" name="__codelineno-0-686" href="#__codelineno-0-686"></a><span class="k">5.</span> Env vars must go outside the <span class="sb">`labtasker loop`</span> command (CLI).
+<a id="__codelineno-0-687" name="__codelineno-0-687" href="#__codelineno-0-687"></a><span class="k">6.</span> To retry failures: use <span class="sb">`update_tasks(updates, reset_pending=True)`</span> (resets status AND retries); or <span class="sb">`--reset-pending`</span> in CLI.
+<a id="__codelineno-0-688" name="__codelineno-0-688" href="#__codelineno-0-688"></a><span class="k">7.</span> To review results: <span class="sb">`ls_tasks(status="success")`</span> and inspect <span class="sb">`.summary`</span> and <span class="sb">`.args`</span> on each task.
 </code></pre></div>
 
 
