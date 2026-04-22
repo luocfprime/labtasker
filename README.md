@@ -1,5 +1,7 @@
 <p align="center"><em>Make your ML experiment wrapper scripts smarter with...</em></p>
-<h1 align="center" style="font-size: 40px;"> <a href="">Labtasker</a></h1>
+<p align="center">
+  <img src="docs/docs/assets/logo.png" alt="Labtasker" width="350" />
+</p>
 <p align="center"><a href="https://luocfprime.github.io/labtasker/latest/install/install/">Install</a> • <a href="https://luocfprime.github.io/labtasker/latest/guide/basic/">Tutorial / Demo</a> • <a href="https://luocfprime.github.io/labtasker/latest/">Documentation</a> • <a href="https://luocfprime.github.io/labtasker/latest/faq/">FAQs</a> • <a href="https://github.com/luocfprime/labtasker/releases">Releases</a></p>
 
 <p align="center">
@@ -58,6 +60,7 @@ the [Tutorial / Demo](https://luocfprime.github.io/labtasker/latest/guide/basic/
   required.
 - 🧩 **Extensible Plugin System:** Create custom command combinations or leverage community plugins to extend
   functionality.
+- 🦾 **AI Agent Skills:** First-class skill definitions for [Claude Code](https://claude.ai/code) and [OpenCode](https://opencode.ai) — let your AI assistant decompose and manage experiment scripts automatically.
 
 ## 🛠️ Installation
 
@@ -96,8 +99,9 @@ labtasker init
 Then, use `labtasker submit` to submit tasks and use `labtasker loop` to run tasks across any number of workers.
 
 > [!TIP]
-> If you think manually writing 2 scripts for submit and run is laborious, you can checkout the [labtasker-plugin-script-generate](https://github.com/luocfprime/labtasker-plugin-script-generate).
-> It automatically generate 2 scripts based on the script you provided.
+> Use AI to help decompose your experiment scripts. Install the Labtasker skill for your agent:
+>
+> **Claude Code** — copy [`docs/docs/guide/skill.md`](docs/docs/guide/skill.md) (Claude Code section) to `~/.claude/skills/labtasker/SKILL.md`
 
 ## 📚 Documentation
 

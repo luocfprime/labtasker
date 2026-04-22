@@ -13,8 +13,7 @@ nav:
       - task: guide/manual_task.md
       - loop (run job): guide/manual_loop.md
     - AI & Agent Integration:
-      - Prompt Template: guide/prompt_template.md
-      - OpenCode Agent Skill: guide/skill.md
+      - Claude Code Skill: guide/skill.md
   - Development Guide:
     - Development: develop/development.md
     - Documentation: develop/documentation.md
