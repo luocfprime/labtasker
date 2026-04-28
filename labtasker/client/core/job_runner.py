@@ -277,6 +277,7 @@ def loop_run(
                                 _next_action = choice.data
 
                             if _next_action == "ignore":
+                                end_heartbeat(raise_error=False)
                                 resp = update_tasks(
                                     task_updates=[
                                         TaskUpdateRequest(
