@@ -1,6 +1,13 @@
 {
   "name": "labtasker-skill",
-  "description": "Labtasker skill for Claude Code — helps AI assistants manage ML experiment task queues",
   "version": "1.0.0",
+  "description": "Claude Code skill for managing ML experiment task queues with Labtasker",
+  "author": {
+    "name": "lcf",
+    "url": "https://github.com/luocfprime"
+  },
+  "repository": "https://github.com/luocfprime/labtasker",
+  "license": "Apache-2.0",
+  "keywords": ["ml", "experiment", "task-queue", "gpu", "parallel"],
   "skills": "./skills"
 }

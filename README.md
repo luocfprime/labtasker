@@ -106,6 +106,10 @@ Then, use `labtasker submit` to submit tasks and use `labtasker loop` to run tas
 > /plugin marketplace add luocfprime/labtasker
 > /plugin install labtasker-skill@labtasker
 > ```
+> **Or other agents** — install via CLI:
+> ```
+> npx skills add luocfprime/labtasker
+> ```
 > Or copy [`skills/labtasker/SKILL.md`](skills/labtasker/SKILL.md) to `~/.claude/skills/labtasker/SKILL.md`
 
 ## 📚 Documentation
