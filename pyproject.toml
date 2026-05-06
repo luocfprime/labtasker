@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "labtasker"
-version = "1.0.0"
+version = "1.0.1"
 description = "A task queue system for lab experiments"
 authors = [{ name = "Your Name", email = "your.email@example.com" }]
 license = { text = "Apache License 2.0" }
