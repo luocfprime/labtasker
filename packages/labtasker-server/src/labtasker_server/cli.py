@@ -9,7 +9,17 @@ import uvicorn
 from labtasker_server.app import create_app
 from labtasker_server.config import ServerSettings
 
-app = typer.Typer(add_completion=False, no_args_is_help=True, pretty_exceptions_enable=False)
+app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    pretty_exceptions_enable=False,
+    rich_markup_mode=None,
+)
+
+
+@app.callback()
+def main() -> None:
+    """Run and manage the Labtasker v2 Server."""
 
 
 @app.command()

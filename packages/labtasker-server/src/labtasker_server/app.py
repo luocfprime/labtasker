@@ -5,11 +5,12 @@ import hmac
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager, suppress
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Header, Query, Request, Response
+from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
 
 from labtasker_server.config import ServerSettings
@@ -23,7 +24,9 @@ from labtasker_server.schemas import (
     ClaimResponse,
     CompleteRequest,
     CountResponse,
+    ErrorEnvelope,
     FailRequest,
+    HealthyResponse,
     HeartbeatResponse,
     Queue,
     RunRequest,
@@ -33,6 +36,7 @@ from labtasker_server.schemas import (
     TaskPage,
     TaskStatus,
     TaskUpdate,
+    UnhealthyResponse,
 )
 from labtasker_server.services.queues import QueueService
 from labtasker_server.services.tasks import TaskService, system_now_us
@@ -40,6 +44,10 @@ from labtasker_server.validation import MAX_TASK_DATA_BYTES
 
 EXPIRY_SCAN_INTERVAL_SECONDS = 60
 logger = logging.getLogger(__name__)
+BEARER = HTTPBearer(auto_error=False)
+API_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    status: {"model": ErrorEnvelope} for status in (401, 404, 409, 413, 422, 503)
+}
 
 
 def create_app(
@@ -91,7 +99,11 @@ def create_app(
                 content={
                     "error": {
                         "code": code,
-                        "message": _specific_validation_message(code),
+                        "message": (
+                            "Request validation failed."
+                            if code == "invalid_request"
+                            else _specific_validation_message(code)
+                        ),
                         "details": details,
                     }
                 },
@@ -118,21 +130,24 @@ def create_app(
             },
         )
 
-    def require_auth(authorization: Annotated[str | None, Header()] = None) -> None:
+    def require_auth(
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(BEARER)],
+    ) -> None:
         token = settings.token
         if token is None:
             return
-        if authorization is None:
+        if credentials is None or credentials.scheme.lower() != "bearer":
             raise _unauthorized()
-        scheme, separator, credential = authorization.partition(" ")
-        if separator != " " or scheme.lower() != "bearer" or not credential:
-            raise _unauthorized()
-        if not hmac.compare_digest(credential, token):
+        if not hmac.compare_digest(credentials.credentials, token):
             raise _unauthorized()
 
     authenticated = [Depends(require_auth)]
 
-    @app.get("/health")
+    @app.get(
+        "/health",
+        response_model=HealthyResponse,
+        responses={503: {"model": UnhealthyResponse}},
+    )
     def health() -> JSONResponse:
         try:
             with database.read_session() as session:
@@ -147,17 +162,32 @@ def create_app(
             content={"status": "ok", "api_version": "2", "database": "ok"},
         )
 
-    @app.put("/api/v2/queues/{queue}", response_model=Queue, dependencies=authenticated)
+    @app.put(
+        "/api/v2/queues/{queue}",
+        response_model=Queue,
+        dependencies=authenticated,
+        responses={**API_ERROR_RESPONSES, 201: {"model": Queue}},
+    )
     def create_queue(queue: str, response: Response) -> Queue:
         result, created = queue_service.create(queue)
         response.status_code = 201 if created else 200
         return result
 
-    @app.get("/api/v2/queues", response_model=list[Queue], dependencies=authenticated)
+    @app.get(
+        "/api/v2/queues",
+        response_model=list[Queue],
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
     def list_queues() -> list[Queue]:
         return queue_service.list()
 
-    @app.delete("/api/v2/queues/{queue}", status_code=204, dependencies=authenticated)
+    @app.delete(
+        "/api/v2/queues/{queue}",
+        status_code=204,
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
     def delete_queue(queue: str, cascade: bool = False) -> Response:
         queue_service.delete(queue, cascade=cascade)
         return Response(status_code=204)
@@ -166,6 +196,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}",
         response_model=Task,
         dependencies=authenticated,
+        responses={**API_ERROR_RESPONSES, 201: {"model": Task}},
     )
     def create_task(queue: str, task_id: str, request: TaskCreate, response: Response) -> Task:
         result, created = task_service.create(queue, task_id, request)
@@ -176,6 +207,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks",
         response_model=TaskPage,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def list_tasks(
         queue: str,
@@ -202,6 +234,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/count",
         response_model=CountResponse,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def count_tasks(
         queue: str,
@@ -222,6 +255,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}",
         response_model=Task,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def get_task(queue: str, task_id: str) -> Task:
         return task_service.get(queue, task_id)
@@ -230,6 +264,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}",
         response_model=Task,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def update_task(queue: str, task_id: str, changes: TaskUpdate) -> Task:
         return task_service.update_task(queue, task_id, changes)
@@ -238,6 +273,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks",
         response_model=BulkUpdateResult,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def update_tasks(queue: str, request: BulkUpdateRequest) -> BulkUpdateResult:
         return task_service.update_tasks(
@@ -250,6 +286,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/claim",
         response_model=ClaimResponse,
         dependencies=authenticated,
+        responses={**API_ERROR_RESPONSES, 204: {"description": "No eligible Task."}},
     )
     def claim_task(queue: str, request: ClaimRequest) -> ClaimResponse | Response:
         claim = task_service.claim(queue, request.route, request.run_id)
@@ -259,6 +296,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}/heartbeat",
         response_model=HeartbeatResponse,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def heartbeat(queue: str, task_id: str, request: RunRequest) -> HeartbeatResponse:
         return task_service.heartbeat(queue, task_id, request.run_id)
@@ -267,6 +305,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}/complete",
         status_code=204,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def complete(queue: str, task_id: str, request: CompleteRequest) -> Response:
         task_service.complete(queue, task_id, request.run_id, request.result)
@@ -276,6 +315,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}/fail",
         status_code=204,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def fail(queue: str, task_id: str, request: FailRequest) -> Response:
         task_service.fail(queue, task_id, request.run_id, request.error)
@@ -285,6 +325,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}/unclaim",
         status_code=204,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def unclaim(queue: str, task_id: str, request: RunRequest) -> Response:
         task_service.unclaim(queue, task_id, request.run_id)
@@ -294,6 +335,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}/cancel",
         response_model=Task,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def cancel_task(queue: str, task_id: str) -> Task:
         return task_service.cancel(queue, task_id)
@@ -302,6 +344,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}/requeue",
         response_model=Task,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def requeue_task(queue: str, task_id: str) -> Task:
         return task_service.requeue(queue, task_id)
@@ -310,6 +353,7 @@ def create_app(
         "/api/v2/queues/{queue}/tasks/{task_id}",
         status_code=204,
         dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
     )
     def delete_task(queue: str, task_id: str) -> Response:
         task_service.delete(queue, task_id)
@@ -345,6 +389,10 @@ def _validation_error(
 ) -> tuple[str, dict[str, object] | None]:
     for error in exc.errors():
         error_type = str(error.get("type", ""))
+        if error_type == "json_invalid":
+            return "invalid_request", {
+                "errors": [{"location": ["body"], "message": "Malformed JSON body."}]
+            }
         if error_type in {"invalid_task_name", "json_too_deep"}:
             context = error.get("ctx")
             return error_type, dict(context) if isinstance(context, dict) else {}

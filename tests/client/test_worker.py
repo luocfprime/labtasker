@@ -86,6 +86,9 @@ class FakeClient:
     def list_queues(self) -> list[Queue]:
         return [Queue(name="default")]
 
+    def _health(self) -> object:
+        return SimpleNamespace(status="ok", api_version="2", database="ok")
+
     def _claim(self, *, route: str, run_id: str, queue: str) -> ClaimResponse | None:
         self.claim_run_ids.append(run_id)
         return self.claims.popleft() if self.claims else None

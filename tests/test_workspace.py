@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import importlib.metadata
+import os
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
+
+import pytest
 
 import labtasker
 import labtasker_server
@@ -33,3 +38,46 @@ def test_workspace_contains_exactly_two_members() -> None:
         "packages/labtasker-client",
         "packages/labtasker-server",
     ]
+
+
+def test_import_has_no_configuration_stream_logging_or_hook_side_effects() -> None:
+    script = """
+import logging, os, random, sys
+stdout, stderr = sys.stdout, sys.stderr
+root_handlers = list(logging.getLogger().handlers)
+named_handlers = list(logging.getLogger("labtasker").handlers)
+hooks = []
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork = lambda **kwargs: hooks.append(kwargs)
+import labtasker
+assert sys.stdout is stdout and sys.stderr is stderr
+assert logging.getLogger().handlers == root_handlers
+assert logging.getLogger("labtasker").handlers == named_handlers
+assert hooks == []
+assert "_default_client" not in vars(labtasker)
+"""
+    subprocess.run([sys.executable, "-c", script], check=True)
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="fork behavior is POSIX-specific")
+def test_worker_tee_fork_child_does_not_inherit_active_run_log(tmp_path: Path) -> None:
+    from labtasker.tee import WorkerTee
+
+    log_path = tmp_path / "run.log"
+    read_fd, write_fd = os.pipe()
+    with WorkerTee() as tee, tee.capture(log_path):
+        child = os.fork()
+        if child == 0:  # pragma: no branch - the child exits immediately
+            os.close(read_fd)
+            print("child-output", flush=True)
+            os.write(write_fd, b"done")
+            os.close(write_fd)
+            os._exit(0)
+        os.close(write_fd)
+        assert os.read(read_fd, 4) == b"done"
+        os.close(read_fd)
+        _, status = os.waitpid(child, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+        print("parent-output", flush=True)
+    assert "parent-output" in log_path.read_text()
+    assert "child-output" not in log_path.read_text()

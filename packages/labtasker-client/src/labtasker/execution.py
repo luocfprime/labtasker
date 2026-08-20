@@ -162,13 +162,17 @@ class ExecutionContext:
 _CONTEXT_LOCK = threading.RLock()
 _ACTIVE_CONTEXT: ExecutionContext | None = None
 _ENV_CONTEXT: ExecutionContext | None = None
+_FORK_HOOK_INSTALLED = False
 
 
 def activate_context(context: ExecutionContext) -> None:
-    global _ACTIVE_CONTEXT
+    global _ACTIVE_CONTEXT, _FORK_HOOK_INSTALLED
     with _CONTEXT_LOCK:
         if _ACTIVE_CONTEXT is not None:
             raise RuntimeError("A Labtasker execution context is already active.")
+        if not _FORK_HOOK_INSTALLED and hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=_clear_after_fork)
+            _FORK_HOOK_INSTALLED = True
         _ACTIVE_CONTEXT = context
 
 
@@ -342,7 +346,3 @@ def _clear_after_fork() -> None:
     global _ACTIVE_CONTEXT, _ENV_CONTEXT
     _ACTIVE_CONTEXT = None
     _ENV_CONTEXT = None
-
-
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=_clear_after_fork)

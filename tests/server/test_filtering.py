@@ -263,6 +263,7 @@ def test_filter_size_and_numeric_domain_are_bounded() -> None:
     assert_invalid("priority == 9223372036854775808")
     assert_invalid("priority == -9223372036854775809")
     assert_invalid("args.x == 1e999")
+    assert_invalid('args.x == "\ud800"')
 
 
 def test_syntax_errors_have_a_stable_location() -> None:

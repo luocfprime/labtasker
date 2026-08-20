@@ -8,6 +8,7 @@ import pytest
 
 from labtasker.client import Client
 from labtasker.errors import APIError, TransportError
+from labtasker.validation import RequestValidationError
 
 
 def task_payload(task_id: str = "t_ABCDEFGHIJKL") -> dict[str, object]:
@@ -311,3 +312,44 @@ def test_worker_terminal_action_transport_failure_is_not_retried() -> None:
             result={},
         )
     assert calls == 1
+
+
+def test_worker_health_uses_unversioned_endpoint_and_strict_v2_shape() -> None:
+    requests: list[httpx.Request] = []
+
+    def healthy(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={"status": "ok", "api_version": "2", "database": "ok"},
+        )
+
+    with mock_client(healthy) as client:
+        health = client._health()
+    assert health.api_version == "2"
+    assert requests[0].url == "http://server.test/prefix/health"
+
+    with (
+        mock_client(
+            lambda _: httpx.Response(
+                200,
+                json={"status": "ok", "api_version": "3", "database": "ok"},
+            )
+        ) as client,
+        pytest.raises(TransportError),
+    ):
+        client._health()
+
+
+@pytest.mark.parametrize("filter_value", ["", "   ", "\ud800"])
+def test_invalid_filter_fails_locally_before_network(filter_value: str) -> None:
+    calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"items": [], "next_cursor": None})
+
+    with mock_client(handler) as client, pytest.raises(RequestValidationError):
+        client.list_tasks(filter=filter_value)
+    assert calls == 0

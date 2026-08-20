@@ -242,6 +242,18 @@ class ErrorEnvelope(StrictModel):
     error: ErrorBody
 
 
+class HealthyResponse(StrictModel):
+    status: Literal["ok"]
+    api_version: Literal["2"]
+    database: Literal["ok"]
+
+
+class UnhealthyResponse(StrictModel):
+    status: Literal["error"]
+    api_version: Literal["2"]
+    database: Literal["error"]
+
+
 def _pydantic_error(error: DomainError) -> PydanticCustomError:
     return PydanticCustomError(error.code, error.message, error.details)
 

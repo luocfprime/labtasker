@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import Message, Scope
 
@@ -24,6 +27,73 @@ def test_health_and_schema_discovery_are_unauthenticated(client: TestClient) -> 
     assert "/api/v2/queues" in schema.json()["paths"]
     assert client.get("/docs").status_code == 404
     assert client.get("/redoc").status_code == 404
+
+
+def test_openapi_describes_the_complete_v2_surface_and_real_response_statuses(
+    client: TestClient,
+) -> None:
+    schema = client.get("/openapi.json").json()
+    expected_methods = {
+        "/health": {"get"},
+        "/api/v2/queues": {"get"},
+        "/api/v2/queues/{queue}": {"put", "delete"},
+        "/api/v2/queues/{queue}/tasks": {"get", "patch"},
+        "/api/v2/queues/{queue}/tasks/count": {"get"},
+        "/api/v2/queues/{queue}/tasks/claim": {"post"},
+        "/api/v2/queues/{queue}/tasks/{task_id}": {"put", "get", "patch", "delete"},
+        "/api/v2/queues/{queue}/tasks/{task_id}/heartbeat": {"post"},
+        "/api/v2/queues/{queue}/tasks/{task_id}/complete": {"post"},
+        "/api/v2/queues/{queue}/tasks/{task_id}/fail": {"post"},
+        "/api/v2/queues/{queue}/tasks/{task_id}/unclaim": {"post"},
+        "/api/v2/queues/{queue}/tasks/{task_id}/cancel": {"post"},
+        "/api/v2/queues/{queue}/tasks/{task_id}/requeue": {"post"},
+    }
+    assert {path: set(methods) for path, methods in schema["paths"].items()} == expected_methods
+
+    queue_create = schema["paths"]["/api/v2/queues/{queue}"]["put"]
+    task_create = schema["paths"]["/api/v2/queues/{queue}/tasks/{task_id}"]["put"]
+    claim = schema["paths"]["/api/v2/queues/{queue}/tasks/claim"]["post"]
+    assert {"200", "201"} <= set(queue_create["responses"])
+    assert {"200", "201"} <= set(task_create["responses"])
+    assert {"200", "204"} <= set(claim["responses"])
+
+    for path, methods in schema["paths"].items():
+        if not path.startswith("/api/v2"):
+            continue
+        for operation in methods.values():
+            assert operation["responses"]["422"]["content"]["application/json"]["schema"] == {
+                "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+            assert operation["security"] == [{"HTTPBearer": []}]
+
+    health = schema["paths"]["/health"]["get"]
+    assert health["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/HealthyResponse"
+    }
+    assert health["responses"]["503"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/UnhealthyResponse"
+    }
+    assert "security" not in health
+
+
+def test_health_database_failure_is_sanitized(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @contextmanager
+    def broken_session() -> Iterator[None]:
+        raise OSError("secret database path /private/server.db")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(client.app.state.database, "read_session", broken_session)
+    response = client.get("/health")
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "error",
+        "api_version": "2",
+        "database": "error",
+    }
+    assert "private" not in response.text
 
 
 def test_application_endpoints_require_configured_bearer_token(tmp_path: Path) -> None:
@@ -63,6 +133,26 @@ def test_unknown_request_fields_use_stable_validation_envelope(client: TestClien
                         "location": ["body", "unexpected"],
                         "message": "Extra inputs are not permitted",
                     }
+                ]
+            },
+        }
+    }
+
+
+def test_malformed_json_has_one_stable_body_location(client: TestClient) -> None:
+    response = client.put(
+        "/api/v2/queues/default/tasks/t_ABCDEFGHIJKL",
+        content=b'{"args":',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "invalid_request",
+            "message": "Request validation failed.",
+            "details": {
+                "errors": [
+                    {"location": ["body"], "message": "Malformed JSON body."},
                 ]
             },
         }

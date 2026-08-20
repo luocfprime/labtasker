@@ -14,6 +14,7 @@ from labtasker.models import (
     BulkUpdateResult,
     ClaimResponse,
     CountResponse,
+    HealthResponse,
     HeartbeatResponse,
     Queue,
     ResponseModel,
@@ -315,6 +316,16 @@ class Client:
             path=f"queues/{queue_name}/tasks/claim",
             json={"route": normalized_route, "run_id": normalized_run_id},
             parser=_parse_claim,
+            retry=True,
+        )
+
+    def _health(self) -> HealthResponse:
+        """Validate the deployment health and v2 protocol before Worker claims."""
+        return self._call(
+            operation="worker_health",
+            method="GET",
+            path=f"{self._config.url}/health",
+            parser=lambda response: _parse_model(response, HealthResponse, {200}),
             retry=True,
         )
 

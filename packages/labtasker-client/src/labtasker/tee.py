@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TextIO, cast
 
 _ACTIVE_TEE: WorkerTee | None = None
+_FORK_HOOK_INSTALLED = False
 
 
 class _TeeStream:
@@ -49,13 +50,16 @@ class WorkerTee:
         self._destination: TextIO | None = None
 
     def __enter__(self) -> WorkerTee:
-        global _ACTIVE_TEE
+        global _ACTIVE_TEE, _FORK_HOOK_INSTALLED
         self._original_stdout = sys.stdout
         self._original_stderr = sys.stderr
         self._stdout = _TeeStream(sys.stdout, self._lock)
         self._stderr = _TeeStream(sys.stderr, self._lock)
         sys.stdout = cast(TextIO, self._stdout)
         sys.stderr = cast(TextIO, self._stderr)
+        if not _FORK_HOOK_INSTALLED and hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=_clear_tee_after_fork)
+            _FORK_HOOK_INSTALLED = True
         _ACTIVE_TEE = self
         return self
 
@@ -109,7 +113,3 @@ def configure_worker_logger() -> logging.Logger:
 def _clear_tee_after_fork() -> None:
     if _ACTIVE_TEE is not None:
         _ACTIVE_TEE.clear_destination()
-
-
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=_clear_tee_after_fork)

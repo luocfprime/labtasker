@@ -90,6 +90,8 @@ class RuntimePath:
 
 
 def parse_filter(expression: str) -> FilterNode:
+    if any(0xD800 <= ord(character) <= 0xDFFF for character in expression):
+        raise invalid("invalid_filter", "Filter contains a lone Unicode surrogate.")
     if len(expression.encode("utf-8")) > MAX_FILTER_BYTES:
         raise invalid(
             "filter_too_large",

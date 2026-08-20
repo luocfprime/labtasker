@@ -8,6 +8,7 @@ from threading import Barrier
 from labtasker_server.database import Database
 from labtasker_server.errors import DomainError
 from labtasker_server.schemas import TaskCreate, TaskUpdate
+from labtasker_server.services.queues import QueueService
 from labtasker_server.services.tasks import HEARTBEAT_TIMEOUT_US, TaskService
 
 TASK_ID = "t_ABCDEFGHIJKL"
@@ -190,6 +191,39 @@ def test_update_racing_claim_is_atomic(database_path: Path) -> None:
         else:
             assert final.args == {"version": 2}
             assert claim_outcome.task.args == {"version": 2}
+    finally:
+        first_db.dispose()
+        second_db.dispose()
+
+
+def test_claim_racing_cascade_queue_delete_is_serialized(database_path: Path) -> None:
+    clock = Clock()
+    first_db, second_db, first, _ = services(database_path, clock)
+    queues = QueueService(second_db)
+    barrier = Barrier(2)
+
+    def claim() -> object:
+        barrier.wait()
+        return captured(lambda: first.claim("default", "default", RUN_1))
+
+    def delete() -> object:
+        barrier.wait()
+        return captured(lambda: queues.delete("default", cascade=True))
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            claim_outcome, delete_outcome = [
+                future.result() for future in (executor.submit(claim), executor.submit(delete))
+            ]
+        if isinstance(claim_outcome, DomainError):
+            assert claim_outcome.code == "queue_not_found"
+            assert delete_outcome is None
+            assert queues.list() == []
+        else:
+            assert claim_outcome is not None
+            assert isinstance(delete_outcome, DomainError)
+            assert delete_outcome.code == "queue_has_running_tasks"
+            assert first.get("default", TASK_ID).status == "running"
     finally:
         first_db.dispose()
         second_db.dispose()

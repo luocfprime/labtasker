@@ -156,11 +156,11 @@ def validate_filter(value: object, *, required: bool = False) -> str | None:
         if required:
             raise RequestValidationError("filter must be a non-empty string.")
         return None
-    if not isinstance(value, str) or (required and not value.strip()):
+    if not isinstance(value, str) or not value.strip():
         raise RequestValidationError("filter must be a non-empty string.")
+    validate_unicode_scalar(value, field="filter")
     if len(value.encode("utf-8")) > MAX_FILTER_BYTES:
         raise RequestValidationError(f"filter exceeds {MAX_FILTER_BYTES} bytes.")
-    validate_unicode_scalar(value, field="filter")
     return value
 
 

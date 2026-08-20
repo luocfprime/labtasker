@@ -81,6 +81,22 @@ def test_unknown_newer_alembic_revision_is_rejected(database_path: Path) -> None
     second.dispose()
 
 
+def test_migration_failure_aborts_initialization(
+    database_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = Database(database_path)
+
+    def fail_upgrade(*_: object, **__: object) -> None:
+        raise RuntimeError("migration failed")
+
+    monkeypatch.setattr("labtasker_server.database.command.upgrade", fail_upgrade)
+    with pytest.raises(RuntimeError, match="migration failed"):
+        database.initialize()
+    assert "queues" not in inspect(database.engine).get_table_names()
+    database.dispose()
+
+
 def test_write_lock_timeout_maps_to_database_busy(database_path: Path) -> None:
     database = Database(database_path)
     database.initialize()

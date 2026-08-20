@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
@@ -14,9 +15,9 @@ import pytest
 
 import labtasker.execution as execution_module
 from labtasker.command_template import TemplateSyntaxError
-from labtasker.command_worker import run_command_worker
+from labtasker.command_worker import _run_pty, run_command_worker
 from labtasker.errors import APIError
-from labtasker.execution import finish, task_info
+from labtasker.execution import RunControl, finish, task_info
 from labtasker.models import ClaimResponse, Queue, Task
 
 
@@ -76,6 +77,9 @@ class FakeClient:
 
     def list_queues(self) -> list[Queue]:
         return [Queue(name="default")]
+
+    def _health(self) -> object:
+        return SimpleNamespace(status="ok", api_version="2", database="ok")
 
     def _claim(self, **_: object) -> ClaimResponse | None:
         return self.claims.popleft() if self.claims else None
@@ -161,6 +165,45 @@ def test_pipe_worker_preserves_argv_environment_streams_and_null_stdin(
     log = next(tmp_path.glob(".labtasker/runs/default/**/run.log")).read_bytes()
     assert b"hello world" in log
     assert b"stderr-line" in log
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PTY execution is POSIX-specific")
+def test_pty_worker_gives_child_one_terminal_and_captures_combined_raw_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import pty
+
+    outer_master, outer_slave = pty.openpty()
+    stdin = os.fdopen(os.dup(outer_slave), "r", encoding="utf-8", closefd=True)
+    stdout_bytes = io.BytesIO()
+    stdout = io.TextIOWrapper(stdout_bytes, encoding="utf-8", write_through=True)
+    monkeypatch.setattr(sys, "stdin", stdin)
+    monkeypatch.setattr(sys, "stdout", stdout)
+    log_path = tmp_path / "pty.log"
+    control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
+    script = (
+        "import os,sys; "
+        "print(f'tty={os.isatty(0)},{os.isatty(1)},{os.isatty(2)}'); "
+        "print('stderr-line', file=sys.stderr)"
+    )
+    try:
+        process = _run_pty(
+            [sys.executable, "-c", script],
+            dict(os.environ),
+            log_path,
+            control,
+            None,
+        )
+    finally:
+        control.executor_done()
+        stdin.close()
+        os.close(outer_master)
+        os.close(outer_slave)
+    assert process.returncode == 0
+    assert b"tty=True,True,True" in log_path.read_bytes()
+    assert b"stderr-line" in log_path.read_bytes()
+    assert b"tty=True,True,True" in stdout_bytes.getvalue()
 
 
 def test_nonzero_and_binding_or_spawn_failure_are_task_failures(

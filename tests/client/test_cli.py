@@ -220,9 +220,10 @@ def test_loop_requires_separator_command_and_preserves_every_argv_element(
         )
     ]
 
-    missing = runner.invoke(app, ["loop"])
-    assert missing.exit_code == 2
-    assert "COMMAND is required after --" in missing.stderr
+    for missing_separator in (["loop"], ["loop", "python", "train.py"]):
+        missing = runner.invoke(app, missing_separator)
+        assert missing.exit_code == 2
+        assert "COMMAND is required after --" in missing.stderr
 
 
 def test_loop_static_template_error_is_usage_error(

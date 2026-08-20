@@ -7,6 +7,8 @@ from typing import Annotated, Any, TypeVar, cast
 
 import typer
 from pydantic import BaseModel
+from typer._click.core import Context as ClickContext
+from typer.core import TyperCommand
 
 from labtasker.client import Client
 from labtasker.command_template import TemplateSyntaxError
@@ -32,8 +34,17 @@ app.add_typer(config_app, name="config")
 logger = logging.getLogger("labtasker.cli")
 
 
+class _SeparatedCommand(TyperCommand):
+    """Require the explicit boundary between Worker options and child argv."""
+
+    def parse_args(self, ctx: ClickContext, args: list[str]) -> list[str]:
+        ctx.meta["labtasker_command_separator"] = "--" in args
+        return super().parse_args(ctx, args)
+
+
 @app.command(
     "loop",
+    cls=_SeparatedCommand,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def worker_loop(
@@ -43,6 +54,8 @@ def worker_loop(
     idle_timeout: Annotated[float, typer.Option()] = 300.0,
     force_stop_timeout: Annotated[float | None, typer.Option()] = None,
 ) -> None:
+    if not context.meta.get("labtasker_command_separator", False):
+        raise typer.BadParameter("COMMAND is required after --")
     argv = list(context.args)
     if argv and argv[0] == "--":
         argv.pop(0)

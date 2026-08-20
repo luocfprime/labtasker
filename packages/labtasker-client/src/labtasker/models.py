@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -166,6 +167,12 @@ class HeartbeatResponse(ResponseModel):
     @classmethod
     def validate_lease_expires_at(cls, value: datetime) -> datetime:
         return _utc_datetime(value)
+
+
+class HealthResponse(ResponseModel):
+    status: Literal["ok"]
+    api_version: Literal["2"]
+    database: Literal["ok"]
 
 
 class Queue(ResponseModel):

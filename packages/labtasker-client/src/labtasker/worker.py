@@ -422,6 +422,7 @@ def _best_effort_unclaim(client: Client, claim: ClaimResponse, queue: str) -> No
 
 
 def _preflight(client: Client, queue: str) -> None:
+    client._health()
     if queue not in {item.name for item in client.list_queues()}:
         raise ConfigError(
             "invalid_config",
