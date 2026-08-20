@@ -1,0 +1,61 @@
+[project]
+name = "labtasker-workspace"
+version = "2.0.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+  "packages/labtasker-client",
+  "packages/labtasker-server",
+]
+
+[dependency-groups]
+dev = [
+  "hypothesis>=6.125,<7",
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "pytest-timeout>=2.3,<3",
+  "ruff>=0.11,<1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+timeout = 30
+
+[tool.coverage.run]
+branch = true
+source = ["labtasker", "labtasker_server"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["labtasker", "labtasker_server"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = [
+  "packages/labtasker-client/src",
+  "packages/labtasker-server/src",
+]
+plugins = ["pydantic.mypy"]
+

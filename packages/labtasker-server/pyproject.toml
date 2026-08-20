@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "labtasker-server"
+version = "2.0.0"
+description = "SQLite/FastAPI server for Labtasker"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "lcf", email = "kevinfinley@163.com" }]
+dependencies = [
+  "alembic>=1.14,<2",
+  "fastapi>=0.115,<1",
+  "pydantic>=2.10,<3",
+  "sqlalchemy>=2.0,<3",
+  "typer>=0.16,<1",
+  "uvicorn>=0.34,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/luocfprime/labtasker"
+Repository = "https://github.com/luocfprime/labtasker.git"
+
+[project.scripts]
+labtasker-server = "labtasker_server.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/labtasker_server"]
+

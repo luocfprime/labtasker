@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "labtasker"
+version = "2.0.0"
+description = "A small task queue for parallel machine-learning experiments"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "lcf", email = "kevinfinley@163.com" }]
+dependencies = [
+  "httpx>=0.28,<1",
+  "pydantic>=2.10,<3",
+  "typer>=0.16,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/luocfprime/labtasker"
+Repository = "https://github.com/luocfprime/labtasker.git"
+
+[project.scripts]
+labtasker = "labtasker.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/labtasker"]
+
