@@ -7,7 +7,7 @@ from threading import Barrier
 
 from labtasker_server.database import Database
 from labtasker_server.errors import DomainError
-from labtasker_server.schemas import TaskCreate
+from labtasker_server.schemas import TaskCreate, TaskUpdate
 from labtasker_server.services.tasks import HEARTBEAT_TIMEOUT_US, TaskService
 
 TASK_ID = "t_ABCDEFGHIJKL"
@@ -153,6 +153,43 @@ def test_complete_racing_expiry_commits_expiry_once(database_path: Path) -> None
         assert task.last_error is not None
         assert task.last_error.type == "HeartbeatTimeout"
         assert task.last_error.run_id == RUN_1
+    finally:
+        first_db.dispose()
+        second_db.dispose()
+
+
+def test_update_racing_claim_is_atomic(database_path: Path) -> None:
+    clock = Clock()
+    first_db, second_db, first, second = services(database_path, clock)
+    barrier = Barrier(2)
+
+    def claim() -> object:
+        barrier.wait()
+        return first.claim("default", "default", RUN_1)
+
+    def update() -> object:
+        barrier.wait()
+        return captured(
+            lambda: second.update_task(
+                "default",
+                TASK_ID,
+                TaskUpdate(args={"version": 2}),
+            )
+        )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = [executor.submit(claim), executor.submit(update)]
+            claim_outcome, update_outcome = [future.result() for future in outcomes]
+        assert claim_outcome is not None
+        final = first.get("default", TASK_ID)
+        assert final.status == "running"
+        if isinstance(update_outcome, DomainError):
+            assert update_outcome.code == "task_running"
+            assert final.args == {}
+        else:
+            assert final.args == {"version": 2}
+            assert claim_outcome.task.args == {"version": 2}
     finally:
         first_db.dispose()
         second_db.dispose()

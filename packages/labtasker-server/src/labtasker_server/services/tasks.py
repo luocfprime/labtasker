@@ -3,23 +3,35 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from labtasker_server.database import Database
 from labtasker_server.errors import conflict, invalid, not_found
+from labtasker_server.filtering import compile_filter
 from labtasker_server.models import QueueRow, TaskRouteRow, TaskRow
+from labtasker_server.pagination import (
+    CursorPosition,
+    TaskSelection,
+    decode_cursor,
+    encode_cursor,
+)
 from labtasker_server.schemas import (
+    BulkUpdateResult,
     ClaimResponse,
     FailureReport,
     HeartbeatResponse,
     LastError,
     Task,
     TaskCreate,
+    TaskOrderField,
+    TaskPage,
     TaskStatus,
+    TaskUpdate,
 )
 from labtasker_server.validation import (
     MAX_TASK_DATA_BYTES,
@@ -31,6 +43,32 @@ from labtasker_server.validation import (
 
 HEARTBEAT_TIMEOUT_US = 300_000_000
 TerminalAction = Literal["complete", "fail", "unclaim"]
+TASK_ORDER_COLUMNS = {
+    "id": TaskRow.task_id,
+    "name": TaskRow.name,
+    "status": TaskRow.status,
+    "priority": TaskRow.priority,
+    "attempt": TaskRow.attempt,
+    "max_attempts": TaskRow.max_attempts,
+    "last_route": TaskRow.last_route,
+    "created_at": TaskRow.created_at_us,
+    "updated_at": TaskRow.updated_at_us,
+    "started_at": TaskRow.started_at_us,
+    "finished_at": TaskRow.finished_at_us,
+}
+NULLABLE_ORDER_FIELDS = {"name", "last_route", "started_at", "finished_at"}
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedUpdate:
+    name: str | None
+    args_json: str
+    metadata_json: str
+    priority: int
+    max_attempts: int
+    routes: tuple[str, ...]
+    result_json: str
+    changed: bool
 
 
 def system_now_us() -> int:
@@ -143,6 +181,147 @@ class TaskService:
                     task_id=task_id,
                 )
             return task_from_row(row)
+
+    def list_tasks(
+        self,
+        queue: str,
+        *,
+        status: TaskStatus | None = None,
+        name: str | None = None,
+        filter_expression: str | None = None,
+        order_by: TaskOrderField = "created_at",
+        descending: bool = True,
+        limit: int = 100,
+        cursor: str | None = None,
+    ) -> TaskPage:
+        queue = validate_identifier(queue, kind="Queue")
+        _validate_list_inputs(status, order_by, descending, limit)
+        selection = TaskSelection(
+            queue=queue,
+            status=status,
+            name=name,
+            filter=filter_expression,
+            order_by=order_by,
+            descending=descending,
+        )
+        position = decode_cursor(cursor, selection) if cursor is not None else None
+        conditions = _selection_conditions(
+            queue,
+            status=status,
+            name=name,
+            filter_expression=filter_expression,
+        )
+        if position is not None:
+            conditions.append(_after_cursor(order_by, descending, position))
+
+        column = TASK_ORDER_COLUMNS[order_by]
+        direction = column.desc if descending else column.asc
+        ordering: list[Any] = []
+        if order_by in NULLABLE_ORDER_FIELDS:
+            ordering.append(column.is_(None).asc())
+        ordering.append(direction())
+        if order_by != "id":
+            ordering.append(TaskRow.task_id.desc() if descending else TaskRow.task_id.asc())
+
+        with self.database.read_session() as session:
+            if session.get(QueueRow, queue) is None:
+                raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
+            rows = session.scalars(
+                select(TaskRow)
+                .options(selectinload(TaskRow.routes))
+                .where(*conditions)
+                .order_by(*ordering)
+                .limit(limit + 1)
+            ).all()
+            has_more = len(rows) > limit
+            page_rows = rows[:limit]
+            next_cursor = None
+            if has_more and page_rows:
+                last = page_rows[-1]
+                next_cursor = encode_cursor(
+                    selection,
+                    CursorPosition(
+                        value=_order_value(last, order_by),
+                        task_id=last.task_id,
+                    ),
+                )
+            return TaskPage(
+                items=[task_from_row(row) for row in page_rows],
+                next_cursor=next_cursor,
+            )
+
+    def count_tasks(
+        self,
+        queue: str,
+        *,
+        status: TaskStatus | None = None,
+        name: str | None = None,
+        filter_expression: str | None = None,
+    ) -> int:
+        queue = validate_identifier(queue, kind="Queue")
+        conditions = _selection_conditions(
+            queue,
+            status=status,
+            name=name,
+            filter_expression=filter_expression,
+        )
+        with self.database.read_session() as session:
+            if session.get(QueueRow, queue) is None:
+                raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
+            value = session.scalar(select(func.count()).select_from(TaskRow).where(*conditions))
+            return 0 if value is None else value
+
+    def update_task(self, queue: str, task_id: str, changes: TaskUpdate) -> Task:
+        queue = validate_identifier(queue, kind="Queue")
+        task_id = validate_task_id(task_id)
+        with self.database.write_session() as session:
+            row = _require_task_row(session, queue, task_id)
+            if row.status == "running":
+                raise conflict(
+                    "task_running",
+                    "Running Tasks cannot be updated.",
+                    task_id=task_id,
+                )
+            prepared = _prepare_update(row, changes)
+            if prepared.changed:
+                _apply_prepared_update(row, prepared)
+                row.updated_at_us = self.now_us()
+                session.flush()
+            return task_from_row(row)
+
+    def update_tasks(
+        self,
+        queue: str,
+        *,
+        filter_expression: str,
+        changes: TaskUpdate,
+    ) -> BulkUpdateResult:
+        queue = validate_identifier(queue, kind="Queue")
+        if not filter_expression.strip():
+            raise invalid("invalid_filter", "Batch update filter must not be empty.")
+        predicate = compile_filter(filter_expression)
+        with self.database.write_session() as session:
+            if session.get(QueueRow, queue) is None:
+                raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
+            rows = session.scalars(
+                select(TaskRow)
+                .options(selectinload(TaskRow.routes))
+                .where(
+                    TaskRow.queue_name == queue,
+                    TaskRow.status != "running",
+                    predicate,
+                )
+            ).all()
+            prepared = [(row, _prepare_update(row, changes)) for row in rows]
+            now = self.now_us()
+            updated_count = 0
+            for row, update_values in prepared:
+                if not update_values.changed:
+                    continue
+                _apply_prepared_update(row, update_values)
+                row.updated_at_us = now
+                updated_count += 1
+            return BulkUpdateResult(matched=len(rows), updated=updated_count)
 
     def claim(self, queue: str, route: str, run_id: str) -> ClaimResponse | None:
         queue = validate_identifier(queue, kind="Queue")
@@ -437,6 +616,133 @@ def _claim_response(row: TaskRow, run_id: str) -> ClaimResponse:
         run_id=run_id,
         lease_expires_at=datetime_from_us(row.lease_expires_at_us),
     )
+
+
+def _selection_conditions(
+    queue: str,
+    *,
+    status: TaskStatus | None,
+    name: str | None,
+    filter_expression: str | None,
+) -> list[Any]:
+    conditions: list[Any] = [TaskRow.queue_name == queue]
+    if status is not None:
+        conditions.append(TaskRow.status == status)
+    if name is not None:
+        conditions.append(TaskRow.name == name)
+    if filter_expression is not None:
+        conditions.append(compile_filter(filter_expression))
+    return conditions
+
+
+def _validate_list_inputs(
+    status: str | None,
+    order_by: str,
+    descending: bool,
+    limit: int,
+) -> None:
+    if status is not None and status not in {
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+    }:
+        raise invalid("invalid_request", "Status is not a valid Task status.", field="status")
+    if order_by not in TASK_ORDER_COLUMNS:
+        raise invalid("invalid_request", "Order field is not supported.", field="order_by")
+    if not isinstance(descending, bool):
+        raise invalid("invalid_request", "Descending must be a Boolean.", field="descending")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
+        raise invalid("invalid_request", "Limit must be an integer from 1 through 1000.")
+
+
+def _after_cursor(
+    order_by: TaskOrderField,
+    descending: bool,
+    position: CursorPosition,
+) -> Any:
+    column = TASK_ORDER_COLUMNS[order_by]
+    id_after = (
+        TaskRow.task_id < position.task_id if descending else TaskRow.task_id > position.task_id
+    )
+    if order_by == "id":
+        return id_after
+    if position.value is None:
+        return and_(column.is_(None), id_after)
+    value_after = column < position.value if descending else column > position.value
+    same_value_after = and_(column == position.value, id_after)
+    if order_by in NULLABLE_ORDER_FIELDS:
+        return or_(value_after, same_value_after, column.is_(None))
+    return or_(value_after, same_value_after)
+
+
+def _order_value(row: TaskRow, order_by: TaskOrderField) -> str | int | None:
+    values: dict[str, str | int | None] = {
+        "id": row.task_id,
+        "name": row.name,
+        "status": row.status,
+        "priority": row.priority,
+        "attempt": row.attempt,
+        "max_attempts": row.max_attempts,
+        "last_route": row.last_route,
+        "created_at": row.created_at_us,
+        "updated_at": row.updated_at_us,
+        "started_at": row.started_at_us,
+        "finished_at": row.finished_at_us,
+    }
+    return values[order_by]
+
+
+def _prepare_update(row: TaskRow, changes: TaskUpdate) -> PreparedUpdate:
+    supplied = changes.model_dump(mode="python", exclude_unset=True)
+    current = {
+        "name": row.name,
+        "args": json.loads(row.args_json),
+        "metadata": json.loads(row.metadata_json),
+        "priority": row.priority,
+        "max_attempts": row.max_attempts,
+        "routes": sorted(route.route for route in row.routes),
+        "result": json.loads(row.result_json),
+    }
+    resulting = {**current, **supplied}
+    max_attempts = cast(int, resulting["max_attempts"])
+    if row.status == "pending" and max_attempts <= row.attempt:
+        raise conflict(
+            "update_conflict",
+            "Pending Task must retain at least one remaining attempt.",
+            task_id=row.task_id,
+            field="max_attempts",
+            attempt=row.attempt,
+        )
+    _validate_stored_size(resulting, result=resulting["result"])
+    return PreparedUpdate(
+        name=cast(str | None, resulting["name"]),
+        args_json=canonical_json(resulting["args"]),
+        metadata_json=canonical_json(resulting["metadata"]),
+        priority=cast(int, resulting["priority"]),
+        max_attempts=max_attempts,
+        routes=tuple(cast(list[str], resulting["routes"])),
+        result_json=canonical_json(resulting["result"]),
+        changed=canonical_json(current) != canonical_json(resulting),
+    )
+
+
+def _apply_prepared_update(row: TaskRow, prepared: PreparedUpdate) -> None:
+    row.name = prepared.name
+    row.args_json = prepared.args_json
+    row.metadata_json = prepared.metadata_json
+    row.priority = prepared.priority
+    row.max_attempts = prepared.max_attempts
+    row.result_json = prepared.result_json
+    existing_routes = {route.route: route for route in row.routes}
+    current_routes = tuple(sorted(existing_routes))
+    if current_routes != prepared.routes:
+        row.routes = [
+            existing_routes.get(route)
+            or TaskRouteRow(queue_name=row.queue_name, task_id=row.task_id, route=route)
+            for route in prepared.routes
+        ]
 
 
 def _require_task_row(session: Session, queue: str, task_id: str) -> TaskRow:

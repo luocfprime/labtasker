@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Annotated, Literal, TypeVar
+from typing import Annotated, Any, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from labtasker_server.errors import DomainError
@@ -21,9 +21,23 @@ from labtasker_server.validation import (
 )
 
 TaskStatus = Literal["pending", "running", "succeeded", "failed", "cancelled"]
+TaskOrderField = Literal[
+    "id",
+    "name",
+    "status",
+    "priority",
+    "attempt",
+    "max_attempts",
+    "last_route",
+    "created_at",
+    "updated_at",
+    "started_at",
+    "finished_at",
+]
 Int64 = Annotated[StrictInt, Field(ge=INT64_MIN, le=INT64_MAX)]
 PositiveInt64 = Annotated[StrictInt, Field(ge=1, le=INT64_MAX)]
 T = TypeVar("T")
+OMITTED: Any = None
 
 
 class StrictModel(BaseModel):
@@ -95,6 +109,61 @@ class TaskCreate(StrictModel):
             return canonical_routes(value)
         except DomainError as error:
             raise _pydantic_error(error) from error
+
+
+class TaskUpdate(StrictModel):
+    name: str | None = None
+    args: dict[str, JSONValue] = OMITTED
+    metadata: dict[str, JSONValue] = OMITTED
+    priority: Int64 = OMITTED
+    max_attempts: PositiveInt64 = OMITTED
+    routes: list[str] = OMITTED
+    result: dict[str, JSONValue] = OMITTED
+
+    @model_validator(mode="after")
+    def validate_nonempty(self) -> TaskUpdate:
+        if not self.model_fields_set:
+            raise PydanticCustomError("invalid_update", "Update must contain at least one field.")
+        return self
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        return _validated(lambda: validate_task_name(value))
+
+    @field_validator("args", "metadata", "result")
+    @classmethod
+    def validate_objects(
+        cls,
+        value: dict[str, JSONValue],
+        info: object,
+    ) -> dict[str, JSONValue]:
+        field_name = getattr(info, "field_name", "value")
+        return _validated(lambda: validate_json_object(value, field=field_name))
+
+    @field_validator("routes")
+    @classmethod
+    def validate_routes(cls, value: list[str]) -> list[str]:
+        return _validated(lambda: canonical_routes(value))
+
+
+class BulkUpdateRequest(StrictModel):
+    filter: str
+    changes: TaskUpdate
+
+
+class BulkUpdateResult(StrictModel):
+    matched: int
+    updated: int
+
+
+class TaskPage(StrictModel):
+    items: list[Task]
+    next_cursor: str | None
+
+
+class CountResponse(StrictModel):
+    count: int
 
 
 class ClaimRequest(StrictModel):

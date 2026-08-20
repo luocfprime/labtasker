@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager, suppress
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, Request, Response
+from fastapi import Depends, FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -17,15 +17,22 @@ from labtasker_server.database import Database
 from labtasker_server.errors import DomainError
 from labtasker_server.middleware import RequestBodyLimitMiddleware
 from labtasker_server.schemas import (
+    BulkUpdateRequest,
+    BulkUpdateResult,
     ClaimRequest,
     ClaimResponse,
     CompleteRequest,
+    CountResponse,
     FailRequest,
     HeartbeatResponse,
     Queue,
     RunRequest,
     Task,
     TaskCreate,
+    TaskOrderField,
+    TaskPage,
+    TaskStatus,
+    TaskUpdate,
 )
 from labtasker_server.services.queues import QueueService
 from labtasker_server.services.tasks import TaskService, system_now_us
@@ -166,12 +173,78 @@ def create_app(
         return result
 
     @app.get(
+        "/api/v2/queues/{queue}/tasks",
+        response_model=TaskPage,
+        dependencies=authenticated,
+    )
+    def list_tasks(
+        queue: str,
+        status: TaskStatus | None = None,
+        name: str | None = None,
+        filter_expression: Annotated[str | None, Query(alias="filter")] = None,
+        order_by: TaskOrderField = "created_at",
+        descending: bool = True,
+        limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+        cursor: str | None = None,
+    ) -> TaskPage:
+        return task_service.list_tasks(
+            queue,
+            status=status,
+            name=name,
+            filter_expression=filter_expression,
+            order_by=order_by,
+            descending=descending,
+            limit=limit,
+            cursor=cursor,
+        )
+
+    @app.get(
+        "/api/v2/queues/{queue}/tasks/count",
+        response_model=CountResponse,
+        dependencies=authenticated,
+    )
+    def count_tasks(
+        queue: str,
+        status: TaskStatus | None = None,
+        name: str | None = None,
+        filter_expression: Annotated[str | None, Query(alias="filter")] = None,
+    ) -> CountResponse:
+        return CountResponse(
+            count=task_service.count_tasks(
+                queue,
+                status=status,
+                name=name,
+                filter_expression=filter_expression,
+            )
+        )
+
+    @app.get(
         "/api/v2/queues/{queue}/tasks/{task_id}",
         response_model=Task,
         dependencies=authenticated,
     )
     def get_task(queue: str, task_id: str) -> Task:
         return task_service.get(queue, task_id)
+
+    @app.patch(
+        "/api/v2/queues/{queue}/tasks/{task_id}",
+        response_model=Task,
+        dependencies=authenticated,
+    )
+    def update_task(queue: str, task_id: str, changes: TaskUpdate) -> Task:
+        return task_service.update_task(queue, task_id, changes)
+
+    @app.patch(
+        "/api/v2/queues/{queue}/tasks",
+        response_model=BulkUpdateResult,
+        dependencies=authenticated,
+    )
+    def update_tasks(queue: str, request: BulkUpdateRequest) -> BulkUpdateResult:
+        return task_service.update_tasks(
+            queue,
+            filter_expression=request.filter,
+            changes=request.changes,
+        )
 
     @app.post(
         "/api/v2/queues/{queue}/tasks/claim",
@@ -261,6 +334,8 @@ def _unauthorized() -> DomainError:
 def _validation_code(request: Request) -> str:
     if request.method == "PUT" and "/tasks/" in request.url.path:
         return "invalid_task"
+    if request.method == "PATCH" and "/tasks" in request.url.path:
+        return "invalid_update"
     return "invalid_request"
 
 
@@ -273,6 +348,11 @@ def _validation_error(
         if error_type in {"invalid_task_name", "json_too_deep"}:
             context = error.get("ctx")
             return error_type, dict(context) if isinstance(context, dict) else {}
+    if request.method == "PATCH" and request.url.path.endswith("/tasks"):
+        for error in exc.errors():
+            location = tuple(error.get("loc", ()))
+            if location[:2] == ("body", "filter"):
+                return "invalid_filter", None
     return _validation_code(request), None
 
 
