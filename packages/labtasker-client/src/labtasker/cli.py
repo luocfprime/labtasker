@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 from typing import Annotated, Any, TypeVar, cast
 
@@ -8,6 +9,8 @@ import typer
 from pydantic import BaseModel
 
 from labtasker.client import Client
+from labtasker.command_template import TemplateSyntaxError
+from labtasker.command_worker import run_command_worker
 from labtasker.config import resolve_config
 from labtasker.errors import LabtaskerError
 from labtasker.types import TaskOrderField, TaskStatus, TaskUpdate
@@ -26,6 +29,43 @@ config_app = typer.Typer(add_completion=False, no_args_is_help=True, rich_markup
 app.add_typer(task_app, name="task")
 app.add_typer(queue_app, name="queue")
 app.add_typer(config_app, name="config")
+logger = logging.getLogger("labtasker.cli")
+
+
+@app.command(
+    "loop",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def worker_loop(
+    context: typer.Context,
+    route: Annotated[str, typer.Option()] = "default",
+    queue: Annotated[str | None, typer.Option()] = None,
+    idle_timeout: Annotated[float, typer.Option()] = 300.0,
+    force_stop_timeout: Annotated[float | None, typer.Option()] = None,
+) -> None:
+    argv = list(context.args)
+    if argv and argv[0] == "--":
+        argv.pop(0)
+    if not argv:
+        raise typer.BadParameter("COMMAND is required after --")
+    try:
+        run_command_worker(
+            argv,
+            route=route,
+            queue=queue,
+            idle_timeout=idle_timeout,
+            force_stop_timeout=force_stop_timeout,
+        )
+    except (TemplateSyntaxError, RequestValidationError) as error:
+        raise typer.BadParameter(str(error)) from error
+    except LabtaskerError as error:
+        logger.error("%s: %s", error.code, error.message)
+        raise typer.Exit(1) from error
+    except KeyboardInterrupt:
+        raise
+    except Exception as error:
+        logger.error("Worker stopped: %s", error)
+        raise typer.Exit(1) from error
 
 
 @task_app.command("submit")

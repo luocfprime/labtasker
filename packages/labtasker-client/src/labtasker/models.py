@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -120,9 +121,51 @@ class Task(ResponseModel):
         return None if value is None else _utc_datetime(value)
 
 
+class TaskInfo(Task):
+    run_id: str
+    run_dir: Path
+
+    @field_validator("run_id")
+    @classmethod
+    def validate_run(cls, value: str) -> str:
+        return validate_run_id(value)
+
+    @field_validator("run_dir")
+    @classmethod
+    def validate_run_dir(cls, value: Path) -> Path:
+        if not value.is_absolute():
+            raise ValueError("run_dir must be absolute")
+        return value
+
+
 class TaskPage(ResponseModel):
     items: list[Task]
     next_cursor: str | None
+
+
+class ClaimResponse(ResponseModel):
+    task: Task
+    run_id: str
+    lease_expires_at: datetime
+
+    @field_validator("run_id")
+    @classmethod
+    def validate_run(cls, value: str) -> str:
+        return validate_run_id(value)
+
+    @field_validator("lease_expires_at")
+    @classmethod
+    def validate_lease_expires_at(cls, value: datetime) -> datetime:
+        return _utc_datetime(value)
+
+
+class HeartbeatResponse(ResponseModel):
+    lease_expires_at: datetime
+
+    @field_validator("lease_expires_at")
+    @classmethod
+    def validate_lease_expires_at(cls, value: datetime) -> datetime:
+        return _utc_datetime(value)
 
 
 class Queue(ResponseModel):

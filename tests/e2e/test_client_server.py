@@ -1,53 +1,12 @@
 from __future__ import annotations
 
-import socket
-import threading
-import time
-from collections.abc import Iterator
+import sys
 from pathlib import Path
 
 import pytest
-import uvicorn
 
-from labtasker import APIError, Client
-from labtasker_server.app import create_app
-from labtasker_server.config import ServerSettings
-
-
-@pytest.fixture
-def server_url(tmp_path: Path) -> Iterator[str]:
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    app = create_app(
-        ServerSettings(
-            host="127.0.0.1",
-            port=port,
-            database=tmp_path / "server.db",
-            token="secret",
-        )
-    )
-    server = uvicorn.Server(
-        uvicorn.Config(
-            app,
-            host="127.0.0.1",
-            port=port,
-            log_level="warning",
-        )
-    )
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 5
-    while not server.started and thread.is_alive() and time.monotonic() < deadline:
-        time.sleep(0.01)
-    if not server.started:
-        pytest.fail("Uvicorn test Server did not start.")
-    try:
-        yield f"http://127.0.0.1:{port}"
-    finally:
-        server.should_exit = True
-        thread.join(timeout=5)
-        assert not thread.is_alive()
+from labtasker import APIError, Client, TaskArg, TaskError, finish, loop, task_info
+from labtasker.command_worker import run_command_worker
 
 
 def test_real_client_server_resource_workflow(server_url: str) -> None:
@@ -99,3 +58,83 @@ def test_real_server_authentication_error_is_preserved(server_url: str) -> None:
     assert raised.value.status_code == 401
     assert raised.value.code == "unauthorized"
     assert raised.value.details == {}
+
+
+def test_real_python_and_command_workers(
+    server_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LABTASKER_URL", server_url)
+    monkeypatch.setenv("LABTASKER_TOKEN", "secret")
+    with Client(url=server_url, token="secret") as client:
+        client.submit_task(
+            {"value": 4},
+            name="python worker",
+            routes=["python"],
+            task_id="t_PYTHONWORKER",
+        )
+        client.submit_task(
+            {"value": "hello world"},
+            name="command worker",
+            routes=["command"],
+            task_id="t_COMMANDWORKR",
+        )
+        client.submit_task(
+            {},
+            name="command failure",
+            routes=["failure"],
+            max_attempts=2,
+            task_id="t_COMMANDFAILX",
+        )
+
+    attempts: list[int] = []
+
+    @loop(route="python", idle_timeout=0)
+    def python_worker(value: int = TaskArg()) -> None:
+        attempts.append(task_info().attempt)
+        if task_info().attempt == 1:
+            raise TaskError("retry once")
+        finish({"doubled": value * 2})
+
+    python_worker()
+    assert attempts == [1, 2]
+
+    command_script = (
+        "import labtasker,sys; "
+        "assert labtasker.task_info().run_dir.is_absolute(); "
+        "labtasker.finish({'echo':sys.argv[1]})"
+    )
+    run_command_worker(
+        [sys.executable, "-c", command_script, "%{value}"],
+        route="command",
+        idle_timeout=0,
+    )
+    run_command_worker(
+        [sys.executable, "-c", "raise SystemExit(7)"],
+        route="failure",
+        idle_timeout=0,
+    )
+
+    with Client(url=server_url, token="secret") as client:
+        python_task = client.get_task("t_PYTHONWORKER")
+        command_task = client.get_task("t_COMMANDWORKR")
+        failed_task = client.get_task("t_COMMANDFAILX")
+    assert python_task.status == "succeeded"
+    assert python_task.attempt == 2
+    assert python_task.result == {"doubled": 8}
+    assert python_task.last_error is not None
+    assert python_task.last_error.type == "TaskError"
+    assert command_task.status == "succeeded"
+    assert command_task.result == {"echo": "hello world"}
+    assert failed_task.status == "failed"
+    assert failed_task.attempt == 2
+    assert failed_task.last_error is not None
+    assert failed_task.last_error.type == "CommandProcessError"
+
+    command_runs = list(
+        (tmp_path / ".labtasker/runs/default/command-worker__t_COMMANDWORKR").glob("*")
+    )
+    assert len(command_runs) == 1
+    assert (command_runs[0] / "result.json").read_text().strip() == '{\n  "echo": "hello world"\n}'

@@ -10,7 +10,16 @@ from pydantic import TypeAdapter, ValidationError
 
 from labtasker.config import ResolvedConfig, resolve_config
 from labtasker.errors import APIError, TransportError
-from labtasker.models import BulkUpdateResult, CountResponse, Queue, ResponseModel, Task, TaskPage
+from labtasker.models import (
+    BulkUpdateResult,
+    ClaimResponse,
+    CountResponse,
+    HeartbeatResponse,
+    Queue,
+    ResponseModel,
+    Task,
+    TaskPage,
+)
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.validation import (
     RequestValidationError,
@@ -20,10 +29,12 @@ from labtasker.validation import (
     validate_json_object,
     validate_order_field,
     validate_routes,
+    validate_run_id,
     validate_status,
     validate_task_id,
     validate_task_name,
     validate_task_update,
+    validate_unicode_scalar,
 )
 
 T = TypeVar("T")
@@ -286,6 +297,105 @@ class Client:
             parser=lambda response: _parse_none(response, {204}),
         )
 
+    def _claim(
+        self,
+        *,
+        route: str,
+        run_id: str,
+        queue: str | None = None,
+    ) -> ClaimResponse | None:
+        """Claim one Task using a caller-generated idempotency token."""
+        self._ensure_open()
+        queue_name = self._queue(queue)
+        normalized_route = validate_identifier(route, field="route")
+        normalized_run_id = validate_run_id(run_id)
+        return self._call(
+            operation="claim_task",
+            method="POST",
+            path=f"queues/{queue_name}/tasks/claim",
+            json={"route": normalized_route, "run_id": normalized_run_id},
+            parser=_parse_claim,
+            retry=True,
+        )
+
+    def _heartbeat(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        queue: str | None = None,
+    ) -> HeartbeatResponse:
+        return self._run_action(
+            "heartbeat",
+            task_id=task_id,
+            run_id=run_id,
+            queue=queue,
+            body={},
+            parser=lambda response: _parse_model(response, HeartbeatResponse, {200}),
+        )
+
+    def _complete(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        result: dict[str, JSONValue],
+        queue: str | None = None,
+    ) -> None:
+        normalized = validate_json_object(result, field="result")
+        self._run_action(
+            "complete",
+            task_id=task_id,
+            run_id=run_id,
+            queue=queue,
+            body={"result": normalized},
+            parser=lambda response: _parse_none(response, {204}),
+        )
+
+    def _fail(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        error_type: str,
+        message: str,
+        traceback: str | None,
+        queue: str | None = None,
+    ) -> None:
+        error = {
+            "type": validate_unicode_scalar(error_type, field="error.type"),
+            "message": validate_unicode_scalar(message, field="error.message"),
+            "traceback": (
+                None
+                if traceback is None
+                else validate_unicode_scalar(traceback, field="error.traceback")
+            ),
+        }
+        self._run_action(
+            "fail",
+            task_id=task_id,
+            run_id=run_id,
+            queue=queue,
+            body={"error": error},
+            parser=lambda response: _parse_none(response, {204}),
+        )
+
+    def _unclaim(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        queue: str | None = None,
+    ) -> None:
+        self._run_action(
+            "unclaim",
+            task_id=task_id,
+            run_id=run_id,
+            queue=queue,
+            body={},
+            parser=lambda response: _parse_none(response, {204}),
+        )
+
     def _submit_with_id(
         self,
         queue: str,
@@ -310,6 +420,28 @@ class Client:
             method="POST",
             path=f"queues/{queue_name}/tasks/{task_id}/{action}",
             parser=lambda response: _parse_model(response, Task, {200}),
+        )
+
+    def _run_action(
+        self,
+        action: str,
+        *,
+        task_id: str,
+        run_id: str,
+        queue: str | None,
+        body: dict[str, object],
+        parser: Callable[[httpx.Response], T],
+    ) -> T:
+        self._ensure_open()
+        queue_name = self._queue(queue)
+        normalized_task_id = validate_task_id(task_id)
+        normalized_run_id = validate_run_id(run_id)
+        return self._call(
+            operation=f"{action}_run",
+            method="POST",
+            path=f"queues/{queue_name}/tasks/{normalized_task_id}/{action}",
+            json={"run_id": normalized_run_id, **body},
+            parser=parser,
         )
 
     def _queue(self, queue: str | None) -> str:
@@ -406,6 +538,13 @@ def _parse_none(response: httpx.Response, statuses: set[int]) -> None:
             "The Server returned an unexpected response body.",
             {"http_status": response.status_code},
         )
+
+
+def _parse_claim(response: httpx.Response) -> ClaimResponse | None:
+    if response.status_code == 204:
+        _parse_none(response, {204})
+        return None
+    return _parse_model(response, ClaimResponse, {200})
 
 
 def _require_status(response: httpx.Response, statuses: set[int]) -> None:

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+from collections import UserDict
 
 import pytest
 from pydantic import ValidationError
 
 from labtasker.models import Task
+from labtasker.validation import RequestValidationError, validate_json_object
 
 
 def task_payload() -> dict[str, object]:
@@ -70,3 +72,8 @@ def test_missing_required_response_field_is_rejected() -> None:
     del payload["result"]
     with pytest.raises(ValidationError):
         parse(payload)
+
+
+def test_python_json_boundary_rejects_mapping_like_non_dict_containers() -> None:
+    with pytest.raises(RequestValidationError, match="strict JSON"):
+        validate_json_object({"nested": UserDict({"value": 1})}, field="args")

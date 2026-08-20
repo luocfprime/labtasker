@@ -178,3 +178,62 @@ def test_update_requires_exactly_one_selection_form(fake_client: None) -> None:
     assert neither.exit_code == both.exit_code == 2
     assert "provide exactly one" in neither.stderr
     assert "provide exactly one" in both.stderr
+
+
+def test_loop_requires_separator_command_and_preserves_every_argv_element(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def run(argv: list[str], **kwargs: object) -> None:
+        calls.append((argv, kwargs))
+
+    monkeypatch.setattr("labtasker.cli.run_command_worker", run)
+    result = runner.invoke(
+        app,
+        [
+            "loop",
+            "--route",
+            "gpu",
+            "--idle-timeout",
+            "0",
+            "--force-stop-timeout",
+            "2.5",
+            "--",
+            "python",
+            "train.py",
+            "--flag",
+            "%{value}",
+            "hello world",
+        ],
+    )
+    assert result.exit_code == 0
+    assert calls == [
+        (
+            ["python", "train.py", "--flag", "%{value}", "hello world"],
+            {
+                "route": "gpu",
+                "queue": None,
+                "idle_timeout": 0.0,
+                "force_stop_timeout": 2.5,
+            },
+        )
+    ]
+
+    missing = runner.invoke(app, ["loop"])
+    assert missing.exit_code == 2
+    assert "COMMAND is required after --" in missing.stderr
+
+
+def test_loop_static_template_error_is_usage_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def invalid(*_: object, **__: object) -> None:
+        from labtasker.command_template import compile_argv
+
+        compile_argv(["%{broken"])
+
+    monkeypatch.setattr("labtasker.cli.run_command_worker", invalid)
+    result = runner.invoke(app, ["loop", "--", "echo", "%{broken"])
+    assert result.exit_code == 2
+    assert "unterminated placeholder" in result.stderr

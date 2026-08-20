@@ -213,3 +213,101 @@ def test_configuration_is_snapshotted_at_construction(monkeypatch: pytest.Monkey
         assert client.configuration.queue == "first"
     finally:
         client.close()
+
+
+def test_claim_replays_same_run_id_and_parses_empty_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("labtasker.client._backoff", lambda _: None)
+    requests: list[httpx.Request] = []
+
+    def claimed_handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) == 1:
+            raise httpx.ConnectError("response lost", request=request)
+        payload = task_payload()
+        payload.update({"status": "running", "attempt": 1, "last_route": "gpu"})
+        return httpx.Response(
+            200,
+            json={
+                "task": payload,
+                "run_id": "r_ABCDEFGHIJKL",
+                "lease_expires_at": "2026-08-20T12:05:00Z",
+            },
+        )
+
+    with mock_client(claimed_handler) as client:
+        claim = client._claim(route="gpu", run_id="r_ABCDEFGHIJKL")
+    assert claim is not None
+    assert claim.task.status == "running"
+    assert claim.task.attempt == 1
+    assert [json.loads(request.content) for request in requests] == [
+        {"route": "gpu", "run_id": "r_ABCDEFGHIJKL"},
+        {"route": "gpu", "run_id": "r_ABCDEFGHIJKL"},
+    ]
+
+    with mock_client(lambda _: httpx.Response(204)) as client:
+        assert client._claim(route="gpu", run_id="r_MNOPQRSTUVWX") is None
+
+
+def test_worker_protocol_actions_are_one_shot_and_strict() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/heartbeat"):
+            return httpx.Response(200, json={"lease_expires_at": "2026-08-20T12:05:00Z"})
+        return httpx.Response(204)
+
+    with mock_client(handler) as client:
+        heartbeat = client._heartbeat(
+            task_id="t_ABCDEFGHIJKL",
+            run_id="r_ABCDEFGHIJKL",
+        )
+        assert heartbeat.lease_expires_at.isoformat() == "2026-08-20T12:05:00+00:00"
+        client._complete(
+            task_id="t_ABCDEFGHIJKL",
+            run_id="r_ABCDEFGHIJKL",
+            result={"score": 0.5},
+        )
+        client._fail(
+            task_id="t_ABCDEFGHIJKL",
+            run_id="r_ABCDEFGHIJKL",
+            error_type="ValueError",
+            message="bad value",
+            traceback=None,
+        )
+        client._unclaim(task_id="t_ABCDEFGHIJKL", run_id="r_ABCDEFGHIJKL")
+
+    assert [request.url.path.rsplit("/", 1)[-1] for request in requests] == [
+        "heartbeat",
+        "complete",
+        "fail",
+        "unclaim",
+    ]
+    assert [json.loads(request.content) for request in requests] == [
+        {"run_id": "r_ABCDEFGHIJKL"},
+        {"run_id": "r_ABCDEFGHIJKL", "result": {"score": 0.5}},
+        {
+            "run_id": "r_ABCDEFGHIJKL",
+            "error": {"type": "ValueError", "message": "bad value", "traceback": None},
+        },
+        {"run_id": "r_ABCDEFGHIJKL"},
+    ]
+
+
+def test_worker_terminal_action_transport_failure_is_not_retried() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        raise httpx.ConnectError("lost", request=request)
+
+    with mock_client(handler) as client, pytest.raises(TransportError):
+        client._complete(
+            task_id="t_ABCDEFGHIJKL",
+            run_id="r_ABCDEFGHIJKL",
+            result={},
+        )
+    assert calls == 1

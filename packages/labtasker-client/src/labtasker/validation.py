@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import cast
 
 from labtasker.errors import ConfigError
@@ -60,7 +60,7 @@ def validate_json_value(value: object, *, field: str) -> None:
             if not math.isfinite(current):
                 raise RequestValidationError(f"{path} must be finite.")
             return
-        if isinstance(current, Mapping):
+        if isinstance(current, dict):
             if depth >= MAX_JSON_DEPTH:
                 raise RequestValidationError(f"{field} exceeds JSON depth {MAX_JSON_DEPTH}.")
             identity = id(current)

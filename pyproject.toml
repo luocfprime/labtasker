@@ -27,6 +27,9 @@ dev = [
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
 timeout = 30
+markers = [
+  "distributed_integration: real torchrun and Accelerate launcher integration",
+]
 
 [tool.coverage.run]
 branch = true
@@ -49,6 +52,9 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["labtasker", "labtasker_server"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["labtasker.TaskArg", "labtasker.binding.TaskArg"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -1,0 +1,19 @@
+name: Distributed integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+jobs:
+  launchers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --group dev --frozen
+      - run: uv pip install "torch>=2.4" "accelerate>=1,<2"
+      - run: uv run --no-sync pytest -m distributed_integration
