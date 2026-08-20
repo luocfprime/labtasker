@@ -33,6 +33,11 @@ class TaskRow(Base):
         CheckConstraint("attempt >= 0", name="ck_tasks_attempt_nonnegative"),
         CheckConstraint("max_attempts > 0", name="ck_tasks_max_attempts_positive"),
         CheckConstraint(
+            "last_terminal_action IS NULL OR last_terminal_action IN "
+            "('complete','fail','unclaim','heartbeat_expired','cancel')",
+            name="ck_tasks_terminal_action",
+        ),
+        CheckConstraint(
             "json_valid(args_json) AND json_type(args_json) = 'object'",
             name="ck_args_json",
         ),

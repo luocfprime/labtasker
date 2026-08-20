@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import hmac
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+import logging
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, Request, Response
@@ -14,27 +16,52 @@ from labtasker_server.config import ServerSettings
 from labtasker_server.database import Database
 from labtasker_server.errors import DomainError
 from labtasker_server.middleware import RequestBodyLimitMiddleware
-from labtasker_server.schemas import Queue, Task, TaskCreate
+from labtasker_server.schemas import (
+    ClaimRequest,
+    ClaimResponse,
+    CompleteRequest,
+    FailRequest,
+    HeartbeatResponse,
+    Queue,
+    RunRequest,
+    Task,
+    TaskCreate,
+)
 from labtasker_server.services.queues import QueueService
-from labtasker_server.services.tasks import TaskService
+from labtasker_server.services.tasks import TaskService, system_now_us
 from labtasker_server.validation import MAX_TASK_DATA_BYTES
 
+EXPIRY_SCAN_INTERVAL_SECONDS = 60
+logger = logging.getLogger(__name__)
 
-def create_app(settings: ServerSettings) -> FastAPI:
+
+def create_app(
+    settings: ServerSettings,
+    *,
+    now_us: Callable[[], int] = system_now_us,
+) -> FastAPI:
     database = Database(settings.database)
     database.initialize()
+    queue_service = QueueService(database)
+    task_service = TaskService(database, now_us=now_us)
+    task_service.expire_leases()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        yield
-        database.dispose()
+        scanner = asyncio.create_task(_expiry_scanner(task_service))
+        try:
+            yield
+        finally:
+            scanner.cancel()
+            with suppress(asyncio.CancelledError):
+                await scanner
+            database.dispose()
 
     app = FastAPI(docs_url=None, redoc_url=None, lifespan=lifespan)
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_TASK_DATA_BYTES)
     app.state.database = database
     app.state.settings = settings
-    queue_service = QueueService(database)
-    task_service = TaskService(database)
+    app.state.task_service = task_service
 
     @app.exception_handler(DomainError)
     async def handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:
@@ -146,7 +173,85 @@ def create_app(settings: ServerSettings) -> FastAPI:
     def get_task(queue: str, task_id: str) -> Task:
         return task_service.get(queue, task_id)
 
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/claim",
+        response_model=ClaimResponse,
+        dependencies=authenticated,
+    )
+    def claim_task(queue: str, request: ClaimRequest) -> ClaimResponse | Response:
+        claim = task_service.claim(queue, request.route, request.run_id)
+        return Response(status_code=204) if claim is None else claim
+
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/{task_id}/heartbeat",
+        response_model=HeartbeatResponse,
+        dependencies=authenticated,
+    )
+    def heartbeat(queue: str, task_id: str, request: RunRequest) -> HeartbeatResponse:
+        return task_service.heartbeat(queue, task_id, request.run_id)
+
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/{task_id}/complete",
+        status_code=204,
+        dependencies=authenticated,
+    )
+    def complete(queue: str, task_id: str, request: CompleteRequest) -> Response:
+        task_service.complete(queue, task_id, request.run_id, request.result)
+        return Response(status_code=204)
+
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/{task_id}/fail",
+        status_code=204,
+        dependencies=authenticated,
+    )
+    def fail(queue: str, task_id: str, request: FailRequest) -> Response:
+        task_service.fail(queue, task_id, request.run_id, request.error)
+        return Response(status_code=204)
+
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/{task_id}/unclaim",
+        status_code=204,
+        dependencies=authenticated,
+    )
+    def unclaim(queue: str, task_id: str, request: RunRequest) -> Response:
+        task_service.unclaim(queue, task_id, request.run_id)
+        return Response(status_code=204)
+
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/{task_id}/cancel",
+        response_model=Task,
+        dependencies=authenticated,
+    )
+    def cancel_task(queue: str, task_id: str) -> Task:
+        return task_service.cancel(queue, task_id)
+
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/{task_id}/requeue",
+        response_model=Task,
+        dependencies=authenticated,
+    )
+    def requeue_task(queue: str, task_id: str) -> Task:
+        return task_service.requeue(queue, task_id)
+
+    @app.delete(
+        "/api/v2/queues/{queue}/tasks/{task_id}",
+        status_code=204,
+        dependencies=authenticated,
+    )
+    def delete_task(queue: str, task_id: str) -> Response:
+        task_service.delete(queue, task_id)
+        return Response(status_code=204)
+
     return app
+
+
+async def _expiry_scanner(task_service: TaskService) -> None:
+    while True:
+        await asyncio.sleep(EXPIRY_SCAN_INTERVAL_SECONDS)
+        try:
+            await asyncio.to_thread(task_service.expire_leases)
+        except Exception:
+            logger.exception("Heartbeat expiry scan failed; it will retry in 60 seconds.")
 
 
 def _unauthorized() -> DomainError:

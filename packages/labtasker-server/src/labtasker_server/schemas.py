@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 from pydantic_core import PydanticCustomError
@@ -12,13 +13,17 @@ from labtasker_server.validation import (
     INT64_MIN,
     JSONValue,
     canonical_routes,
+    validate_identifier,
     validate_json_object,
+    validate_run_id,
     validate_task_name,
+    validate_unicode_scalar,
 )
 
 TaskStatus = Literal["pending", "running", "succeeded", "failed", "cancelled"]
 Int64 = Annotated[StrictInt, Field(ge=INT64_MIN, le=INT64_MAX)]
 PositiveInt64 = Annotated[StrictInt, Field(ge=1, le=INT64_MAX)]
+T = TypeVar("T")
 
 
 class StrictModel(BaseModel):
@@ -92,6 +97,67 @@ class TaskCreate(StrictModel):
             raise _pydantic_error(error) from error
 
 
+class ClaimRequest(StrictModel):
+    route: str
+    run_id: str
+
+    @field_validator("route")
+    @classmethod
+    def validate_route(cls, value: str) -> str:
+        return _validated(lambda: validate_identifier(value, kind="Route"))
+
+    @field_validator("run_id")
+    @classmethod
+    def validate_run(cls, value: str) -> str:
+        return _validated(lambda: validate_run_id(value))
+
+
+class ClaimResponse(StrictModel):
+    task: Task
+    run_id: str
+    lease_expires_at: datetime
+
+
+class RunRequest(StrictModel):
+    run_id: str
+
+    @field_validator("run_id")
+    @classmethod
+    def validate_run(cls, value: str) -> str:
+        return _validated(lambda: validate_run_id(value))
+
+
+class HeartbeatResponse(StrictModel):
+    lease_expires_at: datetime
+
+
+class CompleteRequest(RunRequest):
+    result: dict[str, JSONValue]
+
+    @field_validator("result")
+    @classmethod
+    def validate_result(cls, value: dict[str, JSONValue]) -> dict[str, JSONValue]:
+        return _validated(lambda: validate_json_object(value, field="result"))
+
+
+class FailureReport(StrictModel):
+    type: str
+    message: str
+    traceback: str | None
+
+    @field_validator("type", "message", "traceback")
+    @classmethod
+    def validate_strings(cls, value: str | None, info: object) -> str | None:
+        if value is None:
+            return None
+        field_name = getattr(info, "field_name", "error")
+        return _validated(lambda: validate_unicode_scalar(value, field=field_name))
+
+
+class FailRequest(RunRequest):
+    error: FailureReport
+
+
 class ErrorItem(StrictModel):
     location: list[str | int]
     message: str
@@ -109,3 +175,10 @@ class ErrorEnvelope(StrictModel):
 
 def _pydantic_error(error: DomainError) -> PydanticCustomError:
     return PydanticCustomError(error.code, error.message, error.details)
+
+
+def _validated(operation: Callable[[], T]) -> T:
+    try:
+        return operation()
+    except DomainError as error:
+        raise _pydantic_error(error) from error

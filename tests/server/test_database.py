@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
+from alembic.util.exc import CommandError
 from sqlalchemy import inspect, text
 
 from labtasker_server.config import ServerSettings
 from labtasker_server.database import Database
+from labtasker_server.errors import DomainError
 from labtasker_server.services.queues import QueueService
 
 
@@ -63,6 +66,38 @@ def test_existing_unknown_schema_is_rejected(database_path: Path) -> None:
     with pytest.raises(RuntimeError, match="not a recognized Labtasker v2 schema"):
         database.initialize()
     database.dispose()
+
+
+def test_unknown_newer_alembic_revision_is_rejected(database_path: Path) -> None:
+    first = Database(database_path)
+    first.initialize()
+    with first.engine.begin() as connection:
+        connection.execute(text("UPDATE alembic_version SET version_num = '9999_newer'"))
+    first.dispose()
+
+    second = Database(database_path)
+    with pytest.raises(CommandError, match="9999_newer"):
+        second.initialize()
+    second.dispose()
+
+
+def test_write_lock_timeout_maps_to_database_busy(database_path: Path) -> None:
+    database = Database(database_path)
+    database.initialize()
+    with database.engine.connect() as connection:
+        connection.execute(text("PRAGMA busy_timeout=1"))
+
+    lock = sqlite3.connect(database_path)
+    lock.execute("BEGIN IMMEDIATE")
+    try:
+        with pytest.raises(DomainError) as raised:
+            QueueService(database).create("blocked")
+        assert raised.value.status_code == 503
+        assert raised.value.code == "database_busy"
+    finally:
+        lock.rollback()
+        lock.close()
+        database.dispose()
 
 
 @pytest.mark.parametrize("host", ["127.0.0.1", "127.3.2.1", "::1", "LOCALHOST"])

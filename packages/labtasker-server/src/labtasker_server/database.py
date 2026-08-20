@@ -35,6 +35,7 @@ class Database:
         with self.engine.begin() as connection:
             alembic_config.attributes["connection"] = connection
             command.upgrade(alembic_config, "head")
+        _verify_sqlite_settings(self.engine)
 
         if is_fresh:
             with self.write_session() as session:
@@ -93,3 +94,21 @@ def _create_sqlite_engine(path: Path) -> Engine:
 def _is_sqlite_busy(error: OperationalError) -> bool:
     code = getattr(error.orig, "sqlite_errorcode", None)
     return code in {5, 6} or "database is locked" in str(error.orig).lower()
+
+
+def _verify_sqlite_settings(engine: Engine) -> None:
+    with engine.connect() as connection:
+        actual = {
+            "journal_mode": connection.scalar(text("PRAGMA journal_mode")),
+            "foreign_keys": connection.scalar(text("PRAGMA foreign_keys")),
+            "busy_timeout": connection.scalar(text("PRAGMA busy_timeout")),
+            "synchronous": connection.scalar(text("PRAGMA synchronous")),
+        }
+    expected = {
+        "journal_mode": "wal",
+        "foreign_keys": 1,
+        "busy_timeout": 5000,
+        "synchronous": 2,
+    }
+    if actual != expected:
+        raise RuntimeError(f"Required SQLite settings were not applied: {actual!r}")
