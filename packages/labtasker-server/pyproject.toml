@@ -27,4 +27,3 @@ labtasker-server = "labtasker_server.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/labtasker_server"]
-

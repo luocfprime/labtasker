@@ -11,4 +11,3 @@ The repository publishes two independent distributions:
 
 The v1 implementation is intentionally not part of the v2 history. During the
 rewrite it is available only as a reference worktree under `.worktree/v1`.
-

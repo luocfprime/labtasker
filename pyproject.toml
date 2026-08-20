@@ -58,4 +58,3 @@ mypy_path = [
   "packages/labtasker-server/src",
 ]
 plugins = ["pydantic.mypy"]
-
