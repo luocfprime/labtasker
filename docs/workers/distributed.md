@@ -1,14 +1,16 @@
 # Distributed launchers
 
-Labtasker v2 supports the single-node launcher pattern used by `torchrun` and
-Accelerate. Keep the Labtasker Worker outside the launcher:
+Inference and evaluation Workers are Labtasker's primary use case. When one Task
+instead needs a single-node distributed launcher for a larger evaluation or
+training job, v2 supports `torchrun` and Accelerate. Keep the Labtasker Worker
+outside the launcher:
 
 ```bash
-labtasker loop --route train -- \
-  torchrun --nproc-per-node=8 train.py --lr '%{lr}'
+labtasker loop --route evaluate-distributed -- \
+  torchrun --nproc-per-node=8 evaluate.py --benchmark '%{benchmark}'
 
-labtasker loop --route train -- \
-  accelerate launch --num_processes 8 train.py --lr '%{lr}'
+labtasker loop --route evaluate-distributed -- \
+  accelerate launch --num_processes 8 evaluate.py --benchmark '%{benchmark}'
 ```
 
 This creates one Labtasker run, one heartbeat thread, and one local journal. The
@@ -30,7 +32,7 @@ import torch.distributed as dist
 import labtasker
 
 if dist.get_rank() == 0:
-    labtasker.finish({"loss": final_loss})
+    labtasker.finish({"score": final_score})
 ```
 
 Accelerate example:
@@ -42,7 +44,7 @@ import labtasker
 
 accelerator = Accelerator()
 if accelerator.is_main_process:
-    labtasker.finish({"loss": final_loss})
+    labtasker.finish({"score": final_score})
 ```
 
 The execution environment is deliberately inherited by all ranks so the main

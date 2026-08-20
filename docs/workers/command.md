@@ -3,8 +3,8 @@
 The command Worker wraps an existing executable with minimal intrusion:
 
 ```bash
-labtasker loop --route train -- \
-  python train.py --seed '%{seed}' --config '%{config}'
+labtasker loop --route evaluate -- \
+  python evaluate.py --prediction '%{prediction}' --reference '%{reference}'
 ```
 
 The required `--` cleanly separates Labtasker options from the child argv. Each
@@ -18,7 +18,7 @@ identifier segments separated by dots:
 
 ```text
 %{seed}
-%{optimizer.lr}
+%{judge.threshold}
 ```
 
 Traversal is through JSON objects only. Array indices, hyphenated keys, Unicode
@@ -50,7 +50,7 @@ Existing code may optionally call `finish()` from the launched program:
 ```python
 import labtasker
 
-labtasker.finish({"accuracy": 0.94}, skip_if_no_labtasker=True)
+labtasker.finish({"score": 0.94}, skip_if_no_labtasker=True)
 ```
 
 The command process reconstructs its execution context from environment

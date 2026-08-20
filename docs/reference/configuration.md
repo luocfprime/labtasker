@@ -33,7 +33,7 @@ targets are needed in one process:
 from labtasker import Client
 
 with Client(url="https://example.com", queue="paper") as client:
-    client.submit_task({"seed": 1}, routes=["train"])
+    client.submit_task({"prompt": "a ceramic fox"}, routes=["sdxl"])
 ```
 
 ## Server configuration

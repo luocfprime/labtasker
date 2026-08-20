@@ -1,23 +1,24 @@
 # Python Workers
 
-Use a Python Worker when the experiment is naturally a function call or when a
-large object should be initialized once and reused across Tasks.
+Use a Python Worker when inference or evaluation is naturally a function call,
+especially when a model, pipeline, dataset, or judge should be initialized once
+and reused across many Tasks.
 
 ```python
 import labtasker
 
 
-@labtasker.loop(route="train", idle_timeout=300)
-def train(
+@labtasker.loop(route="embed", idle_timeout=300)
+def embed(
     model,
-    seed: int = labtasker.TaskArg(),
-    lr: float = labtasker.TaskArg(default=0.001),
+    text: str = labtasker.TaskArg(),
+    normalize: bool = labtasker.TaskArg(default=True),
 ) -> None:
-    accuracy = model.fit(seed=seed, learning_rate=lr)
-    labtasker.finish({"accuracy": accuracy})
+    vector = model.encode(text, normalize=normalize)
+    labtasker.finish({"embedding": vector.tolist()})
 
 
-train(load_model_once())
+embed(load_embedding_model_once())
 ```
 
 `model` is supplied normally when the Worker starts. Only parameters whose
@@ -37,8 +38,8 @@ Use `path` to select a nested object field without renaming the Python
 parameter:
 
 ```python
-@labtasker.loop(route="train")
-def train(lr: float = labtasker.TaskArg(path="optimizer.lr")) -> None: ...
+@labtasker.loop(route="evaluate")
+def evaluate(threshold: float = labtasker.TaskArg(path="metric.threshold")) -> None: ...
 ```
 
 A resolver receives the selected value, not the complete args object:
@@ -66,7 +67,7 @@ Normal return succeeds with `{}`. Call `finish(result)` when a structured result
 must be durably accepted before local cleanup continues:
 
 ```python
-labtasker.finish({"accuracy": 0.94})
+labtasker.finish({"score": 0.94})
 release_engine_resources()
 ```
 

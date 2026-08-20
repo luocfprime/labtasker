@@ -6,12 +6,12 @@
 import labtasker
 
 task = labtasker.submit_task(
-    {"seed": 7, "lr": 0.001},
-    name="baseline",
-    metadata={"group": "paper"},
+    {"prompt": "a red panda astronaut", "seed": 7},
+    name="prompt-007",
+    metadata={"benchmark": "prompt-set-a"},
     priority=10,
     max_attempts=3,
-    routes=["train-v1", "train-v2"],
+    routes=["sdxl-diffusers-v1", "sdxl-diffusers-v2"],
 )
 ```
 
@@ -19,11 +19,11 @@ The CLI accepts the same JSON data without guessing scalar types:
 
 ```bash
 labtasker task submit \
-  --args '{"seed":7,"lr":0.001}' \
-  --metadata '{"group":"paper"}' \
+  --args '{"prompt":"a red panda astronaut","seed":7}' \
+  --metadata '{"benchmark":"prompt-set-a"}' \
   --priority 10 \
-  --route train-v1 \
-  --route train-v2
+  --route sdxl-diffusers-v1 \
+  --route sdxl-diffusers-v2
 ```
 
 Routes default to `default`. Supplying a Task ID makes creation idempotent only
@@ -47,15 +47,15 @@ Update one non-running Task:
 
 ```bash
 labtasker task update t_ABCDEFGHIJKL \
-  --changes '{"priority":20,"routes":["train-v2"]}'
+  --changes '{"priority":20,"routes":["sdxl-diffusers-v2"]}'
 ```
 
 Or explicitly update all matching non-running Tasks:
 
 ```bash
 labtasker task update \
-  --filter 'status == "pending" and "train-v1" in routes' \
-  --changes '{"routes":["train-v1","train-v2"]}'
+  --filter 'status == "pending" and "sdxl-diffusers-v1" in routes' \
+  --changes '{"routes":["sdxl-diffusers-v1","sdxl-diffusers-v2"]}'
 ```
 
 The bulk operation is atomic. It reports `matched` and `updated`. There is no

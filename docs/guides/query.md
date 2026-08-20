@@ -7,14 +7,14 @@ never participates in Worker routing.
 priority >= 10 and metadata.group == "ablation"
 "baseline" in metadata.tags
 status == "failed" and last_error.type == "ValueError"
-missing(result.accuracy) or result.accuracy < 0.9
+missing(result.score) or result.score < 0.9
 ```
 
 ## Values and paths
 
 Literals use JSON spelling: strings, integers, floats, `true`, `false`, and
 `null`. A path starts at the Task representation and traverses JSON objects with
-dots, such as `metadata.group` or `result.metrics.accuracy`.
+dots, such as `metadata.benchmark` or `result.metrics.f1`.
 
 Supported top-level fields include `id`, `name`, `status`, `args`, `metadata`,
 `priority`, `attempt`, `max_attempts`, `routes`, `result`, `last_error`,

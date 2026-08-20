@@ -1,7 +1,9 @@
 # Labtasker v2
 
-Labtasker is a small task queue for running parallel machine-learning experiments.
-It keeps scheduling explicit: a Task names one or more compatible routes, and a
+Labtasker is a small task queue for parallel model inference, evaluation, and
+other independent machine-learning experiments. It is especially useful when a
+Worker should load an expensive model once and process many parameterized Tasks.
+Scheduling stays explicit: a Task names one or more compatible routes, and a
 Worker claims through exactly one route. The Server stores no Worker registry and
 does not allocate GPUs or other resources.
 
@@ -70,28 +72,43 @@ Inspect the effective non-secret configuration:
 labtasker config show
 ```
 
-Submit two Tasks. JSON values retain their JSON types; the CLI does not guess
-types from text:
+Submit two evaluation Tasks. JSON values retain their JSON types; the CLI does
+not guess types from text:
 
 ```bash
 labtasker task submit \
-  --name seed-1 \
-  --args '{"seed":1,"lr":0.001}' \
-  --route train
+  --name sample-1 \
+  --args '{"prediction":"cat","reference":"cat"}' \
+  --route exact-match
 
 labtasker task submit \
-  --name seed-2 \
-  --args '{"seed":2,"lr":0.001}' \
-  --route train
+  --name sample-2 \
+  --args '{"prediction":"dog","reference":"cat"}' \
+  --route exact-match
 ```
 
-Run as many command Workers as the externally allocated hardware permits. The
+Create a minimal `evaluate.py`:
+
+```python
+import argparse
+
+import labtasker
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--prediction", required=True)
+parser.add_argument("--reference", required=True)
+args = parser.parse_args()
+score = float(args.prediction.strip() == args.reference.strip())
+labtasker.finish({"score": score}, skip_if_no_labtasker=True)
+```
+
+Run as many evaluation Workers as the externally allocated hardware permits. The
 `--` separator is required, and each `%{path}` is resolved into one argv element
 without invoking a shell:
 
 ```bash
-labtasker loop --route train -- \
-  python train.py --seed '%{seed}' --lr '%{lr}'
+labtasker loop --route exact-match -- \
+  python evaluate.py --prediction '%{prediction}' --reference '%{reference}'
 ```
 
 Each Worker executes one Task at a time and exits normally after five minutes
@@ -108,24 +125,27 @@ labtasker task get t_ABCDEFGHIJKL
 
 ## Python Worker
 
-`TaskArg` marks only the parameters supplied from each Task. Other parameters are
-ordinary fixed values loaded once for the Worker process:
+`TaskArg` marks only the parameters supplied from each inference Task. Other
+parameters—such as a model or pipeline—are ordinary fixed values loaded once for
+the Worker process:
 
 ```python
 import labtasker
 
 
-@labtasker.loop(route="train", idle_timeout=300)
-def train(
-    model,
+@labtasker.loop(route="sdxl", idle_timeout=300)
+def infer(
+    pipeline,
+    prompt: str = labtasker.TaskArg(),
     seed: int = labtasker.TaskArg(),
-    lr: float = labtasker.TaskArg(default=0.001),
 ) -> None:
-    accuracy = model.fit(seed=seed, learning_rate=lr)
-    labtasker.finish({"accuracy": accuracy})
+    output = pipeline(prompt, seed=seed)
+    path = labtasker.task_info().run_dir / "image.png"
+    output.save(path)
+    labtasker.finish({"image": str(path)})
 
 
-train(load_model_once())
+infer(load_pipeline_once())
 ```
 
 Binding is strict: an `int` annotation rejects a float, string, or Boolean.
@@ -137,24 +157,28 @@ A normal return succeeds with result `{}`. `finish(result)` immediately and
 reliably stores an explicit result, while code after it may continue local cleanup.
 The Worker does not claim another Task until the function returns.
 
+See [Inference and evaluation](docs/inference-evaluation.md) for complete
+patterns covering a warm SDXL pipeline, existing evaluators, implementation
+rollouts, and artifact paths.
+
 ## Routing and rolling changes
 
 Routes are exact, case-sensitive compatibility labels. Starting a new Worker does
 not implicitly redirect old Tasks:
 
 ```text
-old Worker route: train-v1
-new Worker route: train-v2
+old Worker route: sdxl-diffusers-v1
+new Worker route: sdxl-diffusers-v2
 ```
 
-Submit a new-only Task with `routes=["train-v2"]`, or explicitly let a Task run
-on either implementation with `routes=["train-v1", "train-v2"]`. Pending Tasks
-can be migrated in one explicit batch update:
+Submit a new-only Task with `routes=["sdxl-diffusers-v2"]`, or explicitly let a
+Task run on either implementation. Pending Tasks can be migrated in one explicit
+batch update:
 
 ```bash
 labtasker task update \
-  --filter 'status == "pending" and "train-v1" in routes' \
-  --changes '{"routes":["train-v1","train-v2"]}'
+  --filter 'status == "pending" and "sdxl-diffusers-v1" in routes' \
+  --changes '{"routes":["sdxl-diffusers-v1","sdxl-diffusers-v2"]}'
 ```
 
 Worker claims never inspect Task argument shape. Once Queue, pending state, and
@@ -168,7 +192,7 @@ Task list, count, and batch update share one small expression language. Examples
 priority >= 10 and metadata.group == "ablation"
 "baseline" in metadata.tags
 status == "failed" and last_error.type == "ValueError"
-missing(result.accuracy) or result.accuracy < 0.9
+missing(result.score) or result.score < 0.9
 ```
 
 All ordinary comparisons require the referenced path to exist. Use
@@ -198,17 +222,18 @@ Each claimed run also receives a semantic local journal below
 stdout/stderr log, and any locally prepared terminal payload. The Server remains
 authoritative; local files never bypass run fencing.
 
-## Distributed launchers
+## Optional distributed launchers
 
-Keep Labtasker outside a single-node launcher so one Task owns one launcher and
-one heartbeat source:
+For the less common case where one Task launches a single-node distributed
+training job, keep Labtasker outside the launcher so the Task owns one launcher
+and one heartbeat source:
 
 ```bash
-labtasker loop --route train -- \
-  torchrun --nproc-per-node=8 train.py --lr '%{lr}'
+labtasker loop --route evaluate-distributed -- \
+  torchrun --nproc-per-node=8 evaluate_distributed.py --benchmark '%{benchmark}'
 
-labtasker loop --route train -- \
-  accelerate launch --num_processes 8 train.py --lr '%{lr}'
+labtasker loop --route evaluate-distributed -- \
+  accelerate launch --num_processes 8 evaluate_distributed.py --benchmark '%{benchmark}'
 ```
 
 Only one rank should call `finish()`, selected through the framework's main-rank

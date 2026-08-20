@@ -1,6 +1,6 @@
 [project]
 site_name = "Labtasker v2"
-site_description = "A small, explicit task queue for parallel machine-learning experiments."
+site_description = "A small, explicit task queue for parallel model inference and evaluation."
 site_author = "Labtasker contributors"
 docs_dir = "docs"
 site_dir = "site"
@@ -12,6 +12,7 @@ nav = [
   { "Overview" = "index.md" },
   { "Get started" = "getting-started.md" },
   { "Core model" = "concepts.md" },
+  { "Inference and evaluation" = "inference-evaluation.md" },
   { "Workers" = [
     "workers/python.md",
     "workers/command.md",

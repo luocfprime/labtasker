@@ -1,7 +1,9 @@
 # Labtasker v2
 
-Labtasker is a small task queue for parallel machine-learning experiments. It
-coordinates Tasks and Workers while leaving resource allocation to the system
+Labtasker is a small task queue for parallel model inference, evaluation, and
+other independent machine-learning experiments. Its sweet spot is a long-lived
+Worker that loads an expensive model once, then processes many explicit Tasks.
+It coordinates Tasks and Workers while leaving resource allocation to the system
 that starts those Workers.
 
 Its central rule is explicit routing:
@@ -18,6 +20,8 @@ registry, infer capabilities from arguments, or allocate GPUs.
 
 - [Get started](getting-started.md) runs a Server, submits a Task, and executes it.
 - [Core model](concepts.md) explains queues, routes, attempts, and run fencing.
+- [Inference and evaluation](inference-evaluation.md) shows warm model reuse,
+  evaluator dispatch, implementation rollouts, and artifact handling.
 - [Python Workers](workers/python.md) bind typed Task arguments to a function.
 - [Command Workers](workers/command.md) bind Task arguments to an argv template.
 - [Task operations](guides/tasks.md) covers submission, inspection, updates, and
@@ -27,10 +31,12 @@ registry, infer capabilities from arguments, or allocate GPUs.
 
 ## Design boundary
 
-Labtasker aims to be complete inside a deliberately small boundary. It is not a
-cluster scheduler, workflow DAG engine, artifact store, or agent-in-the-loop
-runtime. An agent can configure and supervise an experiment, but execution and
-recovery remain deterministic after the Worker starts.
+Labtasker aims to be complete inside a deliberately small boundary. It handles
+independent inference/evaluation dispatch particularly well; distributed
+training is a supported launcher integration, not the product's primary identity.
+It is not a cluster scheduler, workflow DAG engine, artifact store, or
+agent-in-the-loop runtime. An agent can configure and supervise an experiment,
+but execution and recovery remain deterministic after the Worker starts.
 
 The standalone
 [v2 specification](https://github.com/luocfprime/labtasker/blob/v2/LABTASKER_V2_SPEC.md)

@@ -34,39 +34,46 @@ Check what the Client will use:
 labtasker config show
 ```
 
-## 3. Submit a Task
+## 3. Submit an evaluation Task
 
 CLI values are strict JSON, so numbers and Booleans retain their types:
 
 ```bash
 labtasker task submit \
-  --name first-run \
-  --args '{"seed":7,"lr":0.001}' \
-  --route train
+  --name sample-1 \
+  --args '{"prediction":"red panda","reference":"red panda"}' \
+  --route exact-match
 ```
 
 The command prints the created Task as formatted JSON.
 
 ## 4. Run a Worker
 
-Create a simple program:
+Create a small evaluator. A real evaluator might run a benchmark, judge model
+output, or compute an embedding metric; this deterministic example needs no ML
+dependency:
 
 ```python
-# train.py
+# evaluate.py
 import argparse
 
+import labtasker
+
 parser = argparse.ArgumentParser()
-parser.add_argument("--seed", type=int, required=True)
-parser.add_argument("--lr", type=float, required=True)
+parser.add_argument("--prediction", required=True)
+parser.add_argument("--reference", required=True)
 args = parser.parse_args()
-print(f"training seed={args.seed} lr={args.lr}")
+score = float(args.prediction.strip() == args.reference.strip())
+labtasker.finish({"score": score}, skip_if_no_labtasker=True)
 ```
 
 Then run it once for each compatible Task:
 
 ```bash
-labtasker loop --route train -- \
-  python train.py --seed '%{seed}' --lr '%{lr}'
+labtasker loop --route exact-match -- \
+  python evaluate.py \
+    --prediction '%{prediction}' \
+    --reference '%{reference}'
 ```
 
 The `--` separator is required. Labtasker builds argv directly and never invokes
@@ -80,6 +87,6 @@ labtasker task list --status succeeded
 labtasker task get t_ABCDEFGHIJKL
 ```
 
-Replace the example ID with the ID printed by submission. A successful command
-returns result `{}` unless the command calls `labtasker.finish(...)`; see
-[Command Workers](workers/command.md).
+Replace the example ID with the ID printed by submission. This Task succeeds with
+result `{"score": 1.0}`. A command that does not call `finish(...)` still
+succeeds with `{}` when it exits zero; see [Command Workers](workers/command.md).
