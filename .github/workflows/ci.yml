@@ -17,4 +17,32 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy packages/labtasker-client/src packages/labtasker-server/src
       - run: uv run pytest
+      - run: uv run zensical build --clean
       - run: uv build --all-packages
+      - name: Smoke-test independent wheels
+        run: |
+          client_smoke_dir=$(mktemp -d)
+          server_smoke_dir=$(mktemp -d)
+          client_wheel=$(find dist -maxdepth 1 -name 'labtasker-*.whl' -print -quit)
+          server_wheel=$(find dist -maxdepth 1 -name 'labtasker_server-*.whl' -print -quit)
+          uv venv "$client_smoke_dir"
+          uv venv "$server_smoke_dir"
+          uv pip install --python "$client_smoke_dir/bin/python" "$client_wheel"
+          uv pip install --python "$server_smoke_dir/bin/python" "$server_wheel"
+          "$client_smoke_dir/bin/python" - <<'PY'
+          import importlib.util
+          import labtasker
+          assert labtasker.__version__ == "2.0.0"
+          assert importlib.util.find_spec("labtasker_server") is None
+          assert importlib.util.find_spec("fastapi") is None
+          PY
+          "$server_smoke_dir/bin/python" - <<'PY'
+          import importlib.util
+          import labtasker_server
+          from labtasker_server.app import create_app
+          assert labtasker_server.__version__ == "2.0.0"
+          assert callable(create_app)
+          assert importlib.util.find_spec("labtasker") is None
+          PY
+          "$client_smoke_dir/bin/labtasker" --help
+          "$server_smoke_dir/bin/labtasker-server" --help

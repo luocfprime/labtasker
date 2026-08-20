@@ -31,5 +31,9 @@ def serve(
     ),
 ) -> None:
     """Run one Labtasker v2 Server process."""
-    settings = ServerSettings.from_values(host=host, port=port, database=database)
+    try:
+        settings = ServerSettings.from_values(host=host, port=port, database=database)
+    except ValueError as error:
+        typer.echo(f"Server configuration error: {error}", err=True)
+        raise typer.Exit(1) from error
     uvicorn.run(create_app(settings), host=settings.host, port=settings.port, log_level="info")

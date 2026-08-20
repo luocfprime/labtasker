@@ -37,6 +37,9 @@ logger = logging.getLogger("labtasker.cli")
 class _SeparatedCommand(TyperCommand):
     """Require the explicit boundary between Worker options and child argv."""
 
+    def collect_usage_pieces(self, ctx: ClickContext) -> list[str]:
+        return [*super().collect_usage_pieces(ctx), "--", "COMMAND", "[ARG...]"]
+
     def parse_args(self, ctx: ClickContext, args: list[str]) -> list[str]:
         ctx.meta["labtasker_command_separator"] = "--" in args
         return super().parse_args(ctx, args)
@@ -54,6 +57,7 @@ def worker_loop(
     idle_timeout: Annotated[float, typer.Option()] = 300.0,
     force_stop_timeout: Annotated[float | None, typer.Option()] = None,
 ) -> None:
+    """Claim Tasks and execute one command for each claim."""
     if not context.meta.get("labtasker_command_separator", False):
         raise typer.BadParameter("COMMAND is required after --")
     argv = list(context.args)

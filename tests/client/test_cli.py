@@ -225,6 +225,10 @@ def test_loop_requires_separator_command_and_preserves_every_argv_element(
         assert missing.exit_code == 2
         assert "COMMAND is required after --" in missing.stderr
 
+    help_result = runner.invoke(app, ["loop", "--help"])
+    assert help_result.exit_code == 0
+    assert "Usage: root loop [OPTIONS] -- COMMAND [ARG...]" in help_result.stdout
+
 
 def test_loop_static_template_error_is_usage_error(
     monkeypatch: pytest.MonkeyPatch,

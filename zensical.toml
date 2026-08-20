@@ -1,0 +1,33 @@
+[project]
+site_name = "Labtasker v2"
+site_description = "A small, explicit task queue for parallel machine-learning experiments."
+site_author = "Labtasker contributors"
+docs_dir = "docs"
+site_dir = "site"
+repo_url = "https://github.com/luocfprime/labtasker"
+repo_name = "luocfprime/labtasker"
+edit_uri = "edit/v2/docs/"
+copyright = "Apache-2.0"
+nav = [
+  { "Overview" = "index.md" },
+  { "Get started" = "getting-started.md" },
+  { "Core model" = "concepts.md" },
+  { "Workers" = [
+    "workers/python.md",
+    "workers/command.md",
+    "workers/distributed.md",
+  ] },
+  { "Using Labtasker" = [
+    "guides/tasks.md",
+    "guides/query.md",
+    "guides/failure-recovery.md",
+  ] },
+  { "Reference" = [
+    "reference/configuration.md",
+    "reference/python-api.md",
+    "reference/cli.md",
+    "reference/http-api.md",
+  ] },
+  { "Development" = "development.md" },
+  { "Full v2 specification" = "https://github.com/luocfprime/labtasker/blob/v2/LABTASKER_V2_SPEC.md" },
+]

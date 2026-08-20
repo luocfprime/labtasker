@@ -52,5 +52,8 @@ def test_serve_rejects_nonloopback_without_token(tmp_path: Path) -> None:
         ["serve", "--host", "0.0.0.0", "--database", str(tmp_path / "db")],
     )
     assert result.exit_code == 1
-    assert isinstance(result.exception, ValueError)
-    assert "token is required" in str(result.exception)
+    assert result.stdout == ""
+    assert result.stderr == (
+        "Server configuration error: A token is required when binding to a non-loopback host.\n"
+    )
+    assert "Traceback" not in result.stderr

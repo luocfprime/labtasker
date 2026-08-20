@@ -128,6 +128,9 @@ def test_real_single_node_accelerate(
         pytest.skip("accelerate is not installed")
     pytest.importorskip("accelerate")
     configure_worker_environment(monkeypatch, tmp_path, distributed_server_url)
+    # Exercise Accelerate's real multi-process launcher on CPU-only CI hosts.
+    # Accelerator(cpu=True) selects gloo after torchrun-style rank variables exist.
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
     script = tmp_path / "accelerate_rank.py"
     script.write_text(
         """
@@ -135,7 +138,7 @@ import sys
 from accelerate import Accelerator
 import labtasker
 
-accelerator = Accelerator()
+accelerator = Accelerator(cpu=True)
 if accelerator.is_main_process:
     labtasker.finish({
         "launcher": "accelerate",
@@ -156,8 +159,11 @@ accelerator.wait_for_everyone()
         [
             accelerate,
             "launch",
-            "--cpu",
+            "--multi_gpu",
             "--num_processes=2",
+            "--num_machines=1",
+            "--mixed_precision=no",
+            "--dynamo_backend=no",
             str(script),
             "%{value}",
         ],
