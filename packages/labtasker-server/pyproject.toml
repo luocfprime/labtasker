@@ -9,7 +9,7 @@ description = "SQLite/FastAPI server for parallel model inference and evaluation
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "lcf", email = "kevinfinley@163.com" }]
+authors = [{ name = "lcf", email = "luocfprime@gmail.com" }]
 dependencies = [
   "alembic>=1.14,<2",
   "fastapi>=0.115,<1",

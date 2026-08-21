@@ -2,7 +2,7 @@
   "name": "labtasker",
   "owner": {
     "name": "lcf",
-    "email": "kevinfinley@163.com",
+    "email": "luocfprime@gmail.com",
     "url": "https://github.com/luocfprime"
   },
   "description": "Labtasker agent integrations",
@@ -15,7 +15,7 @@
       "version": "2.0.0",
       "author": {
         "name": "lcf",
-        "email": "kevinfinley@163.com",
+        "email": "luocfprime@gmail.com",
         "url": "https://github.com/luocfprime"
       },
       "homepage": "https://luocfprime.github.io/labtasker/",
