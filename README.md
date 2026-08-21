@@ -23,17 +23,29 @@ Labtasker claims a Task or starts local work.
 
 ## Install
 
-Install the Server on the machine that owns the SQLite database:
+### With pip
+
+Install the Server on the machine that owns the SQLite database, and install the
+Client wherever Tasks are submitted or executed:
 
 ```bash
 python -m pip install labtasker-server
-```
-
-Install the Client wherever Tasks are submitted or executed:
-
-```bash
 python -m pip install labtasker
 ```
+
+### With uv
+
+Install the standalone Server CLI as a tool, and add the Client to the project
+whose code submits or executes Tasks:
+
+```bash
+uv tool install labtasker-server
+uv add labtasker
+```
+
+Run Client commands through the project environment, for example
+`uv run labtasker config show`. If the Server is managed as a uv project instead
+of a tool, use `uv add labtasker-server` and `uv run labtasker-server serve`.
 
 For a checkout of this repository, `uv sync --all-packages --group dev` installs
 both workspace packages and the development tools.

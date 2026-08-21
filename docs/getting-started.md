@@ -3,10 +3,33 @@
 Labtasker requires Python 3.11 or newer. Install the Server where the SQLite
 database will live, and install the Client wherever Tasks are submitted or run.
 
-```bash
-python -m pip install labtasker-server
-python -m pip install labtasker
-```
+## Installation
+
+=== "with pip"
+
+    ```bash
+    python -m pip install labtasker-server
+    python -m pip install labtasker
+    ```
+
+=== "with uv"
+
+    Install the Server as a standalone tool and add the Client to the experiment
+    project so its Python API is importable by Worker code:
+
+    ```bash
+    uv tool install labtasker-server
+    uv add labtasker
+    ```
+
+    With the uv project installation, prefix Client commands with `uv run`, such
+    as `uv run labtasker config show` or `uv run labtasker loop ...`. The
+    launched Python child inherits that project environment. The examples below
+    omit the prefix so their Labtasker syntax stays easy to compare.
+
+    For a Server maintained inside its own uv project, use
+    `uv add labtasker-server` and start it with
+    `uv run labtasker-server serve` instead of installing it as a tool.
 
 ## 1. Start the Server
 

@@ -33,3 +33,12 @@ nav = [
   ] },
   { "Development" = "development.md" },
 ]
+
+[project.markdown_extensions]
+pymdownx.superfences = {}
+pymdownx.tabbed.alternate_style = true
+
+[project.theme]
+features = [
+  "content.tabs.link",
+]
