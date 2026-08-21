@@ -42,9 +42,10 @@ not consume a Task.
 ## Process behavior
 
 The child inherits the Worker's environment and receives Labtasker execution
-variables, including the Task ID, run ID, Queue, Server URL, and local run
-directory. The Worker tees stdout and stderr to both the terminal and the local
-run log. Stdin is connected to `/dev/null`.
+variables, including the Task ID, run ID, Queue, local run directory, and either
+the HTTP URL/token or the already selected local socket/directory. It never
+re-resolves local mode from the child's CWD. The Worker tees stdout and stderr to
+both the terminal and the local run log. Stdin is connected to `/dev/null`.
 
 Exit code zero succeeds with `{}`; any other exit code is a charged failure.
 

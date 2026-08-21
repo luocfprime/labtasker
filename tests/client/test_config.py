@@ -18,14 +18,26 @@ def write_config(tmp_path: Path, text: str) -> Path:
 
 def test_defaults_and_public_shape(tmp_path: Path) -> None:
     config = resolve_config(cwd=tmp_path, environment={})
-    assert config.url == "http://127.0.0.1:8000"
+    assert config.url is None
     assert config.queue == "default"
     assert config.token is None
+    assert config.local is not None
     assert config.public_dict() == {
-        "url": "http://127.0.0.1:8000",
+        "mode": "local",
+        "directory": str(tmp_path),
+        "database": str(tmp_path / ".labtasker/server.db"),
+        "socket": str(config.local.socket),
+        "url": None,
         "queue": "default",
         "token_configured": False,
     }
+    assert not (tmp_path / ".labtasker").exists()
+
+
+def test_local_mode_rejects_token_without_url(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError) as raised:
+        resolve_config(token="secret", cwd=tmp_path, environment={})
+    assert raised.value.details == {"source": "constructor", "field": "token"}
 
 
 def test_resolution_precedence_is_per_field(tmp_path: Path) -> None:

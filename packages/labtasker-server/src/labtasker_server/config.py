@@ -12,6 +12,7 @@ class ServerSettings:
     port: int = 8000
     database: Path = Path(".labtasker/server.db")
     token: str | None = None
+    database_fd: int | None = None
 
     @classmethod
     def from_values(

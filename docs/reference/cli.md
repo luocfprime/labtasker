@@ -23,6 +23,10 @@ labtasker task requeue TASK_ID
 labtasker task delete TASK_ID
 
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
+labtasker-server start
+labtasker-server status
+labtasker-server stop [--force]
+labtasker-server logs
 labtasker-server serve [OPTIONS]
 ```
 
@@ -46,6 +50,12 @@ Shell quoting protects the JSON from the shell; it is not part of the JSON.
 Successful resource commands print formatted JSON. Delete commands complete
 quietly. Validation, configuration, API, and transport errors print a concise
 message to stderr and exit non-zero without an application traceback.
+
+Every finite Client operation identifies its selected local or HTTP Server on
+stderr. Starting, waiting for, or reconnecting to a local daemon is likewise
+visible; requested JSON remains alone on stdout. `labtasker-server start` and
+`stop` report actions on stderr, `status` prints stable JSON on stdout, and
+`logs` writes log content to stdout.
 
 `labtasker loop` is different: it is a supervised long-running process, so it
 uses ordinary timestamped logs and tees child output in real time. It does not

@@ -55,8 +55,12 @@ def create_app(
     *,
     now_us: Callable[[], int] = system_now_us,
 ) -> FastAPI:
-    database = Database(settings.database)
-    database.initialize()
+    database = Database(settings.database, ownership_fd=settings.database_fd)
+    try:
+        database.initialize()
+    except BaseException:
+        database.dispose()
+        raise
     queue_service = QueueService(database)
     task_service = TaskService(database, now_us=now_us)
     task_service.expire_leases()

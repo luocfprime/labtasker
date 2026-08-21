@@ -8,7 +8,7 @@ from alembic.util.exc import CommandError
 from sqlalchemy import inspect, text
 
 from labtasker_server.config import ServerSettings
-from labtasker_server.database import Database
+from labtasker_server.database import Database, DatabaseOwnershipError
 from labtasker_server.errors import DomainError
 from labtasker_server.services.queues import QueueService
 
@@ -19,6 +19,19 @@ def test_database_creates_gitignore_for_labtasker_state_directory(tmp_path: Path
         assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
     finally:
         database.dispose()
+
+
+def test_database_has_one_process_owner_and_releases_on_dispose(tmp_path: Path) -> None:
+    path = tmp_path / "server.db"
+    first = Database(path)
+    try:
+        with pytest.raises(DatabaseOwnershipError, match="already owns database"):
+            Database(path)
+    finally:
+        first.dispose()
+
+    replacement = Database(path)
+    replacement.dispose()
 
 
 def test_database_preserves_existing_gitignore_and_ignores_other_parents(

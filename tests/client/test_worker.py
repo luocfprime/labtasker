@@ -12,6 +12,7 @@ import pytest
 
 import labtasker.execution as execution_module
 from labtasker.binding import TaskArg
+from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError, ConfigError, FatalWorkerError, TransientError, TransportError
 from labtasker.execution import (
     ExecutionContext,
@@ -72,7 +73,9 @@ def make_claim(
 
 class FakeClient:
     def __init__(self, claims: list[ClaimResponse | None]) -> None:
-        self.configuration = SimpleNamespace(url="http://server", queue="default", token=None)
+        self.configuration = ResolvedConfig(
+            url="http://server", queue="default", token=None, local=None
+        )
         self.claims = deque(claims)
         self.actions: list[tuple[str, str, object]] = []
         self.claim_run_ids: list[str] = []
@@ -439,7 +442,13 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
     claimed = make_claim()
     journal = LocalRunJournal.create(
         claim=claimed,
-        server_url="http://server",
+        endpoint={
+            "mode": "http",
+            "url": "http://server",
+            "socket": None,
+            "directory": None,
+            "database": None,
+        },
         queue="default",
         route="default",
         cwd=tmp_path,

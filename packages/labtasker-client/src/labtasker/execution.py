@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from labtasker.client import Client
+from labtasker.config import EndpointRecord
 from labtasker.errors import ConfigError
 from labtasker.journal import LocalRunJournal
 from labtasker.models import Task, TaskInfo
@@ -243,7 +244,6 @@ def _load_environment_context() -> ExecutionContext | None:
         if _ENV_CONTEXT is not None:
             return _ENV_CONTEXT
         names = {
-            "url": "LABTASKER_URL",
             "queue": "LABTASKER_QUEUE",
             "task_id": "LABTASKER_TASK_ID",
             "run_id": "LABTASKER_RUN_ID",
@@ -261,6 +261,20 @@ def _load_environment_context() -> ExecutionContext | None:
                 "Inherited Labtasker execution context is incomplete.",
                 {"missing": sorted(set(names) - present)},
             )
+        url = os.environ.get("LABTASKER_URL")
+        socket = os.environ.get("LABTASKER_SOCKET")
+        local_directory = os.environ.get("LABTASKER_LOCAL_DIRECTORY")
+        token = os.environ.get("LABTASKER_TOKEN")
+        http_endpoint = url is not None and socket is None and local_directory is None
+        local_endpoint = (
+            url is None and socket is not None and local_directory is not None and token is None
+        )
+        if not (http_endpoint or local_endpoint):
+            raise ConfigError(
+                "invalid_config",
+                "Inherited Labtasker execution endpoint is incomplete or ambiguous.",
+                {"expected": ("LABTASKER_URL, or LABTASKER_SOCKET and LABTASKER_LOCAL_DIRECTORY")},
+            )
         run_dir = Path(values["run_dir"] or "")
         if not run_dir.is_absolute():
             raise ConfigError(
@@ -272,10 +286,33 @@ def _load_environment_context() -> ExecutionContext | None:
             task = Task.model_validate_json((run_dir / "task.json").read_bytes(), strict=True)
             run_id = values["run_id"] or ""
             journal = LocalRunJournal.open(run_dir)
+            expected_endpoint: EndpointRecord
+            if http_endpoint:
+                expected_endpoint = {
+                    "mode": "http",
+                    "url": url,
+                    "socket": None,
+                    "directory": None,
+                    "database": None,
+                }
+                client = Client(url=url, token=token, queue=values["queue"])
+            else:
+                directory = Path(local_directory or "")
+                if not directory.is_absolute() or directory.resolve() != directory:
+                    raise ValueError("LABTASKER_LOCAL_DIRECTORY must be a canonical absolute path")
+                client = Client._from_local_directory(
+                    directory,
+                    queue=values["queue"] or "",
+                )
+                local = client.configuration.local
+                assert local is not None
+                if str(local.socket) != socket:
+                    raise ValueError("local execution socket does not match its directory")
+                expected_endpoint = client.configuration.endpoint_dict()
             if (
                 task.id != values["task_id"]
                 or task.queue != values["queue"]
-                or journal.server_url != values["url"]
+                or journal.endpoint != expected_endpoint
                 or journal.queue != values["queue"]
                 or journal.task_id != values["task_id"]
                 or journal.run_id != run_id
@@ -289,11 +326,6 @@ def _load_environment_context() -> ExecutionContext | None:
                 "Inherited Labtasker execution context could not be loaded.",
                 {"source": str(run_dir)},
             ) from error
-        client = Client(
-            url=values["url"],
-            token=os.environ.get("LABTASKER_TOKEN"),
-            queue=values["queue"],
-        )
 
         def report(result: dict[str, JSONValue]) -> bool:
             from labtasker.worker import report_complete_until_resolved

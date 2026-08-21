@@ -118,7 +118,7 @@ def _run_command_claim(
     try:
         journal = LocalRunJournal.create(
             claim=claim,
-            server_url=client.configuration.url,
+            endpoint=client.configuration.endpoint_dict(),
             queue=queue,
             route=route,
         )
@@ -364,7 +364,6 @@ def _command_environment(
     environment = dict(os.environ)
     environment.update(
         {
-            "LABTASKER_URL": client.configuration.url,
             "LABTASKER_QUEUE": queue,
             "LABTASKER_TASK_ID": claim.task.id,
             "LABTASKER_RUN_ID": claim.run_id,
@@ -372,8 +371,18 @@ def _command_environment(
             "LABTASKER_RUN_DIR": str(journal.run_dir),
         }
     )
-    token = client.configuration.token
-    if token is None:
+    configuration = client.configuration
+    if configuration.local is None:
+        assert configuration.url is not None
+        environment["LABTASKER_URL"] = configuration.url
+        environment.pop("LABTASKER_SOCKET", None)
+        environment.pop("LABTASKER_LOCAL_DIRECTORY", None)
+    else:
+        environment["LABTASKER_SOCKET"] = str(configuration.local.socket)
+        environment["LABTASKER_LOCAL_DIRECTORY"] = str(configuration.local.directory)
+        environment.pop("LABTASKER_URL", None)
+    token = configuration.token
+    if token is None or configuration.local is not None:
         environment.pop("LABTASKER_TOKEN", None)
     else:
         environment["LABTASKER_TOKEN"] = token

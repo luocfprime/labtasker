@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "labtasker",
+    "labtasker-client",
     "labtasker-server",
     "labtasker-workspace",
 ]
@@ -448,6 +449,21 @@ wheels = [
 
 [[package]]
 name = "labtasker"
+version = "2.0.0"
+source = { editable = "packages/labtasker" }
+dependencies = [
+    { name = "labtasker-client" },
+    { name = "labtasker-server" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "labtasker-client", editable = "packages/labtasker-client" },
+    { name = "labtasker-server", editable = "packages/labtasker-server" },
+]
+
+[[package]]
+name = "labtasker-client"
 version = "2.0.0"
 source = { editable = "packages/labtasker-client" }
 dependencies = [

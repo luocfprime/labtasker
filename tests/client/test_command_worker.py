@@ -16,6 +16,7 @@ import pytest
 import labtasker.execution as execution_module
 from labtasker.command_template import TemplateSyntaxError
 from labtasker.command_worker import _run_pty, run_command_worker
+from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError
 from labtasker.execution import RunControl, finish, task_info
 from labtasker.models import ClaimResponse, Queue, Task
@@ -64,7 +65,9 @@ class FakeClient:
         token: str | None = None,
         heartbeat_error: APIError | None = None,
     ) -> None:
-        self.configuration = SimpleNamespace(url="http://server", queue="default", token=token)
+        self.configuration = ResolvedConfig(
+            url="http://server", queue="default", token=token, local=None
+        )
         self.claims = deque(claims)
         self.heartbeat_error = heartbeat_error
         self.actions: list[tuple[str, str, object]] = []
@@ -309,7 +312,13 @@ def test_environment_context_loads_task_info_and_finish_without_import_side_effe
 
     journal = LocalRunJournal.create(
         claim=claim,
-        server_url="http://server",
+        endpoint={
+            "mode": "http",
+            "url": "http://server",
+            "socket": None,
+            "directory": None,
+            "database": None,
+        },
         queue="default",
         route="default",
         cwd=tmp_path,

@@ -1,6 +1,7 @@
 # Development
 
-The repository is a uv workspace containing two independent distributions.
+The repository is a uv workspace containing two independent runtime
+distributions and one code-free convenience metapackage.
 
 ```bash
 uv sync --all-packages --group dev --frozen
@@ -35,10 +36,12 @@ persistence, and documentation surfaces.
 
 ## Package boundary
 
-- `labtasker` contains the Client, Worker runtime, public Python API, and CLI. It
+- `labtasker-client` contains the Client, Worker runtime, public Python API, and CLI. It
   does not depend on FastAPI, SQLAlchemy, or the Server package.
 - `labtasker-server` contains the FastAPI/SQLite service and Server CLI. It does
   not depend on the Client package.
+- `labtasker` is a code-free convenience metapackage that installs matching
+  Client and Server releases.
 
 Build artifacts must preserve that independence and include the Apache-2.0
 license.

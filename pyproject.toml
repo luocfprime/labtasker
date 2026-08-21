@@ -9,6 +9,7 @@ package = false
 
 [tool.uv.workspace]
 members = [
+  "packages/labtasker",
   "packages/labtasker-client",
   "packages/labtasker-server",
 ]

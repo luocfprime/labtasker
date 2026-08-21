@@ -9,6 +9,14 @@ import pytest
 from labtasker.journal import LocalRunJournal, _task_slug
 from labtasker.models import ClaimResponse, Task
 
+HTTP_ENDPOINT = {
+    "mode": "http",
+    "url": "http://server",
+    "socket": None,
+    "directory": None,
+    "database": None,
+}
+
 
 def claim(name: str | None = "SDXL / baseline 模型") -> ClaimResponse:
     task = Task.model_validate(
@@ -43,7 +51,7 @@ def claim(name: str | None = "SDXL / baseline 模型") -> ClaimResponse:
 def test_create_semantic_layout_and_initial_snapshot(tmp_path: Path) -> None:
     journal = LocalRunJournal.create(
         claim=claim(),
-        server_url="http://127.0.0.1:8000/prefix",
+        endpoint={**HTTP_ENDPOINT, "url": "http://127.0.0.1:8000/prefix"},
         queue="default",
         route="gpu",
         cwd=tmp_path,
@@ -60,7 +68,13 @@ def test_create_semantic_layout_and_initial_snapshot(tmp_path: Path) -> None:
     run = json.loads(journal.run_path.read_text())
     assert run == {
         "schema_version": 1,
-        "server_url": "http://127.0.0.1:8000/prefix",
+        "endpoint": {
+            "mode": "http",
+            "url": "http://127.0.0.1:8000/prefix",
+            "socket": None,
+            "directory": None,
+            "database": None,
+        },
         "queue": "default",
         "task_id": "t_ABCDEFGHIJKL",
         "run_id": "r_ABCDEFGHIJKL",
@@ -82,7 +96,7 @@ def test_create_preserves_existing_local_gitignore(tmp_path: Path) -> None:
 
     LocalRunJournal.create(
         claim=claim(),
-        server_url="http://server",
+        endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
         cwd=tmp_path,
@@ -94,7 +108,7 @@ def test_create_preserves_existing_local_gitignore(tmp_path: Path) -> None:
 def test_terminal_updates_are_atomic_and_payload_specific(tmp_path: Path) -> None:
     journal = LocalRunJournal.create(
         claim=claim(),
-        server_url="http://server",
+        endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
         cwd=tmp_path,
@@ -124,7 +138,7 @@ def test_terminal_updates_are_atomic_and_payload_specific(tmp_path: Path) -> Non
 def test_fail_and_unclaim_payload_rules(tmp_path: Path) -> None:
     failed = LocalRunJournal.create(
         claim=claim("failed"),
-        server_url="http://server",
+        endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
         cwd=tmp_path,
@@ -135,7 +149,7 @@ def test_fail_and_unclaim_payload_rules(tmp_path: Path) -> None:
     unclaimed_claim = claim("unclaimed").model_copy(update={"run_id": "r_MNOPQRSTUVWX"})
     unclaimed = LocalRunJournal.create(
         claim=unclaimed_claim,
-        server_url="http://server",
+        endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
         cwd=tmp_path,
@@ -160,7 +174,7 @@ def test_create_collision_and_required_file_failure_are_visible(
 ) -> None:
     kwargs = {
         "claim": claim(),
-        "server_url": "http://server",
+        "endpoint": HTTP_ENDPOINT,
         "queue": "default",
         "route": "gpu",
         "cwd": tmp_path,

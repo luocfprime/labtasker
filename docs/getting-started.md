@@ -1,24 +1,22 @@
 # Get started
 
-Labtasker requires Python 3.11 or newer. Install the Server where the SQLite
-database will live, and install the Client wherever Tasks are submitted or run.
+Labtasker requires Python 3.11 or newer. The ordinary installation includes both
+the Client and local Server while keeping their runtime packages independent.
 
 ## Installation
 
 === "with pip"
 
     ```bash
-    python -m pip install labtasker-server
     python -m pip install labtasker
     ```
 
 === "with uv"
 
-    Install the Server as a standalone tool and add the Client to the experiment
-    project so its Python API is importable by Worker code:
+    Add Labtasker to the experiment project so its Python API is importable by
+    Worker code and the matching local Server is available:
 
     ```bash
-    uv tool install labtasker-server
     uv add labtasker
     ```
 
@@ -27,33 +25,34 @@ database will live, and install the Client wherever Tasks are submitted or run.
     launched Python child inherits that project environment. The examples below
     omit the prefix so their Labtasker syntax stays easy to compare.
 
-    For a Server maintained inside its own uv project, use
-    `uv add labtasker-server` and start it with
-    `uv run labtasker-server serve` instead of installing it as a tool.
+    For split deployment, install `labtasker-client` directly in Client-only
+    environments and `labtasker-server` in the Server environment.
 
-## 1. Start the Server
+## 1. Select the local project
 
 ```bash
-labtasker-server serve
+cd my-experiment
+labtasker config show
 ```
 
-This listens on `127.0.0.1:8000`, stores data in `.labtasker/server.db`, and
-creates the `default` Queue in a fresh database. Labtasker also creates
-`.labtasker/.gitignore`, so the local database, configuration, and Worker run
-journals are ignored by Git by default; an existing ignore file is left intact.
+The default endpoint is bound exactly to the canonical current directory. The
+diagnostic above shows its database and Unix socket paths but does not create
+files, connect, or start a process. The first Task or Queue operation visibly
+starts a detached local daemon. It stores durable state in
+`.labtasker/server.db`, logs in `.labtasker/server.log`, and creates Queue
+`default` in a fresh database. `.labtasker/.gitignore` excludes local state while
+leaving an existing ignore file unchanged.
 
-## 2. Configure the Client
+## 2. Optionally select a Queue
 
-For this local setup the defaults already work. A project configuration makes
-the target explicit:
+No configuration is required. To change the default Queue without changing the
+local endpoint:
 
 ```toml
-# .labtasker/config.toml
-url = "http://127.0.0.1:8000"
 queue = "default"
 ```
 
-Check what the Client will use:
+Check the effective non-secret endpoint at any time:
 
 ```bash
 labtasker config show

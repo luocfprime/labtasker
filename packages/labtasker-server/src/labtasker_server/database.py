@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - explicit HTTP remains best effort off POSIX
+    fcntl = None  # type: ignore[assignment]
 
 from alembic import command
 from alembic.config import Config
@@ -16,8 +22,12 @@ from labtasker_server.models import QueueRow
 LOCAL_GITIGNORE = "*\n!.gitignore\n"
 
 
+class DatabaseOwnershipError(RuntimeError):
+    pass
+
+
 class Database:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, ownership_fd: int | None = None) -> None:
         self.path = path.resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         labtasker_dir = next(
@@ -26,6 +36,7 @@ class Database:
         )
         if labtasker_dir is not None:
             _ensure_local_gitignore(labtasker_dir)
+        self._ownership_fd: int | None = _acquire_database_ownership(self.path, ownership_fd)
         self.engine = _create_sqlite_engine(self.path)
         self._session_factory = sessionmaker(self.engine, expire_on_commit=False)
 
@@ -77,6 +88,41 @@ class Database:
 
     def dispose(self) -> None:
         self.engine.dispose()
+        if self._ownership_fd is not None:
+            os.close(self._ownership_fd)
+            self._ownership_fd = None
+
+
+def _acquire_database_ownership(path: Path, inherited_fd: int | None) -> int:
+    if inherited_fd is None:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        if fcntl is not None:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                os.close(fd)
+                raise DatabaseOwnershipError(
+                    f"Another Server process already owns database {path}."
+                ) from error
+    else:
+        fd = os.dup(inherited_fd)
+        os.set_inheritable(fd, False)
+
+    descriptor_stat = os.fstat(fd)
+    try:
+        path_stat = path.stat()
+    except OSError:
+        os.close(fd)
+        raise
+    if (descriptor_stat.st_dev, descriptor_stat.st_ino) != (
+        path_stat.st_dev,
+        path_stat.st_ino,
+    ):
+        os.close(fd)
+        raise DatabaseOwnershipError(
+            f"Database descriptor does not identify configured path {path}."
+        )
+    return fd
 
 
 def _create_sqlite_engine(path: Path) -> Engine:

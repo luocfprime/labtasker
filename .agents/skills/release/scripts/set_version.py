@@ -13,6 +13,7 @@ VERSION_PATTERN = re.compile(
 )
 PYPROJECTS = (
     ROOT / "pyproject.toml",
+    ROOT / "packages/labtasker/pyproject.toml",
     ROOT / "packages/labtasker-client/pyproject.toml",
     ROOT / "packages/labtasker-server/pyproject.toml",
 )
@@ -24,7 +25,12 @@ PLUGIN_FILES = (
     ROOT / ".claude-plugin/plugin.json",
     ROOT / ".claude-plugin/marketplace.json",
 )
-LOCK_NAMES = {"labtasker-workspace", "labtasker", "labtasker-server"}
+LOCK_NAMES = {
+    "labtasker-workspace",
+    "labtasker",
+    "labtasker-client",
+    "labtasker-server",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -77,6 +83,30 @@ def replace_project_version(path: Path, version: str) -> None:
     path.write_text(updated, encoding="utf-8")
 
 
+def metapackage_dependency_versions() -> set[str]:
+    document = tomllib.loads(
+        (ROOT / "packages/labtasker/pyproject.toml").read_text(encoding="utf-8")
+    )
+    return {
+        str(dependency).split("==", 1)[1]
+        for dependency in document["project"]["dependencies"]
+        if str(dependency).startswith(("labtasker-client==", "labtasker-server=="))
+    }
+
+
+def replace_metapackage_dependency_versions(version: str) -> None:
+    path = ROOT / "packages/labtasker/pyproject.toml"
+    text = path.read_text(encoding="utf-8")
+    updated, count = re.subn(
+        r'(?m)^(  "labtasker-(?:client|server)==)[^"]+(",)$',
+        rf"\g<1>{version}\g<2>",
+        text,
+    )
+    if count != 2:
+        raise SystemExit("could not update metapackage dependency versions")
+    path.write_text(updated, encoding="utf-8")
+
+
 def replace_init_version(path: Path, version: str) -> None:
     text = path.read_text(encoding="utf-8")
     updated, count = re.subn(
@@ -116,6 +146,8 @@ def check_source(version: str) -> None:
             for path, value in sorted(mismatches.items())
         )
         raise SystemExit(f"version mismatch: {details}")
+    if metapackage_dependency_versions() != {version}:
+        raise SystemExit("metapackage dependency versions do not match the release")
 
 
 def check_lock(version: str) -> None:
@@ -150,6 +182,7 @@ def main() -> None:
         raise SystemExit(f"refusing to update inconsistent source versions: {sorted(current)}")
     for path in PYPROJECTS:
         replace_project_version(path, version)
+    replace_metapackage_dependency_versions(version)
     for path in INIT_FILES:
         replace_init_version(path, version)
     for path in PLUGIN_FILES:

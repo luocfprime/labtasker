@@ -194,7 +194,7 @@ def _run_python_claim(
     try:
         journal = LocalRunJournal.create(
             claim=claim,
-            server_url=client.configuration.url,
+            endpoint=client.configuration.endpoint_dict(),
             queue=queue,
             route=route,
         )

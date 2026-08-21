@@ -19,10 +19,11 @@ WORKSPACE_VERSION = str(
 )
 
 
-def test_workspace_and_both_distributions_share_one_version() -> None:
+def test_workspace_and_all_distributions_share_one_version() -> None:
     assert labtasker.__version__ == WORKSPACE_VERSION
     assert labtasker_server.__version__ == WORKSPACE_VERSION
     assert importlib.metadata.version("labtasker") == WORKSPACE_VERSION
+    assert importlib.metadata.version("labtasker-client") == WORKSPACE_VERSION
     assert importlib.metadata.version("labtasker-server") == WORKSPACE_VERSION
 
 
@@ -33,22 +34,46 @@ def test_distribution_metadata_keeps_packages_independent_and_aligned() -> None:
     server = tomllib.loads(
         (ROOT / "packages/labtasker-server/pyproject.toml").read_text(encoding="utf-8")
     )
+    metapackage = tomllib.loads(
+        (ROOT / "packages/labtasker/pyproject.toml").read_text(encoding="utf-8")
+    )
     client_dependencies = "\n".join(client["project"]["dependencies"]).lower()
     server_dependencies = "\n".join(server["project"]["dependencies"]).lower()
 
     for forbidden in ("fastapi", "sqlalchemy", "alembic", "uvicorn"):
         assert forbidden not in client_dependencies
     assert "labtasker" not in server_dependencies
-    assert client["project"]["name"] == "labtasker"
+    assert client["project"]["name"] == "labtasker-client"
     assert server["project"]["name"] == "labtasker-server"
-    assert client["project"]["version"] == server["project"]["version"] == WORKSPACE_VERSION
-    assert client["project"]["license"] == server["project"]["license"] == "Apache-2.0"
-    assert client["project"]["license-files"] == server["project"]["license-files"] == ["LICENSE"]
+    assert metapackage["project"]["name"] == "labtasker"
+    assert set(metapackage["project"]["dependencies"]) == {
+        f"labtasker-client=={WORKSPACE_VERSION}",
+        f"labtasker-server=={WORKSPACE_VERSION}",
+    }
+    assert (
+        metapackage["project"]["version"]
+        == client["project"]["version"]
+        == server["project"]["version"]
+        == WORKSPACE_VERSION
+    )
+    assert (
+        metapackage["project"]["license"]
+        == client["project"]["license"]
+        == server["project"]["license"]
+        == "Apache-2.0"
+    )
+    assert (
+        metapackage["project"]["license-files"]
+        == client["project"]["license-files"]
+        == server["project"]["license-files"]
+        == ["LICENSE"]
+    )
     assert client["project"]["scripts"] == {"labtasker": "labtasker.cli:app"}
     assert server["project"]["scripts"] == {"labtasker-server": "labtasker_server.cli:app"}
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert (ROOT / "packages/labtasker-client/LICENSE").read_text() == license_text
     assert (ROOT / "packages/labtasker-server/LICENSE").read_text() == license_text
+    assert (ROOT / "packages/labtasker/LICENSE").read_text() == license_text
 
 
 def test_agent_skill_has_one_cross_agent_distribution_source() -> None:
@@ -84,9 +109,10 @@ def test_agent_skill_has_one_cross_agent_distribution_source() -> None:
     assert version_check.stdout == f"Labtasker version is consistently {WORKSPACE_VERSION}.\n"
 
 
-def test_workspace_contains_exactly_two_members() -> None:
+def test_workspace_contains_exactly_three_members() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["tool"]["uv"]["workspace"]["members"] == [
+        "packages/labtasker",
         "packages/labtasker-client",
         "packages/labtasker-server",
     ]

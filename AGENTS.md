@@ -8,12 +8,15 @@ case is a long-lived Worker that loads expensive process state once and executes
 many parameterized Tasks. Labtasker schedules work; it does not allocate GPUs,
 manage a cluster, build workflow DAGs, or store artifacts.
 
-The repository contains two independent Python distributions:
+The repository contains two independent runtime distributions and one code-free
+convenience metapackage:
 
 - `packages/labtasker-client`: synchronous Client, Python and command Workers,
   public Python API, and `labtasker` CLI.
 - `packages/labtasker-server`: FastAPI/SQLite Server, migrations, and
   `labtasker-server` CLI.
+- `packages/labtasker`: full installation depending on matching Client and
+  Server releases.
 
 Neither package may depend on the other. Keep FastAPI, SQLAlchemy, Alembic, and
 Uvicorn out of the Client dependency tree.

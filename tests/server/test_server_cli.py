@@ -10,12 +10,14 @@ from labtasker_server.cli import app
 runner = CliRunner()
 
 
-def test_server_cli_has_one_explicit_plain_serve_command() -> None:
+def test_server_cli_has_explicit_serve_and_local_management_commands() -> None:
     root = runner.invoke(app, ["--help"])
     serve = runner.invoke(app, ["serve", "--help"])
     assert root.exit_code == serve.exit_code == 0
     assert "Commands:" in root.stdout
     assert "serve" in root.stdout
+    for command in ("start", "status", "stop", "logs"):
+        assert command in root.stdout
     assert "Usage: root serve [OPTIONS]" in serve.stdout
     assert "Initialize the database and run one Labtasker v2 Server process." in serve.stdout
     assert "LABTASKER_SERVER_TOKEN" in serve.stdout

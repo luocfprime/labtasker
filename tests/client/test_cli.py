@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -75,14 +77,22 @@ def fake_client(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("labtasker.cli.Client", FakeClient)
 
 
-def test_config_show_is_read_only_formatted_json() -> None:
+def test_config_show_is_read_only_formatted_json(tmp_path: Path) -> None:
     result = runner.invoke(app, ["config", "show"])
     assert result.exit_code == 0
     assert result.stderr == ""
-    assert result.stdout == (
-        '{\n  "url": "http://127.0.0.1:8000",\n  "queue": "default",\n'
-        '  "token_configured": false\n}\n'
-    )
+    parsed = json.loads(result.stdout)
+    assert parsed == {
+        "mode": "local",
+        "directory": str(tmp_path),
+        "database": str(tmp_path / ".labtasker/server.db"),
+        "socket": parsed["socket"],
+        "url": None,
+        "queue": "default",
+        "token_configured": False,
+    }
+    assert parsed["socket"].startswith(f"/tmp/labtasker-{os.geteuid()}/")
+    assert not (tmp_path / ".labtasker").exists()
 
 
 def test_submit_parses_one_strict_json_object_and_repeated_routes(fake_client: None) -> None:

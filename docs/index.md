@@ -18,7 +18,8 @@ registry, infer capabilities from arguments, or allocate GPUs.
 
 ## Choose a starting point
 
-- [Get started](getting-started.md) runs a Server, submits a Task, and executes it.
+- [Get started](getting-started.md) uses the default local Server, submits a Task,
+  and executes it.
 - [Core model](concepts.md) explains queues, routes, attempts, and run fencing.
 - [Inference and evaluation](inference-evaluation.md) shows warm model reuse,
   evaluator dispatch, implementation rollouts, and artifact handling.

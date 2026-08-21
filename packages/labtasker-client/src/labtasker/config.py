@@ -4,27 +4,50 @@ import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
 from labtasker.errors import ConfigError
+from labtasker.local import LocalPaths, local_paths, require_local_capabilities
 from labtasker.validation import RequestValidationError, invalid_config, validate_identifier
 
-DEFAULT_URL = "http://127.0.0.1:8000"
 DEFAULT_QUEUE = "default"
 CONFIG_FIELDS = {"url", "queue", "token"}
 
 
+class EndpointRecord(TypedDict):
+    mode: Literal["http", "local"]
+    url: str | None
+    socket: str | None
+    directory: str | None
+    database: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class ResolvedConfig:
-    url: str
+    url: str | None
     queue: str
     token: str | None
+    local: LocalPaths | None
 
     def public_dict(self) -> dict[str, object]:
         return {
+            "mode": "local" if self.local is not None else "http",
+            "directory": str(self.local.directory) if self.local is not None else None,
+            "database": str(self.local.database) if self.local is not None else None,
+            "socket": str(self.local.socket) if self.local is not None else None,
             "url": self.url,
             "queue": self.queue,
             "token_configured": self.token is not None,
+        }
+
+    def endpoint_dict(self) -> EndpointRecord:
+        return {
+            "mode": "local" if self.local is not None else "http",
+            "url": self.url,
+            "socket": str(self.local.socket) if self.local is not None else None,
+            "directory": str(self.local.directory) if self.local is not None else None,
+            "database": str(self.local.database) if self.local is not None else None,
         }
 
 
@@ -46,7 +69,7 @@ def resolve_config(
         "queue": environment_values.get("LABTASKER_QUEUE"),
     }
     defaults: dict[str, str | None] = {
-        "url": DEFAULT_URL,
+        "url": None,
         "token": None,
         "queue": DEFAULT_QUEUE,
     }
@@ -72,7 +95,22 @@ def resolve_config(
     effective_url = _validate_url(effective["url"], source=sources["url"])
     effective_queue = _validate_queue(effective["queue"], source=sources["queue"])
     effective_token = _validate_token(effective["token"], source=sources["token"])
-    return ResolvedConfig(url=effective_url, queue=effective_queue, token=effective_token)
+    local: LocalPaths | None = None
+    if effective_url is None:
+        if effective_token is not None:
+            raise invalid_config(
+                "A token requires an explicit URL; local mode does not use authentication.",
+                source=sources["token"],
+                field="token",
+            )
+        require_local_capabilities()
+        local = local_paths(working_directory)
+    return ResolvedConfig(
+        url=effective_url,
+        queue=effective_queue,
+        token=effective_token,
+        local=local,
+    )
 
 
 def _read_config_file(cwd: Path) -> dict[str, str]:
@@ -111,7 +149,9 @@ def _read_config_file(cwd: Path) -> dict[str, str]:
     return values
 
 
-def _validate_url(value: str | None, *, source: str) -> str:
+def _validate_url(value: str | None, *, source: str) -> str | None:
+    if value is None:
+        return None
     if not isinstance(value, str) or not value:
         raise invalid_config("URL must be a non-empty string.", source=source, field="url")
     try:

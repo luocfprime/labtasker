@@ -7,10 +7,12 @@ Scheduling stays explicit: a Task names one or more compatible routes, and a
 Worker claims through exactly one route. The Server stores no Worker registry and
 does not allocate GPUs or other resources.
 
-V2 consists of two independent Python distributions:
+V2 has two independent runtime distributions and one convenience metapackage:
 
-- `labtasker`: synchronous Python Client, Worker API, and `labtasker` CLI.
+- `labtasker-client`: synchronous Python Client, Worker API, and `labtasker` CLI.
 - `labtasker-server`: FastAPI/SQLite Server and `labtasker-server` CLI.
+- `labtasker`: code-free full installation that installs matching Client and
+  Server distributions.
 
 Python 3.11 or newer is required. Linux is the fully release-gated platform.
 Client, Server, and Python Worker use is portable on macOS and Windows on a
@@ -25,30 +27,30 @@ Labtasker claims a Task or starts local work.
 
 ### With pip
 
-Install the Server on the machine that owns the SQLite database, and install the
-Client wherever Tasks are submitted or executed:
+For ordinary single-project use, install the complete package:
 
 ```bash
-python -m pip install labtasker-server
 python -m pip install labtasker
 ```
 
+Install `labtasker-client` directly for a slim environment that only connects to
+an explicitly managed HTTP Server. Install `labtasker-server` directly for a
+Server-only deployment.
+
 ### With uv
 
-Install the standalone Server CLI as a tool, and add the Client to the project
-whose code submits or executes Tasks:
+Add the complete installation to the experiment project:
 
 ```bash
-uv tool install labtasker-server
 uv add labtasker
 ```
 
 Run Client commands through the project environment, for example
-`uv run labtasker config show`. If the Server is managed as a uv project instead
-of a tool, use `uv add labtasker-server` and `uv run labtasker-server serve`.
+`uv run labtasker config show`. For split deployment, add `labtasker-client` in
+Client environments and install `labtasker-server` in the Server environment.
 
 For a checkout of this repository, `uv sync --all-packages --group dev` installs
-both workspace packages and the development tools.
+all workspace distributions and the development tools.
 
 ### Install the agent skill
 
@@ -75,13 +77,34 @@ scope selection.
 
 ## End-to-end quick start
 
-Start one Server. The default bind is loopback-only, the database is
-`.labtasker/server.db`, and a fresh database contains Queue `default`. Labtasker
-also creates `.labtasker/.gitignore` for its local database, configuration, and
-Worker run journals without overwriting an existing ignore file:
+Change to the project directory. No Server command or port configuration is
+needed for the default local workflow:
+
+```bash
+cd my-experiment
+labtasker queue list
+```
+
+The first real Client operation visibly starts a detached local daemon and
+connects through an owner-only Unix socket. Its database and log live at
+`.labtasker/server.db` and `.labtasker/server.log`; a fresh database contains
+Queue `default`. The daemon stays alive across terminal or SSH disconnection.
+`labtasker config show` is read-only and shows the selected paths without
+starting it.
+
+Manage that CWD-bound daemon explicitly when needed:
+
+```bash
+labtasker-server status
+labtasker-server logs
+labtasker-server stop
+```
+
+For a separately operated HTTP Server, start the foreground process explicitly:
 
 ```bash
 labtasker-server serve
+export LABTASKER_URL=http://127.0.0.1:8000
 ```
 
 A non-loopback bind requires a server-wide token supplied through the environment:
@@ -91,7 +114,7 @@ LABTASKER_SERVER_TOKEN=secret \
   labtasker-server serve --host 0.0.0.0 --database /data/labtasker.db
 ```
 
-Configure a Client with environment variables:
+An explicit URL disables local daemon management. Configure a remote Client with:
 
 ```bash
 export LABTASKER_URL=http://127.0.0.1:8000

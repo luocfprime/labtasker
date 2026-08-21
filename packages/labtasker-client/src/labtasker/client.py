@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import secrets
+import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import TypeVar
 
 import httpx
@@ -10,6 +12,12 @@ from pydantic import TypeAdapter, ValidationError
 
 from labtasker.config import ResolvedConfig, resolve_config
 from labtasker.errors import APIError, TransportError
+from labtasker.local import (
+    ensure_local_server,
+    local_paths,
+    require_local_capabilities,
+    socket_transport,
+)
 from labtasker.models import (
     BulkUpdateResult,
     ClaimResponse,
@@ -53,16 +61,43 @@ class Client:
         token: str | None = None,
         queue: str | None = None,
     ) -> None:
-        self._config = resolve_config(url=url, token=token, queue=queue)
+        self._initialize(resolve_config(url=url, token=token, queue=queue))
+
+    @classmethod
+    def _from_local_directory(cls, directory: Path, *, queue: str) -> Client:
+        require_local_capabilities()
+        client = cls.__new__(cls)
+        client._initialize(
+            ResolvedConfig(
+                url=None,
+                queue=validate_identifier(queue, field="queue"),
+                token=None,
+                local=local_paths(directory),
+            )
+        )
+        return client
+
+    def _initialize(self, config: ResolvedConfig) -> None:
+        self._config = config
         headers = {}
         if self._config.token is not None:
             headers["Authorization"] = f"Bearer {self._config.token}"
-        self._http = httpx.Client(
-            base_url=f"{self._config.url}/api/v2/",
-            headers=headers,
-            timeout=REQUEST_TIMEOUT_SECONDS,
-        )
+        if self._config.local is None:
+            assert self._config.url is not None
+            self._http = httpx.Client(
+                base_url=f"{self._config.url}/api/v2/",
+                headers=headers,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+        else:
+            self._http = httpx.Client(
+                base_url="http://labtasker/api/v2/",
+                transport=socket_transport(self._config.local),
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
         self._closed = False
+        self._endpoint_announced = False
+        self._local_ready = False
 
     def __enter__(self) -> Client:
         self._ensure_open()
@@ -126,7 +161,7 @@ class Client:
                     raise
         raise TransportError(
             "Could not allocate a unique Task ID.",
-            {"operation": "submit_task", "url": self._config.url},
+            {"operation": "submit_task", **self._operation_endpoint_details},
         )
 
     def get_task(self, task_id: str, *, queue: str | None = None) -> Task:
@@ -324,7 +359,11 @@ class Client:
         return self._call(
             operation="worker_health",
             method="GET",
-            path=f"{self._config.url}/health",
+            path=(
+                f"{self._config.url}/health"
+                if self._config.url is not None
+                else "http://labtasker/health"
+            ),
             parser=lambda response: _parse_model(response, HealthResponse, {200}),
             retry=True,
         )
@@ -470,17 +509,28 @@ class Client:
         retry: bool = False,
     ) -> T:
         self._ensure_open()
+        self._prepare_endpoint()
         attempts = MAX_RETRY_ATTEMPTS if retry else 1
         last_transport_error: TransportError | None = None
-        for attempt in range(attempts):
+        local_connect_recovery_used = False
+        attempt = 0
+        while attempt < attempts:
             try:
                 response = self._http.request(method, path, json=json, params=params)
             except httpx.RequestError as error:
-                last_transport_error = TransportError(
-                    "The Labtasker Server could not be reached.",
-                    {"operation": operation, "url": self._config.url},
+                last_transport_error = self._connection_error(operation)
+                can_recover_local_connect = (
+                    self._config.local is not None
+                    and isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout))
+                    and not local_connect_recovery_used
                 )
-                if attempt + 1 == attempts:
+                if can_recover_local_connect:
+                    local_connect_recovery_used = True
+                    self._local_ready = False
+                    self._ensure_local_available()
+                    if attempt + 1 == attempts:
+                        attempts += 1
+                elif attempt + 1 == attempts:
                     raise last_transport_error from error
             else:
                 if response.is_error:
@@ -490,23 +540,28 @@ class Client:
                         last_transport_error = _with_operation(
                             error,
                             operation,
-                            self._config.url,
+                            self._operation_endpoint_details,
                         )
                         if attempt + 1 == attempts:
                             raise last_transport_error from error
                         _backoff(attempt)
+                        attempt += 1
                         continue
                     if retry and api_error.code == "database_busy" and attempt + 1 < attempts:
                         _backoff(attempt)
+                        attempt += 1
                         continue
                     raise api_error
                 try:
                     return parser(response)
                 except TransportError as error:
-                    last_transport_error = _with_operation(error, operation, self._config.url)
+                    last_transport_error = _with_operation(
+                        error, operation, self._operation_endpoint_details
+                    )
                     if attempt + 1 == attempts:
                         raise last_transport_error from error
             _backoff(attempt)
+            attempt += 1
         if last_transport_error is None:
             raise AssertionError("Request loop ended without a result or error.")
         raise last_transport_error
@@ -514,6 +569,72 @@ class Client:
     def _ensure_open(self) -> None:
         if self._closed:
             raise RuntimeError("Client is closed.")
+
+    @property
+    def _operation_endpoint_details(self) -> dict[str, object]:
+        if self._config.local is None:
+            return {"url": self._config.url}
+        return {
+            "directory": str(self._config.local.directory),
+            "socket": str(self._config.local.socket),
+        }
+
+    def _prepare_endpoint(self) -> None:
+        if not self._endpoint_announced:
+            if self._config.local is None:
+                print(
+                    f"labtasker: connecting to HTTP Server url={self._config.url}",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "labtasker: using local Server "
+                    f"directory={self._config.local.directory} "
+                    f"database={self._config.local.database} socket={self._config.local.socket}",
+                    file=sys.stderr,
+                )
+            self._endpoint_announced = True
+        if self._config.local is not None and not self._local_ready:
+            self._ensure_local_available()
+
+    def _ensure_local_available(self) -> None:
+        paths = self._config.local
+        if paths is None:
+            return
+        result = ensure_local_server(paths, emit=self._emit_local_transition)
+        if result.pid is None:
+            print(
+                f"labtasker: connected to local daemon socket={paths.socket} "
+                "runtime_metadata=unavailable",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"labtasker: connected to local daemon pid={result.pid} "
+                f"version={result.server_version} socket={paths.socket}",
+                file=sys.stderr,
+            )
+        self._local_ready = True
+
+    @staticmethod
+    def _emit_local_transition(message: str) -> None:
+        print(f"labtasker: {message}", file=sys.stderr)
+
+    def _connection_error(self, operation: str) -> TransportError:
+        details: dict[str, object] = {"operation": operation}
+        if self._config.local is None:
+            details["url"] = self._config.url
+        else:
+            details.update(
+                {
+                    "state": "unhealthy",
+                    "directory": str(self._config.local.directory),
+                    "database": str(self._config.local.database),
+                    "socket": str(self._config.local.socket),
+                    "log": str(self._config.local.log),
+                }
+            )
+        return TransportError("The Labtasker Server could not be reached.", details)
 
 
 def _parse_model(
@@ -588,8 +709,12 @@ def _parse_api_error(response: httpx.Response) -> APIError:
     return APIError(response.status_code, code, message, normalized_details)
 
 
-def _with_operation(error: TransportError, operation: str, url: str) -> TransportError:
-    return TransportError(error.message, {**error.details, "operation": operation, "url": url})
+def _with_operation(
+    error: TransportError,
+    operation: str,
+    endpoint: dict[str, object],
+) -> TransportError:
+    return TransportError(error.message, {**error.details, "operation": operation, **endpoint})
 
 
 def _generate_task_id() -> str:
