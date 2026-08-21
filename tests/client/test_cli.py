@@ -242,3 +242,100 @@ def test_loop_static_template_error_is_usage_error(
     result = runner.invoke(app, ["loop", "--", "echo", "%{broken"])
     assert result.exit_code == 2
     assert "unterminated placeholder" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (
+            ["--help"],
+            [
+                "Submit, inspect, and execute Labtasker v2 Tasks.",
+                "Submit, inspect, update, and control Tasks.",
+                "Create, list, and delete Queue namespaces.",
+            ],
+        ),
+        (
+            ["task", "submit", "--help"],
+            [
+                "JSON types are preserved exactly",
+                "--args <str>",
+                "Task arguments as one strict JSON object.",
+                "repeat for multiple routes",
+                "labtasker task submit --name baseline",
+            ],
+        ),
+        (
+            ["task", "list", "--help"],
+            [
+                "List one page of Tasks",
+                "combined with logical AND",
+                "Opaque next_cursor from the same query",
+                "metadata.group",
+            ],
+        ),
+        (
+            ["task", "update", "--help"],
+            [
+                "Provide exactly one of TASK_ID and --filter",
+                "replaces every supplied field in full",
+                "Running Tasks cannot be updated",
+                "one atomic Server operation",
+                'status == "pending"',
+            ],
+        ),
+        (
+            ["loop", "--help"],
+            [
+                "Usage: root loop [OPTIONS] -- COMMAND [ARG...]",
+                "never invokes a shell",
+                "%{object.field}",
+                "Seconds without an eligible Task before normal exit",
+                "wait forever if omitted",
+            ],
+        ),
+        (
+            ["config", "show", "--help"],
+            [
+                "effective URL, Queue, and non-secret token presence",
+                ".labtasker/config.toml",
+                "token value is never printed",
+            ],
+        ),
+    ],
+)
+def test_help_explains_semantics_constraints_and_examples(
+    arguments: list[str],
+    expected: list[str],
+) -> None:
+    result = runner.invoke(app, arguments)
+    assert result.exit_code == 0
+    assert result.stderr == ""
+    normalized_output = " ".join(result.stdout.split())
+    for snippet in expected:
+        assert " ".join(snippet.split()) in normalized_output
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["task", "get"],
+        ["task", "count"],
+        ["task", "cancel"],
+        ["task", "requeue"],
+        ["task", "delete"],
+        ["queue", "create"],
+        ["queue", "list"],
+        ["queue", "delete"],
+    ],
+)
+def test_every_leaf_help_has_a_specific_description(command: list[str]) -> None:
+    result = runner.invoke(app, [*command, "--help"])
+    assert result.exit_code == 0
+    assert result.stderr == ""
+    description = next(
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.startswith("  ") and "--help" not in line
+    )
+    assert description.endswith(".")

@@ -33,6 +33,29 @@ python -m pip install labtasker
 For a checkout of this repository, `uv sync --all-packages --group dev` installs
 both workspace packages and the development tools.
 
+### Install the agent skill
+
+Labtasker includes an agent skill for turning inference, evaluation, and other
+independent experiment loops into Tasks and Workers.
+
+Claude Code users can install it from this repository's marketplace:
+
+```text
+/plugin marketplace add luocfprime/labtasker@v2
+/plugin install labtasker-skill@labtasker
+```
+
+Codex, Claude Code, OpenCode, Cursor, and other Agent Skills-compatible tools can
+install the same canonical skill with:
+
+```bash
+npx skills add \
+  https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker
+```
+
+See the [agent skill guide](docs/guides/agent-skill.md) for explicit agent and
+scope selection.
+
 ## End-to-end quick start
 
 Start one Server. The default bind is loopback-only, the database is
@@ -247,9 +270,9 @@ unauthenticated `/health` and `/openapi.json`; interactive docs are intentionall
 not shipped. Every API error uses a stable `error.code`, readable message, and
 structured details.
 
-[`LABTASKER_V2_SPEC.md`](LABTASKER_V2_SPEC.md) is the authoritative standalone
-contract, including exact lifecycle, concurrency, query, journal, and API
-semantics.
+The [full specification](docs/reference/specification.md) is the authoritative
+standalone contract, including exact lifecycle, concurrency, query, journal, and
+API semantics.
 
 ## Development
 

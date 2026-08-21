@@ -22,6 +22,17 @@ uv run zensical build --clean
 The generated `site/` directory is ignored. CI builds the site from scratch but
 does not publish it.
 
+## Agent workflows
+
+Repository-aware coding agents should start with the root `AGENTS.md`. It records
+the product boundary, architectural invariants, source-of-truth order, and
+validation expectations without loading the full specification into every task.
+
+Repeatable, task-specific workflows live under `.agents/skills/`. Use the
+`release` skill for versioning and release readiness, and the
+`public-contract-change` skill when changing behavior across HTTP, Python, CLI,
+persistence, and documentation surfaces.
+
 ## Package boundary
 
 - `labtasker` contains the Client, Worker runtime, public Python API, and CLI. It

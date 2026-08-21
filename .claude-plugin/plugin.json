@@ -1,0 +1,16 @@
+{
+  "name": "labtasker-skill",
+  "displayName": "Labtasker Skill",
+  "version": "2.0.0",
+  "description": "Teach Claude Code to design and operate Labtasker v2 experiment queues and Workers.",
+  "author": {
+    "name": "lcf",
+    "email": "kevinfinley@163.com",
+    "url": "https://github.com/luocfprime"
+  },
+  "homepage": "https://luocfprime.github.io/labtasker/",
+  "repository": "https://github.com/luocfprime/labtasker",
+  "license": "Apache-2.0",
+  "keywords": ["ml", "inference", "evaluation", "task-queue", "agent-skill"],
+  "skills": "./skills"
+}

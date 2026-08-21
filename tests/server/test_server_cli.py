@@ -17,6 +17,11 @@ def test_server_cli_has_one_explicit_plain_serve_command() -> None:
     assert "Commands:" in root.stdout
     assert "serve" in root.stdout
     assert "Usage: root serve [OPTIONS]" in serve.stdout
+    assert "Initialize the database and run one Labtasker v2 Server process." in serve.stdout
+    assert "LABTASKER_SERVER_TOKEN" in serve.stdout
+    assert "Run only one Server process for each SQLite file." in serve.stdout
+    assert "non-loopback address requires a token" in serve.stdout
+    assert "labtasker-server serve" in serve.stdout
     assert "╭" not in root.stdout + serve.stdout
     for removed in ("--token", "--workers", "--reload", "--log-level"):
         assert removed not in serve.stdout

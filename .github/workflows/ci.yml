@@ -23,6 +23,7 @@ jobs:
         run: |
           client_smoke_dir=$(mktemp -d)
           server_smoke_dir=$(mktemp -d)
+          export EXPECTED_VERSION=$(uv run python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
           client_wheel=$(find dist -maxdepth 1 -name 'labtasker-*.whl' -print -quit)
           server_wheel=$(find dist -maxdepth 1 -name 'labtasker_server-*.whl' -print -quit)
           uv venv "$client_smoke_dir"
@@ -31,16 +32,18 @@ jobs:
           uv pip install --python "$server_smoke_dir/bin/python" "$server_wheel"
           "$client_smoke_dir/bin/python" - <<'PY'
           import importlib.util
+          import os
           import labtasker
-          assert labtasker.__version__ == "2.0.0"
+          assert labtasker.__version__ == os.environ["EXPECTED_VERSION"]
           assert importlib.util.find_spec("labtasker_server") is None
           assert importlib.util.find_spec("fastapi") is None
           PY
           "$server_smoke_dir/bin/python" - <<'PY'
           import importlib.util
+          import os
           import labtasker_server
           from labtasker_server.app import create_app
-          assert labtasker_server.__version__ == "2.0.0"
+          assert labtasker_server.__version__ == os.environ["EXPECTED_VERSION"]
           assert callable(create_app)
           assert importlib.util.find_spec("labtasker") is None
           PY

@@ -1,19 +1,18 @@
-# Labtasker v2 incremental specification
+# Labtasker v2 specification
 
 Status: reviewed 2.0.0 design specification
 
 This is the authoritative, standalone user-visible contract for Labtasker v2. Its
 intended reader has the repository but no access to the design conversation that
-produced it. The reader must not need chat history, undocumented assumptions, or
-either companion document to interpret a decided behavior.
+produced it. The reader must not need chat history or undocumented assumptions to
+interpret a decided behavior.
 
 This document records agreed user-visible changes from Labtasker v1. It is not a
 greenfield redesign. V1 is the feature inventory and source of real usage
 experience, not an automatic compatibility contract: useful and well-designed
 behavior is retained, poorly designed behavior is corrected, and redundant
-features are removed. Implementation cleanup stays in `LABTASKER_V2_PLAN.md`,
-while `LABTASKER_V2_COMPARISON.md` summarizes v1-to-v2 differences. If either
-companion contradicts this specification, this document wins.
+features are removed. This specification is the sole maintained design contract;
+the implementation and tests must agree with it.
 
 Each section is either **Decided** or **Open**. Open choices are added only when a
 concrete v1 problem or an already-decided change requires them.
@@ -129,6 +128,21 @@ autonomous:
   classes;
 - the worker remains correct when no agent is currently connected; and
 - supervision may observe or act later but is not part of the runtime protocol.
+
+Labtasker distributes one maintained `labtasker` Agent Skill for those external
+agents. `skills/labtasker/SKILL.md` is its canonical content. The repository
+exposes that same content through two user installation paths: a Claude Code
+marketplace rooted at `.claude-plugin/`, and the open Agent Skills repository
+layout consumed by `npx skills add`. `.agents/skills/labtasker` is a relative
+symlink to the canonical directory for repository-local discovery; it is not an
+independent copy. The skill must describe the current v2 names and behavior and
+must not preserve obsolete v1 commands or models as compatibility guidance.
+
+The distributable product skill is distinct from contributor-only repository
+skills such as release preparation or public-contract changes. Installing the
+product skill grants an agent knowledge, not permission to start shared services,
+perform destructive mutations, allocate resources, publish releases, or bypass
+the ordinary Labtasker authorization and fencing contract.
 
 V2's primary interaction target is an agent or another program. The CLI is an
 automation interface over the HTTP API, not an incomplete TUI and not a temporary
@@ -369,10 +383,7 @@ The client uses this recursive type alias wherever public Python data must be
 JSON-compatible:
 
 ```python
-JSONValue: TypeAlias = (
-    None | bool | int | float | str |
-    list["JSONValue"] | dict[str, "JSONValue"]
-)
+JSONValue: TypeAlias = None | bool | int | float | str | list["JSONValue"] | dict[str, "JSONValue"]
 ```
 
 The alias is narrowed by one uniform numeric contract at every Python, CLI and
@@ -1817,8 +1828,8 @@ def run(
     model,
     prompt: str = TaskArg(),
     steps: int = TaskArg(default=30),
-):
-    ...
+): ...
+
 
 run(load_model())
 ```
@@ -3425,6 +3436,7 @@ and change inspection noisy.
 
 | Date | Decision |
 |---|---|
+| 2026-08-21 | Restore one canonical v2 Labtasker Agent Skill with both Claude Code marketplace and open `npx skills add` installation paths; use a repository-local symlink rather than maintaining a third copy. |
 | 2026-08-20 | Make this file the authoritative standalone user-visible contract: a reader with no chat history must be able to implement every Decided section; companion plan/comparison files cannot supply missing semantics. |
 | 2026-08-20 | Name the task-selection expression `filter` consistently in Python, CLI and HTTP; add no public `where` or `query` aliases. |
 | 2026-08-20 | Keep a strict Python-AST filter subset with comparisons, guarded membership, `and`/`or`, and `exists`/`missing`; omit unary `not`, raw Mongo filters and regex/date/arithmetic/extensions. |

@@ -20,14 +20,30 @@ from labtasker.validation import RequestValidationError, validate_json_object
 
 T = TypeVar("T")
 app = typer.Typer(
+    help="Submit, inspect, and execute Labtasker v2 Tasks.",
     add_completion=False,
     no_args_is_help=True,
     pretty_exceptions_enable=False,
     rich_markup_mode=None,
 )
-task_app = typer.Typer(add_completion=False, no_args_is_help=True, rich_markup_mode=None)
-queue_app = typer.Typer(add_completion=False, no_args_is_help=True, rich_markup_mode=None)
-config_app = typer.Typer(add_completion=False, no_args_is_help=True, rich_markup_mode=None)
+task_app = typer.Typer(
+    help="Submit, inspect, update, and control Tasks.",
+    add_completion=False,
+    no_args_is_help=True,
+    rich_markup_mode=None,
+)
+queue_app = typer.Typer(
+    help="Create, list, and delete Queue namespaces.",
+    add_completion=False,
+    no_args_is_help=True,
+    rich_markup_mode=None,
+)
+config_app = typer.Typer(
+    help="Inspect the resolved Client configuration.",
+    add_completion=False,
+    no_args_is_help=True,
+    rich_markup_mode=None,
+)
 app.add_typer(task_app, name="task")
 app.add_typer(queue_app, name="queue")
 app.add_typer(config_app, name="config")
@@ -52,12 +68,40 @@ class _SeparatedCommand(TyperCommand):
 )
 def worker_loop(
     context: typer.Context,
-    route: Annotated[str, typer.Option()] = "default",
-    queue: Annotated[str | None, typer.Option()] = None,
-    idle_timeout: Annotated[float, typer.Option()] = 300.0,
-    force_stop_timeout: Annotated[float | None, typer.Option()] = None,
+    route: Annotated[
+        str,
+        typer.Option(help="Exact route claimed by this Worker."),
+    ] = "default",
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Queue to claim from; otherwise use Client configuration."),
+    ] = None,
+    idle_timeout: Annotated[
+        float,
+        typer.Option(help="Seconds without an eligible Task before normal exit."),
+    ] = 300.0,
+    force_stop_timeout: Annotated[
+        float | None,
+        typer.Option(
+            help=(
+                "Seconds to wait after run revocation before killing the child; "
+                "wait forever if omitted."
+            )
+        ),
+    ] = None,
 ) -> None:
-    """Claim Tasks and execute one command for each claim."""
+    """Claim matching Tasks and execute one child command for each claim.
+
+    The explicit -- separator is required. Everything after it is one argv
+    template; Labtasker never invokes a shell or re-splits arguments. %{name}
+    reads a Task argument, and %{object.field} traverses nested JSON objects.
+
+    Example:
+
+    
+      labtasker loop --route train -- \\
+        python train.py --seed '%{seed}' --lr '%{optimizer.lr}'
+    """
     if not context.meta.get("labtasker_command_separator", False):
         raise typer.BadParameter("COMMAND is required after --")
     argv = list(context.args)
@@ -87,15 +131,51 @@ def worker_loop(
 
 @task_app.command("submit")
 def task_submit(
-    args: Annotated[str, typer.Option(help="Strict JSON object.")] = "{}",
-    name: Annotated[str | None, typer.Option()] = None,
-    metadata: Annotated[str, typer.Option(help="Strict JSON object.")] = "{}",
-    priority: Annotated[int, typer.Option()] = 0,
-    max_attempts: Annotated[int, typer.Option(min=1)] = 3,
-    routes: Annotated[list[str] | None, typer.Option("--route")] = None,
-    task_id: Annotated[str | None, typer.Option("--id")] = None,
-    queue: Annotated[str | None, typer.Option()] = None,
+    args: Annotated[
+        str,
+        typer.Option(help="Task arguments as one strict JSON object."),
+    ] = "{}",
+    name: Annotated[
+        str | None,
+        typer.Option(help="Optional human-readable Task name."),
+    ] = None,
+    metadata: Annotated[
+        str,
+        typer.Option(help="Searchable metadata as one strict JSON object."),
+    ] = "{}",
+    priority: Annotated[
+        int,
+        typer.Option(help="Claim higher priorities first."),
+    ] = 0,
+    max_attempts: Annotated[
+        int,
+        typer.Option(min=1, help="Maximum number of charged execution attempts."),
+    ] = 3,
+    routes: Annotated[
+        list[str] | None,
+        typer.Option("--route", help="Compatible exact route; repeat for multiple routes."),
+    ] = None,
+    task_id: Annotated[
+        str | None,
+        typer.Option("--id", help="Caller-chosen idempotent Task ID."),
+    ] = None,
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Target Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """Submit one Task and print its complete representation as JSON.
+
+    JSON types are preserved exactly; the CLI never guesses types from text.
+    --route defaults to default when omitted.
+
+    Example:
+
+    
+      labtasker task submit --name baseline \\
+        --args '{"seed":1,"enabled":true}' \\
+        --metadata '{"group":"paper"}' --route train
+    """
     result = _invoke(
         lambda: _with_client(
             lambda client: client.submit_task(
@@ -115,23 +195,63 @@ def task_submit(
 
 @task_app.command("get")
 def task_get(
-    task_id: Annotated[str, typer.Argument()],
-    queue: Annotated[str | None, typer.Option()] = None,
+    task_id: Annotated[str, typer.Argument(help="Task ID to retrieve.")],
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Task Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """Get one Task by ID and print its complete representation as JSON."""
     _write_json(_invoke(lambda: _with_client(lambda client: client.get_task(task_id, queue=queue))))
 
 
 @task_app.command("list")
 def task_list(
-    status: Annotated[TaskStatus | None, typer.Option()] = None,
-    name: Annotated[str | None, typer.Option()] = None,
-    filter: Annotated[str | None, typer.Option()] = None,
-    order_by: Annotated[TaskOrderField, typer.Option()] = "created_at",
-    descending: Annotated[bool, typer.Option("--descending/--ascending")] = True,
-    limit: Annotated[int, typer.Option(min=1, max=1000)] = 100,
-    cursor: Annotated[str | None, typer.Option()] = None,
-    queue: Annotated[str | None, typer.Option()] = None,
+    status: Annotated[
+        TaskStatus | None,
+        typer.Option(help="Select exactly one lifecycle status."),
+    ] = None,
+    name: Annotated[
+        str | None,
+        typer.Option(help="Select an exact Task name; empty string is valid."),
+    ] = None,
+    filter: Annotated[
+        str | None,
+        typer.Option(help="Additional Task query expression."),
+    ] = None,
+    order_by: Annotated[
+        TaskOrderField,
+        typer.Option(help="Stable field used to order this page."),
+    ] = "created_at",
+    descending: Annotated[
+        bool,
+        typer.Option("--descending/--ascending", help="Choose ordering direction."),
+    ] = True,
+    limit: Annotated[
+        int,
+        typer.Option(min=1, max=1000, help="Maximum Tasks in this page."),
+    ] = 100,
+    cursor: Annotated[
+        str | None,
+        typer.Option(help="Opaque next_cursor from the same query and ordering."),
+    ] = None,
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Task Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """List one page of Tasks and print items plus next_cursor as JSON.
+
+    --status, --name, and --filter are combined with logical AND.
+    Reuse a returned cursor only with the same selectors and ordering.
+
+    Example:
+
+    
+      labtasker task list --status pending \\
+        --filter 'priority >= 10 and metadata.group == "paper"' \\
+        --order-by priority --descending --limit 100
+    """
     result = _invoke(
         lambda: _with_client(
             lambda client: client.list_tasks(
@@ -151,11 +271,31 @@ def task_list(
 
 @task_app.command("count")
 def task_count(
-    status: Annotated[TaskStatus | None, typer.Option()] = None,
-    name: Annotated[str | None, typer.Option()] = None,
-    filter: Annotated[str | None, typer.Option()] = None,
-    queue: Annotated[str | None, typer.Option()] = None,
+    status: Annotated[
+        TaskStatus | None,
+        typer.Option(help="Select exactly one lifecycle status."),
+    ] = None,
+    name: Annotated[
+        str | None,
+        typer.Option(help="Select an exact Task name; empty string is valid."),
+    ] = None,
+    filter: Annotated[
+        str | None,
+        typer.Option(help="Additional Task query expression."),
+    ] = None,
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Task Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """Count Tasks matching all supplied selectors and print JSON.
+
+    Example:
+
+    
+      labtasker task count --status failed \\
+        --filter 'last_error.type == "ValueError"'
+    """
     count = _invoke(
         lambda: _with_client(
             lambda client: client.count_tasks(
@@ -171,11 +311,37 @@ def task_count(
 
 @task_app.command("update")
 def task_update(
-    task_id: Annotated[str | None, typer.Argument()] = None,
-    filter: Annotated[str | None, typer.Option()] = None,
-    changes: Annotated[str, typer.Option(help="Strict JSON object.")] = "",
-    queue: Annotated[str | None, typer.Option()] = None,
+    task_id: Annotated[
+        str | None,
+        typer.Argument(help="One Task ID; mutually exclusive with --filter."),
+    ] = None,
+    filter: Annotated[
+        str | None,
+        typer.Option(help="Atomically select many Tasks; mutually exclusive with TASK_ID."),
+    ] = None,
+    changes: Annotated[
+        str,
+        typer.Option(help="Fields to replace as one strict JSON object."),
+    ] = "",
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Task Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """Update one Task by ID or all Tasks matching a query.
+
+    Provide exactly one of TASK_ID and --filter. --changes replaces
+    every supplied field in full; unspecified fields remain unchanged. Running
+    Tasks cannot be updated. A batch update is one atomic Server operation.
+
+    Examples:
+
+    
+      labtasker task update t_ABCDEFGHIJKL \\
+        --changes '{"priority":20}'
+      labtasker task update --filter 'status == "pending"' \\
+        --changes '{"routes":["train-v2"]}'
+    """
     if (task_id is None) == (filter is None):
         raise typer.BadParameter("provide exactly one of TASK_ID or --filter")
     if not changes:
@@ -203,9 +369,17 @@ def task_update(
 
 @task_app.command("cancel")
 def task_cancel(
-    task_id: Annotated[str, typer.Argument()],
-    queue: Annotated[str | None, typer.Option()] = None,
+    task_id: Annotated[str, typer.Argument(help="Task ID to cancel.")],
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Task Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """Cancel a pending or running Task and print its new state as JSON.
+
+    Cancelling a running Task revokes its current run immediately on the Server;
+    local shutdown follows the Worker's cooperative or force-stop policy.
+    """
     _write_json(
         _invoke(lambda: _with_client(lambda client: client.cancel_task(task_id, queue=queue)))
     )
@@ -213,9 +387,13 @@ def task_cancel(
 
 @task_app.command("requeue")
 def task_requeue(
-    task_id: Annotated[str, typer.Argument()],
-    queue: Annotated[str | None, typer.Option()] = None,
+    task_id: Annotated[str, typer.Argument(help="Non-running Task ID to requeue.")],
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Task Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """Return a non-running Task to pending and reset its attempt count."""
     _write_json(
         _invoke(lambda: _with_client(lambda client: client.requeue_task(task_id, queue=queue)))
     )
@@ -223,32 +401,55 @@ def task_requeue(
 
 @task_app.command("delete")
 def task_delete(
-    task_id: Annotated[str, typer.Argument()],
-    queue: Annotated[str | None, typer.Option()] = None,
+    task_id: Annotated[str, typer.Argument(help="Non-running Task ID to delete.")],
+    queue: Annotated[
+        str | None,
+        typer.Option(help="Task Queue; otherwise use Client configuration."),
+    ] = None,
 ) -> None:
+    """Permanently delete one non-running Task.
+
+    Success is quiet. This operation cannot be undone.
+    """
     _invoke(lambda: _with_client(lambda client: client.delete_task(task_id, queue=queue)))
 
 
 @queue_app.command("create")
-def queue_create(name: Annotated[str, typer.Argument()]) -> None:
+def queue_create(name: Annotated[str, typer.Argument(help="Queue name to create.")]) -> None:
+    """Create a Queue, or return the existing Queue with the same name."""
     _write_json(_invoke(lambda: _with_client(lambda client: client.create_queue(name))))
 
 
 @queue_app.command("list")
 def queue_list() -> None:
+    """List all Queue namespaces as formatted JSON."""
     _write_json(_invoke(lambda: _with_client(lambda client: client.list_queues())))
 
 
 @queue_app.command("delete")
 def queue_delete(
-    name: Annotated[str, typer.Argument()],
-    cascade: Annotated[bool, typer.Option()] = False,
+    name: Annotated[str, typer.Argument(help="Queue name to delete.")],
+    cascade: Annotated[
+        bool,
+        typer.Option(help="Also permanently delete every non-running Task in the Queue."),
+    ] = False,
 ) -> None:
+    """Permanently delete one Queue.
+
+    A non-empty Queue requires explicit --cascade. A Queue containing a
+    running Task cannot be deleted. Success is quiet.
+    """
     _invoke(lambda: _with_client(lambda client: client.delete_queue(name, cascade=cascade)))
 
 
 @config_app.command("show")
 def config_show() -> None:
+    """Print the effective URL, Queue, and non-secret token presence as JSON.
+
+    Resolution precedence is explicit arguments, environment, project-local
+    .labtasker/config.toml, then built-in defaults. The token value is never
+    printed.
+    """
     _write_json(_invoke(lambda: resolve_config().public_dict()))
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import json
 import os
 import subprocess
 import sys
@@ -13,13 +14,16 @@ import labtasker
 import labtasker_server
 
 ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_VERSION = str(
+    tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+)
 
 
-def test_both_distributions_start_at_version_2() -> None:
-    assert labtasker.__version__ == "2.0.0"
-    assert labtasker_server.__version__ == "2.0.0"
-    assert importlib.metadata.version("labtasker") == "2.0.0"
-    assert importlib.metadata.version("labtasker-server") == "2.0.0"
+def test_workspace_and_both_distributions_share_one_version() -> None:
+    assert labtasker.__version__ == WORKSPACE_VERSION
+    assert labtasker_server.__version__ == WORKSPACE_VERSION
+    assert importlib.metadata.version("labtasker") == WORKSPACE_VERSION
+    assert importlib.metadata.version("labtasker-server") == WORKSPACE_VERSION
 
 
 def test_distribution_metadata_keeps_packages_independent_and_aligned() -> None:
@@ -37,7 +41,7 @@ def test_distribution_metadata_keeps_packages_independent_and_aligned() -> None:
     assert "labtasker" not in server_dependencies
     assert client["project"]["name"] == "labtasker"
     assert server["project"]["name"] == "labtasker-server"
-    assert client["project"]["version"] == server["project"]["version"] == "2.0.0"
+    assert client["project"]["version"] == server["project"]["version"] == WORKSPACE_VERSION
     assert client["project"]["license"] == server["project"]["license"] == "Apache-2.0"
     assert client["project"]["license-files"] == server["project"]["license-files"] == ["LICENSE"]
     assert client["project"]["scripts"] == {"labtasker": "labtasker.cli:app"}
@@ -45,6 +49,39 @@ def test_distribution_metadata_keeps_packages_independent_and_aligned() -> None:
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert (ROOT / "packages/labtasker-client/LICENSE").read_text() == license_text
     assert (ROOT / "packages/labtasker-server/LICENSE").read_text() == license_text
+
+
+def test_agent_skill_has_one_cross_agent_distribution_source() -> None:
+    skill = ROOT / "skills/labtasker/SKILL.md"
+    repository_link = ROOT / ".agents/skills/labtasker"
+    plugin = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
+    marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
+    marketplace_plugin = marketplace["plugins"][0]
+
+    assert skill.is_file()
+    assert skill.read_text(encoding="utf-8").startswith("---\nname: labtasker\n")
+    assert repository_link.is_symlink()
+    assert repository_link.resolve() == skill.parent.resolve()
+    assert plugin["name"] == "labtasker-skill"
+    assert plugin["skills"] == "./skills"
+    assert marketplace["name"] == "labtasker"
+    assert len(marketplace["plugins"]) == 1
+    assert marketplace_plugin["name"] == "labtasker-skill"
+    assert marketplace_plugin["source"] == "./"
+    assert marketplace_plugin["version"] == plugin["version"]
+
+    version_check = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / ".agents/skills/release/scripts/set_version.py"),
+            "--check",
+            WORKSPACE_VERSION,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert version_check.stdout == f"Labtasker version is consistently {WORKSPACE_VERSION}.\n"
 
 
 def test_workspace_contains_exactly_two_members() -> None:

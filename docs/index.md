@@ -26,6 +26,8 @@ registry, infer capabilities from arguments, or allocate GPUs.
 - [Command Workers](workers/command.md) bind Task arguments to an argv template.
 - [Task operations](guides/tasks.md) covers submission, inspection, updates, and
   lifecycle actions.
+- [Agent skill](guides/agent-skill.md) installs the same Labtasker workflow for
+  Claude Code, Codex, and other Agent Skills-compatible tools.
 - [HTTP API](reference/http-api.md) points agents and integrations to the live
   machine-readable contract.
 
@@ -38,6 +40,5 @@ It is not a cluster scheduler, workflow DAG engine, artifact store, or
 agent-in-the-loop runtime. An agent can configure and supervise an experiment,
 but execution and recovery remain deterministic after the Worker starts.
 
-The standalone
-[v2 specification](https://github.com/luocfprime/labtasker/blob/v2/LABTASKER_V2_SPEC.md)
-is authoritative when this guide omits protocol detail.
+The standalone [v2 specification](reference/specification.md) is authoritative
+when this guide omits protocol detail.
