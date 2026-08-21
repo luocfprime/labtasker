@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import socket
 import threading
@@ -18,6 +19,7 @@ from labtasker_server.config import ServerSettings
 pytestmark = [
     pytest.mark.distributed_integration,
     pytest.mark.timeout(120),
+    pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups"),
 ]
 
 

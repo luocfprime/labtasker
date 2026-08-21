@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -60,6 +61,7 @@ def test_real_server_authentication_error_is_preserved(server_url: str) -> None:
     assert raised.value.details == {}
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
 def test_real_python_and_command_workers(
     server_url: str,
     monkeypatch: pytest.MonkeyPatch,

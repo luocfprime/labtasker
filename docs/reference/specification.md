@@ -202,11 +202,39 @@ operator action justified by a real migration need.
 
 Linux is the fully supported and release-gated 2.0.0 platform, including Worker
 process cancellation and the real single-node torchrun/Accelerate suite. The
-ordinary Client, Server and noninteractive pipe Worker are kept portable on macOS
-and Windows, but those platforms are best effort in the initial release: they do
-not require full launcher, PTY or process-tree parity and a platform-specific
-failure does not block 2.0.0. ConPTY and a Windows distributed-launcher matrix are
-not part of the release contract.
+ordinary Client, Server and Python Worker are kept portable on macOS and Windows,
+and the Command Worker is kept portable on macOS; those paths are best effort in
+the initial release, so a platform-specific failure does not block 2.0.0.
+
+The Command Worker is unsupported on Windows. Its execution contract requires
+the Worker to create and later terminate or kill the child's entire local process
+group. A Windows implementation based only on `Popen.terminate()` or
+`Popen.kill()` can terminate the direct child while leaving launcher ranks or
+other descendants running. Rather than expose that weaker behavior,
+`run_command_worker` checks for POSIX process-group support and raises the built-in
+`NotImplementedError` with the detected platform in its message before Client
+construction, network access, Task claim, journal creation or child startup. The
+CLI catches that exception, writes its message to stderr and exits 1. Windows
+ConPTY and Windows distributed-launcher support are outside the v2 contract
+because both depend on this unsupported executor.
+
+“Best effort” and “unsupported” are distinct platform classifications. Best
+effort permits an ordinary documented path to run even though that platform is
+not in the release gate. It does not permit a feature that this specification
+explicitly marks unsupported on the detected platform to run speculatively. A
+public Client, Worker or Server entry point for such a feature must perform a
+deterministic platform or required-capability check and raise
+`NotImplementedError` before network access, Task claim, journal creation,
+database mutation or child-process startup. It must not silently substitute
+semantically weaker behavior or rely on a later import, spawn, signal or system
+call failure. The message identifies both the feature and detected platform.
+
+Absence from a CI or release matrix alone does not make a feature unsupported,
+and therefore does not justify rejecting it. A documented implementation choice
+that preserves the promised behavior is also not a rejection case: for example,
+v2 selects pipe mode for a noninteractive POSIX execution because PTY is not a
+public requested feature and terminal preservation affects presentation rather
+than Task semantics.
 
 Every release must pass unit tests, real temporary-SQLite integration, HTTP and
 OpenAPI contract tests, Client-to-Server end to end, deterministic concurrency
@@ -577,9 +605,9 @@ labtasker loop -- env 'LR=%{lr}' python train.py
 ```
 
 Here `env` is the standard POSIX command: after Labtasker resolves the template,
-it starts `python train.py` with `LR` set to that value. Windows users may invoke
-their platform's explicit equivalent or a wrapper program. Labtasker does not
-pretend that `env` itself is portable syntax.
+it starts `python train.py` with `LR` set to that value. Labtasker does not add
+its own environment syntax or pretend that `env` is anything other than an
+external POSIX program.
 
 Command output follows the terminal context automatically and exposes no public
 PTY option:
@@ -588,8 +616,8 @@ PTY option:
   interactive terminal, the Client runs the child through an internal PTY. It
   relays input, output and terminal sizing so buffering, progress displays,
   colors and prompts resemble direct execution.
-- Otherwise, including redirected output, pipelines, schedulers and v2 Windows,
-  the Client uses ordinary subprocess pipes. It drains stdout and stderr
+- Otherwise, including redirected output, pipelines and schedulers, the Client
+  uses ordinary subprocess pipes. It drains stdout and stderr
   concurrently and forwards bytes as soon as they arrive, while preserving the
   two streams, and gives the child a null stdin. It cannot force a child that
   detects a pipe to flush its own userspace buffers.
@@ -600,12 +628,13 @@ PTY option:
   Labtasker performs no text decoding, newline normalization or ANSI removal, so
   `run.log` is not guaranteed to be valid UTF-8.
 
-V2 therefore has no `--pty`, `--no-pty` or `--use-pty` option and does not add a
-ConPTY implementation. Terminal detection affects presentation and buffering
-only; it never changes argv interpolation, Task state or routing. V2 provides no
-noninteractive Task-input protocol: a parallel command Worker that needs data
-must receive it through Task args, files or another explicit program-level
-mechanism rather than consuming the Worker's stdin.
+V2 therefore has no `--pty`, `--no-pty` or `--use-pty` option. It does not add a
+ConPTY implementation or admit Windows into the Command Worker and then silently
+fall back to pipes. On supported POSIX platforms, terminal detection affects
+presentation and buffering only; it never changes argv interpolation, Task state
+or routing. V2 provides no noninteractive Task-input protocol: a parallel command
+Worker that needs data must receive it through Task args, files or another
+explicit program-level mechanism rather than consuming the Worker's stdin.
 
 ### 2.4 Failure reporting boundary
 
@@ -2008,13 +2037,14 @@ unrelated runtime failures.
 
 Status: **Decided**
 
-Before its first claim, a Worker resolves and validates configuration, confirms
-authentication and Queue existence, validates route/timeouts, and validates a
-Python handler's static signature and `TaskArg` definitions. Failure at this stage
-raises the corresponding Python exception or writes a CLI log diagnostic
-and exits nonzero. It cannot create a Task failure because no Task is owned.
-Exhausting the three transport attempts for a logical claim has the same Worker
-failure behavior.
+Before its first claim, a Worker validates its static arguments and required
+platform capabilities, resolves and validates configuration, confirms
+authentication and Queue existence, and validates a Python handler's static
+signature and `TaskArg` definitions. A platform-capability failure occurs before
+Client construction or network access. Other failure at this stage raises the
+corresponding Python exception or writes a CLI log diagnostic and exits nonzero.
+It cannot create a Task failure because no Task is owned. Exhausting the three
+transport attempts for a logical claim has the same Worker failure behavior.
 
 The word “retry” refers to three deliberately separate mechanisms:
 

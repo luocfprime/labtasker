@@ -134,6 +134,24 @@ def test_command_template_is_validated_before_client_construction(
     assert not constructed
 
 
+def test_command_worker_rejects_non_posix_before_client_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    constructed = False
+
+    def fail_client(**_: object) -> None:
+        nonlocal constructed
+        constructed = True
+
+    monkeypatch.setattr("labtasker.command_worker.Client", fail_client)
+    monkeypatch.setattr("labtasker.command_worker._POSIX_PROCESS_GROUPS", False)
+    monkeypatch.setattr("labtasker.command_worker._PLATFORM", "win32")
+    with pytest.raises(NotImplementedError, match="platform 'win32' is not supported"):
+        run_command_worker(["python", "worker.py"], idle_timeout=0)
+    assert not constructed
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
 def test_pipe_worker_preserves_argv_environment_streams_and_null_stdin(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -206,6 +224,7 @@ def test_pty_worker_gives_child_one_terminal_and_captures_combined_raw_output(
     assert b"tty=True,True,True" in stdout_bytes.getvalue()
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
 def test_nonzero_and_binding_or_spawn_failure_are_task_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -240,6 +259,7 @@ def test_nonzero_and_binding_or_spawn_failure_are_task_failures(
     assert spawn_client.actions[0][2]["type"] == "FileNotFoundError"  # type: ignore[index]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
 def test_parent_takes_over_persisted_finish_payload_after_child_crash(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -244,6 +244,25 @@ def test_loop_static_template_error_is_usage_error(
     assert "unterminated placeholder" in result.stderr
 
 
+def test_loop_platform_error_is_a_clean_worker_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unsupported(*_: object, **__: object) -> None:
+        raise NotImplementedError(
+            "Command Workers require POSIX process-group support; "
+            "platform 'win32' is not supported."
+        )
+
+    monkeypatch.setattr("labtasker.cli.run_command_worker", unsupported)
+    result = runner.invoke(app, ["loop", "--", "python", "worker.py"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "Command Workers require POSIX process-group support; platform 'win32' is not supported.\n"
+    )
+    assert "Traceback" not in result.stderr
+
+
 @pytest.mark.parametrize(
     ("arguments", "expected"),
     [

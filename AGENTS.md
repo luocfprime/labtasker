@@ -60,6 +60,11 @@ remain useful after the change ships.
   machine-readable HTTP contract; do not add a shared runtime model package.
 - Preserve deterministic, non-interactive, agent-friendly CLI output: requested
   data on stdout, diagnostics on stderr, and no TTY-dependent behavior.
+- Treat platform support as an explicit capability boundary. A feature documented
+  as unsupported on the detected platform must fail before network access, Task
+  claim, journal creation, or process startup; do not silently degrade it or wait
+  for a platform primitive to fail. Lack of release gating alone is not an
+  unsupported feature, and a documented portable fallback remains allowed.
 
 ## Repository map
 

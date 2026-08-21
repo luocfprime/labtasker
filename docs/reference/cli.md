@@ -49,7 +49,10 @@ message to stderr and exit non-zero without an application traceback.
 
 `labtasker loop` is different: it is a supervised long-running process, so it
 uses ordinary timestamped logs and tees child output in real time. It does not
-emit JSON Lines or hide the child behind a pager.
+emit JSON Lines or hide the child behind a pager. This Command Worker requires
+POSIX process-group support; on Windows it writes the unsupported-platform
+message to stderr and exits with status 1 before connecting to the Server or
+claiming a Task.
 
 ## Pagination
 

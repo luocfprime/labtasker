@@ -11,6 +11,11 @@ The required `--` cleanly separates Labtasker options from the child argv. Each
 template element produces exactly one child argv element. Labtasker does not
 join, split, quote, or evaluate a shell command.
 
+Command Workers require POSIX process-group support. Linux is release-gated and
+macOS is best effort; Windows raises `NotImplementedError` before connecting to
+the Server or claiming a Task. Client operations, the Server, and Python Workers
+remain available on Windows.
+
 ## Template syntax
 
 `%{path}` reads a value from the Task args object. A path consists only of ASCII

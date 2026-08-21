@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 from pathlib import Path
@@ -11,6 +12,7 @@ from labtasker import Client
 from labtasker.command_worker import run_command_worker
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
 def test_fake_launcher_has_one_outer_claim_and_heartbeat_source(
     server_url: str,
     monkeypatch: pytest.MonkeyPatch,

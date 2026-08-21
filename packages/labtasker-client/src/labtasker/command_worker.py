@@ -42,6 +42,8 @@ from labtasker.worker import (
 )
 
 logger = logging.getLogger("labtasker.command_worker")
+_PLATFORM = sys.platform
+_POSIX_PROCESS_GROUPS = os.name == "posix" and hasattr(os, "killpg")
 
 
 def run_command_worker(
@@ -56,6 +58,7 @@ def run_command_worker(
     normalized_route = validate_identifier(route, field="route")
     normalized_idle_timeout = _validate_idle_timeout(idle_timeout)
     normalized_force_stop_timeout = _validate_force_stop_timeout(force_stop_timeout)
+    _guard_command_worker_platform()
     _guard_worker_topology()
     configure_worker_logger()
     with Client(queue=queue) as client:
@@ -93,6 +96,14 @@ def run_command_worker(
                 route=normalized_route,
                 force_stop_timeout=normalized_force_stop_timeout,
             )
+
+
+def _guard_command_worker_platform() -> None:
+    if not _POSIX_PROCESS_GROUPS:
+        raise NotImplementedError(
+            "Command Workers require POSIX process-group support; "
+            f"platform {_PLATFORM!r} is not supported."
+        )
 
 
 def _run_command_claim(
@@ -207,7 +218,7 @@ def _run_pipes(
         stderr=subprocess.PIPE,
         env=environment,
         close_fds=True,
-        start_new_session=os.name == "posix",
+        start_new_session=True,
     )
     assert process.stdout is not None
     assert process.stderr is not None
@@ -332,20 +343,14 @@ def _terminate_process_group(
 ) -> None:
     if process.poll() is not None:
         return
-    if os.name == "posix":
-        os.killpg(process.pid, signal.SIGTERM)
-    else:
-        process.terminate()
+    os.killpg(process.pid, signal.SIGTERM)
     if force_stop_timeout is None:
         process.wait()
         return
     try:
         process.wait(timeout=force_stop_timeout)
     except subprocess.TimeoutExpired:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
+        os.killpg(process.pid, signal.SIGKILL)
         process.wait()
 
 
@@ -438,7 +443,7 @@ def _write_bytes(destination: Any, value: bytes) -> None:
 
 
 def _interactive_terminal() -> bool:
-    return os.name == "posix" and sys.stdin.isatty() and sys.stdout.isatty() and sys.stderr.isatty()
+    return sys.stdin.isatty() and sys.stdout.isatty() and sys.stderr.isatty()
 
 
 def _terminal_size(descriptor: int) -> bytes | None:

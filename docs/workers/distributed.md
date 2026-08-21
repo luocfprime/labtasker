@@ -18,6 +18,10 @@ launcher owns its child ranks. Starting an independent Labtasker loop inside
 every rank would create competing Workers and is rejected before claim when the
 runtime detects a distributed child process.
 
+This integration inherits the Command Worker's platform boundary: Linux is
+release-gated, macOS is best effort, and Windows is rejected before Server access
+because Labtasker cannot guarantee process-tree cancellation there.
+
 ## Reporting completion
 
 Only one rank should call `finish()`. Prefer the launcher's own main-rank API,

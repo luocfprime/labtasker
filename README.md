@@ -12,9 +12,14 @@ V2 consists of two independent Python distributions:
 - `labtasker`: synchronous Python Client, Worker API, and `labtasker` CLI.
 - `labtasker-server`: FastAPI/SQLite Server and `labtasker-server` CLI.
 
-Python 3.11 or newer is required. Linux is the fully release-gated Worker
-platform; ordinary Client, Server, and pipe-mode Worker use is portable on a
-best-effort basis.
+Python 3.11 or newer is required. Linux is the fully release-gated platform.
+Client, Server, and Python Worker use is portable on macOS and Windows on a
+best-effort basis; Command Workers are additionally best effort on macOS but are
+rejected on Windows because the current implementation cannot guarantee
+process-tree cancellation there. Best effort means a documented path is not
+release-gated on that platform. It does not mean Labtasker attempts a feature
+explicitly documented as unsupported: such a feature is rejected before
+Labtasker claims a Task or starts local work.
 
 ## Install
 

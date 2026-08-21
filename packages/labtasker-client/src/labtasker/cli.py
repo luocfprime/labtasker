@@ -119,8 +119,11 @@ def worker_loop(
         )
     except (TemplateSyntaxError, RequestValidationError) as error:
         raise typer.BadParameter(str(error)) from error
+    except NotImplementedError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(1) from error
     except LabtaskerError as error:
-        logger.error("%s: %s", error.code, error.message)
+        typer.echo(f"{error.code}: {error.message}", err=True)
         raise typer.Exit(1) from error
     except KeyboardInterrupt:
         raise
