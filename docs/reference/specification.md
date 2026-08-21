@@ -2170,15 +2170,24 @@ browse without first querying the Server. Its root is relative to the Worker's
 current directory and its stable layout is:
 
 ```text
-.labtasker/runs/{queue}/
-  {task-name-slug}__{task_id}/
-    {started-at}__attempt-{attempt}__{run_id}/
-      task.json
-      run.json
-      result.json
-      error.json
-      run.log
+.labtasker/
+  .gitignore
+  runs/{queue}/
+    {task-name-slug}__{task_id}/
+      {started-at}__attempt-{attempt}__{run_id}/
+        task.json
+        run.json
+        result.json
+        error.json
+        run.log
 ```
+
+Before creating the first run directory, the Client exclusively creates
+`.labtasker/.gitignore` with `*` and `!.gitignore` rules. This keeps the entire
+local state directory ignored while allowing the ignore file itself to be
+committed. An existing file or filesystem entry at that path is never inspected
+or overwritten. Failure to create a required new ignore file is an initial local
+setup failure under the rule above.
 
 For example:
 

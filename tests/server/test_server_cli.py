@@ -49,6 +49,7 @@ def test_serve_uses_documented_defaults_and_environment_token(
         "log_level": "info",
     }
     assert (tmp_path / ".labtasker/server.db").exists()
+    assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
 
 
 def test_serve_rejects_nonloopback_without_token(tmp_path: Path) -> None:

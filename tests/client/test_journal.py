@@ -55,6 +55,7 @@ def test_create_semantic_layout_and_initial_snapshot(tmp_path: Path) -> None:
         / "20260820T143522Z__attempt-2__r_ABCDEFGHIJKL"
     )
     assert journal.log_path.read_bytes() == b""
+    assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
     assert json.loads(journal.task_path.read_text()) == claim().task.model_dump(mode="json")
     run = json.loads(journal.run_path.read_text())
     assert run == {
@@ -71,6 +72,23 @@ def test_create_semantic_layout_and_initial_snapshot(tmp_path: Path) -> None:
         "terminal_action": None,
         "acknowledged_at": None,
     }
+
+
+def test_create_preserves_existing_local_gitignore(tmp_path: Path) -> None:
+    labtasker_dir = tmp_path / ".labtasker"
+    labtasker_dir.mkdir()
+    gitignore = labtasker_dir / ".gitignore"
+    gitignore.write_text("runs/\n")
+
+    LocalRunJournal.create(
+        claim=claim(),
+        server_url="http://server",
+        queue="default",
+        route="gpu",
+        cwd=tmp_path,
+    )
+
+    assert gitignore.read_text() == "runs/\n"
 
 
 def test_terminal_updates_are_atomic_and_payload_specific(tmp_path: Path) -> None:

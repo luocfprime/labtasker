@@ -19,6 +19,7 @@ from labtasker.validation import (
 
 JournalPhase = Literal["running", "reporting", "acknowledged", "revoked"]
 TerminalAction = Literal["complete", "fail", "unclaim"]
+LOCAL_GITIGNORE = "*\n!.gitignore\n"
 
 
 class RunRecord(TypedDict):
@@ -61,7 +62,10 @@ class LocalRunJournal:
             f"{started_at.astimezone(UTC):%Y%m%dT%H%M%SZ}"
             f"__attempt-{claim.task.attempt}__{claim.run_id}"
         )
-        run_dir = root / ".labtasker" / "runs" / queue / task_group / run_name
+        labtasker_dir = root / ".labtasker"
+        labtasker_dir.mkdir(parents=True, exist_ok=True)
+        _ensure_local_gitignore(labtasker_dir)
+        run_dir = labtasker_dir / "runs" / queue / task_group / run_name
         run_dir.mkdir(parents=True, exist_ok=False)
         record: RunRecord = {
             "schema_version": 1,
@@ -179,6 +183,14 @@ class LocalRunJournal:
             self._record["finished_at"] = _timestamp(datetime.now(UTC))
             self._record["acknowledged_at"] = None
             _atomic_json(self.run_path, self._record)
+
+
+def _ensure_local_gitignore(labtasker_dir: Path) -> None:
+    try:
+        with (labtasker_dir / ".gitignore").open("x", encoding="utf-8", newline="\n") as stream:
+            stream.write(LOCAL_GITIGNORE)
+    except FileExistsError:
+        pass
 
 
 def _task_slug(name: str | None) -> str:

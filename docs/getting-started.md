@@ -15,7 +15,9 @@ labtasker-server serve
 ```
 
 This listens on `127.0.0.1:8000`, stores data in `.labtasker/server.db`, and
-creates the `default` Queue in a fresh database.
+creates the `default` Queue in a fresh database. Labtasker also creates
+`.labtasker/.gitignore`, so the local database, configuration, and Worker run
+journals are ignored by Git by default; an existing ignore file is left intact.
 
 ## 2. Configure the Client
 

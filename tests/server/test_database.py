@@ -13,6 +13,32 @@ from labtasker_server.errors import DomainError
 from labtasker_server.services.queues import QueueService
 
 
+def test_database_creates_gitignore_for_labtasker_state_directory(tmp_path: Path) -> None:
+    database = Database(tmp_path / ".labtasker/data/server.db")
+    try:
+        assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
+    finally:
+        database.dispose()
+
+
+def test_database_preserves_existing_gitignore_and_ignores_other_parents(
+    tmp_path: Path,
+) -> None:
+    labtasker_dir = tmp_path / ".labtasker"
+    labtasker_dir.mkdir()
+    gitignore = labtasker_dir / ".gitignore"
+    gitignore.write_text("server.db*\n")
+
+    local_database = Database(labtasker_dir / "server.db")
+    custom_database = Database(tmp_path / "custom/server.db")
+    try:
+        assert gitignore.read_text() == "server.db*\n"
+        assert not (tmp_path / "custom/.gitignore").exists()
+    finally:
+        local_database.dispose()
+        custom_database.dispose()
+
+
 def test_fresh_database_has_migrated_schema_default_queue_and_pragmas(
     database_path: Path,
 ) -> None:

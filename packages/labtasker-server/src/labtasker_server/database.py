@@ -13,11 +13,19 @@ from sqlalchemy.orm import Session, sessionmaker
 from labtasker_server.errors import DomainError
 from labtasker_server.models import QueueRow
 
+LOCAL_GITIGNORE = "*\n!.gitignore\n"
+
 
 class Database:
     def __init__(self, path: Path) -> None:
         self.path = path.resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        labtasker_dir = next(
+            (parent for parent in self.path.parents if parent.name == ".labtasker"),
+            None,
+        )
+        if labtasker_dir is not None:
+            _ensure_local_gitignore(labtasker_dir)
         self.engine = _create_sqlite_engine(self.path)
         self._session_factory = sessionmaker(self.engine, expire_on_commit=False)
 
@@ -89,6 +97,14 @@ def _create_sqlite_engine(path: Path) -> Engine:
             cursor.close()
 
     return engine
+
+
+def _ensure_local_gitignore(labtasker_dir: Path) -> None:
+    try:
+        with (labtasker_dir / ".gitignore").open("x", encoding="utf-8", newline="\n") as stream:
+            stream.write(LOCAL_GITIGNORE)
+    except FileExistsError:
+        pass
 
 
 def _is_sqlite_busy(error: OperationalError) -> bool:

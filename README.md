@@ -59,7 +59,9 @@ scope selection.
 ## End-to-end quick start
 
 Start one Server. The default bind is loopback-only, the database is
-`.labtasker/server.db`, and a fresh database contains Queue `default`:
+`.labtasker/server.db`, and a fresh database contains Queue `default`. Labtasker
+also creates `.labtasker/.gitignore` for its local database, configuration, and
+Worker run journals without overwriting an existing ignore file:
 
 ```bash
 labtasker-server serve
