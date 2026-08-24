@@ -4,13 +4,19 @@ import logging
 import os
 import sys
 import threading
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from time import struct_time
 from typing import TextIO, cast
 
 _ACTIVE_TEE: WorkerTee | None = None
 _FORK_HOOK_INSTALLED = False
+
+
+class _UTCFormatter(logging.Formatter):
+    converter: Callable[[float | None], struct_time] = time.gmtime
 
 
 class _TeeStream:
@@ -103,11 +109,18 @@ def configure_worker_logger() -> logging.Logger:
     if not logger.hasHandlers():
         handler = logging.StreamHandler()
         handler.setLevel(logging.INFO)
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        handler.setFormatter(_worker_log_formatter())
         logger.addHandler(handler)
         if logger.level == logging.NOTSET:
             logger.setLevel(logging.INFO)
     return logger
+
+
+def _worker_log_formatter() -> logging.Formatter:
+    return _UTCFormatter(
+        "%(asctime)s.%(msecs)03dZ %(levelname)s [labtasker] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
 
 
 def _clear_tee_after_fork() -> None:

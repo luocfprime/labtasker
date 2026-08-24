@@ -50,6 +50,20 @@ def error_response(status: int, code: str) -> httpx.Response:
     )
 
 
+def test_http_endpoint_is_announced_once_after_connection(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with mock_client(lambda _: httpx.Response(200, json=[{"name": "default"}])) as client:
+        assert [queue.name for queue in client.list_queues()] == ["default"]
+        assert [queue.name for queue in client.list_queues()] == ["default"]
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        "[labtasker] connected server=remote transport=http url=http://server.test/prefix\n"
+    )
+
+
 def test_submit_normalizes_body_and_preserves_id_across_transport_retry() -> None:
     requests: list[httpx.Request] = []
 

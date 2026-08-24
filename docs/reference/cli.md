@@ -89,18 +89,25 @@ Shell quoting protects the JSON from the shell; it is not part of the JSON.
 
 ## Output and exit behavior
 
-Successful resource commands print formatted JSON. Delete commands complete
-quietly. Validation, configuration, API, and transport errors print a concise
-message to stderr and exit non-zero without an application traceback.
+Successful finite resource commands print one two-space-indented JSON document
+with no ANSI styling. Delete commands complete quietly. Handled configuration,
+transport, and API errors write no stdout, print the stable Labtasker error
+envelope to stderr, and exit `1` without an application traceback. CLI argument
+or usage errors exit `2`; an interrupted Worker retains exit `130`.
 
 Every finite Client operation identifies its selected local or HTTP Server on
-stderr. Starting, waiting for, or reconnecting to a local daemon is likewise
-visible; requested JSON remains alone on stdout. `labtasker-server start` and
+stderr after connecting. The single `[labtasker] connected` line explicitly
+names a local or remote Server and its Unix, HTTP, or HTTPS transport; local
+connections also identify the project directory, database and socket. Starting,
+waiting for, or reconnecting to a local daemon is likewise visible. Requested
+JSON remains alone on stdout. Finite Client diagnostics use `[labtasker]`, while
+Server CLI diagnostics use `[labtasker-server]`. `labtasker-server start` and
 `stop` report actions on stderr, `status` prints stable JSON on stdout, and
 `logs` writes log content to stdout.
 
 `labtasker loop` is different: it is a supervised long-running process, so it
-uses ordinary timestamped logs and tees child output in real time. It does not
+uses ordinary logs whose default format includes a millisecond UTC timestamp,
+level and `[labtasker]` prefix, and tees child output in real time. It does not
 emit JSON Lines or hide the child behind a pager. This Command Worker requires
 POSIX process-group support; on Windows it writes the unsupported-platform
 message to stderr and exits with status 1 before connecting to the Server or

@@ -49,7 +49,15 @@ def test_serve_uses_documented_defaults_and_environment_token(
         "host": "127.0.0.1",
         "port": 8000,
         "log_level": "info",
+        "log_config": observed["log_config"],
     }
+    log_config = observed["log_config"]
+    assert isinstance(log_config, dict)
+    formatter = log_config["formatters"]["labtasker-server"]
+    assert formatter["format"] == (
+        "%(asctime)s.%(msecs)03dZ %(levelname)s [labtasker-server] %(message)s"
+    )
+    assert formatter["datefmt"] == "%Y-%m-%dT%H:%M:%S"
     assert (tmp_path / ".labtasker/server.db").exists()
     assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
 
@@ -62,6 +70,7 @@ def test_serve_rejects_nonloopback_without_token(tmp_path: Path) -> None:
     assert result.exit_code == 1
     assert result.stdout == ""
     assert result.stderr == (
-        "Server configuration error: A token is required when binding to a non-loopback host.\n"
+        "[labtasker-server] Server configuration error: "
+        "A token is required when binding to a non-loopback host.\n"
     )
     assert "Traceback" not in result.stderr

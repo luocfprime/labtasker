@@ -2596,10 +2596,12 @@ PTY/pipe path remains the raw-byte contract in section 2.3.
 
 At Worker startup, Labtasker respects an effective user configuration for the
 `labtasker` standard-library logger. If no real handler is available, it installs
-one INFO stderr fallback handler on that named logger only. It never calls
-`logging.basicConfig()`, mutates the root logger, removes user handlers or resets
-Loguru. Installing the fallback after the tee makes Labtasker's own Task-time
-messages part of `run.log` without taking ownership of application logging.
+one INFO stderr fallback handler on that named logger only. The fallback formats
+each record as a millisecond UTC RFC 3339 timestamp, level, `[labtasker]`, then
+the message. It never calls `logging.basicConfig()`, mutates the root logger,
+removes user handlers or resets Loguru. Installing the fallback after the tee
+makes Labtasker's own Task-time messages part of `run.log` without taking
+ownership of application logging.
 
 An `unclaim` has no result or error payload file. JSON journal files use UTF-8 and
 two-space indentation. Labtasker exposes the absolute run directory through
@@ -2785,10 +2787,14 @@ stdout so Agents can consume them. `labtasker loop` is a continuing execution
 process and emits Labtasker operational messages through ordinary Python
 `logging` on stderr while relaying user-code output under the command/Python
 Worker rules; it does not emit a stream of JSON event objects. The Server also
-uses ordinary human-readable Python logging. V2 adds neither JSONL logging nor a
-`--log-format` switch, and the precise logging prefix/layout is not an API
-contract. Both CLI-owned Worker logging and Server logging default to INFO; v2
-adds no `--verbose`, `--quiet` or `--log-level` flag.
+uses ordinary human-readable Python logging. Labtasker's default formatter for
+both long-running processes starts every record with an RFC 3339 UTC timestamp
+including milliseconds, then the level and the component prefix `[labtasker]` or
+`[labtasker-server]`. An application-provided handler for the `labtasker` logger
+retains control of its own format. V2 adds neither JSONL logging nor a
+`--log-format` switch, and individual log messages are not an API contract. Both
+CLI-owned Worker logging and Server logging default to INFO; v2 adds no
+`--verbose`, `--quiet` or `--log-level` flag.
 
 Handled `LabtaskerError`s from finite `task`, `queue` and `config` commands write
 no stdout and write one indented, human-readable JSON object to stderr using the
@@ -2813,21 +2819,29 @@ likewise remain ordinary logging because it is a continuing operational command,
 not a finite data request. V2 adds no output-format switch for these cases.
 
 Connection selection and automatic local process management are deliberately
-visible. Immediately before a Client instance's first real operation, the Client
-writes one concise `labtasker:` diagnostic to the then-current stderr identifying
-either the canonical local directory, database, socket, verified daemon PID and
-Server package version, or the explicit HTTP base URL. It never prints a token. A
-local startup additionally writes diagnostics when it starts a daemon, waits for
-another startup, observes readiness or declines to start during the fixed launch
-throttle; a later automatic restart is announced in the same way. Throttle
-diagnostics include the remaining seconds and log path. These lines are required
-even for direct Python API use rather than being INFO records hidden by
-application logging. They occur at most once for ordinary endpoint selection per
-Client instance, plus actual start/wait/restart/backoff transitions. Every CLI
-invocation therefore makes its selected Server visible without contaminating
-requested stdout. When a finite CLI operation later fails, these connection
-diagnostics may precede the structured error envelope on stderr; the envelope
-itself retains its exact shape.
+visible. On a Client instance's first successful connection, before returning
+the requested value, the Client writes one concise `[labtasker] connected`
+diagnostic to the then-current stderr. It identifies `server=local` with
+`transport=unix`, the canonical directory, database and socket, plus the verified
+daemon PID and Server package version when available; unavailable runtime values
+are written as `unknown`. An explicit URL identifies `server=remote`, derives
+`transport=http|https` from that URL and writes the complete credential-free
+base URL. It never prints a token.
+
+A local startup additionally writes component-prefixed diagnostics when it
+requests or starts a daemon, waits for another startup, observes readiness or
+declines to start during the fixed launch throttle; a later automatic restart is
+announced in the same way. `labtasker` Client messages use `[labtasker]`, while
+messages emitted by the Server executable use `[labtasker-server]`. Throttle
+diagnostics include the remaining seconds and log path. These finite-operation
+diagnostics have no timestamp and are required even for direct Python API use
+rather than being INFO records hidden by application logging. The successful
+connection line occurs at most once per Client instance, plus a new line after
+actual local reconnection. Every successful CLI invocation therefore makes its
+selected Server and transport visible without contaminating requested stdout.
+When a finite CLI operation later fails, transition diagnostics may precede the
+structured error envelope on stderr; the envelope itself retains its exact
+shape, and its details identify a connection target that could not be reached.
 
 Local Worker exception logging follows the Client outcome abstraction without
 changing it: `TransientError` logs at WARNING with type/message but no default
@@ -3836,6 +3850,7 @@ and change inspection noisy.
 
 | Date | Decision |
 |---|---|
+| 2026-08-24 | Standardize finite diagnostics as `[labtasker]` or `[labtasker-server]`, emit one explicit successful Client connection line with local/remote Server kind and Unix/HTTP(S) transport, and give default long-running Worker and Server logs millisecond UTC timestamps, levels and component prefixes. |
 | 2026-08-21 | Make CWD-bound local mode the default endpoint when no URL is configured: store the durable SQLite database under that exact canonical CWD, derive an owner-only tmux-style `/tmp/labtasker-UID` Unix socket without parent/VCS discovery, and let every explicit HTTP URL disable all local process management. |
 | 2026-08-21 | Make local endpoint selection and daemon transitions unconditionally visible on stderr for CLI and direct Python use, while preserving requested data on stdout and never printing credentials. |
 | 2026-08-21 | Use the actual database inode's inherited ownership FD as both local startup election and lifetime ownership, with no separate startup lock or readiness pipe; poll socket health for at most 30 seconds and never break or automatically kill a live owner. |

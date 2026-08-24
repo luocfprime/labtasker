@@ -533,6 +533,7 @@ class Client:
                 elif attempt + 1 == attempts:
                     raise last_transport_error from error
             else:
+                self._announce_http_endpoint()
                 if response.is_error:
                     try:
                         api_error = _parse_api_error(response)
@@ -580,45 +581,39 @@ class Client:
         }
 
     def _prepare_endpoint(self) -> None:
-        if not self._endpoint_announced:
-            if self._config.local is None:
-                print(
-                    f"labtasker: connecting to HTTP Server url={self._config.url}",
-                    file=sys.stderr,
-                )
-            else:
-                print(
-                    "labtasker: using local Server "
-                    f"directory={self._config.local.directory} "
-                    f"database={self._config.local.database} socket={self._config.local.socket}",
-                    file=sys.stderr,
-                )
-            self._endpoint_announced = True
         if self._config.local is not None and not self._local_ready:
             self._ensure_local_available()
+
+    def _announce_http_endpoint(self) -> None:
+        if self._endpoint_announced or self._config.local is not None:
+            return
+        assert self._config.url is not None
+        transport = self._config.url.partition(":")[0]
+        print(
+            f"[labtasker] connected server=remote transport={transport} url={self._config.url}",
+            file=sys.stderr,
+        )
+        self._endpoint_announced = True
 
     def _ensure_local_available(self) -> None:
         paths = self._config.local
         if paths is None:
             return
         result = ensure_local_server(paths, emit=self._emit_local_transition)
-        if result.pid is None:
-            print(
-                f"labtasker: connected to local daemon socket={paths.socket} "
-                "runtime_metadata=unavailable",
-                file=sys.stderr,
-            )
-        else:
-            print(
-                f"labtasker: connected to local daemon pid={result.pid} "
-                f"version={result.server_version} socket={paths.socket}",
-                file=sys.stderr,
-            )
+        pid = result.pid if result.pid is not None else "unknown"
+        version = result.server_version if result.server_version is not None else "unknown"
+        print(
+            "[labtasker] connected server=local transport=unix "
+            f"directory={paths.directory} database={paths.database} socket={paths.socket} "
+            f"pid={pid} version={version}",
+            file=sys.stderr,
+        )
+        self._endpoint_announced = True
         self._local_ready = True
 
     @staticmethod
     def _emit_local_transition(message: str) -> None:
-        print(f"labtasker: {message}", file=sys.stderr)
+        print(f"[labtasker] {message}", file=sys.stderr)
 
     def _connection_error(self, operation: str) -> TransportError:
         details: dict[str, object] = {"operation": operation}

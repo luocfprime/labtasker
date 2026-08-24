@@ -36,10 +36,11 @@ It performs no network request and creates no files.
 With no effective URL, Client construction snapshots the exact canonical CWD.
 The first real request starts or connects to that directory's detached Server
 through `/tmp/labtasker-UID/{sha256-of-directory}.sock`. Durable state remains in
-`CWD/.labtasker/server.db`, and diagnostics always state the selected directory,
-database, socket, and daemon transition on stderr. Labtasker never searches a
-parent directory or VCS root, and a later `chdir()` does not retarget an existing
-Client.
+`CWD/.labtasker/server.db`. The `[labtasker] connected` diagnostic on stderr
+explicitly states `server=local`, `transport=unix`, the selected directory,
+database and socket; daemon transitions are also visible. Labtasker never
+searches a parent directory or VCS root, and a later `chdir()` does not retarget
+an existing Client.
 
 An explicit constructor, environment, or config-file URL selects ordinary HTTP
 mode and disables all daemon startup, recovery, and stop behavior. Operating

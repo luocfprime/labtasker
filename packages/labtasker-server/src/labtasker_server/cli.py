@@ -36,6 +36,7 @@ from labtasker_server.local import (
     throttle_remaining,
     write_metadata,
 )
+from labtasker_server.logging import uvicorn_log_config
 
 app = typer.Typer(
     help="Run the Labtasker v2 HTTP Server.",
@@ -82,14 +83,20 @@ def serve(
     try:
         settings = ServerSettings.from_values(host=host, port=port, database=database)
     except ValueError as error:
-        typer.echo(f"Server configuration error: {error}", err=True)
+        typer.echo(f"[labtasker-server] Server configuration error: {error}", err=True)
         raise typer.Exit(1) from error
     try:
         application = create_app(settings)
     except (DatabaseOwnershipError, OSError, RuntimeError) as error:
-        typer.echo(f"Server startup error: {error}", err=True)
+        typer.echo(f"[labtasker-server] Server startup error: {error}", err=True)
         raise typer.Exit(1) from error
-    uvicorn.run(application, host=settings.host, port=settings.port, log_level="info")
+    uvicorn.run(
+        application,
+        host=settings.host,
+        port=settings.port,
+        log_level="info",
+        log_config=uvicorn_log_config(),
+    )
 
 
 @app.command()
@@ -101,15 +108,15 @@ def start() -> None:
             paths.directory,
             bypass_throttle=True,
             server_version=__version__,
-            emit=lambda message: typer.echo(f"labtasker-server: {message}", err=True),
+            emit=lambda message: typer.echo(f"[labtasker-server] {message}", err=True),
         )
     except (OSError, RuntimeError) as error:
-        typer.echo(f"Local Server startup error: {error}", err=True)
+        typer.echo(f"[labtasker-server] Local Server startup error: {error}", err=True)
         raise typer.Exit(1) from error
     action = "started" if started else "already running"
     pid = metadata.pid if metadata is not None else "unknown"
     typer.echo(
-        f"labtasker-server: {action} local daemon pid={pid} socket={paths.socket}",
+        f"[labtasker-server] {action} local daemon pid={pid} socket={paths.socket}",
         err=True,
     )
 
@@ -125,10 +132,10 @@ def ensure_daemon(
             paths.directory,
             bypass_throttle=False,
             server_version=__version__,
-            emit=lambda message: typer.echo(f"labtasker-server: {message}", err=True),
+            emit=lambda message: typer.echo(f"[labtasker-server] {message}", err=True),
         )
     except (OSError, RuntimeError) as error:
-        typer.echo(f"labtasker-server: automatic local startup error: {error}", err=True)
+        typer.echo(f"[labtasker-server] automatic local startup error: {error}", err=True)
         try:
             result = _local_status(directory)
         except (OSError, RuntimeError):
@@ -164,7 +171,7 @@ def status() -> None:
         paths = local_paths()
         result = _local_status(paths.directory)
     except (OSError, RuntimeError) as error:
-        typer.echo(f"Local Server status error: {error}", err=True)
+        typer.echo(f"[labtasker-server] Local Server status error: {error}", err=True)
         raise typer.Exit(1) from error
     typer.echo(json.dumps(result, indent=2, ensure_ascii=False) + "\n", nl=False)
 
@@ -180,7 +187,7 @@ def stop(
     try:
         paths = local_paths()
     except RuntimeError as error:
-        typer.echo(f"Local Server stop error: {error}", err=True)
+        typer.echo(f"[labtasker-server] Local Server stop error: {error}", err=True)
         raise typer.Exit(1) from error
     metadata = read_metadata(paths)
     if database_is_free(paths):
@@ -188,9 +195,9 @@ def stop(
             try:
                 remove_stale_artifacts(paths)
             except RuntimeError as error:
-                typer.echo(f"Local Server stop error: {error}", err=True)
+                typer.echo(f"[labtasker-server] Local Server stop error: {error}", err=True)
                 raise typer.Exit(1) from error
-        typer.echo("labtasker-server: local daemon is already stopped", err=True)
+        typer.echo("[labtasker-server] local daemon is already stopped", err=True)
         return
     if (
         metadata is None
@@ -198,21 +205,23 @@ def stop(
         or not metadata_owner_is_verified(paths, metadata)
     ):
         typer.echo(
-            "Local Server stop error: database owner is not a verified local daemon.",
+            "[labtasker-server] Local Server stop error: "
+            "database owner is not a verified local daemon.",
             err=True,
         )
         raise typer.Exit(1)
 
     with suppress(ProcessLookupError):
         os.kill(metadata.pid, signal.SIGTERM)
-    typer.echo(f"labtasker-server: stopping local daemon pid={metadata.pid}", err=True)
+    typer.echo(f"[labtasker-server] stopping local daemon pid={metadata.pid}", err=True)
     if _wait_for_exit(paths.directory, timeout=30.0):
         remove_generation_artifacts(paths, metadata.generation)
-        typer.echo(f"labtasker-server: stopped local daemon pid={metadata.pid}", err=True)
+        typer.echo(f"[labtasker-server] stopped local daemon pid={metadata.pid}", err=True)
         return
     if not force:
         typer.echo(
-            "Local Server stop error: daemon did not stop within 30 seconds; retry with --force.",
+            "[labtasker-server] Local Server stop error: daemon did not stop within "
+            "30 seconds; retry with --force.",
             err=True,
         )
         raise typer.Exit(1)
@@ -223,15 +232,22 @@ def stop(
         or current.generation != metadata.generation
         or not metadata_owner_is_verified(paths, current)
     ):
-        typer.echo("Local Server stop error: daemon identity changed; refusing SIGKILL.", err=True)
+        typer.echo(
+            "[labtasker-server] Local Server stop error: "
+            "daemon identity changed; refusing SIGKILL.",
+            err=True,
+        )
         raise typer.Exit(1)
     os.kill(current.pid, signal.SIGKILL)
-    typer.echo(f"labtasker-server: force-stopping local daemon pid={current.pid}", err=True)
+    typer.echo(f"[labtasker-server] force-stopping local daemon pid={current.pid}", err=True)
     if not _wait_for_exit(paths.directory, timeout=5.0):
-        typer.echo("Local Server stop error: database ownership was not released.", err=True)
+        typer.echo(
+            "[labtasker-server] Local Server stop error: database ownership was not released.",
+            err=True,
+        )
         raise typer.Exit(1)
     remove_generation_artifacts(paths, current.generation)
-    typer.echo(f"labtasker-server: stopped local daemon pid={current.pid}", err=True)
+    typer.echo(f"[labtasker-server] stopped local daemon pid={current.pid}", err=True)
 
 
 @app.command()
@@ -243,7 +259,7 @@ def logs() -> None:
     except FileNotFoundError:
         return
     except (OSError, UnicodeError) as error:
-        typer.echo(f"Local Server log error: {error}", err=True)
+        typer.echo(f"[labtasker-server] Local Server log error: {error}", err=True)
         raise typer.Exit(1) from error
 
 
@@ -283,9 +299,14 @@ def daemon(
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.bind(str(paths.socket))
         os.chmod(paths.socket, 0o600)
-        uvicorn.run(application, fd=listener.fileno(), log_level="info")
+        uvicorn.run(
+            application,
+            fd=listener.fileno(),
+            log_level="info",
+            log_config=uvicorn_log_config(),
+        )
     except BaseException as error:
-        typer.echo(f"Local daemon failed: {error}", err=True)
+        typer.echo(f"[labtasker-server] Local daemon failed: {error}", err=True)
         raise
     finally:
         if database_fd >= 0:

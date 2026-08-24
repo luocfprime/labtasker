@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -63,9 +64,12 @@ def test_default_local_client_starts_daemon_and_command_child_reuses_it(
             assert created.status == "pending"
 
         diagnostic = capfd.readouterr().err
-        assert "using local Server" in diagnostic
-        assert "created local daemon" in diagnostic
-        assert "connected to local daemon pid=" in diagnostic
+        assert "[labtasker-server] created local daemon" in diagnostic
+        assert "[labtasker] connected server=local transport=unix" in diagnostic
+        assert f"directory={tmp_path}" in diagnostic
+        assert f"database={tmp_path / '.labtasker/server.db'}" in diagnostic
+        assert " pid=" in diagnostic
+        assert " version=" in diagnostic
 
         run_command_worker(
             [
@@ -81,6 +85,34 @@ def test_default_local_client_starts_daemon_and_command_child_reuses_it(
         assert task.status == "succeeded"
         assert task.result == {"value": 14}
 
+        loop_result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "labtasker",
+                "loop",
+                "--idle-timeout",
+                "0",
+                "--",
+                sys.executable,
+                "-c",
+                "pass",
+            ],
+            cwd=tmp_path,
+            env=_local_environment(),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert loop_result.returncode == 0, loop_result.stderr
+        assert loop_result.stdout == ""
+        assert re.search(
+            r"(?m)^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z "
+            r"INFO \[labtasker\] Worker idle timeout reached; stopping normally\.$",
+            loop_result.stderr,
+        )
+
         status = _server_command(tmp_path, "status")
         assert status.returncode == 0
         payload = json.loads(status.stdout)
@@ -88,6 +120,12 @@ def test_default_local_client_starts_daemon_and_command_child_reuses_it(
         assert payload["directory"] == str(tmp_path)
         assert payload["database"] == str(tmp_path / ".labtasker/server.db")
         assert payload["pid"] is not None
+        server_log = (tmp_path / ".labtasker/server.log").read_text()
+        assert re.search(
+            r"(?m)^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z "
+            r"INFO \[labtasker-server\] ",
+            server_log,
+        )
     finally:
         stopped = _server_command(tmp_path, "stop")
         assert stopped.returncode == 0, stopped.stderr
@@ -127,7 +165,7 @@ def test_concurrent_first_clients_elect_exactly_one_daemon(tmp_path: Path) -> No
             * 4
         ), [result.stderr for result in results]
         diagnostics = "".join(result.stderr for result in results)
-        assert diagnostics.count("created local daemon") == 1
+        assert diagnostics.count("[labtasker-server] created local daemon") == 1
         assert _server_command(tmp_path, "status").returncode == 0
     finally:
         stopped = _server_command(tmp_path, "stop")
@@ -165,7 +203,7 @@ def test_dead_daemon_is_throttled_and_explicit_start_recovers(
 
         restarted = _server_command(tmp_path, "start")
         assert restarted.returncode == 0, restarted.stderr
-        assert "started local daemon" in restarted.stderr
+        assert "[labtasker-server] started local daemon" in restarted.stderr
         with Client() as client:
             assert len(client.list_queues()) == 1
     finally:
