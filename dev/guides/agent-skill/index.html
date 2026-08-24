@@ -12,25 +12,31 @@
         <meta name="author" content="Labtasker contributors">
       
       
+        <link rel="canonical" href="https://luocfprime.github.io/labtasker/dev/guides/agent-skill/">
       
+      
+        <link rel="prev" href="../failure-recovery/">
+      
+      
+        <link rel="next" href="../../reference/configuration/">
       
       
         
       
       
-      <link rel="icon" href="/labtasker/dev/assets/favicon.png">
+      <link rel="icon" href="../../assets/favicon.png">
       <meta name="generator" content="zensical-0.0.56">
     
     
       
-        <title>Labtasker</title>
+        <title>Agent skill - Labtasker</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="/labtasker/dev/assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
       
       
 
@@ -49,7 +55,7 @@
       
     
     
-    <script>__md_scope=new URL("/labtasker/dev",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -66,7 +72,8 @@
     <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
     <div data-md-component="skip">
       
-        <a href="#__skip" class="md-skip">
+        
+        <a href="#agent-skill" class="md-skip">
           Skip to content
         </a>
       
@@ -86,9 +93,9 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="../.." title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../../assets/favicon.png" alt="Labtasker">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -105,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Agent skill
             
           </span>
         </div>
@@ -168,9 +175,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="../.." title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../../assets/favicon.png" alt="Labtasker">
 
     </a>
     Labtasker
@@ -197,7 +204,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/" class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -223,7 +230,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/why-labtasker/" class="md-nav__link">
+      <a href="../../why-labtasker/" class="md-nav__link">
         
   
   
@@ -249,7 +256,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/getting-started/" class="md-nav__link">
+      <a href="../../getting-started/" class="md-nav__link">
         
   
   
@@ -275,7 +282,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/concepts/" class="md-nav__link">
+      <a href="../../concepts/" class="md-nav__link">
         
   
   
@@ -346,7 +353,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/inference-evaluation/" class="md-nav__link">
+      <a href="../../inference-evaluation/" class="md-nav__link">
         
   
   
@@ -373,7 +380,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/case-studies/starvla-robotwin/" class="md-nav__link">
+      <a href="../../case-studies/starvla-robotwin/" class="md-nav__link">
         
   
   
@@ -452,7 +459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/python/" class="md-nav__link">
+      <a href="../../workers/python/" class="md-nav__link">
         
   
   
@@ -479,7 +486,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/command/" class="md-nav__link">
+      <a href="../../workers/command/" class="md-nav__link">
         
   
   
@@ -506,7 +513,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/distributed/" class="md-nav__link">
+      <a href="../../workers/distributed/" class="md-nav__link">
         
   
   
@@ -537,18 +544,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
           <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
@@ -568,7 +577,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -585,7 +594,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/tasks/" class="md-nav__link">
+      <a href="../tasks/" class="md-nav__link">
         
   
   
@@ -612,7 +621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/query/" class="md-nav__link">
+      <a href="../query/" class="md-nav__link">
         
   
   
@@ -639,7 +648,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/failure-recovery/" class="md-nav__link">
+      <a href="../failure-recovery/" class="md-nav__link">
         
   
   
@@ -663,10 +672,36 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/agent-skill/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Agent skill
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -681,6 +716,71 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#llm-readable-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        LLM-readable documentation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-code-marketplace" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Claude Code marketplace
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-skills-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Agent Skills CLI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repository-checkouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Repository checkouts
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -745,7 +845,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/configuration/" class="md-nav__link">
+      <a href="../../reference/configuration/" class="md-nav__link">
         
   
   
@@ -772,7 +872,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/python-api/" class="md-nav__link">
+      <a href="../../reference/python-api/" class="md-nav__link">
         
   
   
@@ -799,7 +899,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/cli/" class="md-nav__link">
+      <a href="../../reference/cli/" class="md-nav__link">
         
   
   
@@ -826,7 +926,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/http-api/" class="md-nav__link">
+      <a href="../../reference/http-api/" class="md-nav__link">
         
   
   
@@ -853,7 +953,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/specification/" class="md-nav__link">
+      <a href="../../reference/specification/" class="md-nav__link">
         
   
   
@@ -887,7 +987,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/development/" class="md-nav__link">
+      <a href="../../development/" class="md-nav__link">
         
   
   
@@ -920,6 +1020,13 @@
                     
                     
                     
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
                     
                   
                   <div class="md-sidebar__inner">
@@ -930,6 +1037,60 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#llm-readable-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        LLM-readable documentation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-code-marketplace" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Claude Code marketplace
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-skills-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Agent Skills CLI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repository-checkouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Repository checkouts
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -942,8 +1103,75 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
+  
+  
 
+
+<h1 id="agent-skill">Agent skill</h1>
+<p>Without a shared workflow, a coding agent must rediscover how each project
+distributes jobs, records progress, retries failures, and collects results.
+Labtasker's <code>labtasker</code> skill supplies those operating rules, so a request such
+as “run these cases in parallel across 8 GPUs with Labtasker” is enough to start
+the ordinary workflow.</p>
+<p>The skill covers v2 Task submission, Worker design, routing, inspection,
+updates, and recovery. It does not choose the experiment, allocate GPUs, or keep
+the agent inside the execution loop. Its short
+<a href="https://github.com/luocfprime/labtasker/blob/v2/skills/labtasker/SKILL.md"><code>SKILL.md</code></a>
+routes deployment, Worker, and recovery questions to three bundled references;
+the canonical installable package is
+<a href="https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker"><code>skills/labtasker/</code></a>.</p>
+<h2 id="llm-readable-documentation">LLM-readable documentation</h2>
+<p>The Agent Skill teaches an agent how to operate Labtasker. A built documentation
+site exposes <code>llms.txt</code> at its root to help an agent find the right supporting
+material. It links directly to the raw Markdown for the main guides, API
+references, and authoritative specification. The
+<a href="https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/llms.txt"><code>llms.txt</code> source</a>
+can also be read directly.</p>
+<h2 id="claude-code-marketplace">Claude Code marketplace</h2>
+<p>Add the repository as a marketplace, then install its plugin:</p>
+<div class="highlight"><pre><span></span><code>/plugin marketplace add luocfprime/labtasker@v2
+/plugin install labtasker-skill@labtasker
+</code></pre></div>
+<p>The installed skill is invoked as <code>/labtasker-skill:labtasker</code>. Claude Code can
+also select it automatically when a request matches its description.</p>
+<h2 id="agent-skills-cli">Agent Skills CLI</h2>
+<p>The open Agent Skills installer supports Claude Code, Codex, OpenCode, Cursor,
+and other compatible agents:</p>
+<div class="highlight"><pre><span></span><code>npx<span class="w"> </span>skills<span class="w"> </span>add<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker
+</code></pre></div>
+<p>The direct v2 skill path keeps contributor-only repository workflows out of the
+installation. The installer prompts for target agents and project or global
+scope. For a non-interactive Codex installation, for example:</p>
+<div class="highlight"><pre><span></span><code>npx<span class="w"> </span>skills<span class="w"> </span>add<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--agent<span class="w"> </span>codex<span class="w"> </span>--global<span class="w"> </span>--yes
+</code></pre></div>
+<p>Use <code>--agent claude-code</code> instead to install through the same open skill format
+without using the Claude Code marketplace.</p>
+<h2 id="repository-checkouts">Repository checkouts</h2>
+<p>This repository exposes the same canonical content at
+<code>.agents/skills/labtasker</code> for repository-aware agents. It is a relative symlink,
+so the three discovery mechanisms cannot drift into independent copies.</p>
+<p>The agent skill describes the public Labtasker product. Contributor-only
+workflows such as releases and cross-surface contract changes remain separate
+under <code>.agents/skills/</code> and are documented in <a href="../../development/">Development</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -986,10 +1214,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"/labtasker/dev","features":["content.tabs.link"],"search":"/labtasker/dev/assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.tabs.link"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
     
     
-      <script src="/labtasker/dev/assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

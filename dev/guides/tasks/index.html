@@ -12,25 +12,31 @@
         <meta name="author" content="Labtasker contributors">
       
       
+        <link rel="canonical" href="https://luocfprime.github.io/labtasker/dev/guides/tasks/">
       
+      
+        <link rel="prev" href="../../workers/distributed/">
+      
+      
+        <link rel="next" href="../query/">
       
       
         
       
       
-      <link rel="icon" href="/labtasker/dev/assets/favicon.png">
+      <link rel="icon" href="../../assets/favicon.png">
       <meta name="generator" content="zensical-0.0.56">
     
     
       
-        <title>Labtasker</title>
+        <title>Task operations - Labtasker</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="/labtasker/dev/assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
       
       
 
@@ -49,7 +55,7 @@
       
     
     
-    <script>__md_scope=new URL("/labtasker/dev",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -66,7 +72,8 @@
     <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
     <div data-md-component="skip">
       
-        <a href="#__skip" class="md-skip">
+        
+        <a href="#task-operations" class="md-skip">
           Skip to content
         </a>
       
@@ -86,9 +93,9 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="../.." title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../../assets/favicon.png" alt="Labtasker">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -105,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Task operations
             
           </span>
         </div>
@@ -168,9 +175,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="../.." title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../../assets/favicon.png" alt="Labtasker">
 
     </a>
     Labtasker
@@ -197,7 +204,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/" class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -223,7 +230,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/why-labtasker/" class="md-nav__link">
+      <a href="../../why-labtasker/" class="md-nav__link">
         
   
   
@@ -249,7 +256,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/getting-started/" class="md-nav__link">
+      <a href="../../getting-started/" class="md-nav__link">
         
   
   
@@ -275,7 +282,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/concepts/" class="md-nav__link">
+      <a href="../../concepts/" class="md-nav__link">
         
   
   
@@ -346,7 +353,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/inference-evaluation/" class="md-nav__link">
+      <a href="../../inference-evaluation/" class="md-nav__link">
         
   
   
@@ -373,7 +380,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/case-studies/starvla-robotwin/" class="md-nav__link">
+      <a href="../../case-studies/starvla-robotwin/" class="md-nav__link">
         
   
   
@@ -452,7 +459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/python/" class="md-nav__link">
+      <a href="../../workers/python/" class="md-nav__link">
         
   
   
@@ -479,7 +486,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/command/" class="md-nav__link">
+      <a href="../../workers/command/" class="md-nav__link">
         
   
   
@@ -506,7 +513,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/distributed/" class="md-nav__link">
+      <a href="../../workers/distributed/" class="md-nav__link">
         
   
   
@@ -537,18 +544,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
           <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
@@ -568,7 +577,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -582,10 +591,36 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/tasks/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Task operations
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -600,6 +635,82 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#submit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Submit
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspect" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspect
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Update
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Lifecycle actions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queues" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Queues
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -612,7 +723,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/query/" class="md-nav__link">
+      <a href="../query/" class="md-nav__link">
         
   
   
@@ -639,7 +750,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/failure-recovery/" class="md-nav__link">
+      <a href="../failure-recovery/" class="md-nav__link">
         
   
   
@@ -666,7 +777,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/agent-skill/" class="md-nav__link">
+      <a href="../agent-skill/" class="md-nav__link">
         
   
   
@@ -745,7 +856,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/configuration/" class="md-nav__link">
+      <a href="../../reference/configuration/" class="md-nav__link">
         
   
   
@@ -772,7 +883,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/python-api/" class="md-nav__link">
+      <a href="../../reference/python-api/" class="md-nav__link">
         
   
   
@@ -799,7 +910,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/cli/" class="md-nav__link">
+      <a href="../../reference/cli/" class="md-nav__link">
         
   
   
@@ -826,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/http-api/" class="md-nav__link">
+      <a href="../../reference/http-api/" class="md-nav__link">
         
   
   
@@ -853,7 +964,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/specification/" class="md-nav__link">
+      <a href="../../reference/specification/" class="md-nav__link">
         
   
   
@@ -887,7 +998,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/development/" class="md-nav__link">
+      <a href="../../development/" class="md-nav__link">
         
   
   
@@ -920,6 +1031,13 @@
                     
                     
                     
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
                     
                   
                   <div class="md-sidebar__inner">
@@ -930,6 +1048,71 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#submit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Submit
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspect" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspect
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Update
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Lifecycle actions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queues" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Queues
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -942,8 +1125,98 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
+  
+  
 
+
+<h1 id="task-operations">Task operations</h1>
+<p>Use Task operations to inspect or change an experiment without restarting its
+Workers. Submission adds work; updates change non-running work; lifecycle
+actions make cancellation, requeue, and deletion explicit.</p>
+<h2 id="submit">Submit</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
+
+<span class="n">task</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">submit_task</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"prompt"</span><span class="p">:</span> <span class="s2">"a red panda astronaut"</span><span class="p">,</span> <span class="s2">"seed"</span><span class="p">:</span> <span class="mi">7</span><span class="p">},</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"prompt-007"</span><span class="p">,</span>
+    <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">"benchmark"</span><span class="p">:</span> <span class="s2">"prompt-set-a"</span><span class="p">},</span>
+    <span class="n">priority</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="s2">"sdxl-diffusers-v1"</span><span class="p">,</span> <span class="s2">"sdxl-diffusers-v2"</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The CLI accepts the same JSON data without guessing scalar types:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>submit<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--args<span class="w"> </span><span class="s1">'{"prompt":"a red panda astronaut","seed":7}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--metadata<span class="w"> </span><span class="s1">'{"benchmark":"prompt-set-a"}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--priority<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--route<span class="w"> </span>sdxl-diffusers-v1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--route<span class="w"> </span>sdxl-diffusers-v2
+</code></pre></div>
+<p>Routes default to <code>default</code>. Supplying a Task ID makes creation idempotent only
+when the complete submitted representation is identical; conflicting reuse is
+an error.</p>
+<h2 id="inspect">Inspect</h2>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>get<span class="w"> </span>t_ABCDEFGHIJKL
+labtasker<span class="w"> </span>task<span class="w"> </span>list<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
+labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'metadata.group == "paper"'</span>
+</code></pre></div>
+<p>List output is one page. Use the returned <code>next_cursor</code> explicitly for the next
+page; cursors are opaque and bound to the query and ordering.</p>
+<h2 id="update">Update</h2>
+<p>Update one non-running Task:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>t_ABCDEFGHIJKL<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--changes<span class="w"> </span><span class="s1">'{"priority":20,"routes":["sdxl-diffusers-v2"]}'</span>
+</code></pre></div>
+<p>Or explicitly update all matching non-running Tasks:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--filter<span class="w"> </span><span class="s1">'status == "pending" and "sdxl-diffusers-v1" in routes'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--changes<span class="w"> </span><span class="s1">'{"routes":["sdxl-diffusers-v1","sdxl-diffusers-v2"]}'</span>
+</code></pre></div>
+<p>The bulk operation is atomic. It reports <code>matched</code> and <code>updated</code>. There is no
+separate route-mutation command because routes are ordinary explicit Task data.</p>
+<h2 id="lifecycle-actions">Lifecycle actions</h2>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>cancel<span class="w"> </span>t_ABCDEFGHIJKL
+labtasker<span class="w"> </span>task<span class="w"> </span>requeue<span class="w"> </span>t_ABCDEFGHIJKL
+labtasker<span class="w"> </span>task<span class="w"> </span>delete<span class="w"> </span>t_ABCDEFGHIJKL
+</code></pre></div>
+<ul>
+<li>cancel accepts pending or running Tasks and produces a terminal cancelled
+  Task; repeating it on an already cancelled Task is safe;</li>
+<li>requeue accepts pending, failed, or cancelled Tasks, returns the Task to
+  pending, and resets <code>attempt</code>;</li>
+<li>delete permanently removes a non-running Task.</li>
+</ul>
+<p>A running Task cannot be updated, requeued, or deleted. Cancellation is allowed:
+the run is fenced immediately, while local code follows the Worker's configured
+cooperative or forced-stop behavior. Succeeded and failed Tasks cannot be
+cancelled, and a succeeded Task cannot be requeued; submit a new Task to rerun a
+successful experiment.</p>
+<h2 id="queues">Queues</h2>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>queue<span class="w"> </span>create<span class="w"> </span>experiments
+labtasker<span class="w"> </span>queue<span class="w"> </span>list
+labtasker<span class="w"> </span>queue<span class="w"> </span>delete<span class="w"> </span>experiments
+labtasker<span class="w"> </span>queue<span class="w"> </span>delete<span class="w"> </span>experiments<span class="w"> </span>--cascade
+</code></pre></div>
+<p>Deleting a non-empty Queue requires explicit <code>--cascade</code>. The <code>default</code> Queue is
+created when a fresh database is initialized, not recreated after an explicit
+deletion.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -986,10 +1259,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"/labtasker/dev","features":["content.tabs.link"],"search":"/labtasker/dev/assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.tabs.link"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
     
     
-      <script src="/labtasker/dev/assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

@@ -12,25 +12,31 @@
         <meta name="author" content="Labtasker contributors">
       
       
+        <link rel="canonical" href="https://luocfprime.github.io/labtasker/dev/concepts/">
       
+      
+        <link rel="prev" href="../getting-started/">
+      
+      
+        <link rel="next" href="../inference-evaluation/">
       
       
         
       
       
-      <link rel="icon" href="/labtasker/dev/assets/favicon.png">
+      <link rel="icon" href="../assets/favicon.png">
       <meta name="generator" content="zensical-0.0.56">
     
     
       
-        <title>Labtasker</title>
+        <title>Core model - Labtasker</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="/labtasker/dev/assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.20815dad.min.css">
       
       
 
@@ -49,7 +55,7 @@
       
     
     
-    <script>__md_scope=new URL("/labtasker/dev",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -66,7 +72,8 @@
     <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
     <div data-md-component="skip">
       
-        <a href="#__skip" class="md-skip">
+        
+        <a href="#core-model" class="md-skip">
           Skip to content
         </a>
       
@@ -86,9 +93,9 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="./.." title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../assets/favicon.png" alt="Labtasker">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -105,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Core model
             
           </span>
         </div>
@@ -168,9 +175,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="./.." title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../assets/favicon.png" alt="Labtasker">
 
     </a>
     Labtasker
@@ -197,7 +204,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/" class="md-nav__link">
+      <a href="./.." class="md-nav__link">
         
   
   
@@ -223,7 +230,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/why-labtasker/" class="md-nav__link">
+      <a href="../why-labtasker/" class="md-nav__link">
         
   
   
@@ -249,7 +256,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/getting-started/" class="md-nav__link">
+      <a href="../getting-started/" class="md-nav__link">
         
   
   
@@ -272,10 +279,36 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/labtasker/dev/concepts/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Core model
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -290,6 +323,93 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#task" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#route" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Route
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Queue
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claim-run-and-lease" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Claim, run, and lease
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attempt" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Attempt
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -346,7 +466,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/inference-evaluation/" class="md-nav__link">
+      <a href="../inference-evaluation/" class="md-nav__link">
         
   
   
@@ -373,7 +493,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/case-studies/starvla-robotwin/" class="md-nav__link">
+      <a href="../case-studies/starvla-robotwin/" class="md-nav__link">
         
   
   
@@ -452,7 +572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/python/" class="md-nav__link">
+      <a href="../workers/python/" class="md-nav__link">
         
   
   
@@ -479,7 +599,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/command/" class="md-nav__link">
+      <a href="../workers/command/" class="md-nav__link">
         
   
   
@@ -506,7 +626,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/distributed/" class="md-nav__link">
+      <a href="../workers/distributed/" class="md-nav__link">
         
   
   
@@ -585,7 +705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/tasks/" class="md-nav__link">
+      <a href="../guides/tasks/" class="md-nav__link">
         
   
   
@@ -612,7 +732,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/query/" class="md-nav__link">
+      <a href="../guides/query/" class="md-nav__link">
         
   
   
@@ -639,7 +759,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/failure-recovery/" class="md-nav__link">
+      <a href="../guides/failure-recovery/" class="md-nav__link">
         
   
   
@@ -666,7 +786,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/agent-skill/" class="md-nav__link">
+      <a href="../guides/agent-skill/" class="md-nav__link">
         
   
   
@@ -745,7 +865,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/configuration/" class="md-nav__link">
+      <a href="../reference/configuration/" class="md-nav__link">
         
   
   
@@ -772,7 +892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/python-api/" class="md-nav__link">
+      <a href="../reference/python-api/" class="md-nav__link">
         
   
   
@@ -799,7 +919,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/cli/" class="md-nav__link">
+      <a href="../reference/cli/" class="md-nav__link">
         
   
   
@@ -826,7 +946,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/http-api/" class="md-nav__link">
+      <a href="../reference/http-api/" class="md-nav__link">
         
   
   
@@ -853,7 +973,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/specification/" class="md-nav__link">
+      <a href="../reference/specification/" class="md-nav__link">
         
   
   
@@ -887,7 +1007,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/development/" class="md-nav__link">
+      <a href="../development/" class="md-nav__link">
         
   
   
@@ -920,6 +1040,13 @@
                     
                     
                     
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
                     
                   
                   <div class="md-sidebar__inner">
@@ -930,6 +1057,82 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#task" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#route" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Route
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Queue
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claim-run-and-lease" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Claim, run, and lease
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attempt" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Attempt
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -942,8 +1145,83 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
+  
+  
 
+
+<h1 id="core-model">Core model</h1>
+<p>Labtasker's working model is deliberately small: submit each independent job as
+a Task, then start Workers that repeatedly take one compatible Task, execute it,
+and report the outcome. The Server remembers the work; it does not manage the
+Worker processes or the hardware beneath them.</p>
+<h2 id="task">Task</h2>
+<p>A Task is one unit of work and its recorded state. It contains JSON arguments,
+metadata, priority, retry limits, compatible routes, result, timestamps, and the
+latest error. Its ordinary path is:</p>
+<div class="highlight"><pre><span></span><code>pending -&gt; running -&gt; succeeded
+                   -&gt; pending or failed
+                   -&gt; cancelled
+</code></pre></div>
+<p>Explicit actions do not patch the status field generically. Cancel accepts
+pending or running Tasks; requeue accepts pending, failed, or cancelled Tasks;
+update and delete accept any non-running Task. A succeeded experiment is rerun
+by submitting a new Task rather than rewriting its successful lifecycle.</p>
+<h2 id="worker">Worker</h2>
+<p>A Worker is a Client process that executes at most one Task at a time. Start one
+Worker on each CPU, GPU, machine, or other resource you want to use. When it
+finishes a Task, it asks the Server for another.</p>
+<p>The Server records which route and run currently own a Task, but it has no
+Worker registry, capacity model, or Worker heartbeat separate from a running
+Task. Starting and stopping Worker processes remains the user's responsibility.</p>
+<h2 id="route">Route</h2>
+<p>A route is an exact, case-sensitive compatibility label. Every Worker starts
+with one route; every Task lists one or more routes. A Worker can take a Task
+only when its route appears in that list.</p>
+<div class="highlight"><pre><span></span><code>Task routes:  ["sdxl-v1", "sdxl-v2"]
+Worker route: "sdxl-v2"
+Result:       compatible
+</code></pre></div>
+<p>Routes are not registered resources, identities, or GPU claims. Labtasker never
+infers them from Task arguments. This keeps implementation changes explicit:
+start a Worker under <code>sdxl-v2</code>, then update only the pending Tasks that should be
+allowed to use it.</p>
+<h2 id="queue">Queue</h2>
+<p>A Queue keeps one independently managed body of Tasks together. Every operation
+selects one Queue, and Task IDs are unique within it. A fresh database contains
+Queue <code>default</code>.</p>
+<p>Use separate Queues for work that should be managed independently. Do not use
+them to describe CPU, GPU, codebase, or model compatibility; routes serve that
+purpose.</p>
+<h2 id="claim-run-and-lease">Claim, run, and lease</h2>
+<p>When a Worker takes a pending Task, the claim changes it to running and creates
+a private <code>run_id</code>. Heartbeats and terminal reports must include that ID. If an
+old Worker reports after the Task has been recovered and claimed again, its ID
+no longer matches and it cannot overwrite the newer run.</p>
+<p>The Worker renews a five-minute lease once per minute. If heartbeats stop, the
+Server returns the Task to pending or marks it failed according to its remaining
+retry budget. Labtasker has no separate execution timeout; a healthy long run
+can continue while its lease is renewed.</p>
+<h2 id="attempt">Attempt</h2>
+<p><code>attempt</code> counts executions charged against <code>max_attempts</code>. Ordinary exceptions
+and <code>TaskError</code> charge the current execution. <code>TransientError</code> returns the Task
+to pending without charging that incident. Requeue resets <code>attempt</code>; retrying a
+failed Task does not.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -986,10 +1264,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"/labtasker/dev","features":["content.tabs.link"],"search":"/labtasker/dev/assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["content.tabs.link"],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
     
     
-      <script src="/labtasker/dev/assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

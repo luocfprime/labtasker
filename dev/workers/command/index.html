@@ -12,25 +12,31 @@
         <meta name="author" content="Labtasker contributors">
       
       
+        <link rel="canonical" href="https://luocfprime.github.io/labtasker/dev/workers/command/">
       
+      
+        <link rel="prev" href="../python/">
+      
+      
+        <link rel="next" href="../distributed/">
       
       
         
       
       
-      <link rel="icon" href="/labtasker/dev/assets/favicon.png">
+      <link rel="icon" href="../../assets/favicon.png">
       <meta name="generator" content="zensical-0.0.56">
     
     
       
-        <title>Labtasker</title>
+        <title>Command Workers - Labtasker</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="/labtasker/dev/assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
       
       
 
@@ -49,7 +55,7 @@
       
     
     
-    <script>__md_scope=new URL("/labtasker/dev",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -66,7 +72,8 @@
     <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
     <div data-md-component="skip">
       
-        <a href="#__skip" class="md-skip">
+        
+        <a href="#command-workers" class="md-skip">
           Skip to content
         </a>
       
@@ -86,9 +93,9 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="../.." title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../../assets/favicon.png" alt="Labtasker">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -105,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Command Workers
             
           </span>
         </div>
@@ -168,9 +175,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/labtasker/dev/" title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
+    <a href="../.." title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
       
-  <img src="/labtasker/dev/assets/favicon.png" alt="Labtasker">
+  <img src="../../assets/favicon.png" alt="Labtasker">
 
     </a>
     Labtasker
@@ -197,7 +204,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/" class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -223,7 +230,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/why-labtasker/" class="md-nav__link">
+      <a href="../../why-labtasker/" class="md-nav__link">
         
   
   
@@ -249,7 +256,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/getting-started/" class="md-nav__link">
+      <a href="../../getting-started/" class="md-nav__link">
         
   
   
@@ -275,7 +282,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/concepts/" class="md-nav__link">
+      <a href="../../concepts/" class="md-nav__link">
         
   
   
@@ -346,7 +353,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/inference-evaluation/" class="md-nav__link">
+      <a href="../../inference-evaluation/" class="md-nav__link">
         
   
   
@@ -373,7 +380,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/case-studies/starvla-robotwin/" class="md-nav__link">
+      <a href="../../case-studies/starvla-robotwin/" class="md-nav__link">
         
   
   
@@ -404,18 +411,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
           <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
@@ -435,7 +444,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -452,7 +461,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/python/" class="md-nav__link">
+      <a href="../python/" class="md-nav__link">
         
   
   
@@ -476,10 +485,36 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/command/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command Workers
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -494,6 +529,60 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#template-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Template syntax
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#process-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Process behavior
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#returning-a-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Returning a result
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -506,7 +595,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/workers/distributed/" class="md-nav__link">
+      <a href="../distributed/" class="md-nav__link">
         
   
   
@@ -585,7 +674,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/tasks/" class="md-nav__link">
+      <a href="../../guides/tasks/" class="md-nav__link">
         
   
   
@@ -612,7 +701,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/query/" class="md-nav__link">
+      <a href="../../guides/query/" class="md-nav__link">
         
   
   
@@ -639,7 +728,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/failure-recovery/" class="md-nav__link">
+      <a href="../../guides/failure-recovery/" class="md-nav__link">
         
   
   
@@ -666,7 +755,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/guides/agent-skill/" class="md-nav__link">
+      <a href="../../guides/agent-skill/" class="md-nav__link">
         
   
   
@@ -745,7 +834,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/configuration/" class="md-nav__link">
+      <a href="../../reference/configuration/" class="md-nav__link">
         
   
   
@@ -772,7 +861,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/python-api/" class="md-nav__link">
+      <a href="../../reference/python-api/" class="md-nav__link">
         
   
   
@@ -799,7 +888,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/cli/" class="md-nav__link">
+      <a href="../../reference/cli/" class="md-nav__link">
         
   
   
@@ -826,7 +915,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/http-api/" class="md-nav__link">
+      <a href="../../reference/http-api/" class="md-nav__link">
         
   
   
@@ -853,7 +942,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/reference/specification/" class="md-nav__link">
+      <a href="../../reference/specification/" class="md-nav__link">
         
   
   
@@ -887,7 +976,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/labtasker/dev/development/" class="md-nav__link">
+      <a href="../../development/" class="md-nav__link">
         
   
   
@@ -920,6 +1009,13 @@
                     
                     
                     
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
                     
                   
                   <div class="md-sidebar__inner">
@@ -930,6 +1026,49 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#template-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Template syntax
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#process-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Process behavior
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#returning-a-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Returning a result
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -942,8 +1081,82 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
+  
+  
 
+
+<h1 id="command-workers">Command Workers</h1>
+<p>The command Worker wraps an existing executable with minimal intrusion:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>loop<span class="w"> </span>--route<span class="w"> </span>text-eval<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>python<span class="w"> </span>evaluate.py<span class="w"> </span>--prediction<span class="w"> </span><span class="s1">'%{prediction}'</span><span class="w"> </span>--reference<span class="w"> </span><span class="s1">'%{reference}'</span>
+</code></pre></div>
+<p>The required <code>--</code> cleanly separates Labtasker options from the child argv. Each
+template element produces exactly one child argv element. Labtasker does not
+join, split, quote, or evaluate a shell command.</p>
+<p>Command Workers require POSIX process-group support. Linux is release-gated and
+macOS is best effort; Windows raises <code>NotImplementedError</code> before connecting to
+the Server or claiming a Task. Client operations, the Server, and Python Workers
+remain available on Windows on a best-effort basis.</p>
+<h2 id="template-syntax">Template syntax</h2>
+<p><code>%{path}</code> reads a value from the Task args object. A path consists only of ASCII
+identifier segments separated by dots:</p>
+<div class="highlight"><pre><span></span><code>%{seed}
+%{judge.threshold}
+</code></pre></div>
+<p>Traversal is through JSON objects only. Array indices, hyphenated keys, Unicode
+keys, quoted segments, defaults, and expressions are intentionally unsupported.
+Use <code>%{{</code> when the child must receive a literal <code>%{</code> opener.</p>
+<ul>
+<li>strings are inserted directly;</li>
+<li>other JSON values use compact deterministic JSON;</li>
+<li>a missing key or non-object intermediate fails the Task before the child starts;</li>
+<li>an empty resolved argv element is valid;</li>
+<li>NUL is rejected.</li>
+</ul>
+<p>All templates are compiled before the first claim, so static syntax mistakes do
+not consume a Task.</p>
+<h2 id="process-behavior">Process behavior</h2>
+<p>The child inherits the Worker's environment and receives Labtasker execution
+variables, including the Task ID, run ID, Queue, local run directory, and either
+the HTTP URL/token or the already selected local socket/directory. It never
+re-resolves local mode from the child's CWD.</p>
+<p>In an interactive POSIX terminal, Labtasker uses an internal PTY and relays
+input, output, and terminal size. In pipelines and schedulers it uses ordinary
+pipes, drains stdout and stderr concurrently, and connects stdin to <code>/dev/null</code>.
+Both modes forward output live and copy the raw bytes to the local <code>run.log</code>;
+there is no public PTY option.</p>
+<p>If the child has not called <code>finish()</code>, exit code zero succeeds with <code>{}</code> and any
+other exit code is a charged failure. After a successful <code>finish()</code>, a later
+non-zero exit is logged locally but cannot rewrite the succeeded Task.</p>
+<h2 id="returning-a-result">Returning a result</h2>
+<p>Existing code may optionally call <code>finish()</code> from the launched program:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
+
+<span class="n">labtasker</span><span class="o">.</span><span class="n">finish</span><span class="p">({</span><span class="s2">"score"</span><span class="p">:</span> <span class="mf">0.94</span><span class="p">},</span> <span class="n">skip_if_no_labtasker</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>The command process reconstructs its execution context from environment
+variables. <code>finish()</code> sends the result through the same fenced run protocol and
+writes a best-effort local journal update. Failure to write that local backup
+does not turn an accepted Server completion into an error.</p>
+<p>After completion, the command may keep running for cleanup. The default waits
+indefinitely after sending termination to a revoked child process group;
+<code>--force-stop-timeout SECONDS</code> force-kills any remainder after the deadline.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -986,10 +1199,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"/labtasker/dev","features":["content.tabs.link"],"search":"/labtasker/dev/assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.tabs.link"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
     
     
-      <script src="/labtasker/dev/assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>
