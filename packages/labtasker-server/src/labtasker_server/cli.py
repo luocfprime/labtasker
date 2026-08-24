@@ -75,7 +75,7 @@ def serve(
 
     Examples:
 
-    
+    \b
       labtasker-server serve
       LABTASKER_SERVER_TOKEN=secret labtasker-server serve \\
         --host 0.0.0.0 --database /data/labtasker.db

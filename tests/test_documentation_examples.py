@@ -24,6 +24,10 @@ PUBLIC_MARKDOWN = (
     *sorted((ROOT / "skills/labtasker").rglob("*.md")),
 )
 SHELL_LANGUAGES = {"bash", "sh", "shell"}
+PUBLIC_SOURCE_ROOTS = (
+    ROOT / "packages/labtasker-client/src",
+    ROOT / "packages/labtasker-server/src",
+)
 ZENSICAL = tomllib.loads((ROOT / "zensical.toml").read_text(encoding="utf-8"))
 SNIPPET_BASE_PATHS = tuple(
     ROOT / path
@@ -99,6 +103,16 @@ def test_public_python_and_shell_blocks_have_valid_syntax() -> None:
     assert checked_shell >= 50
 
 
+def test_public_source_contains_no_hidden_control_characters() -> None:
+    for source_root in PUBLIC_SOURCE_ROOTS:
+        for path in sorted(source_root.rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            hidden = [
+                character for character in text if ord(character) < 32 and character not in "\n\t"
+            ]
+            assert hidden == [], f"Hidden control characters in {path.relative_to(ROOT)}"
+
+
 def test_document_snippets_and_relative_links_resolve() -> None:
     markdown_link = re.compile(r"!?\[[^]]*]\(([^)]+)\)")
     snippet = re.compile(r'--8<--\s+"([^"]+)"')
@@ -155,10 +169,7 @@ def documented_labtasker_commands() -> list[tuple[str, str]]:
                 if "labtasker" in line:
                     commands.append((location, line))
 
-    for source_root in (
-        ROOT / "packages/labtasker-client/src",
-        ROOT / "packages/labtasker-server/src",
-    ):
+    for source_root in PUBLIC_SOURCE_ROOTS:
         for path in sorted(source_root.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):

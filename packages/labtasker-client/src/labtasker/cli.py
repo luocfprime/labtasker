@@ -98,7 +98,7 @@ def worker_loop(
 
     Example:
 
-    
+    \b
       labtasker loop --route train -- \\
         python train.py --seed '%{seed}' --lr '%{optimizer.lr}'
     """
@@ -174,7 +174,7 @@ def task_submit(
 
     Example:
 
-    
+    \b
       labtasker task submit --name baseline \\
         --args '{"seed":1,"enabled":true}' \\
         --metadata '{"group":"paper"}' --route train
@@ -250,7 +250,7 @@ def task_list(
 
     Example:
 
-    
+    \b
       labtasker task list --status pending \\
         --filter 'priority >= 10 and metadata.group == "paper"' \\
         --order-by priority --descending --limit 100
@@ -295,7 +295,7 @@ def task_count(
 
     Example:
 
-    
+    \b
       labtasker task count --status failed \\
         --filter 'last_error.type == "ValueError"'
     """
@@ -339,7 +339,7 @@ def task_update(
 
     Examples:
 
-    
+    \b
       labtasker task update t_ABCDEFGHIJKL \\
         --changes '{"priority":20}'
       labtasker task update --filter 'status == "pending"' \\
