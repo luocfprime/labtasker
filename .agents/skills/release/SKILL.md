@@ -70,7 +70,7 @@ a different convention.
 The reviewed `.github/workflows/release.yml` workflow publishes all three
 distributions when a GitHub Release is published. It requires a `vVERSION` tag,
 the ordinary and real distributed gates for the exact commit, clean-wheel smoke
-tests, and a protected `pypi` environment. PyPI must register that workflow and
-environment as a Trusted Publisher for `labtasker`, `labtasker-client`, and
-`labtasker-server`. Do not add a manual publishing trigger, improvise credentials,
-or copy the v1 single-package workflow.
+tests, and protected `pypi` and `pypi-client` environments. PyPI must register
+that workflow with environment `pypi-client` for `labtasker-client`, and `pypi`
+for `labtasker` and `labtasker-server`. Do not add a manual publishing trigger,
+improvise credentials, or copy the v1 single-package workflow.
