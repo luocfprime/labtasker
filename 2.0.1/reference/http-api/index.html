@@ -1,0 +1,1651 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Run independent ML experiments in parallel without writing your own task infrastructure.">
+      
+      
+        <meta name="author" content="Labtasker contributors">
+      
+      
+        <link rel="canonical" href="https://luocfprime.github.io/labtasker/2.0.1/reference/http-api/">
+      
+      
+        <link rel="prev" href="../cli/">
+      
+      
+        <link rel="next" href="../specification/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.png">
+      <meta name="generator" content="zensical-0.0.56">
+    
+    
+      
+        <title>HTTP API - Labtasker</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#http-api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Labtasker" class="md-header__button md-logo" aria-label="Labtasker" data-md-component="logo">
+      
+  <img src="../../assets/favicon.png" alt="Labtasker">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Labtasker
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              HTTP API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/luocfprime/labtasker" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    luocfprime/labtasker
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Labtasker" class="md-nav__button md-logo" aria-label="Labtasker" data-md-component="logo">
+      
+  <img src="../../assets/favicon.png" alt="Labtasker">
+
+    </a>
+    Labtasker
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/luocfprime/labtasker" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    luocfprime/labtasker
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Overview
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../why-labtasker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Why Labtasker?
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get started
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tested demo
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Core model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Examples
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../inference-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Inference and evaluation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../case-studies/starvla-robotwin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Embodied AI: RoboTwin evaluation (StarVLA codebase)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Workers
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workers/python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Python Workers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workers/command/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command Workers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workers/distributed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Distributed launchers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Using Labtasker
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Using Labtasker
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Task operations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Query language
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/failure-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Failure and recovery
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/agent-skill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Agent skill
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Configuration
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Python API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLI reference
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  HTTP API
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#common-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Common contract
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Discovery
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queue-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Queue endpoints
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-resource-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task resource endpoints
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task resource endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creation-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Creation body
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list-and-count-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        List and count queries
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Update body
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker protocol
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task representation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Errors
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-retry-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Client retry boundary
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../specification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Labtasker v2 specification
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Development
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#common-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Common contract
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Discovery
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queue-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Queue endpoints
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-resource-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task resource endpoints
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task resource endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creation-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Creation body
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list-and-count-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        List and count queries
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Update body
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker protocol
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task representation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Errors
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-retry-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Client retry boundary
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="http-api">HTTP API</h1>
+<p>The application API is rooted at <code>/api/v2</code>. A running Server's
+<code>/openapi.json</code> is the authoritative machine-readable schema for request and
+response bodies. This page records the behavioral contract that an independent
+Client or Worker must preserve.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>http://127.0.0.1:8000/health
+curl<span class="w"> </span>http://127.0.0.1:8000/openapi.json<span class="w"> </span>&gt;<span class="w"> </span>openapi.json
+</code></pre></div>
+<p>FastAPI's interactive Swagger and ReDoc pages are intentionally disabled.</p>
+<h2 id="common-contract">Common contract</h2>
+<ul>
+<li><code>/health</code> and <code>/openapi.json</code> are unauthenticated. Every <code>/api/v2</code> endpoint
+  uses the one Server-wide Bearer token when authentication is configured.</li>
+<li>Request schemas reject unknown fields. Response schemas may gain optional
+  fields within v2; existing fields, types, defaults, meanings, and Task states
+  do not change without a new API prefix.</li>
+<li>Request bodies and complete stored Task data are each limited to 1 MiB. Large
+  artifacts do not belong in Task JSON.</li>
+<li>Public timestamps are UTC RFC 3339 strings. Task states are exactly <code>pending</code>,
+  <code>running</code>, <code>succeeded</code>, <code>failed</code>, and <code>cancelled</code>.</li>
+<li>Successful <code>204</code> responses have no body. Clients must not invent receipt
+  objects for them.</li>
+</ul>
+<p>When enabled, authenticate application requests with:</p>
+<div class="highlight"><pre><span></span><code><span class="err">Authorization: Bearer &lt;token&gt;</span>
+</code></pre></div>
+<h2 id="discovery">Discovery</h2>
+<table>
+<thead>
+<tr>
+<th>Method and path</th>
+<th>Success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /health</code></td>
+<td><code>200</code> with <code>{"status":"ok","api_version":"2","database":"ok"}</code> after a real database check. Database failure returns <code>503</code> with <code>status</code> and <code>database</code> set to <code>error</code>.</td>
+</tr>
+<tr>
+<td><code>GET /openapi.json</code></td>
+<td><code>200</code> with the generated OpenAPI schema.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="queue-endpoints">Queue endpoints</h2>
+<table>
+<thead>
+<tr>
+<th>Method and path</th>
+<th>Input</th>
+<th>Success and constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PUT /api/v2/queues/{queue}</code></td>
+<td>No body</td>
+<td><code>201</code> when created, <code>200</code> when already present; returns <code>{"name": ...}</code>.</td>
+</tr>
+<tr>
+<td><code>GET /api/v2/queues</code></td>
+<td>None</td>
+<td><code>200</code> with the complete unpaginated Queue array.</td>
+</tr>
+<tr>
+<td><code>DELETE /api/v2/queues/{queue}?cascade=false</code></td>
+<td>Boolean query parameter</td>
+<td><code>204</code>. A non-empty Queue requires <code>cascade=true</code>; any running Task still blocks deletion. Successful cascade atomically deletes the Queue and all its Tasks.</td>
+</tr>
+</tbody>
+</table>
+<p>Queue names are explicit path components and are not authentication identities.</p>
+<h2 id="task-resource-endpoints">Task resource endpoints</h2>
+<table>
+<thead>
+<tr>
+<th>Method and path</th>
+<th>Input</th>
+<th>Success and constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PUT /api/v2/queues/{queue}/tasks/{task_id}</code></td>
+<td>Task creation object</td>
+<td><code>201</code> on creation; <code>200</code> for an identical replay at the same ID; <code>409 task_id_conflict</code> for a different definition.</td>
+</tr>
+<tr>
+<td><code>GET /api/v2/queues/{queue}/tasks/{task_id}</code></td>
+<td>None</td>
+<td><code>200</code> with one Task; <code>404 task_not_found</code> when absent.</td>
+</tr>
+<tr>
+<td><code>GET /api/v2/queues/{queue}/tasks</code></td>
+<td>Selection and pagination query parameters</td>
+<td><code>200</code> with <code>{"items":[...],"next_cursor":...}</code>. Returns one page only.</td>
+</tr>
+<tr>
+<td><code>GET /api/v2/queues/{queue}/tasks/count</code></td>
+<td>Selection query parameters</td>
+<td><code>200</code> with <code>{"count":N}</code> for the complete selection.</td>
+</tr>
+<tr>
+<td><code>PATCH /api/v2/queues/{queue}/tasks/{task_id}</code></td>
+<td>Non-empty Task update object</td>
+<td><code>200</code> with the Task. Running Tasks reject updates. Object/list fields are complete replacements.</td>
+</tr>
+<tr>
+<td><code>PATCH /api/v2/queues/{queue}/tasks</code></td>
+<td><code>{"filter":...,"changes":...}</code></td>
+<td><code>200</code> with <code>{"matched":N,"updated":M}</code>. The filter is required; the update is atomic across matching non-running Tasks.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/cancel</code></td>
+<td>No body</td>
+<td><code>200</code> with the cancelled Task. Accepts pending/running and is idempotent for cancelled.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/requeue</code></td>
+<td>No body</td>
+<td><code>200</code> with the pending Task. Accepts pending/failed/cancelled, resets attempt and last error.</td>
+</tr>
+<tr>
+<td><code>DELETE /api/v2/queues/{queue}/tasks/{task_id}</code></td>
+<td>None</td>
+<td><code>204</code>; idempotent when absent. Running Tasks reject deletion.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="creation-body">Creation body</h3>
+<p>Every field is optional because the Server expands the same defaults as the
+Python API:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<span class="w">  </span><span class="nt">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<span class="w">  </span><span class="nt">"priority"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"max_attempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"routes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"default"</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The Task ID is the resource identity and must match
+<code>t_[A-Za-z0-9_-]{12}</code>. Replaying the same normalized definition returns the
+Task's current representation. JSON object-key order, route input order, and an
+omitted default versus the same explicit default do not change that identity.</p>
+<h3 id="list-and-count-queries">List and count queries</h3>
+<p>Task listing accepts:</p>
+<div class="highlight"><pre><span></span><code>status, name, filter, order_by, descending, limit, cursor
+</code></pre></div>
+<p>Count accepts <code>status</code>, <code>name</code>, and <code>filter</code>. Selectors are combined with AND.
+<code>limit</code> is 1–1000 and defaults to 100. A non-null <code>next_cursor</code> must be reused
+with the same Queue, selectors, filter, order field, and direction. The cursor is
+opaque. See <a href="../../guides/query/">Query language</a> for filter syntax.</p>
+<h3 id="update-body">Update body</h3>
+<p>A Task update contains at least one of:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"new name"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<span class="w">  </span><span class="nt">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<span class="w">  </span><span class="nt">"priority"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"max_attempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"routes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"robotwin"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"result"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Every supplied object/list is a complete replacement. Identity, status, attempt,
+last error, run ownership, and timestamps are Server-owned. Bulk update counts
+only rows that match and remain non-running; a concurrent claim either sees all
+new values or excludes that Task. Validation failure for one matched non-running
+Task rolls back the complete batch.</p>
+<h2 id="worker-protocol">Worker protocol</h2>
+<p>These endpoints let an independent executor implement the same lease/fencing
+contract as the bundled Workers. They are not public convenience methods on the
+Python <code>Client</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method and path</th>
+<th>Body</th>
+<th>Success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/claim</code></td>
+<td><code>{"route":...,"run_id":...}</code></td>
+<td><code>200</code> with Task, <code>run_id</code>, and <code>lease_expires_at</code>; <code>204</code> when no compatible pending Task exists.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/heartbeat</code></td>
+<td><code>{"run_id":...}</code></td>
+<td><code>200</code> with the renewed <code>lease_expires_at</code>.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/complete</code></td>
+<td><code>{"run_id":...,"result":{...}}</code></td>
+<td><code>204</code>; completes the matching active run as succeeded.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/fail</code></td>
+<td><code>{"run_id":...,"error":{"type":...,"message":...,"traceback":...}}</code></td>
+<td><code>204</code>; charges the failure and retries or fails according to the Task budget.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/unclaim</code></td>
+<td><code>{"run_id":...}</code></td>
+<td><code>204</code>; returns the matching run to pending without an error payload.</td>
+</tr>
+</tbody>
+</table>
+<p><code>run_id</code> matches <code>r_[A-Za-z0-9_-]{12}</code> and is a private per-claim ownership
+token, not a Run resource. Heartbeat and terminal actions require the currently
+active ID. A stale process cannot mutate a newer claim.</p>
+<p>Claim matches the supplied route exactly and case-sensitively. Among compatible
+pending Tasks, higher priority is claimed first, followed by stable pending
+order. A healthy run renews its five-minute lease with heartbeat; the lease is
+not an execution timeout.</p>
+<p>Terminal actions are effect-idempotent for the most recently finalized run and
+same action. A contradictory action or stale run conflicts. The Server exposes
+no <code>/runs</code> collection or execution-history API.</p>
+<h2 id="task-representation">Task representation</h2>
+<p>Ordinary get/list/action responses contain exactly these required v2 fields:</p>
+<div class="highlight"><pre><span></span><code>id, queue, status, name, args, metadata, priority, attempt, max_attempts,
+routes, result, last_error, last_route, created_at, updated_at, started_at,
+finished_at
+</code></pre></div>
+<p>Active <code>run_id</code> and lease expiry appear only in Worker protocol responses, never
+in the ordinary Task resource.</p>
+<h2 id="errors">Errors</h2>
+<p>Every documented application error uses one envelope:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stale_run"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This run is no longer active."</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"details"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Branch on <code>error.code</code>, not <code>message</code>. The stable status classes are:</p>
+<table>
+<thead>
+<tr>
+<th>HTTP status</th>
+<th>Meaning and representative codes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>401</code></td>
+<td>Missing or incorrect token: <code>unauthorized</code>.</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td>Missing Queue or Task: <code>queue_not_found</code>, <code>task_not_found</code>.</td>
+</tr>
+<tr>
+<td><code>409</code></td>
+<td>State or ownership conflict: <code>task_id_conflict</code>, <code>task_running</code>, <code>stale_run</code>, <code>run_finalized</code>, lifecycle/update conflicts.</td>
+</tr>
+<tr>
+<td><code>413</code></td>
+<td>Body exceeds 1 MiB: <code>request_too_large</code>.</td>
+</tr>
+<tr>
+<td><code>422</code></td>
+<td>Invalid request, Task, filter, update, identifier, or complete stored data: for example <code>invalid_task</code>, <code>invalid_filter</code>, <code>invalid_update</code>, <code>task_data_too_large</code>.</td>
+</tr>
+<tr>
+<td><code>503</code></td>
+<td>Retryable Server-side operational failure such as <code>database_busy</code>; still uses the same envelope.</td>
+</tr>
+</tbody>
+</table>
+<p>Malformed FastAPI/Pydantic native errors are converted to this envelope; Server
+tracebacks and database details are never part of the public response.</p>
+<h2 id="client-retry-boundary">Client retry boundary</h2>
+<p>Safe reads and representation-idempotent Task creation can be retried with the
+same inputs. Lifecycle, update, and delete calls should not be retried blindly
+after an uncertain response because another actor may have changed the resource.
+Inspect current state before deciding.</p>
+<p>Workers use a separate reliability policy: they keep heartbeat active while
+retrying one terminal report, and <code>run_id</code> fencing prevents a stale retry from
+overwriting a newer execution.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Apache-2.0
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.tabs.link"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      
+    
+  </body>
+</html>
