@@ -20,8 +20,36 @@ uv run zensical serve
 uv run zensical build --clean
 ```
 
-The generated `site/` directory is ignored. CI builds the site from scratch but
-does not publish it.
+The generated `site/` directory is ignored. CI builds the site from scratch.
+Pushes that change documentation on `v2` or `main` publish the `dev` version to
+GitHub Pages. A `vVERSION` tag publishes `VERSION`, moves the `latest` alias, and
+updates the site's default redirect. Versioning uses Zensical's temporary Mike
+integration until native Zensical versioning is available.
+
+Configure GitHub Pages to deploy from the root of the `gh-pages` branch. The
+documentation workflow retains older versions on that branch, so it deliberately
+does not use the single-artifact Pages deployment flow.
+
+## Dependency and release automation
+
+Dependabot checks the uv workspace and GitHub Actions each week. GitHub reads
+`.github/dependabot.yml` from the repository's default branch.
+
+Publishing a GitHub Release runs the complete ordinary gate, the real Linux
+distributed suite, clean-wheel smoke tests, and then publishes all three
+distributions through PyPI Trusted Publishing. Before the first run:
+
+1. Create a protected GitHub environment named `pypi`, preferably with required
+   reviewers.
+2. Register `luocfprime/labtasker`, workflow `release.yml`, and environment
+   `pypi` as a Trusted Publisher for each PyPI project: `labtasker`,
+   `labtasker-client`, and `labtasker-server`. Use a
+   [pending publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
+   for a project that does not exist yet.
+
+The publishing workflow has no manual trigger. It accepts only a published
+GitHub Release whose `vVERSION` tag exactly matches every maintained version
+field.
 
 ## Agent workflows
 

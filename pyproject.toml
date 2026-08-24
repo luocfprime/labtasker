@@ -17,6 +17,7 @@ members = [
 [dependency-groups]
 dev = [
   "hypothesis>=6.125,<7",
+  "mike @ git+https://github.com/squidfunk/mike.git@0f62791256ebeba60d20d2f1d8fe6ec3b7d1e2b3",
   "mypy>=1.14,<2",
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
@@ -52,11 +53,17 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+"docs/snippets/**/*.py" = ["F821"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["labtasker", "labtasker_server"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["labtasker.TaskArg", "labtasker.binding.TaskArg"]
+
+[tool.ruff.format]
+exclude = ["docs/**/*.md"]
 
 [tool.mypy]
 python_version = "3.11"

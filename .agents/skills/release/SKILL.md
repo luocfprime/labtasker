@@ -40,13 +40,16 @@ changelog.
 ## Validate release readiness
 
 Run the complete ordinary gate from `AGENTS.md`. Build artifacts only from the
-exact reviewed source tree. Then smoke-test each wheel in its own clean virtual
-environment, confirming that:
+exact reviewed source tree. Then smoke-test the release wheels in clean virtual
+environments, confirming that:
 
-- `labtasker` imports and provides its CLI without Server dependencies;
+- `labtasker-client` imports `labtasker` and provides its CLI without Server
+  dependencies;
 - `labtasker-server` imports and provides its CLI without the Client package;
+- the `labtasker` convenience metapackage installs matching Client and Server
+  distributions and both CLIs;
 - installed metadata and `__version__` equal the target version; and
-- both source distributions and both wheels are present.
+- all three source distributions and all three wheels are present.
 
 For a fully release-gated Linux release, also require the distributed integration
 suite for the exact commit, either locally with PyTorch and Accelerate installed
@@ -64,8 +67,10 @@ exact commit, clean-worktree state, version alignment, artifact contents, and
 authorization. Use an annotated `vVERSION` tag unless the repository establishes
 a different convention.
 
-The v2 repository currently has no PyPI publication workflow. Do not improvise
-credentials, copy the v1 single-package workflow, or assume one trusted-publisher
-identity can publish both distributions. If publication is requested and no
-reviewed two-package mechanism exists, stop after producing validated artifacts
-and explain the missing release infrastructure.
+The reviewed `.github/workflows/release.yml` workflow publishes all three
+distributions when a GitHub Release is published. It requires a `vVERSION` tag,
+the ordinary and real distributed gates for the exact commit, clean-wheel smoke
+tests, and a protected `pypi` environment. PyPI must register that workflow and
+environment as a Trusted Publisher for `labtasker`, `labtasker-client`, and
+`labtasker-server`. Do not add a manual publishing trigger, improvise credentials,
+or copy the v1 single-package workflow.

@@ -2,6 +2,7 @@
 site_name = "Labtasker"
 site_description = "Run independent ML experiments in parallel without writing your own task infrastructure."
 site_author = "Labtasker contributors"
+site_url = "https://luocfprime.github.io/labtasker/"
 docs_dir = "docs"
 site_dir = "site"
 repo_url = "https://github.com/luocfprime/labtasker"
@@ -37,6 +38,10 @@ nav = [
   ] },
   { "Development" = "development.md" },
 ]
+
+[project.extra.version]
+provider = "mike"
+alias = true
 
 [project.markdown_extensions]
 pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"

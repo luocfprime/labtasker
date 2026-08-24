@@ -1,0 +1,160 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.11"
+      - run: uv sync --all-packages --group dev --frozen
+      - name: Verify release tag and version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          case "$RELEASE_TAG" in
+            v*) release_version="${RELEASE_TAG#v}" ;;
+            *) echo "Release tag must start with v: $RELEASE_TAG" >&2; exit 1 ;;
+          esac
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          uv run python .agents/skills/release/scripts/set_version.py --check "$release_version"
+          echo "EXPECTED_VERSION=$release_version" >> "$GITHUB_ENV"
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy packages/labtasker-client/src packages/labtasker-server/src
+      - run: uv run pytest
+      - run: uv run zensical build --clean
+      - run: uv build --all-packages
+      - name: Verify release distributions
+        run: |
+          uv run python - <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ["EXPECTED_VERSION"]
+          expected = {
+              f"labtasker-{version}-py3-none-any.whl",
+              f"labtasker-{version}.tar.gz",
+              f"labtasker_client-{version}-py3-none-any.whl",
+              f"labtasker_client-{version}.tar.gz",
+              f"labtasker_server-{version}-py3-none-any.whl",
+              f"labtasker_server-{version}.tar.gz",
+          }
+          actual = {
+              path.name
+              for path in Path("dist").iterdir()
+              if path.suffix == ".whl" or path.name.endswith(".tar.gz")
+          }
+          if actual != expected:
+              raise SystemExit(
+                  f"release distributions differ: expected {sorted(expected)}, found {sorted(actual)}"
+              )
+          PY
+      - name: Smoke-test release wheels
+        run: |
+          client_smoke_dir=$(mktemp -d)
+          server_smoke_dir=$(mktemp -d)
+          full_smoke_dir=$(mktemp -d)
+          client_wheel="dist/labtasker_client-${EXPECTED_VERSION}-py3-none-any.whl"
+          server_wheel="dist/labtasker_server-${EXPECTED_VERSION}-py3-none-any.whl"
+          metapackage_wheel="dist/labtasker-${EXPECTED_VERSION}-py3-none-any.whl"
+          uv venv "$client_smoke_dir"
+          uv venv "$server_smoke_dir"
+          uv venv "$full_smoke_dir"
+          uv pip install --python "$client_smoke_dir/bin/python" "$client_wheel"
+          uv pip install --python "$server_smoke_dir/bin/python" "$server_wheel"
+          uv pip install --python "$full_smoke_dir/bin/python" \
+            "$metapackage_wheel" "$client_wheel" "$server_wheel"
+          "$client_smoke_dir/bin/python" - <<'PY'
+          import importlib.metadata
+          import importlib.util
+          import os
+          import labtasker
+
+          assert importlib.metadata.version("labtasker-client") == os.environ["EXPECTED_VERSION"]
+          assert labtasker.__version__ == os.environ["EXPECTED_VERSION"]
+          assert importlib.util.find_spec("labtasker_server") is None
+          assert importlib.util.find_spec("fastapi") is None
+          PY
+          "$server_smoke_dir/bin/python" - <<'PY'
+          import importlib.metadata
+          import importlib.util
+          import os
+          import labtasker_server
+          from labtasker_server.app import create_app
+
+          assert importlib.metadata.version("labtasker-server") == os.environ["EXPECTED_VERSION"]
+          assert labtasker_server.__version__ == os.environ["EXPECTED_VERSION"]
+          assert callable(create_app)
+          assert importlib.util.find_spec("labtasker") is None
+          PY
+          "$full_smoke_dir/bin/python" - <<'PY'
+          import importlib.metadata
+          import os
+          import labtasker
+          import labtasker_server
+
+          version = os.environ["EXPECTED_VERSION"]
+          assert importlib.metadata.version("labtasker") == version
+          assert importlib.metadata.version("labtasker-client") == version
+          assert importlib.metadata.version("labtasker-server") == version
+          assert labtasker.__version__ == version
+          assert labtasker_server.__version__ == version
+          PY
+          "$client_smoke_dir/bin/labtasker" --help
+          "$server_smoke_dir/bin/labtasker-server" --help
+          "$full_smoke_dir/bin/labtasker" --help
+          "$full_smoke_dir/bin/labtasker-server" --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-distributions
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  distributed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.11"
+      - run: uv sync --all-packages --group dev --frozen
+      - run: uv pip install "torch>=2.4" "accelerate>=1,<2"
+      - run: uv run --no-sync pytest -m distributed_integration
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - distributed
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-distributions
+          path: dist/
+      - name: Publish release distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
