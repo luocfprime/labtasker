@@ -130,7 +130,8 @@ autonomous:
 - supervision may observe or act later but is not part of the runtime protocol.
 
 Labtasker distributes one maintained `labtasker` Agent Skill for those external
-agents. `skills/labtasker/SKILL.md` is its canonical content. The repository
+agents. `skills/labtasker/` is its canonical package: a short `SKILL.md` entry
+point plus its directly linked references. The repository
 exposes that same content through two user installation paths: a Claude Code
 marketplace rooted at `.claude-plugin/`, and the open Agent Skills repository
 layout consumed by `npx skills add`. `.agents/skills/labtasker` is a relative

@@ -1,15 +1,25 @@
 # Agent skill
 
-Labtasker ships one `labtasker` skill that teaches coding agents the v2 Task,
-Queue, route, Worker, query, and recovery workflows. The canonical source is
-[`skills/labtasker/SKILL.md`](https://github.com/luocfprime/labtasker/blob/v2/skills/labtasker/SKILL.md).
+Without a shared workflow, a coding agent must rediscover how each project
+distributes jobs, records progress, retries failures, and collects results.
+Labtasker's `labtasker` skill supplies those operating rules, so a request such
+as “run these cases in parallel across 8 GPUs with Labtasker” is enough to start
+the ordinary workflow.
+
+The skill covers v2 Task submission, Worker design, routing, inspection,
+updates, and recovery. It does not choose the experiment, allocate GPUs, or keep
+the agent inside the execution loop. Its short
+[`SKILL.md`](https://github.com/luocfprime/labtasker/blob/v2/skills/labtasker/SKILL.md)
+routes deployment, Worker, and recovery questions to three bundled references;
+the canonical installable package is
+[`skills/labtasker/`](https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker).
 
 ## LLM-readable documentation
 
-The Agent Skill teaches an agent how to operate Labtasker. The documentation
-site's `llms.txt` helps an agent find the right supporting documentation. It is
-published at the documentation root and links directly to the raw Markdown for
-the main guides, API references, and authoritative specification. The
+The Agent Skill teaches an agent how to operate Labtasker. A built documentation
+site exposes `llms.txt` at its root to help an agent find the right supporting
+material. It links directly to the raw Markdown for the main guides, API
+references, and authoritative specification. The
 [`llms.txt` source](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/llms.txt)
 can also be read directly.
 

@@ -32,7 +32,11 @@ validation expectations without loading the full specification into every task.
 Repeatable, task-specific workflows live under `.agents/skills/`. Use the
 `release` skill for versioning and release readiness, and the
 `public-contract-change` skill when changing behavior across HTTP, Python, CLI,
-persistence, and documentation surfaces.
+persistence, and documentation surfaces. Use `documentation` for maintained
+user guidance. Use `skill-development` when changing the public Agent Skill: it
+tests realistic questions with a full-repository Question Agent and fresh Answer
+Agents restricted to `skills/`, then revises the skill until a new holdout
+converges.
 
 ## Package boundary
 
@@ -59,6 +63,7 @@ Launcher coverage includes the supported outer-wrapper topology, environment
 propagation, one completion reporter, at-fork context clearing, and rejection of
 an inner per-rank Worker loop.
 
-The checked-in v1 implementation remains available on branch `v1` and in the
-local `.worktree/v1` reference during development. V2 intentionally provides no
-protocol, database, configuration, or import compatibility with v1.
+The historical implementation remains available on branch `v1`. A maintainer
+may keep a separate v1 worktree for comparison, but contributors should not
+assume that local worktree exists or edit it as part of v2 work. V2 intentionally
+provides no protocol, database, configuration, or import compatibility with v1.
