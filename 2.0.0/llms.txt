@@ -1,0 +1,39 @@
+# Labtasker
+
+> Labtasker is a deliberately small, Python-native task queue for running independent machine-learning inference, evaluation, and experiment jobs in parallel on resources the user already controls.
+
+These documents describe Labtasker v2. Labtasker schedules Tasks across Worker processes; it does not allocate GPUs, manage a cluster, build workflow DAGs, or store large artifacts. The specification is the authoritative product and protocol contract.
+
+## Start here
+
+- [README](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/README.md): Product motivation, comparison with project-specific scripts, installation, and a compact end-to-end example.
+- [Getting started](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/getting-started.md): Install Labtasker, submit the first Task, and run a Worker.
+- [Core model](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/concepts.md): The Task, Queue, Worker, Client, Server, route, and execution model.
+- [Agent Skill](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/agent-skill.md): How coding agents should discover and use the bundled Labtasker workflow.
+
+## Examples
+
+- [Inference and evaluation](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/inference-evaluation.md): Patterns for parallel ML inference and evaluation.
+- [Embodied AI case study](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/case-studies/starvla-robotwin.md): Applying Labtasker to RoboTwin evaluation in the StarVLA codebase.
+
+## Workflows
+
+- [Task operations](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/tasks.md): Submit, inspect, prioritize, cancel, retry, and delete Tasks.
+- [Query Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/query.md): Filter and order Task lists.
+- [Failure and recovery](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/failure-recovery.md): Retries, leases, interruption, and stale-run protection.
+- [Python Workers](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/workers/python.md): Reuse loaded Python state while processing Tasks.
+- [Command Workers](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/workers/command.md): Execute Tasks as subprocess commands.
+- [Distributed Workers](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/workers/distributed.md): Run one Task through a supported distributed launcher.
+
+## Reference
+
+- [Python API](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/reference/python-api.md): Signatures, return models, lifecycle rules, pagination, errors, and retries.
+- [CLI](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/reference/cli.md): Command contracts, JSON input, stdout/stderr, exit codes, and pagination.
+- [Configuration](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/reference/configuration.md): Configuration files, environment variables, precedence, and deployment modes.
+- [HTTP API](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/reference/http-api.md): Endpoint methods, bodies, status codes, authentication, errors, and run fencing.
+- [Specification](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/reference/specification.md): Authoritative behavior, lifecycle, protocol, persistence, and invariants.
+
+## Optional
+
+- [Why Labtasker?](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/why-labtasker.md): Product boundaries and the core design changes from v1 to v2.
+- [Development](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/development.md): Repository setup, validation, and contribution workflow.
