@@ -39,11 +39,12 @@ Publishing a GitHub Release runs the complete ordinary gate, the real Linux
 distributed suite, clean-wheel smoke tests, and then publishes all three
 distributions through PyPI Trusted Publishing. Before the first run:
 
-1. Create protected GitHub environments named `pypi` and `pypi-client`,
-   preferably with required reviewers.
+1. Create protected GitHub environments named `pypi`, `pypi-client`, and
+   `pypi-server`, preferably with required reviewers.
 2. Register `luocfprime/labtasker` and workflow `release.yml` as a Trusted
    Publisher for all three PyPI projects. Use environment `pypi-client` for
-   `labtasker-client`, and `pypi` for `labtasker` and `labtasker-server`. Use a
+   `labtasker-client`, `pypi-server` for `labtasker-server`, and `pypi` for
+   `labtasker`. Use a
    [pending publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
    for a project that does not exist yet.
 

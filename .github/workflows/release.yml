@@ -172,7 +172,7 @@ jobs:
       - build
       - distributed
       - publish-client
-    environment: pypi
+    environment: pypi-server
     permissions:
       id-token: write
     steps:
