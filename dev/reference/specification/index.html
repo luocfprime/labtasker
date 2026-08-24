@@ -282,6 +282,32 @@
   
   
     <li class="md-nav__item">
+      <a href="../../demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tested demo
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/" class="md-nav__link">
         
   
@@ -316,10 +342,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
             
   
   
@@ -336,8 +362,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -422,10 +448,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   
@@ -442,8 +468,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -555,10 +581,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
         
           
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
             
   
   
@@ -575,8 +601,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -717,10 +743,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
             
   
   
@@ -737,8 +763,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3555,8 +3581,8 @@ Repeating the same terminal action may be deduplicated, but never replays its
 state transition; a contradictory action is rejected. Explicit non-running Task
 updates may still change user-owned data under section 11, not lifecycle state.</p>
 <p>The public lifecycle operations return the resulting Task:</p>
-<div class="highlight"><pre><span></span><code><span class="n">cancel_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
-<span class="n">requeue_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
+<div class="highlight"><pre><span></span><code>cancel_task(task_id: str, *, queue: str | None = None) -&gt; Task
+requeue_task(task_id: str, *, queue: str | None = None) -&gt; Task
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="err">POST /api/v2/queues/{queue}/tasks/{task_id}/cancel</span>
 <span class="err">POST /api/v2/queues/{queue}/tasks/{task_id}/requeue</span>
@@ -3568,7 +3594,7 @@ automatically retry a lost response.</p>
 <p>Task deletion is allowed in every state except running. A running Task must first
 be cancelled so its run is fenced explicitly. Deletion is idempotent, including
 when the Task is already absent:</p>
-<div class="highlight"><pre><span></span><code><span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="highlight"><pre><span></span><code>delete_task(task_id: str, *, queue: str | None = None) -&gt; None
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="err">DELETE /api/v2/queues/{queue}/tasks/{task_id}</span>
 <span class="err">204 No Content</span>
@@ -3668,9 +3694,9 @@ not change the Queue representation. Queue creation and listing are sufficient f
 individual Queue has no additional representation to retrieve, v2 deliberately
 has no <code>get_queue()</code> function, item <code>GET</code> endpoint or <code>queue get</code> command.</p>
 <p>The complete public operations are:</p>
-<div class="highlight"><pre><span></span><code><span class="n">create_queue</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Queue</span>
-<span class="n">list_queues</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Queue</span><span class="p">]</span>
-<span class="n">delete_queue</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">cascade</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="highlight"><pre><span></span><code>create_queue(name: str) -&gt; Queue
+list_queues() -&gt; list[Queue]
+delete_queue(name: str, *, cascade: bool = False) -&gt; None
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="err">PUT    /api/v2/queues/{queue}</span>
 <span class="err">GET    /api/v2/queues</span>
@@ -4545,13 +4571,13 @@ and third-party tracking/artifact systems remain the experiment's responsibility
 <code>async def</code> handlers or add an async client/loop execution branch before a real
 workload requires one.</p>
 <p>The complete decorator signature is intentionally small:</p>
-<div class="highlight"><pre><span></span><code><span class="n">loop</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">route</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default"</span><span class="p">,</span>
-    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">idle_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">300.0</span><span class="p">,</span>
-    <span class="n">force_stop_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span>
+<div class="highlight"><pre><span></span><code>loop(
+    *,
+    route: str = "default",
+    queue: str | None = None,
+    idle_timeout: float = 300.0,
+    force_stop_timeout: float | None = None,
+)
 </code></pre></div>
 <p>V2 supports only the explicit <code>@loop(...)</code> spelling, not a second bare <code>@loop</code>
 form. Queue uses the ordinary Client resolution chain. The decorator has no
@@ -4583,12 +4609,12 @@ timestamp: public <code>finished_at</code> and journal finish/acknowledgement ti
 Server run completion, while post-finish cleanup duration is not modeled.</p>
 <p>Task-injected parameters use one explicit <code>TaskArg</code> marker, replacing v1's
 misleadingly named <code>Required</code> marker:</p>
-<div class="highlight"><pre><span></span><code><span class="n">TaskArg</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">default</span><span class="o">=...</span><span class="p">,</span>  <span class="c1"># omission-sensitive private sentinel</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">resolver</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span>
+<div class="highlight"><pre><span></span><code>TaskArg(
+    *,
+    default=...,  # omission-sensitive private sentinel
+    path: str | None = None,
+    resolver: Callable[[Any], Any] | None = None,
+)
 </code></pre></div>
 <p>All arguments are keyword-only. Omitting <code>default</code> means required; explicitly
 passing any value, including <code>None</code>, supplies that default. The omission sentinel
@@ -4691,12 +4717,12 @@ explicitly replace the current run's timeout through a setter, allowing either a
 bounded cleanup period or an unbounded natural wait without changing the Worker
 default for later Tasks.</p>
 <p>The Python Worker configuration and cooperative API are exactly:</p>
-<div class="highlight"><pre><span></span><code><span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">(</span><span class="n">force_stop_timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="o">...</span><span class="p">):</span>
-    <span class="o">...</span>
+<div class="highlight"><pre><span></span><code>@labtasker.loop(force_stop_timeout=None)
+def run(...):
+    ...
 
-<span class="n">labtasker</span><span class="o">.</span><span class="n">cancellation_requested</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
-<span class="n">labtasker</span><span class="o">.</span><span class="n">set_force_stop_timeout</span><span class="p">(</span><span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+labtasker.cancellation_requested() -&gt; bool
+labtasker.set_force_stop_timeout(seconds: float | None) -&gt; None
 </code></pre></div>
 <p><code>force_stop_timeout</code> accepts a finite non-negative number of seconds or null and
 defaults to null. Zero requests immediate force-stop after confirmed revocation;
@@ -4735,11 +4761,11 @@ an active Python Task execution. Calling them during Worker startup, idle pollin
 ordinary submission code or after execution has ended raises <code>RuntimeError</code>.</p>
 <p><code>finish()</code> is strict by default but retains one explicit low-intrusion escape
 hatch for code intentionally shared between standalone and Labtasker execution:</p>
-<div class="highlight"><pre><span></span><code><span class="n">finish</span><span class="p">(</span>
-    <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">JSONValue</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">skip_if_no_labtasker</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="highlight"><pre><span></span><code>finish(
+    result: dict[str, JSONValue] | None = None,
+    *,
+    skip_if_no_labtasker: bool = False,
+) -&gt; None
 </code></pre></div>
 <p><code>result</code> may be omitted and then means <code>{}</code>. It must otherwise be a JSON object.</p>
 <p>With <code>skip_if_no_labtasker=True</code>, absence of an active Labtasker execution makes
@@ -5273,7 +5299,9 @@ userinfo, query or fragment. A trailing slash is removed in the effective value
 before appending <code>/api/v2</code>; an optional path prefix is otherwise preserved. Unix
 socket paths are derived only from CWD and are not encoded into <code>url</code> or accepted
 through another config key. <code>queue</code> follows the Queue/route identifier grammar,
-and <code>token</code> is an opaque non-empty string. The three matching <code>LABTASKER_*</code>
+and <code>token</code> is an opaque non-empty string of visible ASCII characters (<code>U+0021</code>
+through <code>U+007E</code>) so it can be represented unambiguously in an HTTP Bearer
+header. The three matching <code>LABTASKER_*</code>
 variables use the same validation, including treating a present empty value as
 invalid rather than absent.</p>
 <p>V2 does not inspect or enforce filesystem permission bits on the client config.
@@ -5687,19 +5715,19 @@ deleting nested values unambiguous:</p>
 <span class="n">updated</span> <span class="o">=</span> <span class="n">update_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="p">{</span><span class="s2">"args"</span><span class="p">:</span> <span class="n">args</span><span class="p">})</span>
 </code></pre></div>
 <p>The function-first and <code>Client</code> APIs use the same signatures:</p>
-<div class="highlight"><pre><span></span><code><span class="n">update_task</span><span class="p">(</span>
-    <span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">changes</span><span class="p">:</span> <span class="n">TaskUpdate</span><span class="p">,</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
+<div class="highlight"><pre><span></span><code>update_task(
+    task_id: str,
+    changes: TaskUpdate,
+    *,
+    queue: str | None = None,
+) -&gt; Task
 
-<span class="n">update_tasks</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="nb">filter</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">changes</span><span class="p">:</span> <span class="n">TaskUpdate</span><span class="p">,</span>
-    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BulkUpdateResult</span>
+update_tasks(
+    *,
+    filter: str,
+    changes: TaskUpdate,
+    queue: str | None = None,
+) -&gt; BulkUpdateResult
 </code></pre></div>
 <p><code>update_task</code> is ID-addressed. It returns the updated <code>Task</code>, returns
 <code>404 task_not_found</code> for an unknown ID, or returns <code>409 task_running</code> if a run
@@ -5791,17 +5819,17 @@ all identity, lifecycle, diagnostic and execution fields are server-owned rather
 than creation inputs.</p>
 <h3 id="121-python">12.1 Python</h3>
 <p>The function-first and <code>Client</code> APIs use the same signature:</p>
-<div class="highlight"><pre><span></span><code><span class="n">submit_task</span><span class="p">(</span>
-    <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">JSONValue</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">JSONValue</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">priority</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
-    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
-    <span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
+<div class="highlight"><pre><span></span><code>submit_task(
+    args: dict[str, JSONValue] | None = None,
+    *,
+    name: str | None = None,
+    metadata: dict[str, JSONValue] | None = None,
+    priority: int = 0,
+    max_attempts: int = 3,
+    routes: list[str] | None = None,
+    task_id: str | None = None,
+    queue: str | None = None,
+) -&gt; Task
 </code></pre></div>
 <p>Python <code>None</code> for <code>args</code>, <code>metadata</code> or <code>routes</code> means “use the documented
 default”; the Client sends the normalized object rather than JSON null. Callers
@@ -5920,7 +5948,7 @@ Pydantic model. <code>routes</code> remains <code>list[str]</code>; <code>args</
 dicts. <code>Task</code> itself is a frozen client-owned Pydantic model, but mutating one of
 its contained list/dict objects is only local and never updates the server.</p>
 <p>Retrieval is canonical and ID-addressed:</p>
-<div class="highlight"><pre><span></span><code><span class="n">get_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
+<div class="highlight"><pre><span></span><code>get_task(task_id: str, *, queue: str | None = None) -&gt; Task
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="err">GET /api/v2/queues/{queue}/tasks/{task_id}</span>
 </code></pre></div>
@@ -5930,17 +5958,17 @@ its contained list/dict objects is only local and never updates the server.</p>
 writes exactly that Task JSON object to stdout. Get/list never reveal active run
 or lease data.</p>
 <p>Listing uses the same selection and ordering contract on every surface:</p>
-<div class="highlight"><pre><span></span><code><span class="n">list_tasks</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">status</span><span class="p">:</span> <span class="n">TaskStatus</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="nb">filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">order_by</span><span class="p">:</span> <span class="n">TaskOrderField</span> <span class="o">=</span> <span class="s2">"created_at"</span><span class="p">,</span>
-    <span class="n">descending</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
-    <span class="n">cursor</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskPage</span>
+<div class="highlight"><pre><span></span><code>list_tasks(
+    *,
+    status: TaskStatus | None = None,
+    name: str | None = None,
+    filter: str | None = None,
+    order_by: TaskOrderField = "created_at",
+    descending: bool = True,
+    limit: int = 100,
+    cursor: str | None = None,
+    queue: str | None = None,
+) -&gt; TaskPage
 </code></pre></div>
 <p><code>status</code>, <code>name</code> and <code>filter</code> are optional and are ANDed when combined. <code>name</code>
 means exact string equality. Listing has no <code>task_id</code> shortcut because
@@ -5971,13 +5999,13 @@ request for every page. An empty page is a successful result:</p>
 <p>Counting is a separate, deliberately small operation because backlog size is a
 useful experiment/Agent diagnostic and fetching every page merely to count rows
 is wasteful:</p>
-<div class="highlight"><pre><span></span><code><span class="n">count_tasks</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">status</span><span class="p">:</span> <span class="n">TaskStatus</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="nb">filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+<div class="highlight"><pre><span></span><code>count_tasks(
+    *,
+    status: TaskStatus | None = None,
+    name: str | None = None,
+    filter: str | None = None,
+    queue: str | None = None,
+) -&gt; int
 </code></pre></div>
 <p>It uses exactly the same <code>status</code>, exact <code>name</code>, and <code>filter</code> selection semantics
 as <code>list_tasks</code>, with supplied predicates ANDed. It has no <code>order_by</code>, direction,
@@ -6862,6 +6890,10 @@ and change inspection noisy.</p>
 <tr>
 <td>2026-08-19</td>
 <td>Version the rewritten HTTP contract under <code>/api/v2</code>.</td>
+</tr>
+<tr>
+<td>2026-08-24</td>
+<td>Require Client and Server Bearer tokens to use visible ASCII so invalid header values fail during configuration rather than at request handling.</td>
 </tr>
 <tr>
 <td>2026-08-19</td>

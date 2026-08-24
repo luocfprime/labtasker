@@ -282,6 +282,32 @@
   
   
     <li class="md-nav__item">
+      <a href="../../demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tested demo
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/" class="md-nav__link">
         
   
@@ -316,10 +342,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
             
   
   
@@ -336,8 +362,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -422,10 +448,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   
@@ -442,8 +468,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -555,10 +581,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
         
           
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
             
   
   
@@ -575,8 +601,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -717,10 +743,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
             
   
   
@@ -737,8 +763,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1258,17 +1284,17 @@ overrides only that operation's Queue; changing Servers requires a new Client.</
 Client raise <code>RuntimeError("Client is closed.")</code>. The package-level default
 Client has no close/reset API. There is no asynchronous Client.</p>
 <h2 id="task-operations">Task operations</h2>
-<div class="highlight"><pre><span></span><code><span class="n">submit_task</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-            <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">routes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">task_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
-<span class="n">get_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
-<span class="n">list_tasks</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="s2">"created_at"</span><span class="p">,</span>
-           <span class="n">descending</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">cursor</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskPage</span>
-<span class="n">count_tasks</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
-<span class="n">update_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">changes</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
-<span class="n">update_tasks</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="nb">filter</span><span class="p">,</span> <span class="n">changes</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BulkUpdateResult</span>
-<span class="n">cancel_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
-<span class="n">requeue_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Task</span>
-<span class="n">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="highlight"><pre><span></span><code>submit_task(args=None, *, name=None, metadata=None, priority=0,
+            max_attempts=3, routes=None, task_id=None, queue=None) -&gt; Task
+get_task(task_id, *, queue=None) -&gt; Task
+list_tasks(*, status=None, name=None, filter=None, order_by="created_at",
+           descending=True, limit=100, cursor=None, queue=None) -&gt; TaskPage
+count_tasks(*, status=None, name=None, filter=None, queue=None) -&gt; int
+update_task(task_id, changes, *, queue=None) -&gt; Task
+update_tasks(*, filter, changes, queue=None) -&gt; BulkUpdateResult
+cancel_task(task_id, *, queue=None) -&gt; Task
+requeue_task(task_id, *, queue=None) -&gt; Task
+delete_task(task_id, *, queue=None) -&gt; None
 </code></pre></div>
 <table>
 <thead>
@@ -1415,9 +1441,9 @@ state-dependent rule, the whole batch rolls back.</p>
 <p>Lifecycle is changed only through these explicit actions; <code>status</code> is never a
 writable update field.</p>
 <h2 id="queue-operations">Queue operations</h2>
-<div class="highlight"><pre><span></span><code><span class="n">create_queue</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Queue</span>
-<span class="n">list_queues</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Queue</span><span class="p">]</span>
-<span class="n">delete_queue</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">cascade</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="highlight"><pre><span></span><code>create_queue(name) -&gt; Queue
+list_queues() -&gt; list[Queue]
+delete_queue(name, *, cascade=False) -&gt; None
 </code></pre></div>
 <p><code>create_queue</code> is idempotent and returns the Queue. <code>list_queues</code> returns the
 complete, unpaginated list. Deleting an empty Queue succeeds without <code>cascade</code>;
@@ -1470,15 +1496,15 @@ Server.</p>
 <p>Task states are exactly <code>pending</code>, <code>running</code>, <code>succeeded</code>, <code>failed</code>, and
 <code>cancelled</code>. Timestamps are timezone-aware UTC <code>datetime</code> values.</p>
 <h2 id="worker-api">Worker API</h2>
-<div class="highlight"><pre><span></span><code><span class="nd">@loop</span><span class="p">(</span><span class="n">route</span><span class="o">=</span><span class="s2">"default"</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idle_timeout</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
-      <span class="n">force_stop_timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">(</span><span class="o">...</span><span class="p">):</span> <span class="o">...</span>
+<div class="highlight"><pre><span></span><code>@loop(route="default", queue=None, idle_timeout=300,
+      force_stop_timeout=None)
+def worker(...): ...
 
-<span class="n">TaskArg</span><span class="p">(</span><span class="n">default</span><span class="o">=...</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">resolver</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<span class="n">task_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">TaskInfo</span>
-<span class="n">finish</span><span class="p">(</span><span class="n">result</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">skip_if_no_labtasker</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-<span class="n">cancellation_requested</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
-<span class="n">set_force_stop_timeout</span><span class="p">(</span><span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+TaskArg(default=..., path=None, resolver=None)
+task_info() -&gt; TaskInfo
+finish(result=None, *, skip_if_no_labtasker=False) -&gt; None
+cancellation_requested() -&gt; bool
+set_force_stop_timeout(seconds: float | None) -&gt; None
 </code></pre></div>
 <p>Only parameters marked by <code>TaskArg(...)</code> bind from Task args. Binding is strict
 and happens after claim; ordinary return succeeds with <code>{}</code>. <code>finish()</code> accepts
