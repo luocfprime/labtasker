@@ -14,7 +14,7 @@ Prefer the documented public path even when a custom workaround is technically
 possible. Do not add a Server, shell wrapper, Queue, or compatibility mechanism
 unless the workload needs it.
 
-Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/llms.txt>
+Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/llms.txt>
 
 ## Read the relevant reference
 

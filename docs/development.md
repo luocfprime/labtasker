@@ -21,7 +21,7 @@ uv run zensical build --clean
 ```
 
 The generated `site/` directory is ignored. CI builds the site from scratch.
-Pushes that change documentation on `v2` or `main` publish the `dev` version to
+Pushes that change documentation on `main` publish the `dev` version to
 GitHub Pages. A `vVERSION` tag publishes `VERSION`, moves the `latest` alias, and
 updates the site's default redirect. Versioning uses Zensical's temporary Mike
 integration until native Zensical versioning is available.

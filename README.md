@@ -7,6 +7,15 @@
 **Run many independent ML jobs in parallel without writing your own scripts to
 split the work, retry failures, and collect results.**
 
+## Contents
+
+- [Where Labtasker fits](#where-labtasker-fits)
+- [Why v2](#why-v2)
+- [Install and run the first Task](#install-and-run-the-first-task)
+- [Use Labtasker with an agent](#use-labtasker-with-an-agent)
+- [Documentation](#documentation)
+- [Development](#development)
+
 A simple loop is fine when you have a handful of short jobs and do not mind
 rerunning all of them. Now imagine running 100 evaluations on 8 GPUs. Some finish
 in minutes; others take hours. If you divide the list before starting, some GPUs
@@ -30,15 +39,6 @@ Labtasker deliberately stops at coordinating the jobs. You still choose the
 machines and GPUs, start the processes that use them, and decide where large
 outputs are saved. It does not allocate hardware or run pipelines in which one
 job depends on another.
-
-## Contents
-
-- [Where Labtasker fits](#where-labtasker-fits)
-- [Why v2](#why-v2)
-- [Install and run the first Task](#install-and-run-the-first-task)
-- [Use Labtasker with an agent](#use-labtasker-with-an-agent)
-- [Documentation](#documentation)
-- [Development](#development)
 
 ## Where Labtasker fits
 
@@ -160,7 +160,7 @@ it to invent another scheduler.
 Claude Code users can install the repository plugin:
 
 ```text
-/plugin marketplace add luocfprime/labtasker@v2
+/plugin marketplace add luocfprime/labtasker
 /plugin install labtasker-skill@labtasker
 ```
 
@@ -168,7 +168,7 @@ Agent Skills-compatible tools can install the canonical skill directly:
 
 ```bash
 npx skills add \
-  https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker
+  https://github.com/luocfprime/labtasker/tree/main/skills/labtasker
 ```
 
 See the [Agent Skill guide](docs/guides/agent-skill.md) for tool and scope

@@ -24,7 +24,7 @@ jobs:
           client_smoke_dir=$(mktemp -d)
           server_smoke_dir=$(mktemp -d)
           export EXPECTED_VERSION=$(uv run python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
-          client_wheel=$(find dist -maxdepth 1 -name 'labtasker-*.whl' -print -quit)
+          client_wheel=$(find dist -maxdepth 1 -name 'labtasker_client-*.whl' -print -quit)
           server_wheel=$(find dist -maxdepth 1 -name 'labtasker_server-*.whl' -print -quit)
           uv venv "$client_smoke_dir"
           uv venv "$server_smoke_dir"

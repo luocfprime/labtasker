@@ -9,10 +9,10 @@ the ordinary workflow.
 The skill covers v2 Task submission, Worker design, routing, inspection,
 updates, and recovery. It does not choose the experiment, allocate GPUs, or keep
 the agent inside the execution loop. Its short
-[`SKILL.md`](https://github.com/luocfprime/labtasker/blob/v2/skills/labtasker/SKILL.md)
+[`SKILL.md`](https://github.com/luocfprime/labtasker/blob/main/skills/labtasker/SKILL.md)
 routes deployment, Worker, and recovery questions to three bundled references;
 the canonical installable package is
-[`skills/labtasker/`](https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker).
+[`skills/labtasker/`](https://github.com/luocfprime/labtasker/tree/main/skills/labtasker).
 
 ## LLM-readable documentation
 
@@ -20,7 +20,7 @@ The Agent Skill teaches an agent how to operate Labtasker. A built documentation
 site exposes `llms.txt` at its root to help an agent find the right supporting
 material. It links directly to the raw Markdown for the main guides, API
 references, and authoritative specification. The
-[`llms.txt` source](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/llms.txt)
+[`llms.txt` source](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/llms.txt)
 can also be read directly.
 
 ## Claude Code marketplace
@@ -28,7 +28,7 @@ can also be read directly.
 Add the repository as a marketplace, then install its plugin:
 
 ```text
-/plugin marketplace add luocfprime/labtasker@v2
+/plugin marketplace add luocfprime/labtasker
 /plugin install labtasker-skill@labtasker
 ```
 
@@ -42,16 +42,16 @@ and other compatible agents:
 
 ```bash
 npx skills add \
-  https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker
+  https://github.com/luocfprime/labtasker/tree/main/skills/labtasker
 ```
 
-The direct v2 skill path keeps contributor-only repository workflows out of the
+The direct skill path keeps contributor-only repository workflows out of the
 installation. The installer prompts for target agents and project or global
 scope. For a non-interactive Codex installation, for example:
 
 ```bash
 npx skills add \
-  https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker \
+  https://github.com/luocfprime/labtasker/tree/main/skills/labtasker \
   --agent codex --global --yes
 ```
 
