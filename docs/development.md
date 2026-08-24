@@ -49,7 +49,9 @@ distributions through PyPI Trusted Publishing. Before the first run:
 
 The publishing workflow has no manual trigger. It accepts only a published
 GitHub Release whose `vVERSION` tag exactly matches every maintained version
-field.
+field. It publishes the Client first, the Server second, and the code-free
+metapackage last. Existing files are skipped on a retry so a partially completed
+multi-project publication can resume without replacing immutable PyPI files.
 
 ## Agent workflows
 

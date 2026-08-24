@@ -156,5 +156,24 @@ jobs:
         with:
           name: release-distributions
           path: dist/
-      - name: Publish release distributions to PyPI
+      - name: Stage distributions in dependency order
+        run: |
+          mkdir dist-client dist-server dist-metapackage
+          cp dist/labtasker_client-*.whl dist/labtasker_client-*.tar.gz dist-client/
+          cp dist/labtasker_server-*.whl dist/labtasker_server-*.tar.gz dist-server/
+          cp dist/labtasker-*.whl dist/labtasker-*.tar.gz dist-metapackage/
+      - name: Publish Client distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-client/
+          skip-existing: true
+      - name: Publish Server distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-server/
+          skip-existing: true
+      - name: Publish metapackage distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-metapackage/
+          skip-existing: true
