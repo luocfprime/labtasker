@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "labtasker"
-version = "2.0.0"
+version = "2.0.1"
 description = "Complete Labtasker installation with Client and local Server"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "lcf", email = "luocfprime@gmail.com" }]
 dependencies = [
-  "labtasker-client==2.0.0",
-  "labtasker-server==2.0.0",
+  "labtasker-client==2.0.1",
+  "labtasker-server==2.0.1",
 ]
 
 [tool.uv.sources]

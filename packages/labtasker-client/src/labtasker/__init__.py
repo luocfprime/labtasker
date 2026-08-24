@@ -35,7 +35,7 @@ from labtasker.models import BulkUpdateResult, LastError, Queue, Task, TaskInfo,
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.worker import loop
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 __all__ = [
     "APIError",
