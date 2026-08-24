@@ -1,6 +1,6 @@
 [project]
-site_name = "Labtasker v2"
-site_description = "A small, explicit task queue for parallel model inference and evaluation."
+site_name = "Labtasker"
+site_description = "Run independent ML experiments in parallel without writing your own task infrastructure."
 site_author = "Labtasker contributors"
 docs_dir = "docs"
 site_dir = "site"
@@ -10,6 +10,10 @@ edit_uri = "edit/v2/docs/"
 copyright = "Apache-2.0"
 nav = [
   { "Overview" = "index.md" },
+  { "Why Labtasker?" = "why-labtasker.md" },
+  { "Case studies" = [
+    { "Embodied AI: RoboTwin evaluation (StarVLA codebase)" = "case-studies/starvla-robotwin.md" },
+  ] },
   { "Get started" = "getting-started.md" },
   { "Core model" = "concepts.md" },
   { "Inference and evaluation" = "inference-evaluation.md" },
@@ -35,10 +39,15 @@ nav = [
 ]
 
 [project.markdown_extensions]
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.snippets.base_path = "docs"
 pymdownx.superfences = {}
 pymdownx.tabbed.alternate_style = true
 
 [project.theme]
+logo = "assets/favicon.png"
+favicon = "assets/favicon.png"
 features = [
   "content.tabs.link",
 ]

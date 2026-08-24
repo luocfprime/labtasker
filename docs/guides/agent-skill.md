@@ -4,6 +4,15 @@ Labtasker ships one `labtasker` skill that teaches coding agents the v2 Task,
 Queue, route, Worker, query, and recovery workflows. The canonical source is
 [`skills/labtasker/SKILL.md`](https://github.com/luocfprime/labtasker/blob/v2/skills/labtasker/SKILL.md).
 
+## LLM-readable documentation
+
+The Agent Skill teaches an agent how to operate Labtasker. The documentation
+site's `llms.txt` helps an agent find the right supporting documentation. It is
+published at the documentation root and links directly to the raw Markdown for
+the main guides, API references, and authoritative specification. The
+[`llms.txt` source](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/llms.txt)
+can also be read directly.
+
 ## Claude Code marketplace
 
 Add the repository as a marketplace, then install its plugin:

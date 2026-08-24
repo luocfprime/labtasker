@@ -1,11 +1,112 @@
-# Labtasker v2
+# Labtasker
 
-Labtasker is a small task queue for parallel model inference, evaluation, and
-other independent machine-learning experiments. It is especially useful when a
-Worker should load an expensive model once and process many parameterized Tasks.
-Scheduling stays explicit: a Task names one or more compatible routes, and a
-Worker claims through exactly one route. The Server stores no Worker registry and
-does not allocate GPUs or other resources.
+<p align="center">
+  <img src="docs/assets/logo.png" alt="Labtasker" width="520">
+</p>
+
+**Run many independent ML experiments in parallel without writing and debugging
+your own task distribution, retry, and result-collection scripts.**
+
+If you only have a few jobs and can safely rerun everything, a simple script may
+be all you need. Now suppose you have 100 evaluations and 8 GPUs. How do you keep
+every GPU busy when some evaluations take much longer than others? What happens
+when one fails halfway, the run is interrupted, or a new high-priority case
+arrives?
+
+Most projects gradually add GPU-assignment logic, status files, retries, locks,
+and result parsing to answer those questions. Even if an agent writes the code,
+you still have to explain those requirements and debug another project-specific
+task system.
+
+Compared with one-off task scripts, Labtasker provides a cleaner, better-tested,
+and more reliable solution with less project-specific code. Its standardized,
+explicit workflow is easy to automate and agent-friendly by design. With the
+bundled Agent Skill, task dispatch can be as simple as telling your agent: “Run
+these jobs in parallel across 8 GPUs with Labtasker.”
+
+| Without Labtasker :cry: | With Labtasker :smiley: |
+| --- | --- |
+| **Assign jobs to GPUs before starting.** This works while runtimes are predictable; otherwise some GPUs finish early and sit idle. | **Jobs are picked up as GPUs become free.** Work stays balanced even when runtimes vary. |
+| **Use logs and output files to remember progress.** This works while every run finishes cleanly; after an interruption, it becomes unclear what is safe to rerun. | **Labtasker remembers what finished.** Restart and continue the unfinished jobs without repeating completed work. |
+| **Ask an agent to add retries, locks, and failure rules.** This one-off code is rarely tested thoroughly, so subtle bugs may appear only after a large experiment is underway. | **Use built-in retry and recovery behavior.** The same tested implementation is reused across experiments, and an old process cannot overwrite a newer result. |
+| **Parse logs and directories to collect results.** Every project develops another output format and collection script. | **Report every job in a consistent format.** Agents and automation can inspect results directly, while large files remain in project-owned storage. |
+| **Rewrite or restart scripts when the plan changes.** Adding urgent jobs or cancelling unnecessary ones can disturb unrelated work. | **Change the plan while the experiment is running.** Add, cancel, or prioritize jobs without stopping unrelated work. |
+| **Hide program compatibility in arguments and launcher conditions.** After an implementation changes, it is hard to tell which version should run which job. | **Label compatible implementations explicitly.** Old and new versions can run side by side without silently redirecting existing jobs. |
+| **Reload an expensive model for every case, or build another custom loop.** The first option wastes startup time; the second adds more coordination code. | **Keep expensive state loaded across many jobs.** Each process can reuse its model or evaluator while Labtasker supplies new inputs. |
+| **Explain scheduling and recovery behavior to an agent for every project.** The agent ends up inventing and debugging another task system. | **Tell the agent to use Labtasker.** The bundled skill supplies the same tested workflow for submission, execution, inspection, and recovery. |
+
+Labtasker schedules work on resources that you already control. It does not
+allocate GPUs, launch a cluster, build a workflow DAG, or store large artifacts.
+
+## Contents
+
+- Understand Labtasker: [where it fits](#where-labtasker-fits),
+  [why v2](#why-v2), and the
+  [Embodied AI: RoboTwin evaluation case study](docs/case-studies/starvla-robotwin.md)
+- Start using it: [install](#install),
+  [LLM-readable documentation](#llm-readable-documentation),
+  [end-to-end quick start](#end-to-end-quick-start), and
+  [Python Worker](#python-worker)
+- Operate Tasks: [routing and rolling changes](#routing-and-rolling-changes),
+  [query language](#query-language), and
+  [failure and recovery](#failure-and-recovery)
+- Go further: [optional distributed launchers](#optional-distributed-launchers),
+  [HTTP and complete contract](#http-and-complete-contract),
+  [development](#development), and [license](#license)
+
+## Where Labtasker fits
+
+### AIGC experiments and ablations
+
+Image, video, and generative-model experiments often evaluate many prompts,
+seeds, checkpoints, or ablation settings before selecting the useful outputs.
+Submit each case as a Task, start one Worker on each available GPU, and let all
+Workers consume the same backlog. New cases can be added or reprioritized
+without repartitioning a running experiment.
+
+### Embodied-AI evaluation
+
+An embodied benchmark may contain many suites and subtasks whose runtimes differ
+substantially. Dividing them evenly by count does not divide the runtime evenly:
+some GPUs finish early and sit idle while another is stuck on a slow suite.
+Dynamic claiming keeps free Workers busy, while Task records keep progress,
+failures, and structured result references together instead of scattering that
+state across launcher scripts and output directories.
+
+The [Embodied AI: RoboTwin evaluation (StarVLA codebase)](docs/case-studies/starvla-robotwin.md)
+case study shows this pattern in a real project. Evaluating one VLA checkpoint
+across 50 robot-manipulation tasks requires dynamic GPU scheduling, process and
+port management, failure tracking, cleanup, and result collection.
+
+The same model applies to evaluation, benchmarking, data processing, and other
+collections of independent parameterized work. See
+[Why Labtasker?](docs/why-labtasker.md) for the full motivation and product
+boundary.
+
+## Why v2
+
+V2 keeps Labtasker's original purpose and makes the system smaller, more
+explicit, and more reliable:
+
+- **One obvious way:** overlapping shortcuts and implicit interactions were
+  removed in favor of a small set of complete, composable operations.
+- **Explicit routing:** Tasks name compatible routes and each Worker claims
+  through one route; scheduling never guesses compatibility from Task arguments.
+- **Explicit lifecycle:** claim, heartbeat, completion, failure, cancellation,
+  requeue, and retry have defined behavior, with `run_id` fencing against stale
+  Workers.
+- **Agent-first operation:** the Agent Skill, deterministic CLI output, and
+  explicit state-changing commands let coding agents operate Labtasker without
+  guessing hidden state or answering interactive prompts.
+- **Python-native setup:** Labtasker no longer requires MongoDB or uses Mongomock
+  as a substitute for an embedded database. The default local Server and SQLite
+  database are managed automatically.
+- **Works out of the box:** install the package and use it from the experiment
+  directory. Server deployment and configuration are only needed when sharing
+  work across machines.
+
+The [v1 to v2 design notes](docs/why-labtasker.md#from-v1-to-v2) explain these
+changes as product decisions rather than a list of renamed options.
 
 V2 has two independent runtime distributions and one convenience metapackage:
 
@@ -74,6 +175,13 @@ npx skills add \
 
 See the [agent skill guide](docs/guides/agent-skill.md) for explicit agent and
 scope selection.
+
+### LLM-readable documentation
+
+The documentation site publishes a standard [`llms.txt`](docs/llms.txt) entry
+point. It gives agents a concise map of Labtasker and links directly to the raw
+Markdown for the getting-started guide, workflows, API references, and
+specification, so they can load only the material needed for a task.
 
 ## End-to-end quick start
 

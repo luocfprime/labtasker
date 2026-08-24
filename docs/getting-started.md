@@ -1,7 +1,8 @@
 # Get started
 
-Labtasker requires Python 3.11 or newer. The ordinary installation includes both
-the Client and local Server while keeping their runtime packages independent.
+Labtasker requires Python 3.11 or newer. For the default local workflow, there is
+no database service to install, Server command to run, or configuration file to
+write.
 
 ## Installation
 
@@ -28,50 +29,23 @@ the Client and local Server while keeping their runtime packages independent.
     For split deployment, install `labtasker-client` directly in Client-only
     environments and `labtasker-server` in the Server environment.
 
-## 1. Select the local project
-
-```bash
-cd my-experiment
-labtasker config show
-```
-
-The default endpoint is bound exactly to the canonical current directory. The
-diagnostic above shows its database and Unix socket paths but does not create
-files, connect, or start a process. The first Task or Queue operation visibly
-starts a detached local daemon. It stores durable state in
-`.labtasker/server.db`, logs in `.labtasker/server.log`, and creates Queue
-`default` in a fresh database. `.labtasker/.gitignore` excludes local state while
-leaving an existing ignore file unchanged.
-
-## 2. Optionally select a Queue
-
-No configuration is required. To change the default Queue without changing the
-local endpoint:
-
-```toml
-queue = "default"
-```
-
-Check the effective non-secret endpoint at any time:
-
-```bash
-labtasker config show
-```
-
-## 3. Submit an evaluation Task
+## 1. Submit an evaluation Task
 
 CLI values are strict JSON, so numbers and Booleans retain their types:
 
 ```bash
+cd my-experiment
+
 labtasker task submit \
   --name sample-1 \
   --args '{"prediction":"red panda","reference":"red panda"}' \
   --route exact-match
 ```
 
-The command prints the created Task as formatted JSON.
+The command starts the project-local Server when needed and prints the created
+Task as formatted JSON. A fresh project uses Queue `default` automatically.
 
-## 4. Run a Worker
+## 2. Run a Worker
 
 Create a small evaluator. A real evaluator might run a benchmark, judge model
 output, or compute an embedding metric; this deterministic example needs no ML
@@ -104,7 +78,7 @@ The `--` separator is required. Labtasker builds argv directly and never invokes
 a shell. The Worker waits up to five minutes for more eligible Tasks before it
 exits normally.
 
-## 5. Inspect the result
+## 3. Inspect the result
 
 ```bash
 labtasker task list --status succeeded
@@ -114,3 +88,25 @@ labtasker task get t_ABCDEFGHIJKL
 Replace the example ID with the ID printed by submission. This Task succeeds with
 result `{"score": 1.0}`. A command that does not call `finish(...)` still
 succeeds with `{}` when it exits zero; see [Command Workers](workers/command.md).
+
+## What Labtasker started
+
+The first Task or Queue operation starts a detached local daemon bound to the
+current project directory. It keeps durable state in `.labtasker/server.db` and
+logs in `.labtasker/server.log`; `.labtasker/.gitignore` excludes this local state
+without overwriting an existing ignore file. The daemon survives terminal and
+SSH disconnection.
+
+Inspect the selected endpoint without starting anything, or manage the daemon
+explicitly:
+
+```bash
+labtasker config show
+labtasker-server status
+labtasker-server logs
+labtasker-server stop
+```
+
+Configuration is only needed to select another Queue or connect to an explicitly
+managed HTTP Server. See [Configuration](reference/configuration.md) for those
+cases.
