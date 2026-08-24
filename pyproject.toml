@@ -19,6 +19,7 @@ dev = [
   "hypothesis>=6.125,<7",
   "mike @ git+https://github.com/squidfunk/mike.git@0f62791256ebeba60d20d2f1d8fe6ec3b7d1e2b3",
   "mypy>=1.14,<2",
+  "pre-commit>=4.6,<5",
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
   "pytest-timeout>=2.3,<3",
