@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import socket
+import sys
 import threading
 import time
 from collections.abc import Iterator
@@ -11,6 +13,7 @@ import pytest
 import uvicorn
 
 from labtasker import APIError, Client, TransportError
+from labtasker.command_worker import run_command_worker
 from labtasker_server.app import create_app
 from labtasker_server.config import ServerSettings
 from labtasker_server.services.tasks import HEARTBEAT_TIMEOUT_US
@@ -175,3 +178,117 @@ def test_restart_after_lease_expiry_retries_and_fences_old_run(tmp_path: Path) -
     assert final.status == "succeeded"
     assert final.attempt == 2
     assert final.result == {"new_run": True}
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
+def test_partitioned_command_worker_is_stopped_after_another_run_takes_over(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "partition.db"
+    marker = tmp_path / "old-child.pid"
+    port = unused_port()
+    clock = Clock()
+    url = f"http://127.0.0.1:{port}"
+    old_run_id = "r_OLDPARTITION"
+    new_run_id = "r_NEWPARTITION"
+    partitioned = threading.Event()
+    heartbeat_blocked = threading.Event()
+    release_heartbeat = threading.Event()
+    original_heartbeat = Client._heartbeat
+    generated_run_ids = iter((old_run_id, "r_AFTERPART001"))
+
+    def gated_heartbeat(self: Client, **kwargs: object) -> object:
+        if kwargs.get("run_id") == old_run_id and partitioned.is_set():
+            heartbeat_blocked.set()
+            if not release_heartbeat.wait(3):
+                raise TimeoutError("Test did not restore the heartbeat path.")
+        return original_heartbeat(self, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LABTASKER_URL", url)
+    monkeypatch.setenv("LABTASKER_TOKEN", TOKEN)
+    monkeypatch.setattr("labtasker.worker.HEARTBEAT_INTERVAL_SECONDS", 0.02)
+    monkeypatch.setattr(
+        "labtasker.command_worker._generate_run_id", lambda: next(generated_run_ids)
+    )
+    monkeypatch.setattr(Client, "_heartbeat", gated_heartbeat)
+
+    worker_errors: list[BaseException] = []
+    child_script = (
+        "import os,sys,time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(30)"
+    )
+
+    def run_old_worker() -> None:
+        try:
+            run_command_worker(
+                [sys.executable, "-c", child_script, str(marker)],
+                route="partition",
+                idle_timeout=0,
+                force_stop_timeout=0.2,
+            )
+        except BaseException as error:
+            worker_errors.append(error)
+
+    with running_server(database, port, clock):
+        with Client(url=url, token=TOKEN) as client:
+            client.submit_task(
+                {},
+                task_id="t_NETPARTITION",
+                routes=["partition"],
+                max_attempts=2,
+            )
+        worker = threading.Thread(target=run_old_worker)
+        worker.start()
+        deadline = time.monotonic() + 3
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert marker.exists(), "The old command child did not start."
+        old_child_pid = int(marker.read_text())
+        partitioned.set()
+        assert heartbeat_blocked.wait(2)
+
+    clock.advance(HEARTBEAT_TIMEOUT_US)
+
+    try:
+        with running_server(database, port, clock), Client(url=url, token=TOKEN) as client:
+            expired = client.get_task("t_NETPARTITION")
+            assert expired.status == "pending"
+            assert expired.last_error is not None
+            assert expired.last_error.type == "HeartbeatTimeout"
+
+            replacement = client._claim(
+                route="partition",
+                run_id=new_run_id,
+                queue="default",
+            )
+            assert replacement is not None
+            assert replacement.task.attempt == 2
+
+            release_heartbeat.set()
+            worker.join(timeout=3)
+            assert not worker.is_alive()
+            assert worker_errors == []
+            with pytest.raises(ProcessLookupError):
+                os.kill(old_child_pid, 0)
+
+            client._complete(
+                task_id=replacement.task.id,
+                run_id=replacement.run_id,
+                result={"replacement": True},
+                queue="default",
+            )
+            final = client.get_task(replacement.task.id)
+    finally:
+        release_heartbeat.set()
+        if worker.is_alive():
+            worker.join(timeout=1)
+        if worker.is_alive():
+            os.kill(old_child_pid, 9)
+            worker.join(timeout=1)
+
+    assert final.status == "succeeded"
+    assert final.attempt == 2
+    assert final.result == {"replacement": True}
+    assert final.last_error is not None
+    assert final.last_error.type == "HeartbeatTimeout"
