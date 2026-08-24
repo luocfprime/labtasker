@@ -1117,20 +1117,20 @@ the ordinary workflow.</p>
 <p>The skill covers v2 Task submission, Worker design, routing, inspection,
 updates, and recovery. It does not choose the experiment, allocate GPUs, or keep
 the agent inside the execution loop. Its short
-<a href="https://github.com/luocfprime/labtasker/blob/v2/skills/labtasker/SKILL.md"><code>SKILL.md</code></a>
+<a href="https://github.com/luocfprime/labtasker/blob/main/skills/labtasker/SKILL.md"><code>SKILL.md</code></a>
 routes deployment, Worker, and recovery questions to three bundled references;
 the canonical installable package is
-<a href="https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker"><code>skills/labtasker/</code></a>.</p>
+<a href="https://github.com/luocfprime/labtasker/tree/main/skills/labtasker"><code>skills/labtasker/</code></a>.</p>
 <h2 id="llm-readable-documentation">LLM-readable documentation</h2>
 <p>The Agent Skill teaches an agent how to operate Labtasker. A built documentation
 site exposes <code>llms.txt</code> at its root to help an agent find the right supporting
 material. It links directly to the raw Markdown for the main guides, API
 references, and authoritative specification. The
-<a href="https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/llms.txt"><code>llms.txt</code> source</a>
+<a href="https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/llms.txt"><code>llms.txt</code> source</a>
 can also be read directly.</p>
 <h2 id="claude-code-marketplace">Claude Code marketplace</h2>
 <p>Add the repository as a marketplace, then install its plugin:</p>
-<div class="highlight"><pre><span></span><code>/plugin marketplace add luocfprime/labtasker@v2
+<div class="highlight"><pre><span></span><code>/plugin marketplace add luocfprime/labtasker
 /plugin install labtasker-skill@labtasker
 </code></pre></div>
 <p>The installed skill is invoked as <code>/labtasker-skill:labtasker</code>. Claude Code can
@@ -1139,13 +1139,13 @@ also select it automatically when a request matches its description.</p>
 <p>The open Agent Skills installer supports Claude Code, Codex, OpenCode, Cursor,
 and other compatible agents:</p>
 <div class="highlight"><pre><span></span><code>npx<span class="w"> </span>skills<span class="w"> </span>add<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker
+<span class="w">  </span>https://github.com/luocfprime/labtasker/tree/main/skills/labtasker
 </code></pre></div>
-<p>The direct v2 skill path keeps contributor-only repository workflows out of the
+<p>The direct skill path keeps contributor-only repository workflows out of the
 installation. The installer prompts for target agents and project or global
 scope. For a non-interactive Codex installation, for example:</p>
 <div class="highlight"><pre><span></span><code>npx<span class="w"> </span>skills<span class="w"> </span>add<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>https://github.com/luocfprime/labtasker/tree/v2/skills/labtasker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>https://github.com/luocfprime/labtasker/tree/main/skills/labtasker<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--agent<span class="w"> </span>codex<span class="w"> </span>--global<span class="w"> </span>--yes
 </code></pre></div>
 <p>Use <code>--agent claude-code</code> instead to install through the same open skill format
