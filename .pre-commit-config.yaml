@@ -10,15 +10,11 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
 
-  - repo: local
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
     hooks:
       - id: ruff-check
-        name: ruff check
-        entry: uv run --frozen ruff check --fix
-        language: system
+        args: [--fix]
         types_or: [python, pyi]
       - id: ruff-format
-        name: ruff format
-        entry: uv run --frozen ruff format
-        language: system
         types_or: [python, pyi]
