@@ -11,9 +11,13 @@ These documents describe Labtasker v2. Labtasker schedules Tasks across Worker p
 - [Core model](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/concepts.md): The Task, Queue, Worker, Client, Server, route, and execution model.
 - [Agent Skill](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/guides/agent-skill.md): How coding agents should discover and use the bundled Labtasker workflow.
 
-## Workflows
+## Examples
 
 - [Inference and evaluation](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/inference-evaluation.md): Patterns for parallel ML inference and evaluation.
+- [Embodied AI case study](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/case-studies/starvla-robotwin.md): Applying Labtasker to RoboTwin evaluation in the StarVLA codebase.
+
+## Workflows
+
 - [Task operations](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/guides/tasks.md): Submit, inspect, prioritize, cancel, retry, and delete Tasks.
 - [Query Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/guides/query.md): Filter and order Task lists.
 - [Failure and recovery](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/guides/failure-recovery.md): Retries, leases, interruption, and stale-run protection.
@@ -23,14 +27,13 @@ These documents describe Labtasker v2. Labtasker schedules Tasks across Worker p
 
 ## Reference
 
-- [Python API](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/python-api.md): Public Python interfaces and models.
-- [CLI](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/cli.md): Deterministic `labtasker` and `labtasker-server` commands.
+- [Python API](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/python-api.md): Signatures, return models, lifecycle rules, pagination, errors, and retries.
+- [CLI](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/cli.md): Command contracts, JSON input, stdout/stderr, exit codes, and pagination.
 - [Configuration](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/configuration.md): Configuration files, environment variables, precedence, and deployment modes.
-- [HTTP API](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/http-api.md): HTTP conventions, authentication, and error format.
+- [HTTP API](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/http-api.md): Endpoint methods, bodies, status codes, authentication, errors, and run fencing.
 - [Specification](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/reference/specification.md): Authoritative behavior, lifecycle, protocol, persistence, and invariants.
 
 ## Optional
 
 - [Why Labtasker?](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/why-labtasker.md): Product boundaries and the core design changes from v1 to v2.
-- [Embodied AI case study](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/case-studies/starvla-robotwin.md): Applying Labtasker to RoboTwin evaluation in the StarVLA codebase.
 - [Development](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/v2/docs/development.md): Repository setup, validation, and contribution workflow.

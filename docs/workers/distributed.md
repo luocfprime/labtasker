@@ -6,11 +6,11 @@ training job, v2 supports `torchrun` and Accelerate. Keep the Labtasker Worker
 outside the launcher:
 
 ```bash
-labtasker loop --route evaluate-distributed -- \
-  torchrun --nproc-per-node=8 evaluate.py --benchmark '%{benchmark}'
+labtasker loop --route robotwin -- \
+  torchrun --nproc-per-node=8 evaluate.py --task '%{task}'
 
-labtasker loop --route evaluate-distributed -- \
-  accelerate launch --num_processes 8 evaluate.py --benchmark '%{benchmark}'
+labtasker loop --route robotwin -- \
+  accelerate launch --num_processes 8 evaluate.py --task '%{task}'
 ```
 
 This creates one Labtasker run, one heartbeat thread, and one local journal. The

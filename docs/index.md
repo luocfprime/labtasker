@@ -4,85 +4,77 @@
   <img src="assets/logo.png" alt="Labtasker" width="520">
 </p>
 
-**Run many independent ML experiments in parallel without writing and debugging
-your own task distribution, retry, and result-collection scripts.**
+**Run many independent ML jobs in parallel without writing your own scripts to
+split the work, retry failures, and collect results.**
 
-If you only have a few jobs and can safely rerun everything, a simple script may
-be all you need. Now suppose you have 100 evaluations and 8 GPUs. How do you keep
-every GPU busy when some evaluations take much longer than others? What happens
-when one fails halfway, the run is interrupted, or a new high-priority case
-arrives?
+A simple loop is fine for a handful of short jobs. Now imagine running 100
+evaluations on 8 GPUs. Some finish in minutes; others take hours. If you divide
+the list before starting, some GPUs will sit idle behind the slowest jobs. If the
+script crashes, you must inspect logs and output folders to decide what to run
+again.
 
-Most projects gradually add GPU-assignment logic, status files, retries, locks,
-and result parsing to answer those questions. Even if an agent writes the code,
-you still have to explain those requirements and debug another project-specific
-task system.
+Labtasker keeps one list of jobs and hands them out one at a time. Start one
+evaluation process on each GPU; whenever it finishes a job, it gets another.
+Labtasker remembers what is waiting, running, finished, or failed, so you can
+continue after an interruption without repeating completed work.
 
-Compared with one-off task scripts, Labtasker provides a cleaner, better-tested,
-and more reliable solution with less project-specific code. Its standardized,
-explicit workflow is easy to automate and agent-friendly by design. With the
-bundled Agent Skill, task dispatch can be as simple as telling your agent: “Run
-these jobs in parallel across 8 GPUs with Labtasker.”
+Labtasker deliberately stops there. You still choose the machines and GPUs,
+start the processes that use them, and decide where large outputs are saved. If
+you need a system to allocate hardware or run a pipeline in which one job depends
+on another, Labtasker is not that system.
 
-| Without Labtasker :cry: | With Labtasker :smiley: |
-| --- | --- |
-| **Assign jobs to GPUs before starting.** This works while runtimes are predictable; otherwise some GPUs finish early and sit idle. | **Jobs are picked up as GPUs become free.** Work stays balanced even when runtimes vary. |
-| **Use logs and output files to remember progress.** This works while every run finishes cleanly; after an interruption, it becomes unclear what is safe to rerun. | **Labtasker remembers what finished.** Restart and continue the unfinished jobs without repeating completed work. |
-| **Ask an agent to add retries, locks, and failure rules.** This one-off code is rarely tested thoroughly, so subtle bugs may appear only after a large experiment is underway. | **Use built-in retry and recovery behavior.** The same tested implementation is reused across experiments, and an old process cannot overwrite a newer result. |
-| **Parse logs and directories to collect results.** Every project develops another output format and collection script. | **Report every job in a consistent format.** Agents and automation can inspect results directly, while large files remain in project-owned storage. |
-| **Rewrite or restart scripts when the plan changes.** Adding urgent jobs or cancelling unnecessary ones can disturb unrelated work. | **Change the plan while the experiment is running.** Add, cancel, or prioritize jobs without stopping unrelated work. |
-| **Hide program compatibility in arguments and launcher conditions.** After an implementation changes, it is hard to tell which version should run which job. | **Label compatible implementations explicitly.** Old and new versions can run side by side without silently redirecting existing jobs. |
-| **Reload an expensive model for every case, or build another custom loop.** The first option wastes startup time; the second adds more coordination code. | **Keep expensive state loaded across many jobs.** Each process can reuse its model or evaluator while Labtasker supplies new inputs. |
-| **Explain scheduling and recovery behavior to an agent for every project.** The agent ends up inventing and debugging another task system. | **Tell the agent to use Labtasker.** The bundled skill supplies the same tested workflow for submission, execution, inspection, and recovery. |
+## How it works
+
+Labtasker uses two names in its commands and documentation: a **Task** is one
+job, and a **Worker** is a process that runs jobs.
+
+1. Add all the jobs you want to run.
+2. Start one Worker on each GPU or other resource you want to use.
+3. Each Worker runs one job, reports the result, and asks for another.
+
+You do not need to divide the list among GPUs beforehand. You can inspect the
+jobs or change their priority while the processes keep running. The
+[Core model](concepts.md) introduces routes and Queues only when you need to
+separate different implementations or bodies of work.
 
 ## Where it fits
 
-- **AIGC and ablations:** run many prompts, seeds, checkpoints, or ablation cases
-  across available GPUs, then inspect and prioritize the useful results.
-- **Embodied-AI benchmarks:** dispatch suites and subtasks whose runtimes are hard
-  to predict without leaving GPUs idle behind a slow, fixed shard. The
-  [Embodied AI: RoboTwin evaluation (StarVLA codebase)](case-studies/starvla-robotwin.md)
-  case study shows this in a real 50-task VLA evaluation workflow.
+- **AIGC and ablations:** distribute prompts, seeds, checkpoints, and settings
+  across available GPUs, then inspect or prioritize the useful results.
+- **Embodied-AI benchmarks:** dispatch suites and subtasks with unpredictable
+  runtimes instead of leaving GPUs idle behind a slow fixed shard. The
+  [RoboTwin case study](case-studies/starvla-robotwin.md) shows a real 50-task
+  StarVLA evaluation workflow.
 - **Inference, evaluation, and data processing:** coordinate any collection of
-  independent, parameterized work on user-started Workers.
+  independent parameterized work on user-started Workers.
 
-Labtasker schedules work; it does not allocate GPUs, manage a cluster, build a
-workflow DAG, or store large artifacts. Read [Why Labtasker?](why-labtasker.md)
-for the full motivation, product boundary, and the design changes from v1 to v2.
+[Why Labtasker?](why-labtasker.md) compares this workflow with project-specific
+scripts and explains when another kind of tool is a better fit.
 
-## The v2 approach
+## Why v2 is different
 
-V2 favors one obvious way to perform each operation. Task compatibility is
-declared with explicit routes instead of inferred from arguments, lifecycle
-changes are named actions, and stale Worker runs are fenced from newer attempts.
-The default Python installation manages a local SQLite Server automatically, so
-MongoDB, Mongomock, port setup, and configuration are unnecessary for ordinary
-local use.
+V2 favors one explicit, complete way to perform each operation. Routes replace
+argument-based scheduling guesses; named lifecycle actions replace implicit
+status changes; attempts, leases, and `run_id` fencing define recovery. The
+default Python installation manages a local SQLite Server automatically on
+POSIX systems, so ordinary local use needs no MongoDB, port, or configuration
+file. Windows uses an explicitly configured HTTP Server instead.
 
-The same explicit design makes Labtasker suitable for agents: it includes an
-Agent Skill, uses deterministic non-interactive commands, and avoids asking an
-agent to guess hidden state. See [From v1 to v2](why-labtasker.md#from-v1-to-v2)
-for the design rationale.
+The same design makes Labtasker predictable for agents: the CLI is
+non-interactive, requested data and diagnostics stay separate, and the bundled
+Agent Skill describes the standard workflow. [From v1 to v2](why-labtasker.md#from-v1-to-v2)
+explains the design decisions in detail.
 
 ## Choose a starting point
 
-- [Get started](getting-started.md) uses the default local Server, submits a Task,
-  and executes it.
-- [Why Labtasker?](why-labtasker.md) explains the problem, target workflows,
-  product boundary, and v2 redesign.
-- [Core model](concepts.md) explains queues, routes, attempts, and run fencing.
-- [Inference and evaluation](inference-evaluation.md) shows warm model reuse,
-  evaluator dispatch, implementation rollouts, and artifact handling.
-- [Python Workers](workers/python.md) bind typed Task arguments to a function.
-- [Command Workers](workers/command.md) bind Task arguments to an argv template.
-- [Task operations](guides/tasks.md) covers submission, inspection, updates, and
-  lifecycle actions.
-- [Agent skill](guides/agent-skill.md) installs the same Labtasker workflow for
-  Claude Code, Codex, and other Agent Skills-compatible tools.
-- [llms.txt](llms.txt) gives agents a concise, standard entry point to the raw
-  Markdown guides and references.
-- [HTTP API](reference/http-api.md) points agents and integrations to the live
-  machine-readable contract.
-
-The standalone [v2 specification](reference/specification.md) is authoritative
-when this guide omits protocol detail.
+| Goal | Start here |
+| --- | --- |
+| Run the first Task | [Get started](getting-started.md) |
+| Decide whether Labtasker fits | [Why Labtasker?](why-labtasker.md) |
+| Understand Tasks, Workers, routes, and recovery | [Core model](concepts.md) |
+| See worked ML examples | [Inference and evaluation](inference-evaluation.md) and the [RoboTwin case study](case-studies/starvla-robotwin.md) |
+| Choose a Worker style | [Python](workers/python.md), [command](workers/command.md), or [distributed launcher](workers/distributed.md) |
+| Inspect, update, or recover work | [Task operations](guides/tasks.md), [queries](guides/query.md), and [failure recovery](guides/failure-recovery.md) |
+| Let an agent operate Labtasker | [Agent Skill](guides/agent-skill.md) or [llms.txt](llms.txt) |
+| Configure a shared Server | [Configuration](reference/configuration.md) and [HTTP API](reference/http-api.md) |
+| Check exact public behavior | [Python API](reference/python-api.md), [CLI](reference/cli.md), and the authoritative [specification](reference/specification.md) |

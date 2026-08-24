@@ -3,7 +3,7 @@
 The command Worker wraps an existing executable with minimal intrusion:
 
 ```bash
-labtasker loop --route evaluate -- \
+labtasker loop --route text-eval -- \
   python evaluate.py --prediction '%{prediction}' --reference '%{reference}'
 ```
 
@@ -14,7 +14,7 @@ join, split, quote, or evaluate a shell command.
 Command Workers require POSIX process-group support. Linux is release-gated and
 macOS is best effort; Windows raises `NotImplementedError` before connecting to
 the Server or claiming a Task. Client operations, the Server, and Python Workers
-remain available on Windows.
+remain available on Windows on a best-effort basis.
 
 ## Template syntax
 
@@ -44,10 +44,17 @@ not consume a Task.
 The child inherits the Worker's environment and receives Labtasker execution
 variables, including the Task ID, run ID, Queue, local run directory, and either
 the HTTP URL/token or the already selected local socket/directory. It never
-re-resolves local mode from the child's CWD. The Worker tees stdout and stderr to
-both the terminal and the local run log. Stdin is connected to `/dev/null`.
+re-resolves local mode from the child's CWD.
 
-Exit code zero succeeds with `{}`; any other exit code is a charged failure.
+In an interactive POSIX terminal, Labtasker uses an internal PTY and relays
+input, output, and terminal size. In pipelines and schedulers it uses ordinary
+pipes, drains stdout and stderr concurrently, and connects stdin to `/dev/null`.
+Both modes forward output live and copy the raw bytes to the local `run.log`;
+there is no public PTY option.
+
+If the child has not called `finish()`, exit code zero succeeds with `{}` and any
+other exit code is a charged failure. After a successful `finish()`, a later
+non-zero exit is logged locally but cannot rewrite the succeeded Task.
 
 ## Returning a result
 
@@ -65,5 +72,5 @@ writes a best-effort local journal update. Failure to write that local backup
 does not turn an accepted Server completion into an error.
 
 After completion, the command may keep running for cleanup. The default waits
-indefinitely; `--force-stop-timeout SECONDS` can terminate a revoked child after
-a deadline.
+indefinitely after sending termination to a revoked child process group;
+`--force-stop-timeout SECONDS` force-kills any remainder after the deadline.

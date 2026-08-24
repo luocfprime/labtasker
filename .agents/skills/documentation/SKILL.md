@@ -51,6 +51,13 @@ first-screen explanation. State their observable effect instead:
 Use Labtasker terminology consistently and capitalize public concepts—Task,
 Queue, Worker, Client, and Server—once they are introduced.
 
+When a tutorial first introduces a route, give it a name that looks like the
+workload or compatible implementation a reader would actually recognize, such
+as `libero`, `robotwin`, or `sdxl-diffusers`. Show the submitted Task and its
+Worker using the same name. Avoid generic verbs, matching rules, or placeholders
+such as `evaluate` and `exact-match`, which make `--route` look like an execution
+option rather than a compatibility label.
+
 ## Make comparisons prove the value
 
 A comparison must explain both the method and its consequence. Do not write a

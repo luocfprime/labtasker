@@ -62,4 +62,4 @@ failed state.
 StarVLA and RoboTwin still own the policy, simulator, task definitions, metrics,
 environments, logs, and videos. The researcher still chooses which GPUs run
 Workers. Labtasker replaces only the project-specific coordination layer and
-exposes the same operations to people and agents.
+exposes the same operations to humans and agents.

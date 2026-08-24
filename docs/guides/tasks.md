@@ -1,5 +1,9 @@
 # Task operations
 
+Use Task operations to inspect or change an experiment without restarting its
+Workers. Submission adds work; updates change non-running work; lifecycle
+actions make cancellation, requeue, and deletion explicit.
+
 ## Submit
 
 ```python
@@ -69,13 +73,17 @@ labtasker task requeue t_ABCDEFGHIJKL
 labtasker task delete t_ABCDEFGHIJKL
 ```
 
-- cancel produces a terminal cancelled Task;
-- requeue returns a non-running Task to pending and resets `attempt`;
+- cancel accepts pending or running Tasks and produces a terminal cancelled
+  Task; repeating it on an already cancelled Task is safe;
+- requeue accepts pending, failed, or cancelled Tasks, returns the Task to
+  pending, and resets `attempt`;
 - delete permanently removes a non-running Task.
 
 A running Task cannot be updated, requeued, or deleted. Cancellation is allowed:
 the run is fenced immediately, while local code follows the Worker's configured
-cooperative or forced-stop behavior.
+cooperative or forced-stop behavior. Succeeded and failed Tasks cannot be
+cancelled, and a succeeded Task cannot be requeued; submit a new Task to rerun a
+successful experiment.
 
 ## Queues
 

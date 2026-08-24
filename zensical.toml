@@ -11,12 +11,12 @@ copyright = "Apache-2.0"
 nav = [
   { "Overview" = "index.md" },
   { "Why Labtasker?" = "why-labtasker.md" },
-  { "Case studies" = [
-    { "Embodied AI: RoboTwin evaluation (StarVLA codebase)" = "case-studies/starvla-robotwin.md" },
-  ] },
   { "Get started" = "getting-started.md" },
   { "Core model" = "concepts.md" },
-  { "Inference and evaluation" = "inference-evaluation.md" },
+  { "Examples" = [
+    { "Inference and evaluation" = "inference-evaluation.md" },
+    { "Embodied AI: RoboTwin evaluation (StarVLA codebase)" = "case-studies/starvla-robotwin.md" },
+  ] },
   { "Workers" = [
     "workers/python.md",
     "workers/command.md",

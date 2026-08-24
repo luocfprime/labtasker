@@ -1,8 +1,9 @@
 # Get started
 
-Labtasker requires Python 3.11 or newer. For the default local workflow, there is
-no database service to install, Server command to run, or configuration file to
-write.
+Labtasker requires Python 3.11 or newer. For the default POSIX local workflow,
+there is no database service to install, Server command to run, or configuration
+file to write. On Windows, configure an explicitly operated HTTP Server; the
+automatic local Server and the command Worker used below are unsupported.
 
 ## Installation
 
@@ -39,11 +40,16 @@ cd my-experiment
 labtasker task submit \
   --name sample-1 \
   --args '{"prediction":"red panda","reference":"red panda"}' \
-  --route exact-match
+  --route text-eval
 ```
 
-The command starts the project-local Server when needed and prints the created
-Task as formatted JSON. A fresh project uses Queue `default` automatically.
+On POSIX systems, the command starts the project-local Server when needed and
+prints the created Task as formatted JSON. A fresh project uses Queue `default`
+automatically.
+
+`text-eval` is the name of the evaluator in this example. Use a route name that
+identifies the workload or implementation, such as `libero`, `robotwin`, or
+`text-eval`. The Task and the Worker that may run it use the same name.
 
 ## 2. Run a Worker
 
@@ -68,7 +74,7 @@ labtasker.finish({"score": score}, skip_if_no_labtasker=True)
 Then run it once for each compatible Task:
 
 ```bash
-labtasker loop --route exact-match -- \
+labtasker loop --route text-eval -- \
   python evaluate.py \
     --prediction '%{prediction}' \
     --reference '%{reference}'

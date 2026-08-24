@@ -2,7 +2,7 @@
 import labtasker
 
 
-@labtasker.loop(route="starvla-robotwin")
+@labtasker.loop(route="robotwin")
 def evaluate(
     checkpoint: str = labtasker.TaskArg(),
     task: str = labtasker.TaskArg(),

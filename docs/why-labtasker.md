@@ -152,7 +152,7 @@ overwrite the result of a newer run.
 This reliability belongs in Labtasker rather than in a different collection of
 launcher scripts for every experiment.
 
-### Designed for agents as well as people
+### Designed for agents and humans
 
 Agents work best with explicit operations, stable schemas, deterministic output,
 and errors that say exactly what failed. They work poorly when a tool requires
@@ -170,9 +170,13 @@ the agent to stay online.
 
 V1 required MongoDB for its real Server and used Mongomock to approximate an
 embedded local experience. V2 needs neither. The default installation includes
-the Python Client and Server, and the first real operation automatically starts a
-project-local Server backed by SQLite. There is no database service, TCP port, or
-configuration to prepare for ordinary local use.
+the Python Client and Server, and on POSIX systems the first real operation
+automatically starts a project-local Server backed by SQLite. There is no
+database service, TCP port, or configuration to prepare for that local path.
+
+The automatic local Server is not available on Windows. Windows Clients connect
+to an explicitly operated HTTP Server instead; ordinary Client, Server, and
+Python Worker use remains best effort there.
 
 An explicitly managed HTTP Server remains available when several machines need
 to share a Queue. This is a separate deployment choice, not setup that every new
@@ -183,7 +187,7 @@ project must perform.
 | MongoDB, or Mongomock as a local substitute | Automatically managed local SQLite Server |
 | Several conveniences with overlapping or implicit behavior | A small set of explicit, composable operations |
 | Worker eligibility inferred from Task arguments | Compatibility declared with exact routes |
-| Human-oriented interactions | Deterministic interfaces for people and agents |
+| Human-oriented interactions | Deterministic interfaces for humans and agents |
 | Looser execution and recovery behavior | Defined lifecycle, leases, attempts, and `run_id` fencing |
 
 Continue with [Get started](getting-started.md) for the local workflow or

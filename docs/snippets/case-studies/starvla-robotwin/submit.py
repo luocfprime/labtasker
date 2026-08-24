@@ -15,6 +15,6 @@ for task, mode in product(ROBOTWIN_TASKS, MODES):
             "seed": SEED,
         },
         name=f"{task}-{mode}",
-        routes=["starvla-robotwin"],
+        routes=["robotwin"],
         max_attempts=3,
     )

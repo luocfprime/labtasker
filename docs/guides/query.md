@@ -1,7 +1,11 @@
 # Query language
 
-Task list, count, and bulk update share one small expression language. Querying
-never participates in Worker routing.
+Use filters to find unfinished work, inspect failures or outliers, and update a
+selected group of Tasks. Task list, count, and bulk update share the same small
+expression language, so a selection can be checked before it is changed.
+
+Queries never decide which Worker may run a Task. Worker compatibility is set
+only through routes.
 
 ```text
 priority >= 10 and metadata.group == "ablation"
@@ -12,8 +16,8 @@ missing(result.score) or result.score < 0.9
 
 ## Values and paths
 
-Literals use JSON spelling: strings, integers, floats, `true`, `false`, and
-`null`. A path starts at the Task representation and traverses JSON objects with
+Literals use Python spelling: strings, integers, floats, `True`, `False`, and
+`None`. A path starts at the Task representation and traverses JSON objects with
 dots, such as `metadata.benchmark` or `result.metrics.f1`.
 
 Supported top-level fields include `id`, `name`, `status`, `args`, `metadata`,
@@ -25,18 +29,20 @@ Supported top-level fields include `id`, `name`, `status`, `args`, `metadata`,
 ```text
 ==  !=  <  <=  >  >=
 in  not in
-and or not
+and or
 ```
 
 Parentheses control grouping. `in` is explicit about direction:
 
 ```text
+status in ["failed", "cancelled"]
 "sdxl-v2" in routes
-"owner" in metadata
 ```
 
-For an object, membership checks keys. Reverse or ambiguous membership forms are
-rejected instead of being assigned surprising semantics.
+`path in [value, ...]` checks a scalar against a candidate list.
+`value in path` checks whether an array-valued path contains that value. It does
+not test object keys: use `exists(metadata.owner)` for that. General unary
+`not (...)` is unsupported; use `!=`, `not in`, `exists`, or `missing` instead.
 
 ## Missing values
 

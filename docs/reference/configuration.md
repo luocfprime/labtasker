@@ -1,5 +1,11 @@
 # Configuration
 
+On POSIX systems, most local users need no configuration: Labtasker selects the
+current project, starts its local Server when first needed, and uses Queue
+`default`. Configure a Client to select another Queue, connect to an explicitly
+managed HTTP Server, or control multiple targets from one process. Windows does
+not provide automatic local mode and therefore requires an explicit HTTP URL.
+
 ## Client resolution
 
 Client settings use this precedence, independently for each field:

@@ -1,8 +1,8 @@
-# Inference and evaluation
+# Inference and evaluation examples
 
-Labtasker is most useful when work is naturally split into independent model
-calls or evaluation units. The Queue provides durable progress and retries, while
-a long-lived Worker keeps expensive runtime state warm.
+These examples show how to use Labtasker for common ML work: reuse one loaded
+model across many inputs, run an existing evaluation command many times, switch
+between implementations explicitly, and save large output files separately.
 
 ## Reuse one loaded inference model
 
