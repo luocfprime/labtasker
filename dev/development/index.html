@@ -1134,11 +1134,12 @@ does not use the single-artifact Pages deployment flow.</p>
 distributed suite, clean-wheel smoke tests, and then publishes all three
 distributions through PyPI Trusted Publishing. Before the first run:</p>
 <ol>
-<li>Create protected GitHub environments named <code>pypi</code> and <code>pypi-client</code>,
-   preferably with required reviewers.</li>
+<li>Create protected GitHub environments named <code>pypi</code>, <code>pypi-client</code>, and
+   <code>pypi-server</code>, preferably with required reviewers.</li>
 <li>Register <code>luocfprime/labtasker</code> and workflow <code>release.yml</code> as a Trusted
    Publisher for all three PyPI projects. Use environment <code>pypi-client</code> for
-   <code>labtasker-client</code>, and <code>pypi</code> for <code>labtasker</code> and <code>labtasker-server</code>. Use a
+   <code>labtasker-client</code>, <code>pypi-server</code> for <code>labtasker-server</code>, and <code>pypi</code> for
+   <code>labtasker</code>. Use a
    <a href="https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/">pending publisher</a>
    for a project that does not exist yet.</li>
 </ol>
