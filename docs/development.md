@@ -110,6 +110,17 @@ Python API, and a Bash loop that starts one CLI process per Task. Use
 the same machine; the benchmark deliberately has no machine-dependent pass/fail
 threshold and is not part of the ordinary test gate.
 
+Measure concurrent HTTP Clients and Worker-protocol claim/completion separately:
+
+```bash
+uv run python benchmarks/concurrent_throughput.py
+```
+
+The concurrent benchmark gives submission and execution phases separate SQLite
+files, warms each Client before timing, verifies final succeeded counts, and
+rejects missing or duplicate Task IDs. Adjust the workload with `--tasks`,
+`--clients`, and `--workers`; compare results only on the same machine.
+
 The historical implementation remains available on branch `v1`. A maintainer
 may keep a separate v1 worktree for comparison, but contributors should not
 assume that local worktree exists or edit it as part of v2 work. V2 intentionally
