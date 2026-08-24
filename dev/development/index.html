@@ -1134,19 +1134,20 @@ does not use the single-artifact Pages deployment flow.</p>
 distributed suite, clean-wheel smoke tests, and then publishes all three
 distributions through PyPI Trusted Publishing. Before the first run:</p>
 <ol>
-<li>Create a protected GitHub environment named <code>pypi</code>, preferably with required
-   reviewers.</li>
-<li>Register <code>luocfprime/labtasker</code>, workflow <code>release.yml</code>, and environment
-   <code>pypi</code> as a Trusted Publisher for each PyPI project: <code>labtasker</code>,
-   <code>labtasker-client</code>, and <code>labtasker-server</code>. Use a
+<li>Create protected GitHub environments named <code>pypi</code> and <code>pypi-client</code>,
+   preferably with required reviewers.</li>
+<li>Register <code>luocfprime/labtasker</code> and workflow <code>release.yml</code> as a Trusted
+   Publisher for all three PyPI projects. Use environment <code>pypi-client</code> for
+   <code>labtasker-client</code>, and <code>pypi</code> for <code>labtasker</code> and <code>labtasker-server</code>. Use a
    <a href="https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/">pending publisher</a>
    for a project that does not exist yet.</li>
 </ol>
 <p>The publishing workflow has no manual trigger. It accepts only a published
 GitHub Release whose <code>vVERSION</code> tag exactly matches every maintained version
-field. It publishes the Client first, the Server second, and the code-free
-metapackage last. Existing files are skipped on a retry so a partially completed
-multi-project publication can resume without replacing immutable PyPI files.</p>
+field. Separate jobs and environments publish the Client first, the Server
+second, and the code-free metapackage last. Existing files are skipped on a retry
+so a partially completed multi-project publication can resume without replacing
+immutable PyPI files.</p>
 <h2 id="agent-workflows">Agent workflows</h2>
 <p>Repository-aware coding agents should start with the root <code>AGENTS.md</code>. It records
 the product boundary, architectural invariants, source-of-truth order, and
