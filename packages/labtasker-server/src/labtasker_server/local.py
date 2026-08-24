@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import secrets
 import socket
@@ -209,13 +210,30 @@ def read_metadata(paths: LocalPaths) -> RuntimeMetadata | None:
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         return None
     if (
-        metadata.metadata_version != METADATA_VERSION
-        or metadata.role not in {"coordinator", "daemon"}
-        or metadata.pid <= 0
+        not isinstance(metadata.metadata_version, int)
+        or isinstance(metadata.metadata_version, bool)
+        or metadata.metadata_version != METADATA_VERSION
+        or not isinstance(metadata.generation, str)
         or not metadata.generation
+        or not isinstance(metadata.role, str)
+        or metadata.role not in {"coordinator", "daemon"}
+        or not isinstance(metadata.pid, int)
+        or isinstance(metadata.pid, bool)
+        or metadata.pid <= 0
+        or not isinstance(metadata.process_start_marker, str)
+        or not metadata.process_start_marker
+        or not isinstance(metadata.directory, str)
         or metadata.directory != str(paths.directory)
+        or not isinstance(metadata.database, str)
         or metadata.database != str(paths.database)
+        or not isinstance(metadata.database_device, int)
+        or isinstance(metadata.database_device, bool)
+        or not isinstance(metadata.database_inode, int)
+        or isinstance(metadata.database_inode, bool)
         or not isinstance(metadata.automatic_attempt_at, (int, float))
+        or isinstance(metadata.automatic_attempt_at, bool)
+        or not math.isfinite(metadata.automatic_attempt_at)
+        or not (metadata.server_version is None or isinstance(metadata.server_version, str))
     ):
         return None
     return metadata

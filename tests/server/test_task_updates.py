@@ -115,6 +115,18 @@ def test_update_validation_is_strict_and_operation_specific(client: TestClient) 
         assert response.json()["error"]["code"] == "invalid_update"
 
 
+def test_bulk_update_accepts_large_candidate_filter(client: TestClient) -> None:
+    submit(client, TASK_1, priority=1)
+    submit(client, TASK_2, priority=2)
+    filter_expr = "priority in [" + ",".join(str(value) for value in range(1_000)) + "]"
+    response = client.patch(
+        "/api/v2/queues/default/tasks",
+        json={"filter": filter_expr, "changes": {"metadata": {"selected": True}}},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"matched": 2, "updated": 2}
+
+
 def test_running_task_rejects_update_but_terminal_task_allows_it(client: TestClient) -> None:
     submit(client, TASK_1)
     claim(client, RUN_1)

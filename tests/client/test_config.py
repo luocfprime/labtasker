@@ -66,6 +66,16 @@ def test_present_empty_environment_value_is_invalid(tmp_path: Path) -> None:
     assert raised.value.details == {"source": "environment", "field": "token"}
 
 
+@pytest.mark.parametrize("token", ["秘密", " leading", "trailing ", "line\nbreak", "tab\tvalue"])
+def test_token_must_be_safe_for_an_http_bearer_header(tmp_path: Path, token: str) -> None:
+    with pytest.raises(ConfigError, match="visible ASCII") as raised:
+        resolve_config(
+            cwd=tmp_path,
+            environment={"LABTASKER_URL": "http://server.test", "LABTASKER_TOKEN": token},
+        )
+    assert raised.value.details == {"source": "environment", "field": "token"}
+
+
 @pytest.mark.parametrize(
     ("text", "field"),
     [

@@ -70,6 +70,7 @@ explains the design decisions in detail.
 | Goal | Start here |
 | --- | --- |
 | Run the first Task | [Get started](getting-started.md) |
+| Run copy-pasteable, tested code | [Tested demo](demo.md) |
 | Decide whether Labtasker fits | [Why Labtasker?](why-labtasker.md) |
 | Understand Tasks, Workers, routes, and recovery | [Core model](concepts.md) |
 | See worked ML examples | [Inference and evaluation](inference-evaluation.md) and the [RoboTwin case study](case-studies/starvla-robotwin.md) |

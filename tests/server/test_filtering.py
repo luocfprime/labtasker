@@ -151,6 +151,27 @@ def test_candidate_set_membership_requires_existing_scalar(task_database: Databa
         "t_000000000003",
         "t_000000000004",
     ]
+    assert matching_ids(task_database, 'name not in ["number"]') == [
+        "t_000000000001",
+        "t_000000000002",
+        "t_000000000004",
+    ]
+    assert matching_ids(task_database, "name in [None]") == ["t_000000000001"]
+
+
+def test_large_candidate_sets_do_not_exceed_sqlite_expression_depth(
+    task_database: Database,
+) -> None:
+    repeated = ",".join(["1"] * 1_000)
+    assert matching_ids(task_database, f"args.x in [{repeated}]") == ["t_000000000003"]
+
+    distinct = ",".join(str(value) for value in range(1_000))
+    assert matching_ids(task_database, f"priority in [{distinct}]") == [
+        "t_000000000001",
+        "t_000000000002",
+        "t_000000000003",
+        "t_000000000004",
+    ]
 
 
 def test_array_and_route_containment_have_explicit_shapes(task_database: Database) -> None:
@@ -205,6 +226,8 @@ def test_timestamp_literals_are_strict_rfc3339(task_database: Database) -> None:
     assert_invalid('created_at >= "2026-08-20T12:00:00"')
     assert_invalid('created_at >= "2026-02-30T12:00:00Z"')
     assert_invalid('created_at >= "2026-08-20T12:00:00.1234567Z"')
+    assert_invalid('created_at >= "9999-12-31T23:59:59.999999-23:59"')
+    assert_invalid('created_at <= "0001-01-01T00:00:00+23:59"')
 
 
 def test_last_error_paths_keep_missing_distinct_from_null(task_database: Database) -> None:

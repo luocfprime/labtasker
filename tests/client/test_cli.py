@@ -95,6 +95,20 @@ def test_config_show_is_read_only_formatted_json(tmp_path: Path) -> None:
     assert not (tmp_path / ".labtasker").exists()
 
 
+def test_config_show_rejects_unrepresentable_bearer_token_without_traceback() -> None:
+    result = runner.invoke(
+        app,
+        ["config", "show"],
+        env={"LABTASKER_URL": "http://server.test", "LABTASKER_TOKEN": "秘密"},
+    )
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    error = json.loads(result.stderr)
+    assert error["error"]["code"] == "invalid_config"
+    assert error["error"]["details"] == {"source": "environment", "field": "token"}
+    assert "Traceback" not in result.stderr
+
+
 def test_submit_parses_one_strict_json_object_and_repeated_routes(fake_client: None) -> None:
     result = runner.invoke(
         app,

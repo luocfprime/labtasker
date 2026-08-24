@@ -106,6 +106,16 @@ def test_list_and_count_share_and_combined_selection(database_path: Path) -> Non
         assert count.json() == {"count": 1}
 
 
+def test_large_candidate_filter_has_stable_http_results(client: TestClient) -> None:
+    create_tasks(client)
+    filter_expr = "priority in [" + ",".join(str(value) for value in range(1_000)) + "]"
+    page = client.get("/api/v2/queues/default/tasks", params={"filter": filter_expr})
+    count = client.get("/api/v2/queues/default/tasks/count", params={"filter": filter_expr})
+    assert page.status_code == count.status_code == 200
+    assert len(page.json()["items"]) == 4
+    assert count.json() == {"count": 4}
+
+
 def test_cursor_allows_limit_change_but_rejects_selection_change(database_path: Path) -> None:
     app = create_app(ServerSettings(database=database_path), now_us=Clock())
     with TestClient(app) as client:

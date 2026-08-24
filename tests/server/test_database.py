@@ -180,3 +180,9 @@ def test_empty_server_token_is_rejected(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setenv("LABTASKER_SERVER_TOKEN", "")
     with pytest.raises(ValueError, match="must not be empty"):
         ServerSettings.from_values(database=tmp_path / "db")
+
+
+@pytest.mark.parametrize("token", ["秘密", " leading", "trailing ", "line\nbreak", "tab\tvalue"])
+def test_server_token_must_be_safe_for_an_http_bearer_header(token: str) -> None:
+    with pytest.raises(ValueError, match="visible ASCII"):
+        ServerSettings(token=token)

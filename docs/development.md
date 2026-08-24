@@ -95,6 +95,21 @@ Launcher coverage includes the supported outer-wrapper topology, environment
 propagation, one completion reporter, at-fork context clearing, and rejection of
 an inner per-rank Worker loop.
 
+Run the self-contained submission benchmark when changing Client transport,
+Task creation, Server transactions, or CLI startup behavior:
+
+```bash
+uv run python benchmarks/submission_throughput.py
+```
+
+It gives each scenario an isolated temporary database and real HTTP Server,
+excludes Server startup from the timed region, verifies the final Task counts,
+and prints JSON measurements for an explicit Python Client, the function-first
+Python API, and a Bash loop that starts one CLI process per Task. Use
+`--python-count` and `--bash-count` to adjust the sample sizes. Compare results on
+the same machine; the benchmark deliberately has no machine-dependent pass/fail
+threshold and is not part of the ordinary test gate.
+
 The historical implementation remains available on branch `v1`. A maintainer
 may keep a separate v1 worktree for comparison, but contributors should not
 assume that local worktree exists or edit it as part of v2 work. V2 intentionally

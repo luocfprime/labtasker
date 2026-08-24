@@ -98,11 +98,28 @@ def test_async_handler_and_resolver_are_rejected() -> None:
     with pytest.raises(TypeError, match="synchronous"):
         compile_binding(async_handler)
 
+    class AsyncHandler:
+        async def __call__(self) -> None:
+            pass
+
+    with pytest.raises(TypeError, match="synchronous"):
+        compile_binding(AsyncHandler())
+
     def handler(value: object = TaskArg(resolver=async_resolver)) -> None:
         pass
 
     with pytest.raises(TypeError, match="synchronous"):
         compile_binding(handler)
+
+    class AsyncResolver:
+        async def __call__(self, value: object) -> object:
+            return value
+
+    def callable_handler(value: object = TaskArg(resolver=AsyncResolver())) -> None:
+        pass
+
+    with pytest.raises(TypeError, match="synchronous"):
+        compile_binding(callable_handler)
 
 
 def test_startup_cannot_override_injected_parameter() -> None:

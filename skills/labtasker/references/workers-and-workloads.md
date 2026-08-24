@@ -66,10 +66,20 @@ inside that one argv element; object keys are sorted. An empty string remains an
 empty argv element, while NUL cannot be represented and fails binding.
 
 Prefer direct argv. If the workload deliberately requires shell syntax, make
-the shell visible, for example `bash -lc '...'`, and accept responsibility for
-its quoting and interpolation. Do not add a wrapper merely to reproduce output
-capture: Labtasker forwards child output live and writes the raw combined output
-to the run's `run.log`.
+the shell visible and pass resolved Task values as positional arguments rather
+than interpolating them into the shell program text:
+
+```bash
+labtasker loop --route preprocess -- \
+  bash -lc 'python preprocess.py --input "$1" > "$2"' \
+    labtasker-shell '%{input}' '%{output}'
+```
+
+For `bash -c`, the first argument after the program text supplies `$0`; later
+arguments supply `$1`, `$2`, and so on. Shell quoting, expansion, pipeline exit
+behavior, and redirection are then the user's responsibility. Do not add a
+wrapper merely to reproduce output capture: Labtasker forwards child output
+live and writes the raw combined output to the run's `run.log`.
 
 For a per-Task environment value on POSIX, an explicit external `env` command is
 simpler than a shell:
@@ -86,6 +96,11 @@ identifier segments, such as `%{seed}` or `%{judge.threshold}`. They do not
 support array indices, hyphenated or Unicode keys, quoted segments, defaults,
 wildcards, or expressions. Reshape the args or use a Python Worker with
 `task_info().args` when arbitrary JSON access is required.
+
+Use `%{{` when the child must receive a literal `%{` opener. For example,
+`%{{name}` resolves to the literal text `%{name}` rather than reading a Task
+argument. Ordinary percent signs and stray closing braces are otherwise
+literal.
 
 Static template syntax errors stop the Worker before it claims anything. A
 missing key or non-object intermediate belongs to a claimed Task, prevents child
@@ -172,11 +187,15 @@ when the handler declares `**kwargs`; that parameter receives only ordinary
 keyword arguments supplied when the Worker starts. Read the complete object
 through `task_info().args`.
 
-An invalid static handler definition, unusable annotation, or non-callable
+Python Worker handlers and `TaskArg` resolvers must be synchronous. An
+`async def` handler, an object with an asynchronous `__call__`, an `async def`
+resolver, an object with an asynchronous resolver `__call__`, an otherwise
+invalid static handler definition, an unusable annotation, or a non-callable
 resolver fails before the first claim. A particular Task's missing value, type
 mismatch, or resolver failure happens after claim and is a normal charged Task
-failure. Argument shape never affects Server eligibility; Queue, pending state,
-and route decide the claim. A normal return succeeds with `{}`.
+failure.
+Argument shape never affects Server eligibility; Queue, pending state, and route
+decide the claim. A normal return succeeds with `{}`.
 
 ## Use single-node distributed launchers
 
@@ -189,4 +208,7 @@ labtasker loop --route robotwin -- \
 
 The launcher owns its ranks. Only its main rank calls `finish()`. Do not start a
 Labtasker Worker inside every rank. Multi-node allocation and rendezvous remain
-the external scheduler's responsibility.
+the external scheduler's responsibility. Labtasker's documented launcher
+integration stops at the single-node pattern above; it does not define the
+ownership topology for one Task spanning several machines. Do not present a
+custom multi-node outer-Worker arrangement as a supported Labtasker interface.

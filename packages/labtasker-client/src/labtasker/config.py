@@ -190,4 +190,10 @@ def _validate_token(value: str | None, *, source: str) -> str | None:
         return None
     if not isinstance(value, str) or not value:
         raise invalid_config("Token must be a non-empty string.", source=source, field="token")
+    if any(not 0x21 <= ord(character) <= 0x7E for character in value):
+        raise invalid_config(
+            "Token must contain only visible ASCII characters.",
+            source=source,
+            field="token",
+        )
     return value

@@ -5,6 +5,9 @@ there is no database service to install, Server command to run, or configuration
 file to write. On Windows, configure an explicitly operated HTTP Server; the
 automatic local Server and the command Worker used below are unsupported.
 
+To run a checked-in example instead of creating files by hand, use the
+[tested demo](demo.md); its exact source files are executed by the test suite.
+
 ## Installation
 
 === "with pip"

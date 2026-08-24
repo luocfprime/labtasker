@@ -244,13 +244,21 @@ def _start_drain(
     name: str,
 ) -> threading.Thread:
     def drain() -> None:
+        relay = True
         while True:
-            chunk = source.read(65536)
+            chunk = os.read(source.fileno(), 65536)
             if not chunk:
                 return
             with lock:
                 log.write(chunk)
-            _write_bytes(destination, chunk)
+            if relay:
+                try:
+                    _write_bytes(destination, chunk)
+                except Exception:
+                    # The child must never block on a full pipe merely because the
+                    # caller closed or replaced its output stream. Keep draining and
+                    # journaling after live relay becomes unavailable.
+                    relay = False
 
     thread = threading.Thread(target=drain, name=f"labtasker-command-{name}", daemon=True)
     thread.start()

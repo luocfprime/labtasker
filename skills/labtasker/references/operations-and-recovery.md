@@ -24,10 +24,37 @@ idempotent and returns the Task's current representation. Reusing the ID with a
 different definition is a conflict, never an update. The Client generates an ID
 before its own first network attempt when one is omitted, but an external tool
 that must retry after its own restart should persist and reuse its chosen ID.
+JSON object-key order, Task route input order, and explicitly spelling a
+submission default do not change the normalized definition. Later lifecycle or
+user-field updates also do not change the original creation definition used to
+recognize a retry. Changing a real submitted value such as `max_attempts` is a
+conflict.
 
 The synchronous Python counterparts are `submit_task`, `get_task`, `list_tasks`,
 `count_tasks`, `update_task`, `update_tasks`, `cancel_task`, `requeue_task`, and
 `delete_task`. They follow the same defaults and lifecycle rules as the CLI.
+
+For a large Python submission loop, reuse one explicit Client and close it
+deterministically. There is no bulk-submission endpoint:
+
+```python
+from labtasker import Client
+
+with Client() as client:
+    for task_id, seed in persisted_work:
+        client.submit_task(
+            {"seed": seed},
+            task_id=task_id,
+            routes=["train"],
+        )
+```
+
+Persist each caller-chosen ID with its complete Task definition before the
+submission attempt when the loop must resume safely after its own process
+restarts. Package-level functions already reuse one lazy default Client, but an
+explicit context-managed Client is the canonical choice for a large loop,
+deterministic cleanup, tests, or more than one endpoint. Do not invent a
+`submit_tasks` API.
 
 ## Inspect all selected Tasks
 

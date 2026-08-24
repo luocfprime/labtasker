@@ -142,7 +142,7 @@ def create_app(
             return
         if credentials is None or credentials.scheme.lower() != "bearer":
             raise _unauthorized()
-        if not hmac.compare_digest(credentials.credentials, token):
+        if not hmac.compare_digest(credentials.credentials.encode(), token.encode("ascii")):
             raise _unauthorized()
 
     authenticated = [Depends(require_auth)]

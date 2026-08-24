@@ -13,6 +13,7 @@ nav = [
   { "Overview" = "index.md" },
   { "Why Labtasker?" = "why-labtasker.md" },
   { "Get started" = "getting-started.md" },
+  { "Tested demo" = "demo.md" },
   { "Core model" = "concepts.md" },
   { "Examples" = [
     { "Inference and evaluation" = "inference-evaluation.md" },
@@ -46,7 +47,7 @@ alias = true
 [project.markdown_extensions]
 pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
 pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
-pymdownx.snippets.base_path = "docs"
+pymdownx.snippets.base_path = ["docs", "."]
 pymdownx.superfences = {}
 pymdownx.tabbed.alternate_style = true
 

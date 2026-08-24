@@ -178,6 +178,8 @@ concise map from an agent to the raw Markdown guides and references.
 ## Documentation
 
 - [Get started](docs/getting-started.md): install, submit, run, and inspect.
+- [Tested demo](docs/demo.md): run the same submission and Worker source files
+  exercised by the end-to-end test suite.
 - [Core model](docs/concepts.md): Task, Worker, Queue, route, and recovery model.
 - Examples: [inference and evaluation](docs/inference-evaluation.md) and the
   [RoboTwin case study](docs/case-studies/starvla-robotwin.md).

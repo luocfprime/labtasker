@@ -38,7 +38,7 @@ Client has no close/reset API. There is no asynchronous Client.
 
 ## Task operations
 
-```python
+```text
 submit_task(args=None, *, name=None, metadata=None, priority=0,
             max_attempts=3, routes=None, task_id=None, queue=None) -> Task
 get_task(task_id, *, queue=None) -> Task
@@ -140,7 +140,7 @@ writable update field.
 
 ## Queue operations
 
-```python
+```text
 create_queue(name) -> Queue
 list_queues() -> list[Queue]
 delete_queue(name, *, cascade=False) -> None
@@ -178,7 +178,7 @@ Task states are exactly `pending`, `running`, `succeeded`, `failed`, and
 
 ## Worker API
 
-```python
+```text
 @loop(route="default", queue=None, idle_timeout=300,
       force_stop_timeout=None)
 def worker(...): ...

@@ -917,7 +917,7 @@ updates may still change user-owned data under section 11, not lifecycle state.
 
 The public lifecycle operations return the resulting Task:
 
-```python
+```text
 cancel_task(task_id: str, *, queue: str | None = None) -> Task
 requeue_task(task_id: str, *, queue: str | None = None) -> Task
 ```
@@ -936,7 +936,7 @@ Task deletion is allowed in every state except running. A running Task must firs
 be cancelled so its run is fenced explicitly. Deletion is idempotent, including
 when the Task is already absent:
 
-```python
+```text
 delete_task(task_id: str, *, queue: str | None = None) -> None
 ```
 
@@ -1067,7 +1067,7 @@ has no `get_queue()` function, item `GET` endpoint or `queue get` command.
 
 The complete public operations are:
 
-```python
+```text
 create_queue(name: str) -> Queue
 list_queues() -> list[Queue]
 delete_queue(name: str, *, cascade: bool = False) -> None
@@ -2096,7 +2096,7 @@ workload requires one.
 
 The complete decorator signature is intentionally small:
 
-```python
+```text
 loop(
     *,
     route: str = "default",
@@ -2142,7 +2142,7 @@ Server run completion, while post-finish cleanup duration is not modeled.
 Task-injected parameters use one explicit `TaskArg` marker, replacing v1's
 misleadingly named `Required` marker:
 
-```python
+```text
 TaskArg(
     *,
     default=...,  # omission-sensitive private sentinel
@@ -2268,7 +2268,7 @@ default for later Tasks.
 
 The Python Worker configuration and cooperative API are exactly:
 
-```python
+```text
 @labtasker.loop(force_stop_timeout=None)
 def run(...):
     ...
@@ -2322,7 +2322,7 @@ ordinary submission code or after execution has ended raises `RuntimeError`.
 `finish()` is strict by default but retains one explicit low-intrusion escape
 hatch for code intentionally shared between standalone and Labtasker execution:
 
-```python
+```text
 finish(
     result: dict[str, JSONValue] | None = None,
     *,
@@ -2942,7 +2942,9 @@ userinfo, query or fragment. A trailing slash is removed in the effective value
 before appending `/api/v2`; an optional path prefix is otherwise preserved. Unix
 socket paths are derived only from CWD and are not encoded into `url` or accepted
 through another config key. `queue` follows the Queue/route identifier grammar,
-and `token` is an opaque non-empty string. The three matching `LABTASKER_*`
+and `token` is an opaque non-empty string of visible ASCII characters (`U+0021`
+through `U+007E`) so it can be represented unambiguously in an HTTP Bearer
+header. The three matching `LABTASKER_*`
 variables use the same validation, including treating a present empty value as
 invalid rather than absent.
 
@@ -3395,7 +3397,7 @@ updated = update_task(task_id, {"args": args})
 
 The function-first and `Client` APIs use the same signatures:
 
-```python
+```text
 update_task(
     task_id: str,
     changes: TaskUpdate,
@@ -3529,7 +3531,7 @@ than creation inputs.
 
 The function-first and `Client` APIs use the same signature:
 
-```python
+```text
 submit_task(
     args: dict[str, JSONValue] | None = None,
     *,
@@ -3691,7 +3693,7 @@ its contained list/dict objects is only local and never updates the server.
 
 Retrieval is canonical and ID-addressed:
 
-```python
+```text
 get_task(task_id: str, *, queue: str | None = None) -> Task
 ```
 
@@ -3709,7 +3711,7 @@ or lease data.
 
 Listing uses the same selection and ordering contract on every surface:
 
-```python
+```text
 list_tasks(
     *,
     status: TaskStatus | None = None,
@@ -3763,7 +3765,7 @@ Counting is a separate, deliberately small operation because backlog size is a
 useful experiment/Agent diagnostic and fetching every page merely to count rows
 is wasteful:
 
-```python
+```text
 count_tasks(
     *,
     status: TaskStatus | None = None,
@@ -4054,6 +4056,7 @@ and change inspection noisy.
 | 2026-08-19 | Make Task creation retryable through client-generated IDs and create-by-ID `PUT`; do not introduce a separate idempotency key API. |
 | 2026-08-19 | Standardize API errors as `{error:{code,message,details}}`. |
 | 2026-08-19 | Version the rewritten HTTP contract under `/api/v2`. |
+| 2026-08-24 | Require Client and Server Bearer tokens to use visible ASCII so invalid header values fail during configuration rather than at request handling. |
 | 2026-08-19 | Use one optional server-wide Bearer token as the entire auth model; do not carry v1 Queue passwords or add per-Queue credentials, users or roles. |
 | 2026-08-20 | Ignore Authorization when Server auth is disabled; when enabled, return indistinguishable `401 unauthorized` plus Bearer challenge for missing, malformed or wrong credentials. |
 | 2026-08-20 | Permit tokenless bind only for `ipaddress.is_loopback` literals or case-insensitive exact `localhost`; wildcard and every other hostname require a token. |

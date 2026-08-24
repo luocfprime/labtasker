@@ -119,7 +119,7 @@ class CompiledBinding:
 
 
 def compile_binding(function: Callable[..., Any]) -> CompiledBinding:
-    if inspect.iscoroutinefunction(function):
+    if _is_async_callable(function):
         raise TypeError("Labtasker v2 Worker handlers must be synchronous functions.")
     signature = inspect.signature(function)
     try:
@@ -170,7 +170,7 @@ def compile_binding(function: Callable[..., Any]) -> CompiledBinding:
 def _validate_resolver(resolver: object, name: str) -> None:
     if not callable(resolver):
         raise TypeError(f"TaskArg resolver for {name!r} must be callable.")
-    if inspect.iscoroutinefunction(resolver):
+    if _is_async_callable(resolver):
         raise TypeError(f"TaskArg resolver for {name!r} must be synchronous.")
     try:
         signature = inspect.signature(resolver)
@@ -182,3 +182,7 @@ def _validate_resolver(resolver: object, name: str) -> None:
         inspect.Parameter.POSITIONAL_OR_KEYWORD,
     }:
         raise TypeError(f"TaskArg resolver for {name!r} must accept exactly one value.")
+
+
+def _is_async_callable(value: object) -> bool:
+    return inspect.iscoroutinefunction(value) or inspect.iscoroutinefunction(type(value).__call__)

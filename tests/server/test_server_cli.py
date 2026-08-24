@@ -1,13 +1,63 @@
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from labtasker_server.cli import app
+from labtasker_server.local import LocalPaths, RuntimeMetadata, read_metadata
 
 runner = CliRunner()
+
+
+def test_malformed_runtime_metadata_is_ignored(tmp_path: Path) -> None:
+    paths = LocalPaths(
+        directory=tmp_path,
+        database=tmp_path / ".labtasker/server.db",
+        log=tmp_path / ".labtasker/server.log",
+        runtime_directory=tmp_path / "runtime",
+        socket=tmp_path / "runtime/server.sock",
+        metadata=tmp_path / "runtime/server.json",
+    )
+    paths.runtime_directory.mkdir()
+    valid = asdict(
+        RuntimeMetadata(
+            metadata_version=1,
+            generation="generation",
+            role="daemon",
+            pid=123,
+            process_start_marker="proc:1",
+            directory=str(paths.directory),
+            database=str(paths.database),
+            database_device=1,
+            database_inode=2,
+            automatic_attempt_at=123.0,
+            server_version="2.0.0",
+        )
+    )
+    paths.metadata.write_text(json.dumps(valid), encoding="utf-8")
+    assert read_metadata(paths) == RuntimeMetadata(**valid)
+
+    malformed_values = {
+        "metadata_version": True,
+        "generation": 1,
+        "role": 1,
+        "pid": "123",
+        "process_start_marker": None,
+        "directory": 1,
+        "database": 1,
+        "database_device": "1",
+        "database_inode": "2",
+        "automatic_attempt_at": float("nan"),
+        "server_version": 2,
+    }
+    for field, value in malformed_values.items():
+        payload = {**valid, field: value}
+        paths.metadata.write_text(json.dumps(payload), encoding="utf-8")
+        assert read_metadata(paths) is None, field
 
 
 def test_server_cli_has_explicit_serve_and_local_management_commands() -> None:

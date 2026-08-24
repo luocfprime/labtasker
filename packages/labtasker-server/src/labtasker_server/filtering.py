@@ -445,17 +445,21 @@ def _compile_membership(node: Membership) -> ColumnElement[bool]:
             raise _invalid_filter("Use a scalar literal on the left to test route membership.")
         if runtime.kind == "fixed" or runtime.declared_type is not None:
             normalized = [_normalize_declared_literal(runtime, value) for value in node.values]
-            matches = (
-                or_(*[_declared_comparison(runtime, "==", value) for value in normalized])
-                if normalized
-                else false()
-            )
+            if runtime.kind == "fixed":
+                candidates = _unique_scalars([value for value in normalized if value is not None])
+                fixed_matches: list[ColumnElement[bool]] = []
+                if any(value is None for value in normalized):
+                    fixed_matches.append(runtime.value.is_(None))
+                if candidates:
+                    fixed_matches.append(
+                        and_(runtime.value.is_not(None), runtime.value.in_(candidates))
+                    )
+                matches = or_(*fixed_matches) if fixed_matches else false()
+            else:
+                matches = _json_in(runtime.value, runtime.json_type, normalized)
             present = true() if runtime.kind == "fixed" else runtime.json_type.is_not(None)
         else:
-            comparisons = [
-                _json_equal(runtime.value, runtime.json_type, value) for value in node.values
-            ]
-            matches = or_(*comparisons) if comparisons else false()
+            matches = _json_in(runtime.value, runtime.json_type, list(node.values))
             present = runtime.json_type.in_(["null", "true", "false", "integer", "real", "text"])
         return and_(present, not_(matches) if node.operator == "not in" else matches)
 
@@ -499,17 +503,50 @@ def _json_equal(value_expression: Any, type_expression: Any, value: Scalar) -> C
     return and_(type_expression == "text", value_expression == value)
 
 
+def _json_in(
+    value_expression: Any,
+    type_expression: Any,
+    values: list[Scalar | int],
+) -> ColumnElement[bool]:
+    matches: list[ColumnElement[bool]] = []
+    if any(value is None for value in values):
+        matches.append(type_expression == "null")
+    if any(value is True for value in values):
+        matches.append(type_expression == "true")
+    if any(value is False for value in values):
+        matches.append(type_expression == "false")
+    numbers = _unique_scalars(
+        [
+            value
+            for value in values
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        ]
+    )
+    if numbers:
+        matches.append(
+            and_(type_expression.in_(["integer", "real"]), value_expression.in_(numbers))
+        )
+    strings = _unique_scalars([value for value in values if isinstance(value, str)])
+    if strings:
+        matches.append(and_(type_expression == "text", value_expression.in_(strings)))
+    return or_(*matches) if matches else false()
+
+
+def _unique_scalars(values: list[Scalar | int]) -> list[Scalar | int]:
+    return list(dict.fromkeys(values))
+
+
 def _timestamp_us(value: str) -> int:
     if not RFC3339_RE.fullmatch(value):
         raise _invalid_filter("Timestamp literal must be a strict RFC 3339 string.")
     normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
         parsed = datetime.fromisoformat(normalized)
-    except ValueError as error:
+        if parsed.utcoffset() is None:
+            raise _invalid_filter("Timestamp literal must include a UTC offset.")
+        delta = parsed.astimezone(UTC) - datetime(1970, 1, 1, tzinfo=UTC)
+    except (ValueError, OverflowError) as error:
         raise _invalid_filter("Timestamp literal must be a valid RFC 3339 time.") from error
-    if parsed.utcoffset() is None:
-        raise _invalid_filter("Timestamp literal must include a UTC offset.")
-    delta = parsed.astimezone(UTC) - datetime(1970, 1, 1, tzinfo=UTC)
     return (delta.days * 86_400 + delta.seconds) * 1_000_000 + delta.microseconds
 
 

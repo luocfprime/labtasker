@@ -29,7 +29,8 @@ token = "secret"
 
 The file is strict: unknown keys, empty values, malformed TOML, and v1
 `.labtasker/client.toml` are errors. A token without an explicit URL is invalid;
-local mode has no authentication. `labtasker config show` prints the
+local mode has no authentication. Tokens contain visible ASCII characters only
+so they can be carried in an HTTP Bearer header. `labtasker config show` prints the
 discriminated local/HTTP endpoint and only reports whether a token is configured.
 It performs no network request and creates no files.
 
@@ -84,7 +85,8 @@ labtasker-server serve \
 
 The authentication token is read only from `LABTASKER_SERVER_TOKEN`; there is no
 token CLI flag. Loopback and `localhost` binds may omit it. A non-loopback bind
-requires it.
+requires it. A configured token must be non-empty and contain only visible ASCII
+characters.
 
 All application API calls then require the same bearer token. `/health` and
 `/openapi.json` remain unauthenticated for discovery. Labtasker provides one

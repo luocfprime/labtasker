@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import subprocess
 import sys
+import threading
 import time
 from collections import deque
 from datetime import UTC, datetime
@@ -15,7 +17,7 @@ import pytest
 
 import labtasker.execution as execution_module
 from labtasker.command_template import TemplateSyntaxError
-from labtasker.command_worker import _run_pty, run_command_worker
+from labtasker.command_worker import _run_pty, _start_drain, run_command_worker
 from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError
 from labtasker.execution import RunControl, finish, task_info
@@ -186,6 +188,63 @@ def test_pipe_worker_preserves_argv_environment_streams_and_null_stdin(
     log = next(tmp_path.glob(".labtasker/runs/default/**/run.log")).read_bytes()
     assert b"hello world" in log
     assert b"stderr-line" in log
+
+
+@pytest.mark.skipif(os.name != "posix", reason="pipe fd behavior is POSIX-specific")
+def test_pipe_drain_relays_small_output_before_eof(tmp_path: Path) -> None:
+    read_fd, write_fd = os.pipe()
+    source = os.fdopen(read_fd, "rb")
+    destination_buffer = io.BytesIO()
+    destination = SimpleNamespace(buffer=destination_buffer)
+    log_path = tmp_path / "run.log"
+    try:
+        with log_path.open("wb", buffering=0) as log:
+            thread = _start_drain(source, destination, log, threading.Lock(), "stdout")
+            os.write(write_fd, b"ready\n")
+            deadline = time.monotonic() + 1
+            while destination_buffer.getvalue() != b"ready\n" and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert destination_buffer.getvalue() == b"ready\n"
+            os.close(write_fd)
+            write_fd = -1
+            thread.join(timeout=1)
+            assert not thread.is_alive()
+    finally:
+        source.close()
+        if write_fd >= 0:
+            os.close(write_fd)
+    assert log_path.read_bytes() == b"ready\n"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="pipe fd behavior is POSIX-specific")
+def test_pipe_drain_keeps_draining_after_destination_closes(tmp_path: Path) -> None:
+    class ClosedDestination:
+        def write(self, _: str) -> None:
+            raise BrokenPipeError
+
+        def flush(self) -> None:
+            raise AssertionError("flush must not follow a failed write")
+
+    payload_size = 2 * 1024 * 1024
+    process = subprocess.Popen(
+        [sys.executable, "-c", f"import sys; sys.stdout.buffer.write(b'x' * {payload_size})"],
+        stdout=subprocess.PIPE,
+    )
+    assert process.stdout is not None
+    log_path = tmp_path / "run.log"
+    with log_path.open("wb", buffering=0) as log:
+        thread = _start_drain(
+            process.stdout,
+            ClosedDestination(),
+            log,
+            threading.Lock(),
+            "stdout",
+        )
+        process.wait(timeout=3)
+        thread.join(timeout=1)
+    assert not thread.is_alive()
+    assert process.returncode == 0
+    assert log_path.stat().st_size == payload_size
 
 
 @pytest.mark.skipif(os.name != "posix", reason="PTY execution is POSIX-specific")
