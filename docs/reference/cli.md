@@ -91,16 +91,20 @@ Shell quoting protects the JSON from the shell; it is not part of the JSON.
 
 Successful finite resource commands print one two-space-indented JSON document
 with no ANSI styling. Delete commands complete quietly. Handled configuration,
-transport, and API errors write no stdout, print the stable Labtasker error
-envelope to stderr, and exit `1` without an application traceback. CLI argument
-or usage errors exit `2`; an interrupted Worker retains exit `130`.
+transport, and API errors print the stable Labtasker error envelope to stdout
+and exit `1` without an application traceback. stdout is therefore the single
+machine-readable response channel for finite commands: callers distinguish a
+successful value from an error envelope with the exit status and the top-level
+`error` key. CLI argument or usage errors remain natural-language stderr and
+exit `2`; an interrupted Worker retains exit `130`.
 
 Every finite Client operation identifies its selected local or HTTP Server on
 stderr after connecting. The single `[labtasker] connected` line explicitly
 names a local or remote Server and its Unix, HTTP, or HTTPS transport; local
 connections also identify the project directory, database and socket. Starting,
 waiting for, or reconnecting to a local daemon is likewise visible. Requested
-JSON remains alone on stdout. Finite Client diagnostics use `[labtasker]`, while
+data or a handled error envelope remains alone on stdout. Finite Client
+diagnostics use `[labtasker]`, while
 Server CLI diagnostics use `[labtasker-server]`. `labtasker-server start` and
 `stop` report actions on stderr, `status` prints stable JSON on stdout, and
 `logs` writes log content to stdout.

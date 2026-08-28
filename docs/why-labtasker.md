@@ -161,10 +161,11 @@ different ways to perform the same action.
 
 V2 therefore provides an Agent Skill and makes the ordinary interfaces
 agent-friendly by design: commands are non-interactive, requested data goes to
-stdout, diagnostics go to stderr, JSON retains its types, and state changes use
-named lifecycle actions. An agent can submit, inspect, update, and recover Tasks;
-Task execution remains deterministic after a Worker starts and does not require
-the agent to stay online.
+stdout, handled errors use the same machine-readable response channel,
+diagnostics go to stderr, JSON retains its types, and state changes use named
+lifecycle actions. An agent can submit, inspect, update, and recover Tasks; Task
+execution remains deterministic after a Worker starts and does not require the
+agent to stay online.
 
 ### Python-native and ready locally
 

@@ -102,11 +102,11 @@ def test_config_show_rejects_unrepresentable_bearer_token_without_traceback() ->
         env={"LABTASKER_URL": "http://server.test", "LABTASKER_TOKEN": "秘密"},
     )
     assert result.exit_code == 1
-    assert result.stdout == ""
-    error = json.loads(result.stderr)
+    error = json.loads(result.stdout)
     assert error["error"]["code"] == "invalid_config"
     assert error["error"]["details"] == {"source": "environment", "field": "token"}
     assert "Traceback" not in result.stderr
+    assert result.stderr == ""
 
 
 def test_submit_parses_one_strict_json_object_and_repeated_routes(fake_client: None) -> None:
@@ -158,24 +158,62 @@ def test_invalid_json_is_a_usage_error_without_network(fake_client: None, value:
     assert "--args must be one strict JSON object" in result.stderr
 
 
-def test_handled_api_error_is_json_on_stderr_and_no_stdout(
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["task", "submit"],
+        ["task", "get", "t_ABCDEFGHIJKL"],
+        ["task", "list"],
+        ["task", "count"],
+        ["task", "update", "t_ABCDEFGHIJKL", "--changes", '{"priority":1}'],
+        [
+            "task",
+            "update",
+            "--filter",
+            'status == "pending"',
+            "--changes",
+            '{"priority":1}',
+        ],
+        ["task", "cancel", "t_ABCDEFGHIJKL"],
+        ["task", "requeue", "t_ABCDEFGHIJKL"],
+        ["task", "delete", "t_ABCDEFGHIJKL"],
+        ["queue", "create", "demo"],
+        ["queue", "list"],
+        ["queue", "delete", "demo", "--cascade"],
+    ],
+    ids=[
+        "task-submit",
+        "task-get",
+        "task-list",
+        "task-count",
+        "task-update-one",
+        "task-update-filter",
+        "task-cancel",
+        "task-requeue",
+        "task-delete",
+        "queue-create",
+        "queue-list",
+        "queue-delete",
+    ],
+)
+def test_every_finite_client_command_writes_handled_error_json_to_stdout(
     monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
 ) -> None:
-    class FailingClient(FakeClient):
-        def create_queue(self, name: str) -> Queue:
-            raise APIError(409, "queue_conflict", "Cannot create Queue.", {"queue": name})
+    def fail(_operation: object) -> None:
+        raise APIError(409, "operation_conflict", "Cannot perform operation.", {})
 
-    monkeypatch.setattr("labtasker.cli.Client", FailingClient)
-    result = runner.invoke(app, ["queue", "create", "demo"])
+    monkeypatch.setattr("labtasker.cli._with_client", fail)
+    result = runner.invoke(app, argv)
     assert result.exit_code == 1
-    assert result.stdout == ""
-    assert json.loads(result.stderr) == {
+    assert json.loads(result.stdout) == {
         "error": {
-            "code": "queue_conflict",
-            "message": "Cannot create Queue.",
-            "details": {"queue": "demo"},
+            "code": "operation_conflict",
+            "message": "Cannot perform operation.",
+            "details": {},
         }
     }
+    assert result.stderr == ""
 
 
 def test_delete_success_writes_no_stdout(fake_client: None) -> None:

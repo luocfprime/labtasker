@@ -8,7 +8,6 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -22,12 +21,6 @@ from labtasker import (
     loop,
     task_info,
 )
-
-
-def stderr_envelope(stderr: str) -> dict[str, Any]:
-    start = stderr.find("{")
-    assert start >= 0, stderr
-    return json.loads(stderr[start:])  # type: ignore[no-any-return]
 
 
 def test_real_submission_retry_is_idempotent_and_definition_change_conflicts(
@@ -196,21 +189,21 @@ def test_real_cli_authentication_failure_is_structured_and_does_not_leak_token(
     )
 
     assert result.returncode == 1
-    assert result.stdout == ""
-    diagnostic = result.stderr.splitlines()[0]
-    assert diagnostic.startswith("[labtasker] connected server=remote transport=http url=")
-    assert stderr_envelope(result.stderr) == {
+    assert json.loads(result.stdout) == {
         "error": {
             "code": "unauthorized",
             "message": "Authentication is required.",
             "details": {},
         }
     }
+    diagnostic = result.stderr.splitlines()[0]
+    assert diagnostic.startswith("[labtasker] connected server=remote transport=http url=")
+    assert "{\n" not in result.stderr
     assert "Traceback" not in result.stderr
     assert "wrong" not in result.stderr
 
 
-def test_real_cli_transport_failure_has_no_stdout_or_traceback(tmp_path: Path) -> None:
+def test_real_cli_transport_failure_is_json_stdout_without_traceback(tmp_path: Path) -> None:
     with socket.socket() as unavailable:
         unavailable.bind(("127.0.0.1", 0))
         port = unavailable.getsockname()[1]
@@ -233,9 +226,9 @@ def test_real_cli_transport_failure_has_no_stdout_or_traceback(tmp_path: Path) -
         )
 
     assert result.returncode == 1
-    assert result.stdout == ""
-    payload = stderr_envelope(result.stderr)
+    payload = json.loads(result.stdout)
     assert payload["error"]["code"] == "transport_error"
     assert payload["error"]["details"]["operation"] == "list_tasks"
     assert payload["error"]["details"]["url"] == f"http://127.0.0.1:{port}"
+    assert "{\n" not in result.stderr
     assert "Traceback" not in result.stderr

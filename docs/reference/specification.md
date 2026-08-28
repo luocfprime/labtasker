@@ -152,7 +152,8 @@ substitute for a future UI:
 - commands are non-interactive;
 - information and mutation commands expose stable structured output and exit
   codes;
-- stdout carries requested data while diagnostics go to stderr;
+- stdout carries machine-readable finite-command responses while diagnostics go
+  to stderr;
 - successful JSON output is UTF-8, indented by two spaces, contains no ANSI
   styling and ends with one newline; pretty-printing never changes its schema;
 - no operation is available only through a human-oriented prompt, pager or
@@ -2797,8 +2798,8 @@ CLI-owned Worker logging and Server logging default to INFO; v2 adds no
 `--verbose`, `--quiet` or `--log-level` flag.
 
 Handled `LabtaskerError`s from finite `task`, `queue` and `config` commands write
-no stdout and write one indented, human-readable JSON object to stderr using the
-same envelope shape as the HTTP API:
+one indented, human-readable JSON object to stdout using the same envelope shape
+as the HTTP API:
 
 ```json
 {
@@ -2813,10 +2814,14 @@ same envelope shape as the HTTP API:
 An `APIError` preserves the Server's code, message and details. Local
 configuration and transport failures use their stable Client error code, readable
 message and structured details. These handled operational failures exit `1`.
-Typer argument/usage errors remain concise natural-language stderr and exit `2`;
-they are not disguised as an API response. `loop` startup and runtime failures
-likewise remain ordinary logging because it is a continuing operational command,
-not a finite data request. V2 adds no output-format switch for these cases.
+stdout is the single machine-readable response channel for finite commands:
+callers distinguish successful data from the top-level `error` envelope using
+the process exit status and response shape. Typer argument/usage errors remain
+concise natural-language stderr and exit `2`; they are not disguised as an API
+response because no valid operation was formed. `loop` startup and runtime
+failures likewise remain ordinary logging because it is a continuing operational
+command, not a finite data request. V2 adds no output-format switch for these
+cases.
 
 Connection selection and automatic local process management are deliberately
 visible. On a Client instance's first successful connection, before returning
@@ -2839,9 +2844,11 @@ rather than being INFO records hidden by application logging. The successful
 connection line occurs at most once per Client instance, plus a new line after
 actual local reconnection. Every successful CLI invocation therefore makes its
 selected Server and transport visible without contaminating requested stdout.
-When a finite CLI operation later fails, transition diagnostics may precede the
-structured error envelope on stderr; the envelope itself retains its exact
-shape, and its details identify a connection target that could not be reached.
+When a finite CLI operation later fails, transition diagnostics remain on
+stderr while the structured error envelope is the only stdout document. The
+envelope retains its exact shape, and its details identify a connection target
+that could not be reached. Diagnostics never need to be stripped from the
+machine-readable response before parsing.
 
 Local Worker exception logging follows the Client outcome abstraction without
 changing it: `TransientError` logs at WARNING with type/message but no default
@@ -3632,8 +3639,9 @@ labtasker task submit \
 types through `literal_eval` or trailing `--key=value` arguments. `--route` is
 repeatable and the collected list follows the same non-empty/duplicate rules.
 All flags are optional and use the canonical defaults; omitted `--id` is generated
-by the Client. Success writes exactly one Task JSON object to stdout. Diagnostics
-and errors go to stderr with the common process exit-code rules.
+by the Client. Success writes exactly one Task JSON object to stdout. Handled
+errors write the common error envelope to stdout with exit `1`; diagnostics go
+to stderr.
 
 ## 13. Task representation and retrieval
 
@@ -3852,6 +3860,7 @@ and change inspection noisy.
 
 | Date | Decision |
 |---|---|
+| 2026-08-28 | Make stdout the single machine-readable response channel for finite Client commands: successful data or a handled `LabtaskerError` envelope is written there, diagnostics remain on stderr, and exit status distinguishes success from failure. Keep usage errors and continuing `loop` failures as natural-language stderr, with no output-mode flag or response wrapper. |
 | 2026-08-24 | Standardize finite diagnostics as `[labtasker]` or `[labtasker-server]`, emit one explicit successful Client connection line with local/remote Server kind and Unix/HTTP(S) transport, and give default long-running Worker and Server logs millisecond UTC timestamps, levels and component prefixes. |
 | 2026-08-21 | Make CWD-bound local mode the default endpoint when no URL is configured: store the durable SQLite database under that exact canonical CWD, derive an owner-only tmux-style `/tmp/labtasker-UID` Unix socket without parent/VCS discovery, and let every explicit HTTP URL disable all local process management. |
 | 2026-08-21 | Make local endpoint selection and daemon transitions unconditionally visible on stderr for CLI and direct Python use, while preserving requested data on stdout and never printing credentials. |
@@ -3970,7 +3979,7 @@ and change inspection noisy.
 | 2026-08-20 | Implement annotated `TaskArg` validation with startup-compiled Pydantic TypeAdapter and `validate_python(strict=True)`; honor each annotation's own Pydantic schema, use explicit resolvers for application-specific conversion, and add no second typing engine. |
 | 2026-08-20 | Require every JSON string/key to contain only Unicode scalar values and reject lone surrogates without repair or replacement. |
 | 2026-08-20 | Bound every public filter expression to 8192 UTF-8 bytes with one `filter_too_large` error and no separate public AST complexity knobs. |
-| 2026-08-20 | Emit handled finite-command errors as one readable JSON envelope on stderr with exit 1; keep Typer usage errors and continuing `loop` diagnostics as natural-language stderr. |
+| 2026-08-20 | Emit handled finite-command errors as one readable JSON envelope on stderr with exit 1; keep Typer usage errors and continuing `loop` diagnostics as natural-language stderr. Superseded on 2026-08-28 by the stdout response-channel decision. |
 | 2026-08-20 | Treat Agent-friendly as stable, explicit and composable rather than machine-only; retain readable messages, formatted JSON and concise natural-language operational logs without adding format modes. |
 | 2026-08-20 | Automatically retry only read operations and create-by-Task-ID PUT; do not retry ordinary lifecycle/update/delete/Queue mutations because a retry can cross an explicit concurrent state change. |
 | 2026-08-20 | Allow an explicit Task ID to be reused after hard deletion and retain no permanent tombstone/used-ID registry. |

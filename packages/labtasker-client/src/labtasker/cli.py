@@ -465,7 +465,7 @@ def _invoke(operation: Callable[[], T]) -> T:
     try:
         return operation()
     except LabtaskerError as error:
-        _write_json(error.as_envelope(), error=True)
+        _write_json(error.as_envelope())
         raise typer.Exit(1) from error
     except RequestValidationError as error:
         raise typer.BadParameter(str(error)) from error
@@ -494,13 +494,12 @@ def _json_object(value: str, *, option: str) -> dict[str, Any]:
         raise typer.BadParameter(f"{option} must be one strict JSON object: {error}") from error
 
 
-def _write_json(value: object, *, error: bool = False) -> None:
+def _write_json(value: object) -> None:
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json")
     elif isinstance(value, list) and all(isinstance(item, BaseModel) for item in value):
         value = [item.model_dump(mode="json") for item in value]
     typer.echo(
         json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
-        err=error,
         nl=False,
     )
