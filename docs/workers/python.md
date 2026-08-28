@@ -1,8 +1,8 @@
 # Python Workers
 
-Use a Python Worker when inference or evaluation is naturally a function call,
-especially when a model, pipeline, dataset, or judge should be initialized once
-and reused across many Tasks.
+Use a Python Worker when one inference or evaluation job is a Python function.
+It can initialize a model, pipeline, dataset, or judge once and reuse it across
+many Tasks.
 
 ```python
 import labtasker
@@ -18,11 +18,12 @@ def embed(
     labtasker.finish({"embedding": vector.tolist()})
 
 
+# TODO: Replace this with your actual model initialization.
 embed(load_embedding_model_once())
 ```
 
-`model` is supplied normally when the Worker starts. Only parameters whose
-default is `TaskArg(...)` are taken from each Task.
+Pass `model` when calling the decorated function. Only parameters whose default
+is `TaskArg(...)` are read from each Task.
 
 ## Binding rules
 
@@ -31,8 +32,8 @@ default is `TaskArg(...)` are taken from each Task.
 - A `resolver` can transform one JSON value before annotation validation.
 - Type checking is strict: `int` does not accept a float, string, or Boolean.
 - Extra Task args are ignored by named binding.
-- Dynamic code can read the complete object through `task_info().args`; there is
-  no second full-dictionary binding mode.
+- Code that needs every Task argument can read `task_info().args`; there is no
+  second full-dictionary binding mode.
 
 Use `path` to select a nested object field without renaming the Python
 parameter:
@@ -63,8 +64,8 @@ Binding and resolver errors happen after claim and are normal Task failures.
 Inside an active call, `labtasker.task_info()` provides the Task snapshot plus
 the private `run_id` and absolute local `run_dir`.
 
-Normal return succeeds with `{}`. Call `finish(result)` when a structured result
-must be durably accepted before local cleanup continues:
+Normal return succeeds with `{}`. Call `finish(result)` to record a structured
+result before local cleanup continues:
 
 ```python
 labtasker.finish({"score": 0.94})
@@ -76,9 +77,9 @@ Calling `finish()` twice is an error. Outside Labtasker, it raises unless
 
 ## Cooperative cancellation
 
-`cancellation_requested()` tells Python code that its run was revoked. The
-default is to wait indefinitely for the function to return. Set a process-wide
-deadline only when the codebase can safely tolerate forced termination:
+`cancellation_requested()` tells Python code that the Server cancelled or
+recovered its current run. By default, Labtasker waits for the function to
+return. Set a process-wide deadline only when forced termination is safe:
 
 ```python
 if labtasker.cancellation_requested():
@@ -100,5 +101,5 @@ raise labtasker.FatalWorkerError("model runtime is corrupted")
 ```
 
 `FatalWorkerError` reports a charged Task failure and then stops the Worker. If
-the Task already succeeded through `finish()`, a later exception never changes
-that stable succeeded state.
+the Server already accepted `finish()`, a later exception does not change the
+Task from succeeded.

@@ -1,9 +1,9 @@
 # Embodied AI: RoboTwin evaluation (StarVLA codebase)
 
 One StarVLA checkpoint must be evaluated across 50 RoboTwin manipulation tasks.
-Running them on several GPUs sounds like a loop; balancing the work, tracking
-failures, and cleaning up every process turned that loop into a 548-line Bash
-launcher.
+At first, running them on several GPUs appears to require only a loop. In
+practice, balancing the work, tracking failures, and cleaning up every process
+requires a 548-line Bash launcher.
 
 ## The application
 
@@ -23,7 +23,7 @@ StarVLA's
 [`start_eval.sh`](https://github.com/starVLA/starVLA/blob/0ed0aad2c83f587714f6167ef60cf7218b786590/examples/simBenchmarks/Robotwin/eval_files/start_eval.sh)
 already performs that dynamic scheduling. The launcher alone is 548 lines,
 excluding the policy-server and evaluation scripts it invokes. It must discover
-GPUs, allocate ports, track Tasks and PIDs, wait for servers, refill free slots,
+GPUs, allocate ports, track jobs and PIDs, wait for servers, refill free slots,
 collect failures, organize logs, and recursively clean up processes.
 
 Its scheduling shape, heavily abridged, looks like this:
@@ -32,12 +32,12 @@ Its scheduling shape, heavily abridged, looks like this:
 --8<-- "snippets/case-studies/starvla-robotwin/custom_scheduler.sh"
 ```
 
-This is reasonable engineering, not needless complexity. Once the project needs
-dynamic parallelism, its launcher becomes a scheduler and process supervisor.
-Its progress also belongs to that process: after an interruption, the researcher
-must inspect logs to determine what finished and build the next run.
+This is reasonable engineering. Dynamic parallelism requires the launcher to
+schedule jobs and manage processes. Progress is stored only in the launcher and
+its logs, so after an interruption the researcher must determine what finished
+before starting the next run.
 
-## The Labtasker boundary
+## What Labtasker handles
 
 The useful Task boundary is one checkpoint × RoboTwin task × mode. Submitting all
 50 tasks in both modes creates 100 explicit Tasks:
@@ -54,10 +54,9 @@ The useful Task boundary is one checkpoint × RoboTwin task × mode. Submitting 
     --8<-- "snippets/case-studies/starvla-robotwin/worker.py"
     ```
 
-These are architecture excerpts, not a copy-paste StarVLA integration. They show
-the separation: the Worker keeps the StarVLA-specific code for running one case;
-Labtasker handles distribution, progress, retries, recovery, and completed or
-failed state.
+These excerpts show the design and are not a complete StarVLA integration. The
+Worker contains the StarVLA-specific code for one case. Labtasker distributes
+the cases and records progress, retries, recovery, and final status.
 
 StarVLA and RoboTwin still own the policy, simulator, task definitions, metrics,
 environments, logs, and videos. The researcher still chooses which GPUs run

@@ -1,4 +1,4 @@
-# Task operations
+# Manage Tasks
 
 Use Task operations to inspect or change an experiment without restarting its
 Workers. Submission adds work; updates change non-running work; lifecycle
@@ -31,7 +31,7 @@ labtasker task submit \
 ```
 
 Routes default to `default`. Supplying a Task ID makes creation idempotent only
-when the complete submitted representation is identical; conflicting reuse is
+when every submitted field is the same. Reusing the ID with different data is
 an error.
 
 ## Inspect
@@ -42,8 +42,9 @@ labtasker task list --status pending --limit 100
 labtasker task count --filter 'metadata.group == "paper"'
 ```
 
-List output is one page. Use the returned `next_cursor` explicitly for the next
-page; cursors are opaque and bound to the query and ordering.
+List output is one page. Pass the returned `next_cursor` to request the next
+page. Do not inspect or modify a cursor; it is tied to the original query and
+ordering.
 
 ## Update
 
@@ -62,8 +63,9 @@ labtasker task update \
   --changes '{"routes":["sdxl-diffusers-v1","sdxl-diffusers-v2"]}'
 ```
 
-The bulk operation is atomic. It reports `matched` and `updated`. There is no
-separate route-mutation command because routes are ordinary explicit Task data.
+The bulk operation updates every matching Task or changes nothing if one update
+fails. It reports `matched` and `updated`. Routes are updated through the same
+Task operation as other fields.
 
 ## Lifecycle actions
 
@@ -80,10 +82,10 @@ labtasker task delete t_ABCDEFGHIJKL
 - delete permanently removes a non-running Task.
 
 A running Task cannot be updated, requeued, or deleted. Cancellation is allowed:
-the run is fenced immediately, while local code follows the Worker's configured
-cooperative or forced-stop behavior. Succeeded and failed Tasks cannot be
-cancelled, and a succeeded Task cannot be requeued; submit a new Task to rerun a
-successful experiment.
+the Server immediately rejects further updates from that run, while local code
+follows the Worker's configured cooperative or forced-stop behavior. Succeeded
+and failed Tasks cannot be cancelled, and a succeeded Task cannot be requeued;
+submit a new Task to rerun a successful experiment.
 
 ## Queues
 

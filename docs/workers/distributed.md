@@ -2,8 +2,8 @@
 
 Inference and evaluation Workers are Labtasker's primary use case. When one Task
 instead needs a single-node distributed launcher for a larger evaluation or
-training job, v2 supports `torchrun` and Accelerate. Keep the Labtasker Worker
-outside the launcher:
+training job, v2 supports `torchrun` and Accelerate. Start the launcher as the
+child command of one Labtasker command Worker:
 
 ```bash
 labtasker loop --route robotwin -- \
@@ -14,19 +14,18 @@ labtasker loop --route robotwin -- \
 ```
 
 This creates one Labtasker run, one heartbeat thread, and one local journal. The
-launcher owns its child ranks. Starting an independent Labtasker loop inside
+launcher starts and manages its ranks. Starting an independent Labtasker loop inside
 every rank would create competing Workers and is rejected before claim when the
 runtime detects a distributed child process.
 
-This integration inherits the Command Worker's platform boundary: Linux is
+This integration has the same platform support as a command Worker: Linux is
 release-gated, macOS is best effort, and Windows is rejected before Server access
 because Labtasker cannot guarantee process-tree cancellation there.
 
 ## Reporting completion
 
-Only one rank should call `finish()`. Prefer the launcher's own main-rank API,
-which is more reliable than assuming every framework uses the same environment
-variables.
+Only one rank should call `finish()`. Use the launcher's own main-rank API
+instead of assuming that every framework uses the same environment variables.
 
 PyTorch example:
 
@@ -35,6 +34,7 @@ import torch.distributed as dist
 
 import labtasker
 
+# TODO: Compute final_score in your evaluation code.
 if dist.get_rank() == 0:
     labtasker.finish({"score": final_score})
 ```
@@ -47,14 +47,14 @@ from accelerate import Accelerator
 import labtasker
 
 accelerator = Accelerator()
+# TODO: Compute final_score in your evaluation code.
 if accelerator.is_main_process:
     labtasker.finish({"score": final_score})
 ```
 
-The execution environment is deliberately inherited by all ranks so the main
-rank can report. Labtasker's at-fork guard clears an in-memory Python execution
-context in child processes, preventing a forked child from inheriting ownership
-of the parent's active run.
+Labtasker passes the execution variables to every rank so the main rank can
+report the result. Its at-fork guard clears the active Python execution context
+in child processes, so a forked child cannot report for the parent's run.
 
 Multi-node resource allocation and rendezvous are outside Labtasker. An external
 scheduler should start the single Worker/launcher process with the resources it

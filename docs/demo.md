@@ -1,9 +1,9 @@
 # Run the tested demo
 
-This repository includes a complete small demo: submit six independent addition
+This repository includes a complete demo: submit six independent addition
 jobs, run them through a Worker, and record each total as structured result data.
-The arithmetic stands in for inference, evaluation, or another expensive job;
-start more copies of the Worker to process independent Tasks concurrently.
+The demo uses simple addition to show the same workflow used for inference,
+evaluation, or other ML jobs. Start more Workers to process Tasks concurrently.
 
 ## Submit the Tasks
 
@@ -38,7 +38,7 @@ local Server for `demo/basic`. To use several Workers, run `worker.py` in severa
 terminals after submission. Each process claims the next available Task instead
 of requiring you to split the six cases manually.
 
-This is not documentation-only sample code. The
+The
 [`tests/e2e/test_demo.py`](https://github.com/luocfprime/labtasker/blob/main/tests/e2e/test_demo.py)
 end-to-end test runs these exact two files against a real local Server and
-verifies all six persisted results.
+verifies all six recorded results.

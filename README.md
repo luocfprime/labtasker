@@ -4,200 +4,171 @@
   <img src="docs/assets/logo.png" alt="Labtasker" width="520">
 </p>
 
-**Run many independent ML jobs in parallel without writing your own scripts to
-split the work, retry failures, and collect results.**
+<p align="center"><em>Labtasker is a small, Python-native task queue for running independent ML inference, evaluation, and experiment jobs in parallel.</em></p>
 
-## Contents
+<p align="center">
+  <a href="https://github.com/luocfprime/labtasker/actions/workflows/ci.yml"><img src="https://github.com/luocfprime/labtasker/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/luocfprime/labtasker/actions/workflows/docs.yml"><img src="https://github.com/luocfprime/labtasker/actions/workflows/docs.yml/badge.svg" alt="Documentation"></a>
+  <a href="https://pypi.org/project/labtasker/"><img src="https://img.shields.io/pypi/v/labtasker" alt="PyPI version"></a>
+  <img src="https://img.shields.io/badge/Python-%E2%89%A53.11-blue" alt="Python 3.11 or newer">
+</p>
 
-- [Where Labtasker fits](#where-labtasker-fits)
-- [Why v2](#why-v2)
-- [Install and run the first Task](#install-and-run-the-first-task)
-- [Use Labtasker with an agent](#use-labtasker-with-an-agent)
-- [Documentation](#documentation)
-- [Development](#development)
+---
 
-A simple loop is fine when you have a handful of short jobs and do not mind
-rerunning all of them. Now imagine running 100 evaluations on 8 GPUs. Some finish
-in minutes; others take hours. If you divide the list before starting, some GPUs
-will sit idle while the slowest jobs are still running. If the script crashes,
-you must work out what finished and what is safe to run again.
+**Documentation:** <https://luocfprime.github.io/labtasker/>
 
-Labtasker keeps one list of jobs and hands them out one at a time. Start one
-evaluation process on each GPU; whenever it finishes a job, it gets another.
-Labtasker remembers what is waiting, running, finished, or failed, so an
-interrupted experiment can continue instead of starting over.
+**LLM Documentation:** <https://luocfprime.github.io/labtasker/latest/llms.txt>
 
-| Without Labtasker :cry: | With Labtasker :smiley: |
-| --- | --- |
-| Divide jobs among GPUs before starting; a slow group leaves other GPUs idle. | When one GPU finishes a job, its process picks up the next one. |
-| Infer progress from logs and output directories, then decide what is safe to rerun. | Finished jobs stay recorded; waiting and failed jobs remain visible. |
-| Add project-specific locks, retries, and failure rules that are rarely tested against races. | Reuse tested recovery rules; a late result from an old process cannot replace a newer one. |
-| Parse scattered outputs and rewrite the launcher when priorities change. | Inspect results in one format, then add, cancel, or prioritize jobs without restarting the rest. |
-| Ask an agent to invent and debug that coordination code for every codebase. | Give the agent the Labtasker skill and the same predictable commands in every project. |
+**Source Code:** <https://github.com/luocfprime/labtasker>
 
-Labtasker deliberately stops at coordinating the jobs. You still choose the
-machines and GPUs, start the processes that use them, and decide where large
-outputs are saved. It does not allocate hardware or run pipelines in which one
-job depends on another.
+---
 
-## Where Labtasker fits
+Labtasker distributes independent ML jobs across multiple processes and
+machines. It adds dynamic control, failure recovery, and structured Task
+records without requiring each project to build its own task system.
 
-Labtasker calls each job a **Task** and each process that runs jobs a **Worker**.
+The key features are:
 
-### AIGC experiments and ablations
+- **Effortless and flexible parallelism:** Run the same Task queue with multiple
+  Workers. Submit new Tasks, change priorities, or cancel Tasks without
+  interrupting the Workers.
+- **Resumable and failure-resistant experiments:** Retry failed Tasks
+  automatically and recover work when a Worker stops. Restart Workers without
+  rerunning completed Tasks. These lifecycle behaviors are covered by unit and
+  end-to-end tests.
+- **Structured task records:** Keep each Task's arguments, metadata, status,
+  errors, and structured result in one place for inspection.
+- **Easy to adopt and use:** Add Labtasker to existing Python code in fewer than
+  10 lines, or wrap an existing command with no code changes. The API,
+  non-interactive CLI, [Agent Skill](docs/guides/agent-skill.md), and
+  [agent-readable documentation](docs/llms.txt) allow an agent to operate
+  Labtasker end to end.
 
-Generation and evaluation often span many prompts, seeds, checkpoints, and
-ablation settings. Submit each case as a Task and start one Worker on each
-available GPU. Faster Workers process more cases; new comparisons can be added
-or prioritized without repartitioning the run. A Python Worker can also keep a
-model loaded while Labtasker supplies new inputs.
+## Installation
 
-### Embodied-AI evaluation
-
-Benchmark suites and subtasks can differ greatly in runtime. Static splitting
-leaves some GPUs idle behind the slowest shard, and progress becomes scattered
-across launcher logs and result directories. Labtasker distributes cases as
-resources become free and keeps their state together.
-
-The [RoboTwin evaluation case study](docs/case-studies/starvla-robotwin.md)
-examines this problem in the StarVLA codebase: evaluating one checkpoint across
-50 manipulation tasks requires enough scheduling and process-management logic
-to produce a 548-line Bash launcher.
-
-The same model applies to independent inference, evaluation, benchmarking, and
-data-processing work. [Why Labtasker?](docs/why-labtasker.md) gives the complete
-comparison and product boundary.
-
-## Why v2
-
-V2 keeps Labtasker's original purpose while reducing the number of concepts and
-making behavior explicit:
-
-- **One obvious way:** a small set of complete operations replaces overlapping
-  shortcuts and implicit interactions.
-- **Explicit routing:** Tasks name compatible routes; Workers never infer
-  eligibility from Task arguments.
-- **Defined recovery:** lifecycle actions, attempts, leases, and `run_id`
-  fencing prevent an old process from overwriting a newer result.
-- **Agent-first interfaces:** commands are deterministic and non-interactive,
-  with explicit state-changing actions and stable structured output.
-- **Python-native local use:** an automatically managed SQLite Server replaces
-  the MongoDB or Mongomock setup required by v1.
-
-See [From v1 to v2](docs/why-labtasker.md#from-v1-to-v2) for the design rationale.
-
-## Install and run the first Task
-
-Labtasker requires Python 3.11 or newer. Install the complete local package:
+Labtasker requires Python 3.11 or newer. Install the complete package for local
+use:
 
 ```bash
 python -m pip install labtasker
-# or, inside a uv project:
+```
+
+Or add it to a `uv` project:
+
+```bash
 uv add labtasker
 ```
 
-Submit one evaluation case. On POSIX systems, the first Task operation starts
-the project-local Server automatically; no database service, port, or
-configuration file is needed.
+The `labtasker` package installs matching Client and Server releases. You can
+also install `labtasker-client` and `labtasker-server` separately when they run
+in different environments.
+
+## Example
+
+Suppose an existing evaluation program accepts a checkpoint, benchmark task,
+and seed:
 
 ```bash
-cd my-experiment
-
-labtasker task submit \
-  --name sample-1 \
-  --args '{"prediction":"red panda","reference":"red panda"}' \
-  --route text-eval
+python evaluate.py \
+  --checkpoint checkpoints/model.pt \
+  --task pick-cube \
+  --seed 0
 ```
 
-`text-eval` names the evaluation program for this example. The submitted job and
-the process that runs it use the same name.
+Submit each evaluation case as a Labtasker Task:
 
-Create the evaluator that runs one case:
+```bash
+labtasker task submit \
+  --name pick-cube-seed-0 \
+  --args '{"checkpoint":"checkpoints/model.pt","task":"pick-cube","seed":0}' \
+  --route robotwin
+```
+
+Then run the existing program through a command Worker:
+
+```bash
+labtasker loop --route robotwin -- \
+  python evaluate.py \
+    --checkpoint '%{checkpoint}' \
+    --task '%{task}' \
+    --seed '%{seed}'
+```
+
+Start one Worker process on each GPU you want to use. All Workers claim from the
+same Queue and process one Task at a time. The route name `robotwin` labels which
+Worker implementation can run the submitted Task.
+
+To save evaluation metrics as the Task result, report them from the evaluation
+program:
 
 ```python
-# evaluate.py
-import argparse
-
 import labtasker
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--prediction", required=True)
-parser.add_argument("--reference", required=True)
-args = parser.parse_args()
-
-score = float(args.prediction.strip() == args.reference.strip())
-labtasker.finish({"score": score}, skip_if_no_labtasker=True)
+# TODO: Replace this with metrics from your actual evaluator.
+labtasker.finish(metrics, skip_if_no_labtasker=True)
 ```
 
-Start a Worker. Start more copies on resources you already control to run Tasks
-in parallel.
+Inspect progress and results at any time:
 
 ```bash
-labtasker loop --route text-eval -- \
-  python evaluate.py \
-    --prediction '%{prediction}' \
-    --reference '%{reference}'
-```
-
-Inspect the result:
-
-```bash
+labtasker task list
 labtasker task list --status succeeded
+labtasker task list --status failed
 ```
 
-The [getting-started guide](docs/getting-started.md) explains the local Server
-and configuration after completing this same workflow. Use a
-[Python Worker](docs/workers/python.md) when a model or evaluator should remain
-loaded across Tasks.
+Follow [Run your first experiment](docs/getting-started.md) for a complete
+tutorial with copyable code and expected results. Use a
+[Python Worker](docs/workers/python.md) when a model should remain loaded while
+the Worker processes multiple Tasks.
 
-## Use Labtasker with an agent
+## When to use Labtasker
 
-Labtasker includes an Agent Skill for submission, Worker design, inspection,
-updates, and recovery. A request such as “run these cases in parallel across 8
-GPUs with Labtasker” gives a coding agent a standard workflow instead of asking
-it to invent another scheduler.
+Labtasker is designed for independent ML jobs such as:
 
-Claude Code users can install the repository plugin:
+- model inference over prompts, samples, or dataset shards;
+- evaluation across checkpoints, benchmark cases, and random seeds;
+- generation and ablation experiments across parameter combinations;
+- independent data-processing or analysis jobs.
 
-```text
-/plugin marketplace add luocfprime/labtasker
-/plugin install labtasker-skill@labtasker
-```
+Labtasker becomes useful when several processes share the work, you need to
+resume after an interruption without rerunning completed jobs, or you need to
+add, cancel, or reprioritize jobs during a run.
 
-Agent Skills-compatible tools can install the canonical skill directly:
+## When NOT to use Labtasker
 
-```bash
-npx skills add \
-  https://github.com/luocfprime/labtasker/tree/main/skills/labtasker
-```
+- A simple loop can be sufficient for a small experiment with a few short jobs
+  that can be rerun in full.
+- Use a workflow or DAG system when jobs depend on outputs from earlier jobs.
+- Use a cluster or resource scheduler when you need to allocate GPUs, start
+  machines, or manage compute capacity.
+- Use an artifact store for model checkpoints, generated media, and other large
+  outputs. Labtasker records their paths or URLs, not the files themselves.
 
-See the [Agent Skill guide](docs/guides/agent-skill.md) for tool and scope
-selection. The documentation build also exposes [`/llms.txt`](docs/llms.txt), a
-concise map from an agent to the raw Markdown guides and references.
+Labtasker is deliberately designed to be conceptually simple and easy to hand
+over to agents.
 
 ## Documentation
 
-- [Get started](docs/getting-started.md): install, submit, run, and inspect.
-- [Tested demo](docs/demo.md): run the same submission and Worker source files
-  exercised by the end-to-end test suite.
-- [Core model](docs/concepts.md): Task, Worker, Queue, route, and recovery model.
-- Examples: [inference and evaluation](docs/inference-evaluation.md) and the
-  [RoboTwin case study](docs/case-studies/starvla-robotwin.md).
-- [Task operations](docs/guides/tasks.md): inspect or change a running plan.
-- [Failure and recovery](docs/guides/failure-recovery.md): retries,
-  interruption, cancellation, and journals.
-- [Configuration](docs/reference/configuration.md): local and shared HTTP use.
-- [CLI](docs/reference/cli.md) and [Python API](docs/reference/python-api.md):
-  exact public interfaces.
-- [Specification](docs/reference/specification.md): authoritative product and
-  protocol contract.
+- [Documentation overview](docs/index.md): choose the right tutorial, guide, or
+  reference page.
+- [Run your first experiment](docs/getting-started.md): submit several cases and
+  process them through one Queue.
+- [Why Labtasker?](docs/why-labtasker.md): decide whether Labtasker fits your
+  experiment workflow.
+- [How Labtasker works](docs/concepts.md): understand Tasks, Workers, routes,
+  Queues, retries, and recovery.
+- [Inference and evaluation patterns](docs/inference-evaluation.md): adapt
+  Labtasker to common ML workloads.
+- [Command Workers](docs/workers/command.md) and
+  [Python Workers](docs/workers/python.md): choose how Tasks run.
+- [CLI reference](docs/reference/cli.md) and
+  [Python API reference](docs/reference/python-api.md): check exact interfaces.
+- [Specification](docs/reference/specification.md): read the authoritative
+  product and protocol contract.
 
-V2 ships separate `labtasker-client` and `labtasker-server` runtime
-distributions plus the `labtasker` convenience package. Linux is release-gated.
-Ordinary Client, Server, and Python Worker use is best effort on macOS and
-Windows; the automatic local Server requires POSIX, and Command or distributed
-Workers are unsupported on Windows. Windows users connect the Client to an
-explicitly started HTTP Server.
+Labtasker also includes an [Agent Skill](docs/guides/agent-skill.md) that helps
+compatible coding agents submit Tasks, design Workers, inspect progress, and
+recover failed work through the documented interfaces.
 
 ## Development
 
@@ -207,8 +178,8 @@ uv run pytest
 uv run zensical build --clean
 ```
 
-See [Development](docs/development.md) for the complete validation and package
-boundaries.
+See [Development](docs/development.md) for repository boundaries and the full
+validation commands.
 
 ## License
 

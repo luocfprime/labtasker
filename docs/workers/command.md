@@ -1,15 +1,16 @@
 # Command Workers
 
-The command Worker wraps an existing executable with minimal intrusion:
+Use a command Worker to run an existing executable for each Task without
+changing its argument interface:
 
 ```bash
 labtasker loop --route text-eval -- \
   python evaluate.py --prediction '%{prediction}' --reference '%{reference}'
 ```
 
-The required `--` cleanly separates Labtasker options from the child argv. Each
-template element produces exactly one child argv element. Labtasker does not
-join, split, quote, or evaluate a shell command.
+The required `--` separates Labtasker options from the child argv. Each template
+element produces exactly one child argv element. Labtasker does not join, split,
+quote, or evaluate a shell command.
 
 Command Workers require POSIX process-group support. Linux is release-gated and
 macOS is best effort; Windows raises `NotImplementedError` before connecting to
@@ -37,14 +38,14 @@ Use `%{{` when the child must receive a literal `%{` opener.
 - NUL is rejected.
 
 All templates are compiled before the first claim, so static syntax mistakes do
-not consume a Task.
+not claim or fail a Task.
 
 ## Process behavior
 
 The child inherits the Worker's environment and receives Labtasker execution
 variables, including the Task ID, run ID, Queue, local run directory, and either
-the HTTP URL/token or the already selected local socket/directory. It never
-re-resolves local mode from the child's CWD.
+the HTTP URL/token or the selected local socket/directory. Changing the child
+process's current directory does not select a different Server.
 
 In an interactive POSIX terminal, Labtasker uses an internal PTY and relays
 input, output, and terminal size. In pipelines and schedulers it uses ordinary
@@ -54,7 +55,7 @@ there is no public PTY option.
 
 If the child has not called `finish()`, exit code zero succeeds with `{}` and any
 other exit code is a charged failure. After a successful `finish()`, a later
-non-zero exit is logged locally but cannot rewrite the succeeded Task.
+non-zero exit is logged locally but does not change the succeeded Task.
 
 ## Returning a result
 
@@ -67,10 +68,12 @@ labtasker.finish({"score": 0.94}, skip_if_no_labtasker=True)
 ```
 
 The command process reconstructs its execution context from environment
-variables. `finish()` sends the result through the same fenced run protocol and
-writes a best-effort local journal update. Failure to write that local backup
-does not turn an accepted Server completion into an error.
+variables. `finish()` reports the result for the current run and writes a local
+journal update when possible. If the Server accepts the result but the journal
+write fails, the Task remains succeeded.
 
-After completion, the command may keep running for cleanup. The default waits
-indefinitely after sending termination to a revoked child process group;
-`--force-stop-timeout SECONDS` force-kills any remainder after the deadline.
+After `finish()`, the command may keep running for cleanup. When the Server
+cancels or recovers the run, the Worker sends termination to the child process
+group. By default it waits without a time limit. Set
+`--force-stop-timeout SECONDS` to kill child processes still running after the
+deadline.

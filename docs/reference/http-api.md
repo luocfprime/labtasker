@@ -93,7 +93,7 @@ status, name, filter, order_by, descending, limit, cursor
 ```
 
 Count accepts `status`, `name`, and `filter`. Selectors are combined with AND.
-`limit` is 1–1000 and defaults to 100. A non-null `next_cursor` must be reused
+`limit` is 1 to 1000 and defaults to 100. A non-null `next_cursor` must be reused
 with the same Queue, selectors, filter, order field, and direction. The cursor is
 opaque. See [Query language](../guides/query.md) for filter syntax.
 

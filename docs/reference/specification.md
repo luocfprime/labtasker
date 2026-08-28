@@ -89,9 +89,9 @@ public boundary.
 ### 0.2 Agent-first design
 
 Adapting Labtasker to the agent-coding era is a primary v2 objective, not a CLI
-formatting preference. An agent must be able to complete every core workflow—set
-up, submit, inspect, run, diagnose, recover and mutate tasks—without scraping a
-human UI or relying on undocumented state.
+formatting preference. An agent must be able to complete every core workflow:
+set up, submit, inspect, run, diagnose, recover and mutate tasks without
+scraping a human UI or relying on undocumented state.
 
 Agent-friendly interfaces require:
 
@@ -260,12 +260,12 @@ than Task semantics.
 
 Every release must pass unit tests, real temporary-SQLite integration, HTTP and
 OpenAPI contract tests, Client-to-Server end to end, deterministic concurrency
-races, concurrent local-daemon startup/recovery, fresh schema plus every supported
-Alembic forward-upgrade fixture, the fake distributed launcher, the real Linux
-single-node torchrun/Accelerate suite, and—after 2.0.0—the previous released v2
-Client core flow against the candidate Server. V2 sets no arbitrary coverage
-percentage and does not block release on a large probabilistic stress suite or a
-complete macOS/Windows matrix.
+races, concurrent local-daemon startup/recovery, fresh schema plus every
+supported Alembic forward-upgrade fixture, the fake distributed launcher, and
+the real Linux single-node torchrun/Accelerate suite. After 2.0.0, it must also
+pass the previous released v2 Client core flow against the candidate Server. V2
+sets no arbitrary coverage percentage and does not block release on a large
+probabilistic stress suite or a complete macOS/Windows matrix.
 
 ### 0.5 Technology baseline
 
@@ -333,7 +333,7 @@ Route and Queue identifiers use one deliberately plain wire-safe grammar:
 [A-Za-z0-9][A-Za-z0-9._-]{0,127}
 ```
 
-They are 1–128 ASCII characters, retain case and match case-sensitively; `SDXL`
+They are 1 to 128 ASCII characters, retain case and match case-sensitively; `SDXL`
 and `sdxl` are distinct. V2 performs no lowercasing or other normalization. The
 larger bound leaves room for descriptive Agent-generated route names while still
 preventing unbounded identifiers in URLs, indexes, logs and local paths. Human
@@ -1203,7 +1203,7 @@ For local directory `/absolute/work`, the durable state is:
   runs/...
 ```
 
-The database and log survive daemon restart and SSH disconnection. Every Server
+The database and log remain after a daemon restart or SSH disconnection. Every Server
 process, including explicit HTTP `serve`, holds an exclusive non-blocking
 advisory ownership lock on an open file descriptor for the actual database file,
 not on an adjacent sidecar path. This one ownership lock is also local startup
@@ -1752,8 +1752,8 @@ checkpoints and large logs do not belong in the Task database.
 
 The same 1 MiB constant also bounds the complete stored user-owned Task data.
 After applying creation defaults or any mutation that changes `name`, `args`,
-`metadata`, `priority`, `max_attempts`, `routes` or `result`—including
-`complete(result)`—the Server canonically serializes an object containing all
+`metadata`, `priority`, `max_attempts`, `routes` or `result`, including
+`complete(result)`, the Server canonically serializes an object containing all
 seven resulting fields as compact UTF-8 JSON. If it exceeds 1,048,576 bytes, the
 mutation is rejected with `422`, `code="task_data_too_large"` and
 `details.max_bytes=1048576`. Batch update validates every resulting Task and rolls
@@ -1805,7 +1805,7 @@ overwrites the existing Task.
 
 V2 does not add an `Idempotency-Key` header or idempotency-record table. Because
 Task input may later be edited, the server needs a small internal
-`creation_hash`—not a public Task field—to recognize the original creation
+`creation_hash` (not a public Task field) to recognize the original creation
 request. The server expands submit defaults, serializes the normalized creation
 body as canonical JSON, and stores its SHA-256 hash. This is request-equality
 metadata, not a credential or content-addressed Task ID. Storing a request hash
@@ -2043,7 +2043,7 @@ writable or exposed as ordinary Task data.
 An action first performs an atomic transition conditioned on `active_run_id`. If
 that misses, the same `last_terminal_run_id + action` returns success as a
 duplicate; the same run with another action and every other stale run conflict.
-The slot survives the next claim and is overwritten only by the next terminal
+The slot remains available through the next claim and is overwritten only by the next terminal
 transition, so it covers the important "report committed, response lost, next run
 claimed" race without creating Run history. This is bounded idempotency, not a
 promise to recognize arbitrarily old retries.
@@ -2312,7 +2312,7 @@ force-stop deadline that expires terminates the Worker with a nonzero process
 status so an external supervisor can decide whether to replace it.
 
 V2 does not use cross-thread asynchronous exception injection, signal tricks,
-trace hooks, abandoned live threads or one subprocess per Python Task. Those
+trace hooks, leftover live threads or one subprocess per Python Task. Those
 approaches either corrupt ordinary Python expectations or defeat process-local
 model reuse.
 
@@ -2858,8 +2858,8 @@ by exit code or signal logs one ERROR containing that outcome, but does not copy
 its already-relayed output into a second diagnostic message.
 
 Authorization headers and token values must never appear in logs or errors.
-Other diagnostic data—including Queue, Task ID, route, run ID, status, action,
-attempt, timing, args, metadata, result and traceback—may be logged when useful;
+Other diagnostic data, including Queue, Task ID, route, run ID, status, action,
+attempt, timing, args, metadata, result and traceback, may be logged when useful;
 v2 imposes no field-by-field redaction system. Ordinary success logs should still
 avoid dumping large payloads without diagnostic value.
 
@@ -3208,8 +3208,8 @@ scalar_literal in path              # array containment
 
 Both forms also support `not in`. The first form declares that the runtime path
 value must be scalar; the second declares that it must be an array. List elements
-must be scalar JSON literals. All other operand shapes—including path-to-path,
-list-on-the-left and constant-only membership—are `invalid_filter` errors. The
+must be scalar JSON literals. All other operand shapes, including path-to-path,
+list-on-the-left and constant-only membership, are `invalid_filter` errors. The
 language does not guess which containment operation the caller intended.
 
 `in` never means object-key membership. Use `exists(metadata.key)` or
@@ -3918,7 +3918,7 @@ and change inspection noisy.
 | 2026-08-20 | Represent Task status as a string `Literal`, timestamps as timezone-aware datetime/RFC 3339, `last_error` as a frozen model, routes as a list and JSON fields as ordinary dicts. |
 | 2026-08-20 | Use canonical ID-addressed `get_task`, Task HTTP GET and `task get`; return one Task or `404 task_not_found` without active run data. |
 | 2026-08-20 | Define keyword-only `list_tasks` with exact `status`/`name` shortcuts ANDed with `filter`, one-page `TaskPage` results and no redundant Task-ID list selector. |
-| 2026-08-20 | Bound list pages to 1–1000 Tasks with default 100; use a stateless opaque cursor tied to the Queue, selection and ordering inputs while allowing the next page size to change. |
+| 2026-08-20 | Bound list pages to 1 to 1000 Tasks with default 100; use a stateless opaque cursor tied to the Queue, selection and ordering inputs while allowing the next page size to change. |
 | 2026-08-20 | Make CLI data output two-space-indented UTF-8 JSON with no ANSI styling; `task list` always returns the `TaskPage` schema and has no table, pager or IDs-only output mode. |
 | 2026-08-20 | Make `last_route`, `started_at` and `finished_at` filterable; fixed nullable built-ins always exist, so test population with `field != None` rather than `exists(field)`. |
 | 2026-08-20 | Support one explicitly allowlisted built-in scalar `order_by` field plus `descending`, sort nulls last, default to `created_at` descending, and add `id` as the stable cursor tie-breaker; omit JSON and multi-field sorting. |
@@ -3944,7 +3944,7 @@ and change inspection noisy.
 | 2026-08-20 | Define `.labtasker/config.toml` as a flat strict three-string TOML file (`url`, `queue`, `token`) read by stdlib `tomllib`; reject unknown/duplicate/empty/ill-typed values and add no YAML/config framework. |
 | 2026-08-20 | Make every client config key optional, including `token`; an omitted token sends no Authorization header, while a present empty token remains invalid. |
 | 2026-08-20 | If the new CWD config is absent but v1 `.labtasker/client.toml` exists, fail with `legacy_config_found` before all other resolution; do not parse or migrate the legacy file. |
-| 2026-08-20 | Give Queue and route one case-preserving, case-sensitive 1–128 character ASCII identifier grammar, `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`, with no normalization. |
+| 2026-08-20 | Give Queue and route one case-preserving, case-sensitive 1 to 128 character ASCII identifier grammar, `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`, with no normalization. |
 | 2026-08-20 | Limit `labtasker-server serve` to host, port and SQLite path flags with defaults `127.0.0.1:8000` and `.labtasker/server.db`; read the token only from `LABTASKER_SERVER_TOKEN` and leave process supervision external. Superseded on 2026-08-21 only for the new CWD local daemon; explicit HTTP `serve` retains this user-owned foreground contract. |
 | 2026-08-20 | Automatically initialize or forward-migrate known v2 Alembic revisions before listening; reject newer/unknown/failed schemas, add no migration CLI or automatic backup, and do not treat v1 MongoDB as an implicit startup migration. |
 | 2026-08-20 | Fix SQLite to WAL, foreign keys, 5000 ms busy timeout and FULL synchronous durability; apply per-connection settings and fail startup if required values cannot be verified. |
@@ -4084,7 +4084,7 @@ and change inspection noisy.
 | 2026-08-19 | Store only a structured Task `last_error` for the latest charged failure in 2.0.0 initial release; keep it separate from experiment output and do not add run-history storage. |
 | 2026-08-19 | On an empty claim, keep the Worker alive for a bounded client-side polling grace period before normal exit; do not add an idle Worker entity or server wait protocol. |
 | 2026-08-19 | Treat v2 as a subtractive refactor: every touched v1 feature is retained, redesigned or fully deleted rather than accumulated beside its replacement. |
-| 2026-08-19 | Require heartbeat for every claimed run and use heartbeat loss as the only abandoned-run recovery mechanism. |
+| 2026-08-19 | Require heartbeat for every claimed run and use heartbeat loss as the only recovery mechanism when a Worker stops responding. |
 | 2026-08-19 | Delete task-execution timeout, `eta_max`, no-heartbeat execution and their public/configuration branches. |
 | 2026-08-19 | Give `SystemExit` and SIGTERM no special Task protocol; process exit is recovered through heartbeat expiry. |
 | 2026-08-19 | Treat heartbeat expiry as an ordinary charged execution failure. |

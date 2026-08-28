@@ -1,212 +1,231 @@
 ---
 name: documentation
-description: Write or revise Labtasker's README and user documentation, especially product positioning, motivation, comparisons, case studies, examples, and navigation. Preserve the project's plain-language, agent-friendly style and contract accuracy. Do not use for code-only work; pair public behavior changes with the public-contract-change skill.
+description: Write or revise Labtasker's README and user documentation, especially product positioning, tutorials, guides, examples, case studies, and navigation. Preserve the project's direct, plain-English style for ML researchers, agent-friendly workflow, and contract accuracy. Do not use for code-only work; pair observable behavior changes with the public-contract-change skill.
 ---
 
 # Write Labtasker documentation
 
-Write for a capable ML practitioner who knows the frustrations of running
-experiments but has never used Labtasker. The reader may not know task-queue
-terminology or even recognize the generated shell and Python glue as a “wrapper
-script.” Help them decide quickly whether Labtasker solves their problem before
-teaching the product model.
+Write for an ML researcher or engineer who has independent inference,
+evaluation, or experiment jobs but has never used Labtasker. The reader may not
+know task-queue terminology. Help them understand what Labtasker is within one
+sentence, recognize its main benefits within one short section, and decide
+whether to use it before teaching the internal model.
 
-## Lead with the problem and outcome
+## Put definition and value first
 
-Treat the opening like a paper abstract: state the user problem, the practical
-outcome, and the product boundary before installation or architecture.
+The README and documentation homepage should follow this reader journey:
 
-- Explain the recognizable situation first: many cases, several GPUs, uneven
-  runtimes, interruption, failures, changing priorities, and scattered results.
-- Acknowledge that a simple script is often the right solution for a few cheap
-  jobs that can all be rerun. Explain the point at which it stops being enough;
-  do not manufacture a strawman.
-- Prefer a concrete setup such as “100 evaluations and 8 GPUs” over an abstract
-  list of orchestration concerns.
-- Describe Labtasker as the tested coordination layer that replaces repeated
-  project-specific task distribution, recovery, and result-collection code.
-- Keep the boundary visible: users provide the machines, GPUs, processes, and
-  artifact storage. Labtasker schedules independent work; it is not a resource
-  allocator, cluster scheduler, DAG engine, or artifact store.
+1. One direct sentence defining Labtasker.
+2. Prominent links to the documentation, `llms.txt`, and source code.
+3. A short paragraph explaining what Labtasker adds to existing ML code.
+4. Three to five consolidated key features.
+5. Installation and a short representative example.
+6. Separate `When to use Labtasker` and `When NOT to use Labtasker` sections.
+7. Navigation to tutorials, concepts, guides, and reference pages.
 
-Loading an expensive model once is a useful Worker capability, especially for
-inference, but it is not the main motivation or definition of Labtasker.
+Do not begin with a long hypothetical workload, implementation details, v1
+history, or internal terminology. Put fuller motivation and v1-to-v2 rationale
+in `docs/why-labtasker.md`.
 
-## Use the reader's language before Labtasker's language
+Keep the README and documentation homepage aligned on the definition, features,
+and product boundary. The README may contain a compact example; the homepage
+should focus on navigation after establishing the product.
 
-On landing pages, start with `jobs`, `cases`, `GPUs`, `failures`, `results`, and
-`restart`. Introduce `Task`, `Worker`, `Queue`, `route`, attempt accounting, and
-`run_id` only after the value is clear.
+## Write features as claims with evidence
 
-Avoid unexplained phrases such as `ad hoc orchestration`, `durable state`,
-`eligible Task`, `shared backlog`, `lifecycle`, or `artifact references` in the
-first-screen explanation. State their observable effect instead:
+Use the SQLModel-style pattern `**Short benefit:** Concrete explanation.` A
+positive adjective such as `effortless` is useful when the following sentence
+immediately demonstrates why it is true.
 
-- “Labtasker remembers what finished” before explaining persisted Task state.
-- “Continue unfinished jobs without repeating completed work” before retry and
-  recovery semantics.
-- “An old process cannot overwrite a newer result” before `run_id` fencing.
-- “Label which implementations may run a job” before exact route matching.
+Consolidate related capabilities instead of listing every mechanism separately.
+The current product story fits four groups:
 
-Use Labtasker terminology consistently and capitalize public concepts—Task,
-Queue, Worker, Client, and Server—once they are introduced.
+- effortless and flexible parallelism;
+- resumable and failure-resistant experiments, supported by tested lifecycle
+  behavior;
+- structured Task records for inspection; and
+- easy adoption and use, including end-to-end operation by agents.
 
-When a tutorial first introduces a route, give it a name that looks like the
-workload or compatible implementation a reader would actually recognize, such
-as `libero`, `robotwin`, or `sdxl-diffusers`. Show the submitted Task and its
-Worker using the same name. Avoid generic verbs, matching rules, or placeholders
-such as `evaluate` and `exact-match`, which make `--route` look like an execution
-option rather than a compatibility label.
+Prefer user-visible capabilities such as automatic retry, dynamic priority,
+cancellation, recorded results, and agent operation. Do not lead with SQLite,
+local daemon startup, dependency separation, leases, or `run_id` fencing. Those
+details belong where readers configure or verify the behavior.
 
-## Make comparisons prove the value
+Do not narrow the entire product to one incidental condition such as uneven
+runtimes or one benchmark type. Concrete scenarios are useful examples, not the
+definition of Labtasker's scope.
 
-A comparison must explain both the method and its consequence. Do not write a
-bare mapping such as “static assignment / dynamic claiming.” Use this shape in
-each cell:
+## Use direct, natural language
 
-```text
-What the user normally does. Why it works initially, then where it breaks.
-What Labtasker does. Why that makes the workflow easier or safer.
-```
+Use short sentences that say what the reader can do. Prefer familiar ML words
+such as `jobs`, `cases`, `GPUs`, `failures`, `results`, and `restart` before
+introducing Task, Worker, Queue, route, attempt, lease, or `run_id`.
 
-The main without/with comparison should cover most user-visible reasons to use
-Labtasker, in plain language:
+Avoid infrastructure metaphors and compressed abstractions on landing pages:
 
-- balancing work when runtimes differ;
-- remembering completed work and continuing after interruption;
-- tested retries, recovery, and protection against stale processes;
-- consistent structured results without log parsing;
-- adding, cancelling, or prioritizing work during a run;
-- explicit compatibility during implementation rollouts;
-- reusing expensive loaded state across jobs; and
-- a standardized workflow that an agent can operate.
+- Write “resume after an interruption without rerunning completed jobs,” not
+  “jobs survive interruption.”
+- Write “when a Worker stops responding,” not “abandoned Tasks.”
+- Write “matching Task,” not “eligible Task,” until matching rules are taught.
+- Write “results from old runs,” not “stale results,” until `run_id` is taught.
+- Write “a simple loop can be sufficient,” not “a simple loop is better.”
 
-For the current landing comparison, use the Zensical/GitHub-compatible headings
-`Without Labtasker :cry:` and `With Labtasker :smiley:`. Keep the configured
-Twemoji SVG extension rather than embedding platform-dependent emoji images.
+Avoid vague words such as `consistent`, `robust`, `advanced`, `powerful`, or
+`easy` unless the same item gives a concrete reason. Avoid awkward ownership
+phrases such as “compute you control” when a later product-boundary section can
+state the responsibility directly. Do not use em dashes; split the thought into
+shorter sentences or use commas, parentheses, or a colon.
+
+Prefer plain English over idioms, metaphors, and colloquial shortcuts. Write
+“this example uses addition to demonstrate the workflow,” not “addition stands
+in for inference.” Write “Workers take Tasks from the same Queue,” not “Workers
+draw from the backlog.” A reader should not need to interpret a turn of phrase
+before understanding the product behavior.
+
+Use Labtasker terminology consistently and capitalize public concepts: Task,
+Queue, Worker, Client, and Server. Use lowercase `route` because it is a label,
+not a resource record.
+
+## Explain why before how
+
+Navigation and page order should let readers decide whether Labtasker applies
+before asking them to learn its model. Put `Why Labtasker?` before `How
+Labtasker works`.
+
+Use one primary Diataxis type per page:
+
+- tutorials lead the reader through a complete successful workflow;
+- guides solve one concrete task;
+- concepts explain the model and design decisions;
+- references state exact interfaces and constraints with minimal prose.
+
+Do not create a top-level navigation group for one page. Do not expose internal
+concepts as unexplained top-level categories. Worker pages belong with guides;
+a single development page should be linked directly.
+
+## Make tutorials demonstrate the queue
+
+A first tutorial should submit multiple cases to one Queue, run them through a
+Worker, and verify all recorded results. A single case does not demonstrate why
+a queue is useful.
+
+Keep the first tutorial copyable and dependency-free. Use a small evaluation
+program that resembles an ML workflow, then link to representative inference or
+benchmark examples. State prerequisites before commands and make successful
+output recognizable.
+
+When a tutorial first introduces a route, choose a label that looks like the
+workload or compatible implementation, such as `robotwin`, `libero`, or
+`sdxl-diffusers`. The submitted Tasks and Worker must use the same route.
+
+Keep maintained examples in concise source files and include them with `--8<--`
+when the same example is tested. Do not display an entire long implementation
+when a short excerpt proves the point.
+
+Comment only the parts of an example that the reader must replace or understand
+to adapt it. Do not add comments that restate every line. When real model
+loading, inference, evaluation, or project configuration is intentionally
+omitted, mark that location explicitly with a short `# TODO: Replace ...`
+comment. Fully runnable tutorial code should not contain placeholder TODOs.
+
+## Describe product boundaries explicitly
+
+Use separate `When to use Labtasker` and `When NOT to use Labtasker` sections.
+Acknowledge that a simple loop can be sufficient for a small experiment with a
+few short jobs that can be rerun in full.
+
+State the boundaries through alternatives:
+
+- use a workflow or DAG system when jobs depend on earlier outputs;
+- use a cluster or resource scheduler to allocate GPUs or machines;
+- use an artifact store for checkpoints, media, and other large outputs.
+
+Labtasker schedules independent Tasks. Users provide and start the processes
+that run them. Keep this boundary visible without interrupting the opening with
+implementation responsibility.
 
 ## Explain the agent advantage precisely
 
-Agent-written scripts do not eliminate orchestration cost. Without a standard
-tool, the user must still specify load-balancing heuristics, progress storage,
-locking, retry behavior, recovery, and result parsing; the agent then invents and
-debugs another lightly tested task system.
+Labtasker's API, non-interactive CLI, bundled Agent Skill, `llms.txt`, and raw
+Markdown documentation allow Labtasker operations to be handed to an agent end
+to end. Describe concrete operations: Worker setup, submission, inspection,
+priority changes, cancellation, and recovery.
 
-Present Labtasker as cleaner, better tested, more reliable, and easier to
-automate because its workflow and interfaces are standardized and explicit. The
-bundled Agent Skill should make a request such as “run these jobs in parallel
-across 8 GPUs with Labtasker” sufficient to begin the ordinary workflow.
+Do not imply that the agent defines the experiment, allocates hardware, or must
+remain online while a Worker executes a Task. The researcher still defines the
+experiment and supplies the compute.
 
-Do not claim that an agent “takes care of everything.” The user still defines
-the experiment and supplies the hardware; execution remains deterministic after
-a Worker starts. The agent handles routine setup, submission, inspection,
-updates, and recovery through documented interfaces.
+Keep `docs/llms.txt` as a concise, curated map. Put `Why Labtasker?` before the
+core model and update the map when a primary entry point moves or changes role.
 
-## Use representative case studies
+## Use Mermaid only when relationships need it
 
-Prefer real experiment shapes over toy infrastructure examples:
+Use Mermaid for a lifecycle, component relationship, or multi-step flow when it
+is materially clearer than prose or a small table. Good candidates include:
 
-- AIGC generation or ablation across prompts, seeds, checkpoints, and settings.
-- Embodied-AI evaluation across benchmark suites and subtasks with unequal
-  runtimes, where static splitting leaves GPUs idle and scatters results.
+- Client, Server, Queue, and Worker relationships;
+- Task state transitions;
+- claim, heartbeat, retry, and recovery sequences; and
+- choosing between Python, command, and distributed Workers.
 
-A case study should identify the original workload, show the coordination code
-the project had to own, map each independent case to Labtasker, and state what
-remains outside Labtasker. Treat external projects respectfully: use them as
-evidence that reasonable scripts grow scheduling responsibilities, not as bad
-code to ridicule. Link to a stable source and do not publish an untested
-replacement as a runnable integration.
+Do not add a diagram for a single fact, a short list, or a linear procedure that
+is already clear. Keep node labels short, use public terminology, and introduce
+the diagram with enough prose for the surrounding section to remain useful when
+retrieved without the image. Prefer Mermaid over a new bitmap for maintainable
+technical diagrams.
 
-## Control the reader's workload
+## Use comparisons and case studies selectively
 
-Documentation competes with the experiment for the reader's attention. Use the
-shortest version that still lets a reader recognize the problem, understand the
-outcome, and verify the claim.
+Do not put a without/with comparison table on the landing page by default. Use
+one only when it adds information beyond the feature list, normally in `Why
+Labtasker?`.
 
-- Put the takeaway and the most concrete evidence first. A number such as “50
-  benchmark cases” or “a 548-line launcher” is more useful than several
-  paragraphs of general setup.
-- Give each section one job. Prefer a short paragraph, a compact comparison, or a
-  small code excerpt over repeating the same point in all three forms.
-- Keep maintained examples in concise source files and include them with
-  `--8<--` snippets instead of duplicating code in Markdown. Snippets prevent
-  drift; they do not justify displaying an entire long implementation when an
-  excerpt proves the point.
-- Keep landing-page examples brief and link to a focused page for detail. Do not
-  duplicate the full motivation across README, the documentation index, and a
-  case study.
-- In a case study, explain only enough of the external domain and codebase to
-  understand the scheduling problem. Link to upstream setup and implementation
-  details instead of retelling them.
-- After drafting, make a compression pass. Remove background, qualifications,
-  terminology, and examples that do not change whether the reader would use
-  Labtasker or how they understand its boundary.
+A comparison must explain both method and consequence. Do not write a bare pair
+such as “static assignment / dynamic claiming.” Explain what the researcher
+does, where it becomes costly, what Labtasker changes, and why that matters.
 
-Longer is justified only when the extra detail answers a likely decision or
-prevents a materially wrong implementation.
-
-## Fact-check before handoff
-
-Audit every new positioning, comparison, and case-study claim at three levels:
-
-1. **Is it true?** Check the current specification and implementation for
-   Labtasker claims. For external projects, use primary sources and stable commit
-   links; verify counts, commands, task granularity, and behavior directly. Mark
-   historical prototypes as historical, distinguish inference from documented
-   behavior, and state when compared implementations do not have feature parity.
-2. **Is it the point?** Keep facts that demonstrate the user's problem, the
-   practical outcome, or Labtasker's boundary. Omit accurate but distracting
-   implementation trivia.
-3. **Is it compelling?** Make the first screen answer why the reader should care.
-   Prefer a representative workload, a concrete cost, and a visible before/after
-   consequence over generic praise.
-
-For a case study, keep a small evidence ledger while writing: the claim, its
-primary source, and the exact commit or version checked. The ledger need not be
-published, but every important external claim should link to a stable source in
-the finished page. Re-read the result as a skeptical ML practitioner and remove
-any claim that is technically defensible but misleading in emphasis.
+Use representative case studies such as AIGC generation, ablations, or
+Embodied-AI evaluation. A case study should identify the original workload,
+show the coordination code the project owned, map each independent case to a
+Task, and state what remains outside Labtasker. Treat external projects
+respectfully and link important claims to stable primary sources.
 
 ## Describe v2 as a design change
 
-When comparing v1 and v2, discuss core design decisions rather than a changelog
-of renamed flags:
+When comparing v1 and v2, discuss product decisions rather than renamed flags:
 
-- one obvious, complete way instead of overlapping shortcuts and implicit
-  interactions;
-- explicit route matching instead of inferring consumption from Task arguments;
-- defined lifecycle, recovery, and `run_id` fencing;
-- deterministic, non-interactive interfaces designed for agents and automation;
-- a Python-native local experience backed by SQLite rather than requiring
-  MongoDB or using Mongomock as an embedded substitute; and
-- one-install, minimal-configuration local use with explicit HTTP deployment
-  only when machines need to share work.
+- one complete way to perform each operation;
+- explicit route matching;
+- defined lifecycle, recovery, and `run_id` protection;
+- deterministic interfaces for humans and agents;
+- a Python-native local experience; and
+- explicit HTTP deployment only when machines share work.
 
-Do not frame extensibility or plugins as mistakes. The problem is incomplete or
-ambiguous built-in behavior, not extension itself.
+Do not make v1 implementation differences primary product features. Do not
+frame extensibility itself as a mistake.
 
-## Keep surfaces and claims aligned
+## Control length and verify claims
 
-- Keep the README and documentation landing page aligned on positioning and the
-  main comparison. Put fuller motivation, boundaries, and v1-to-v2 rationale in
-  `docs/why-labtasker.md` rather than making every page equally long.
-- Keep `docs/llms.txt` as a concise, curated map to the raw Markdown sources.
-  Update it when a new page becomes a primary entry point or an existing linked
-  page moves; do not turn it into a duplicate sitemap or a full documentation
-  dump.
-- Let the default getting-started path demonstrate the out-of-box experience:
-  install, submit, and run first; explain the local Server and configuration
-  afterward.
-- Follow `docs/reference/specification.md` for exact behavior. If observable
-  behavior changes, also use the `public-contract-change` skill and update the
-  complete public slice.
-- Do not promise capabilities that Labtasker does not own. Prefer concrete,
-  verifiable statements over superlatives.
-- Preserve unrelated worktree changes and never hand-edit generated `site/`.
+Give each section one job. Remove repeated motivation, technical qualifications,
+and examples that do not change a decision or prevent an error. Prefer a short
+paragraph, a compact table, or a small code excerpt over all three.
+
+Before handoff, check every new claim:
+
+1. Verify Labtasker behavior against `docs/reference/specification.md`, code,
+   configuration, and tests.
+2. Verify external claims against stable primary sources.
+3. Remove facts that are accurate but distract from the user's decision or task.
+4. Read the result as a new ML researcher and replace technical shorthand with
+   direct outcomes.
+5. Confirm that a quoted section contains enough context for agent retrieval.
+
+If observable behavior changes, also use the `public-contract-change` skill and
+update the complete public slice. Preserve unrelated worktree changes and never
+hand-edit generated `site/`.
 
 For ambiguous positioning or structure work, discuss two to five high-leverage
-questions per round with the user. Once the direction is clear, update all
-affected documentation surfaces and run `uv run zensical build --clean` plus
-relevant link checks. Perform the truth, relevance, and reader-interest fact
-check above before handoff. Documentation-only changes do not require unrelated
-runtime tests.
+questions per round. Once the direction is clear, update all affected surfaces,
+run `uv run zensical build --clean`, check links, and run examples or focused
+tests that support new claims. Documentation-only changes do not require
+unrelated runtime tests.

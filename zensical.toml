@@ -11,31 +11,33 @@ edit_uri = "edit/main/docs/"
 copyright = "Apache-2.0"
 nav = [
   { "Overview" = "index.md" },
-  { "Why Labtasker?" = "why-labtasker.md" },
-  { "Get started" = "getting-started.md" },
-  { "Tested demo" = "demo.md" },
-  { "Core model" = "concepts.md" },
-  { "Examples" = [
+  { "Tutorial" = [
+    { "Run your first experiment" = "getting-started.md" },
+    { "Run the tested demo" = "demo.md" },
+  ] },
+  { "Concepts" = [
+    { "Why Labtasker?" = "why-labtasker.md" },
+    { "How Labtasker works" = "concepts.md" },
+  ] },
+  { "Guides" = [
     { "Inference and evaluation" = "inference-evaluation.md" },
-    { "Embodied AI: RoboTwin evaluation (StarVLA codebase)" = "case-studies/starvla-robotwin.md" },
+    { "Python Workers" = "workers/python.md" },
+    { "Command Workers" = "workers/command.md" },
+    { "Distributed launchers" = "workers/distributed.md" },
+    { "Manage Tasks" = "guides/tasks.md" },
+    { "Query Tasks" = "guides/query.md" },
+    { "Recover from failures" = "guides/failure-recovery.md" },
+    { "Use the Agent Skill" = "guides/agent-skill.md" },
   ] },
-  { "Workers" = [
-    "workers/python.md",
-    "workers/command.md",
-    "workers/distributed.md",
-  ] },
-  { "Using Labtasker" = [
-    "guides/tasks.md",
-    "guides/query.md",
-    "guides/failure-recovery.md",
-    "guides/agent-skill.md",
+  { "Case studies" = [
+    { "RoboTwin evaluation with StarVLA" = "case-studies/starvla-robotwin.md" },
   ] },
   { "Reference" = [
-    "reference/configuration.md",
-    "reference/python-api.md",
-    "reference/cli.md",
-    "reference/http-api.md",
-    "reference/specification.md",
+    { "Configuration" = "reference/configuration.md" },
+    { "Python API" = "reference/python-api.md" },
+    { "CLI" = "reference/cli.md" },
+    { "HTTP API" = "reference/http-api.md" },
+    { "Specification" = "reference/specification.md" },
   ] },
   { "Development" = "development.md" },
 ]
@@ -48,7 +50,9 @@ alias = true
 pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
 pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
 pymdownx.snippets.base_path = ["docs", "."]
-pymdownx.superfences = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
 pymdownx.tabbed.alternate_style = true
 
 [project.theme]

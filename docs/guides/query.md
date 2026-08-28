@@ -1,4 +1,4 @@
-# Query language
+# Query Tasks
 
 Use filters to find unfinished work, inspect failures or outliers, and update a
 selected group of Tasks. Task list, count, and bulk update share the same small

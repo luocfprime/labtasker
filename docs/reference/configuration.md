@@ -23,7 +23,7 @@ token = "secret"
 
 | Setting | Environment | Default |
 | --- | --- | --- |
-| `url` | `LABTASKER_URL` | local mode in the canonical current directory |
+| `url` | `LABTASKER_URL` | local mode in the resolved current directory |
 | `queue` | `LABTASKER_QUEUE` | `default` |
 | `token` | `LABTASKER_TOKEN` | unset |
 
@@ -31,11 +31,11 @@ The file is strict: unknown keys, empty values, malformed TOML, and v1
 `.labtasker/client.toml` are errors. A token without an explicit URL is invalid;
 local mode has no authentication. Tokens contain visible ASCII characters only
 so they can be carried in an HTTP Bearer header. `labtasker config show` prints the
-discriminated local/HTTP endpoint and only reports whether a token is configured.
+selected local or HTTP endpoint and reports only whether a token is configured.
 It performs no network request and creates no files.
 
-With no effective URL, Client construction snapshots the exact canonical CWD.
-The first real request starts or connects to that directory's detached Server
+With no URL, the Client records the absolute current directory when it is
+created. The first real request starts or connects to that directory's Server
 through `/tmp/labtasker-UID/{sha256-of-directory}.sock`. Durable state remains in
 `CWD/.labtasker/server.db`. The `[labtasker] connected` diagnostic on stderr
 explicitly states `server=local`, `transport=unix`, the selected directory,
@@ -43,9 +43,9 @@ database and socket; daemon transitions are also visible. Labtasker never
 searches a parent directory or VCS root, and a later `chdir()` does not retarget
 an existing Client.
 
-An explicit constructor, environment, or config-file URL selects ordinary HTTP
-mode and disables all daemon startup, recovery, and stop behavior. Operating
-that Server is then the user's or process supervisor's responsibility.
+A URL from the constructor, environment, or config file selects HTTP mode and
+disables local Server startup, recovery, and stop behavior. The user or process
+supervisor then operates that Server.
 
 Configuration is loaded when a `Client` is first instantiated. Top-level helper
 functions lazily share one default Client; use an explicit Client when different
@@ -71,8 +71,8 @@ labtasker-server stop [--force]
 
 It has no idle shutdown. `status` is read-only JSON; `logs` prints the complete
 current log without following it. A normal `stop` waits up to 30 seconds and
-never sends SIGKILL. `--force` only signals the same reverified daemon after that
-graceful deadline.
+never sends SIGKILL. After that deadline, `--force` checks the process identity
+again before sending a force signal.
 
 For an explicitly operated foreground HTTP Server:
 

@@ -1,4 +1,4 @@
-# Inference and evaluation examples
+# Inference and evaluation patterns
 
 These examples show how to use Labtasker for common ML work: reuse one loaded
 model across many inputs, run an existing evaluation command many times, switch
@@ -11,6 +11,7 @@ Submit prompts as ordinary Tasks:
 ```python
 import labtasker
 
+# TODO: Replace this with the prompts and seeds for your experiment.
 for seed, prompt in enumerate(prompts):
     labtasker.submit_task(
         {"prompt": prompt, "seed": seed},
@@ -40,13 +41,14 @@ def generate(
     labtasker.finish({"image": str(path)})
 
 
+# TODO: Replace this with your actual model initialization.
 generate(load_sdxl_pipeline())
 ```
 
-Start several copies on already allocated GPUs to scale horizontally. Labtasker
-does not need to know how each GPU was allocated.
+Start one copy on each assigned GPU to process more Tasks at the same time.
+Labtasker does not allocate the GPUs.
 
-## Dispatch an existing evaluator
+## Run an existing evaluator
 
 Evaluation code often already has a command interface. Keep it unchanged apart
 from an optional `finish()` call that records structured metrics:
@@ -80,13 +82,12 @@ labtasker.submit_task(
 )
 ```
 
-If a new Worker should also process an existing backlog, update those pending
+If a new Worker should also process existing Tasks, update those pending
 Tasks explicitly. Merely starting the new Worker never redirects old work.
 
 ## Keep large outputs outside the Server
 
-Task args, metadata, and results are compact JSON control data. Save images,
-embeddings, predictions, and detailed reports in the run directory or external
-artifact storage, then return a path, URL, checksum, or summary through
-`finish()`. This keeps the task database small without hiding where an output
-came from.
+Keep Task args, metadata, and results small. Save images, embeddings,
+predictions, and detailed reports in the run directory or external artifact
+storage. Return a path, URL, checksum, or summary through `finish()` so the Task
+record identifies the output.

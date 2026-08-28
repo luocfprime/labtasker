@@ -9,6 +9,7 @@ def evaluate(
     mode: str = labtasker.TaskArg(),
     seed: int = labtasker.TaskArg(),
 ) -> None:
+    # TODO: Replace this call with your actual one-case evaluation code.
     result = run_one_robotwin_case(checkpoint, task, mode, seed)
     labtasker.finish(
         {
