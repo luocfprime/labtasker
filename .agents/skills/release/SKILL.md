@@ -56,9 +56,73 @@ suite for the exact commit, either locally with PyTorch and Accelerate installed
 or through the repository's distributed CI. Report that gate as pending rather
 than pretending it passed when it cannot be verified.
 
-Summarize release notes from user-visible changes since the previous version tag.
-Do not describe internal refactors as features and do not promise compatibility
-that the specification does not provide.
+## Write consistent release notes
+
+Summarize user-visible changes since the immediately previous published release.
+Do not describe internal refactors, tests or CI maintenance as product changes,
+and do not promise compatibility that the specification does not provide. Use
+short imperative-present bullets such as `Add`, `Change` and `Fix`, name the
+affected Client, Server, CLI or Worker when that distinction matters, and combine
+closely related commits into one outcome. End every bullet with a period and
+order bullets by user impact, with compatibility and behavior changes before
+additions and fixes. Use `vVERSION` as the GitHub Release title.
+
+Use this shape for every GitHub Release. The compatibility notice is conditional,
+and the comparison line is omitted only for the repository's first release:
+
+```markdown
+> [!IMPORTANT]
+> This release changes Client-Server compatibility. Upgrade the Server to
+> vVERSION first, then upgrade all Clients and Workers to vVERSION. Earlier
+> Clients cannot [...exact consequence...].
+
+## Changes
+
+- Add ...
+- Change ...
+- Fix ...
+
+**Full Changelog**: [vPREVIOUS...vVERSION](https://github.com/luocfprime/labtasker/compare/vPREVIOUS...vVERSION)
+```
+
+Put a GitHub `[!IMPORTANT]` admonition before `## Changes` when a release changes
+Client-Server interoperability, supported version combinations, API or persisted
+database compatibility, or requires an upgrade or migration action. State the
+exact consequence and action instead of writing only “compatibility changes.”
+Cover, when applicable:
+
+- whether upgrading both Client and Server is required or only recommended;
+- which mixed-version combinations remain supported;
+- the required upgrade order;
+- whether database migration is automatic or requires a manual step; and
+- what fails or becomes unavailable if versions are mixed.
+
+Use `required` only when mixed versions are unsupported or unsafe. If the current
+and previous v2 Clients remain supported by the new Server, say that explicitly
+and use `recommended` for a same-version upgrade. Do not add an admonition when
+there is no compatibility or upgrade information worth calling out; repeated
+empty warnings make real warnings less visible.
+
+For a compatible release that merely benefits from matching versions, use this
+form rather than implying that a coordinated upgrade is mandatory:
+
+```markdown
+> [!IMPORTANT]
+> This release includes Server changes. Upgrading the Client and Server together
+> is recommended. Existing v2 Clients remain compatible.
+```
+
+For an incompatible release, use `required`, give the supported versions and
+upgrade order, and state any migration behavior in the same notice. Do not use
+vague notices such as “Server changes” without telling the reader what to do.
+
+Keep the `Full Changelog` comparison as the final line even when GitHub generated
+it automatically. Compare the immediately previous published release tag with
+the new tag, including across a major-version boundary, and use the visible
+`vPREVIOUS...vVERSION` label. Do not replace the curated summary with the commit
+comparison and do not add a comparison link when no previous release exists.
+Keep the single `## Changes` heading for ordinary releases rather than switching
+between `Highlights`, `What's Changed`, `Bug fixes` and generated commit groups.
 
 ## Publish only with explicit authorization
 
