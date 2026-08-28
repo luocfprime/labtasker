@@ -8,11 +8,24 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from labtasker import __version__
 from labtasker.cli import app
 from labtasker.errors import APIError
 from labtasker.models import Queue, Task
 
 runner = CliRunner()
+
+
+def test_version_reports_client_distribution_without_starting_server(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["--version"])
+    help_result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert result.stdout == f"labtasker-client {__version__}\n"
+    assert result.stderr == ""
+    assert "--version" in help_result.stdout
+    assert __version__ not in help_result.stdout
+    assert not (tmp_path / ".labtasker").exists()
 
 
 def task() -> Task:

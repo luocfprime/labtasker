@@ -200,6 +200,14 @@ initially, but independently installed Client and Server runtime protocol does
 not require exact package-version equality. V2 creates no shared runtime
 `labtasker-core` distribution.
 
+Both runtime executables expose an eager root `--version` option. It writes one
+line to stdout and exits zero without reading configuration, contacting a Server
+or starting a local daemon. `labtasker --version` writes `labtasker-client
+VERSION`, identifying the distribution that owns the executable rather than the
+code-free `labtasker` metapackage. `labtasker-server --version` writes
+`labtasker-server VERSION`. Root `--help` lists `--version` but does not include
+the current version number.
+
 The first public v2 package version is `2.0.0` for all three distributions. “V2”
 and the `/api/v2` prefix describe the breaking product/protocol generation; the
 initial release is not separately called package `0.1.0`.
@@ -3860,6 +3868,7 @@ and change inspection noisy.
 
 | Date | Decision |
 |---|---|
+| 2026-08-28 | Expose eager root `--version` options on both runtime executables, reporting the owning runtime distribution and package version on stdout without configuration, network or local-daemon side effects; list the option in root help without embedding the current version there. |
 | 2026-08-28 | Make stdout the single machine-readable response channel for finite Client commands: successful data or a handled `LabtaskerError` envelope is written there, diagnostics remain on stderr, and exit status distinguishes success from failure. Keep usage errors and continuing `loop` failures as natural-language stderr, with no output-mode flag or response wrapper. |
 | 2026-08-24 | Standardize finite diagnostics as `[labtasker]` or `[labtasker-server]`, emit one explicit successful Client connection line with local/remote Server kind and Unix/HTTP(S) transport, and give default long-running Worker and Server logs millisecond UTC timestamps, levels and component prefixes. |
 | 2026-08-21 | Make CWD-bound local mode the default endpoint when no URL is configured: store the durable SQLite database under that exact canonical CWD, derive an owner-only tmux-style `/tmp/labtasker-UID` Unix socket without parent/VCS discovery, and let every explicit HTTP URL disable all local process management. |

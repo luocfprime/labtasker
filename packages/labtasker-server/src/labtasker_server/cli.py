@@ -47,8 +47,24 @@ app = typer.Typer(
 )
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"labtasker-server {__version__}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main() -> None:
+def main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show the Server package version and exit.",
+        ),
+    ] = False,
+) -> None:
     """Run and manage the Labtasker v2 Server."""
 
 

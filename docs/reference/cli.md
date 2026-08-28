@@ -7,6 +7,7 @@ long-running Worker.
 ## Commands
 
 ```text
+labtasker --version
 labtasker config show
 
 labtasker queue create NAME
@@ -23,6 +24,7 @@ labtasker task requeue TASK_ID
 labtasker task delete TASK_ID
 
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
+labtasker-server --version
 labtasker-server start
 labtasker-server status
 labtasker-server stop [--force]
@@ -31,6 +33,13 @@ labtasker-server serve [OPTIONS]
 ```
 
 Run `--help` on any command for its exact options and accepted values.
+
+Both executables expose their runtime distribution version without reading
+configuration, contacting a Server, or starting the local daemon. `labtasker
+--version` prints `labtasker-client VERSION`, because the Client distribution
+owns that executable. `labtasker-server --version` prints
+`labtasker-server VERSION`. Each result is one line on stdout with exit status
+0. Root `--help` lists the option but does not print the current version.
 
 ## Command contracts
 

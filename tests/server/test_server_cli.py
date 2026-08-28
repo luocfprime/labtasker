@@ -7,10 +7,27 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from labtasker_server import __version__
 from labtasker_server.cli import app
 from labtasker_server.local import LocalPaths, RuntimeMetadata, read_metadata
 
 runner = CliRunner()
+
+
+def test_version_reports_server_distribution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["--version"])
+    help_result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert result.stdout == f"labtasker-server {__version__}\n"
+    assert result.stderr == ""
+    assert "--version" in help_result.stdout
+    assert __version__ not in help_result.stdout
+    assert not (tmp_path / ".labtasker").exists()
 
 
 def test_malformed_runtime_metadata_is_ignored(tmp_path: Path) -> None:

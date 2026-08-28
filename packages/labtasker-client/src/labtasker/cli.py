@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from typer._click.core import Context as ClickContext
 from typer.core import TyperCommand
 
+from labtasker import __version__
 from labtasker.client import Client
 from labtasker.command_template import TemplateSyntaxError
 from labtasker.command_worker import run_command_worker
@@ -48,6 +49,27 @@ app.add_typer(task_app, name="task")
 app.add_typer(queue_app, name="queue")
 app.add_typer(config_app, name="config")
 logger = logging.getLogger("labtasker.cli")
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"labtasker-client {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show the Client package version and exit.",
+        ),
+    ] = False,
+) -> None:
+    """Submit, inspect, and execute Labtasker v2 Tasks."""
 
 
 class _SeparatedCommand(TyperCommand):
