@@ -44,6 +44,13 @@ The key features are:
   [agent-readable documentation](docs/llms.txt) allow an agent to operate
   Labtasker end to end.
 
+> [!TIP]
+> **Hand Labtasker operations over to your coding agent.** Install the bundled
+> [Agent Skill](docs/guides/agent-skill.md), then let your agent handle the
+> Labtasker workflow end to end through its documented interfaces. You only
+> need to tell your agent which Tasks to run and how they should run in
+> parallel.
+
 ## Installation
 
 Labtasker requires Python 3.11 or newer. Install the complete package for local

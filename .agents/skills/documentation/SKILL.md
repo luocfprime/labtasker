@@ -71,10 +71,8 @@ Avoid infrastructure metaphors and compressed abstractions on landing pages:
 - Write “a simple loop can be sufficient,” not “a simple loop is better.”
 
 Avoid vague words such as `consistent`, `robust`, `advanced`, `powerful`, or
-`easy` unless the same item gives a concrete reason. Avoid awkward ownership
-phrases such as “compute you control” when a later product-boundary section can
-state the responsibility directly. Do not use em dashes; split the thought into
-shorter sentences or use commas, parentheses, or a colon.
+`easy` unless the same item gives a concrete reason. Do not use em dashes; split
+the thought into shorter sentences or use commas, parentheses, or a colon.
 
 Prefer plain English over idioms, metaphors, and colloquial shortcuts. Write
 “this example uses addition to demonstrate the workflow,” not “addition stands
@@ -85,6 +83,30 @@ before understanding the product behavior.
 Use Labtasker terminology consistently and capitalize public concepts: Task,
 Queue, Worker, Client, and Server. Use lowercase `route` because it is a label,
 not a resource record.
+
+### Wording blacklist
+
+Never use these phrases or close variants in user-facing documentation:
+
+- `provide the compute`, `supplies the compute`, or `compute you control`.
+
+These phrases sound like infrastructure-provider language and obscure the
+actual product boundary. When that boundary matters, state the concrete fact,
+such as “Labtasker does not allocate GPUs or start machines” or “You start the
+Worker processes.” Do not replace a blacklisted phrase with a synonym that has
+the same problem.
+
+Before handing off a documentation change, search every changed user-facing
+file for the listed phrases and read the changed prose once for close variants.
+Rewrite every match in terms of the specific action or boundary that matters.
+
+Treat explicit user feedback as an input to this blacklist. When a user says
+they dislike a type of wording and that wording is common enough to recur in
+Labtasker documentation, update the blacklist as part of the same task. Record
+the general pattern rather than only the sentence that triggered the feedback,
+explain why it should be avoided, and give concrete rewriting guidance. Follow
+one-off or context-specific wording preferences in the current edit, but do not
+turn them into a repository-wide rule unless they describe a recurring pattern.
 
 ## Explain why before how
 
@@ -153,7 +175,7 @@ priority changes, cancellation, and recovery.
 
 Do not imply that the agent defines the experiment, allocates hardware, or must
 remain online while a Worker executes a Task. The researcher still defines the
-experiment and supplies the compute.
+experiment, and Labtasker does not allocate hardware.
 
 Keep `docs/llms.txt` as a concise, curated map. Put `Why Labtasker?` before the
 core model and update the map when a primary entry point moves or changes role.
@@ -219,6 +241,8 @@ Before handoff, check every new claim:
 4. Read the result as a new ML researcher and replace technical shorthand with
    direct outcomes.
 5. Confirm that a quoted section contains enough context for agent retrieval.
+6. Check every changed user-facing file against the wording blacklist and
+   rewrite exact matches or close variants.
 
 If observable behavior changes, also use the `public-contract-change` skill and
 update the complete public slice. Preserve unrelated worktree changes and never
