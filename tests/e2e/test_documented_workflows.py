@@ -26,17 +26,17 @@ def documented_block(path: Path, language: str, contains: str) -> str:
 
 
 @pytest.mark.skipif(os.name != "posix", reason="The documented Command Worker requires POSIX")
-def test_readme_and_skill_quickstart_recipe(server_url: str, tmp_path: Path) -> None:
+def test_tutorial_and_skill_quickstart_recipe(server_url: str, tmp_path: Path) -> None:
     bash = shutil.which("bash")
     if bash is None:
         pytest.skip("Bash is required to execute the documented shell recipe.")
 
-    readme = ROOT / "README.md"
+    tutorial = ROOT / "docs/getting-started.md"
     skill = ROOT / "skills/labtasker/SKILL.md"
-    evaluator = documented_block(readme, "python", "# evaluate.py")
+    evaluator = documented_block(tutorial, "python", 'parser.add_argument("--prediction"')
     submit = documented_block(skill, "bash", "--name sample-1")
     worker_command = documented_block(skill, "bash", "CUDA_VISIBLE_DEVICES=0")
-    list_command = documented_block(readme, "bash", "task list --status succeeded")
+    list_command = documented_block(tutorial, "bash", "task list --status succeeded")
     (tmp_path / "evaluate.py").write_text(evaluator, encoding="utf-8")
 
     environment = dict(os.environ)
