@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import socket
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import httpx
 import pytest
 
 from labtasker import (
@@ -16,6 +21,7 @@ from labtasker import (
     Client,
     FatalWorkerError,
     TransientError,
+    TransportError,
     cancellation_requested,
     finish,
     loop,
@@ -50,6 +56,201 @@ def test_real_submission_retry_is_idempotent_and_definition_change_conflicts(
             )
     assert raised.value.status_code == 409
     assert raised.value.code == "task_id_conflict"
+
+
+def test_real_http_submit_retries_after_sqlite_busy(
+    server_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock = sqlite3.connect(tmp_path / "server.db")
+    lock.execute("BEGIN IMMEDIATE")
+    statuses: list[int] = []
+    try:
+        with Client(url=server_url, token="secret") as client:
+            request = client._http.request
+
+            def observe_request(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+                response = request(*args, **kwargs)  # type: ignore[arg-type]
+                statuses.append(response.status_code)
+                if response.status_code == 503:
+                    assert response.json()["error"]["code"] == "database_busy"
+                    lock.rollback()
+                return response
+
+            monkeypatch.setattr(client._http, "request", observe_request)
+            task = client.submit_task(
+                {},
+                task_id="t_DATABASEBUSY",
+            )
+    finally:
+        if lock.in_transaction:
+            lock.rollback()
+        lock.close()
+
+    assert statuses == [503, 201]
+    assert task.id == "t_DATABASEBUSY"
+    assert task.status == "pending"
+
+
+def test_real_response_loss_replays_idempotent_submit_but_not_update(
+    server_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    submit_statuses: list[int] = []
+    with Client(url=server_url, token="secret") as client:
+        request = client._http.request
+
+        def lose_first_submit_response(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+            response = request(*args, **kwargs)  # type: ignore[arg-type]
+            submit_statuses.append(response.status_code)
+            if len(submit_statuses) == 1:
+                raise httpx.ReadError("response lost after commit", request=response.request)
+            return response
+
+        monkeypatch.setattr(client._http, "request", lose_first_submit_response)
+        submitted = client.submit_task(
+            {"value": 1},
+            task_id="t_RESPONSELOSS",
+        )
+
+    assert submit_statuses == [201, 200]
+    assert submitted.id == "t_RESPONSELOSS"
+
+    update_statuses: list[int] = []
+    with Client(url=server_url, token="secret") as client:
+        request = client._http.request
+
+        def lose_update_response(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+            response = request(*args, **kwargs)  # type: ignore[arg-type]
+            update_statuses.append(response.status_code)
+            raise httpx.ReadError("response lost after commit", request=response.request)
+
+        monkeypatch.setattr(client._http, "request", lose_update_response)
+        with pytest.raises(TransportError):
+            client.update_task("t_RESPONSELOSS", {"priority": 9})
+
+    assert update_statuses == [200]
+    with Client(url=server_url, token="secret") as client:
+        persisted = client.get_task("t_RESPONSELOSS")
+        assert client.count_tasks(filter='id == "t_RESPONSELOSS"') == 1
+    assert persisted.priority == 9
+
+
+def test_multiple_real_http_workers_complete_each_task_exactly_once(server_url: str) -> None:
+    task_ids = [f"t_{index:012d}" for index in range(40)]
+    with Client(url=server_url, token="secret") as client:
+        for task_id in task_ids:
+            client.submit_task({}, task_id=task_id, routes=["parallel"])
+
+    completed_ids: list[str] = []
+    completed_lock = threading.Lock()
+
+    def consume(worker_index: int) -> None:
+        claim_index = 0
+        with Client(url=server_url, token="secret") as client:
+            while True:
+                claim = client._claim(
+                    route="parallel",
+                    run_id=f"r_{worker_index:02d}{claim_index:010d}",
+                    queue="default",
+                )
+                claim_index += 1
+                if claim is None:
+                    return
+                client._complete(
+                    task_id=claim.task.id,
+                    run_id=claim.run_id,
+                    result={"worker": worker_index},
+                    queue="default",
+                )
+                with completed_lock:
+                    completed_ids.append(claim.task.id)
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        list(executor.map(consume, range(4)))
+
+    assert Counter(completed_ids) == Counter({task_id: 1 for task_id in task_ids})
+    with Client(url=server_url, token="secret") as client:
+        tasks = client.list_tasks(status="succeeded", limit=100).items
+    assert {task.id for task in tasks} == set(task_ids)
+    assert all(task.attempt == 1 for task in tasks)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="signal interruption requires POSIX")
+def test_sigint_unclaims_python_worker_for_replacement(
+    server_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LABTASKER_URL", server_url)
+    monkeypatch.setenv("LABTASKER_TOKEN", "secret")
+    marker = tmp_path / "interrupt-worker-started"
+    with Client(url=server_url, token="secret") as client:
+        client.submit_task(
+            {},
+            routes=["interrupt"],
+            task_id="t_INTERRUPT001",
+            max_attempts=2,
+        )
+
+    script = """
+import sys
+import time
+from pathlib import Path
+from labtasker import loop
+
+@loop(route="interrupt", idle_timeout=0)
+def worker():
+    Path(sys.argv[1]).write_text("started")
+    time.sleep(30)
+
+try:
+    worker()
+except KeyboardInterrupt:
+    raise SystemExit(130)
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", script, str(marker)],
+        cwd=tmp_path,
+        env=dict(os.environ),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not marker.exists() and process.poll() is None:
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        assert marker.exists(), "Worker did not claim the Task."
+        process.send_signal(signal.SIGINT)
+        _, stderr = process.communicate(timeout=5)
+        assert process.returncode == 130, stderr
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+
+    with Client(url=server_url, token="secret") as client:
+        returned = client.get_task("t_INTERRUPT001")
+    assert returned.status == "pending"
+    assert returned.attempt == 0
+
+    replacement_attempts: list[int] = []
+
+    @loop(route="interrupt", idle_timeout=0)
+    def replacement() -> None:
+        replacement_attempts.append(task_info().attempt)
+        finish({"replacement": True})
+
+    replacement()
+    assert replacement_attempts == [1]
+    with Client(url=server_url, token="secret") as client:
+        completed = client.get_task("t_INTERRUPT001")
+    assert completed.status == "succeeded"
+    assert completed.result == {"replacement": True}
 
 
 def test_real_python_worker_failure_levels(

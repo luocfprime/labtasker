@@ -169,6 +169,47 @@ def test_python_loop_processes_multiple_tasks_and_journals_output(
     assert {path.read_text().strip() for path in logs} == {"running cat", "running dog"}
 
 
+def test_journal_creation_failure_unclaims_before_worker_exits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeClient([make_claim()])
+    install_fake_client(monkeypatch, client)
+
+    def fail_journal(**_: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("labtasker.worker.LocalRunJournal.create", fail_journal)
+
+    @loop(idle_timeout=0)
+    def handler() -> None:
+        raise AssertionError("Handler must not run without a journal.")
+
+    with pytest.raises(OSError, match="disk full"):
+        handler()
+    assert client.actions == [("unclaim", "t_ABCDEFGHIJKL", None)]
+
+
+def test_mid_run_journal_failure_does_not_block_server_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeClient([make_claim(), None])
+    install_fake_client(monkeypatch, client)
+
+    def fail_reporting(*_: object, **__: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("labtasker.journal.LocalRunJournal.reporting", fail_reporting)
+
+    @loop(idle_timeout=0)
+    def handler() -> None:
+        finish({"server_is_authoritative": True})
+
+    with pytest.warns(RuntimeWarning, match="could not update the local run journal: disk full"):
+        handler()
+
+    assert client.actions == [("complete", "t_ABCDEFGHIJKL", {"server_is_authoritative": True})]
+
+
 def test_failure_levels_and_binding_error_continue_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -140,3 +140,41 @@ def test_real_python_and_command_workers(
     )
     assert len(command_runs) == 1
     assert (command_runs[0] / "result.json").read_text().strip() == '{\n  "echo": "hello world"\n}'
+
+
+def test_unicode_round_trip_through_client_server_worker_and_result(
+    server_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LABTASKER_URL", server_url)
+    monkeypatch.setenv("LABTASKER_TOKEN", "secret")
+    prompt = "一只熊猫在调试模型 🐼🧪"
+
+    with Client(url=server_url, token="secret") as client:
+        submitted = client.submit_task(
+            {"payload": {"提示词": prompt}},
+            name="中文推理实验 🚀",
+            metadata={"说明": "保留组合字符 café"},
+            routes=["unicode"],
+            task_id="t_UNICODEE2E01",
+        )
+    assert submitted.name == "中文推理实验 🚀"
+    assert submitted.args == {"payload": {"提示词": prompt}}
+    assert submitted.metadata == {"说明": "保留组合字符 café"}
+
+    @loop(route="unicode", idle_timeout=0)
+    def unicode_worker(payload: dict[str, str] = TaskArg()) -> None:
+        assert task_info().name == "中文推理实验 🚀"
+        finish({"状态": "完成 ✅", "回显": payload["提示词"]})
+
+    unicode_worker()
+
+    with Client(url=server_url, token="secret") as client:
+        completed = client.get_task("t_UNICODEE2E01")
+    assert completed.status == "succeeded"
+    assert completed.name == "中文推理实验 🚀"
+    assert completed.args == {"payload": {"提示词": prompt}}
+    assert completed.metadata == {"说明": "保留组合字符 café"}
+    assert completed.result == {"状态": "完成 ✅", "回显": prompt}

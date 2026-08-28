@@ -180,6 +180,48 @@ def test_restart_after_lease_expiry_retries_and_fences_old_run(tmp_path: Path) -
     assert final.result == {"new_run": True}
 
 
+def test_terminal_tasks_remain_identical_after_server_restart(tmp_path: Path) -> None:
+    database = tmp_path / "terminal-persistence.db"
+    port = unused_port()
+    clock = Clock()
+    url = f"http://127.0.0.1:{port}"
+
+    with running_server(database, port, clock), Client(url=url, token=TOKEN) as client:
+        client.submit_task({}, task_id="t_PERSISTSUCC1", routes=["persist"])
+        succeeded_claim = client._claim(route="persist", run_id="r_PERSISTSUCC1", queue="default")
+        assert succeeded_claim is not None
+        client._complete(
+            task_id=succeeded_claim.task.id,
+            run_id=succeeded_claim.run_id,
+            result={"score": 1},
+            queue="default",
+        )
+
+        client.submit_task({}, task_id="t_PERSISTFAIL1", routes=["persist-fail"], max_attempts=1)
+        failed_claim = client._claim(route="persist-fail", run_id="r_PERSISTFAIL1", queue="default")
+        assert failed_claim is not None
+        client._fail(
+            task_id=failed_claim.task.id,
+            run_id=failed_claim.run_id,
+            error_type="ModelError",
+            message="out of memory",
+            traceback=None,
+            queue="default",
+        )
+
+        client.submit_task({}, task_id="t_PERSISTCANC1")
+        client.cancel_task("t_PERSISTCANC1")
+        before = {
+            task_id: client.get_task(task_id).model_dump(mode="json")
+            for task_id in ("t_PERSISTSUCC1", "t_PERSISTFAIL1", "t_PERSISTCANC1")
+        }
+
+    with running_server(database, port, clock), Client(url=url, token=TOKEN) as client:
+        after = {task_id: client.get_task(task_id).model_dump(mode="json") for task_id in before}
+
+    assert after == before
+
+
 @pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
 def test_partitioned_command_worker_is_stopped_after_another_run_takes_over(
     tmp_path: Path,

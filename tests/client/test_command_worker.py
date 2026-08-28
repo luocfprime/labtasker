@@ -190,6 +190,38 @@ def test_pipe_worker_preserves_argv_environment_streams_and_null_stdin(
     assert b"stderr-line" in log
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
+def test_pipe_worker_preserves_invalid_utf8_in_log_and_relays_safely(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class TextOnlyDestination:
+        def __init__(self) -> None:
+            self.parts: list[str] = []
+
+        def write(self, value: str) -> None:
+            self.parts.append(value)
+
+        def flush(self) -> None:
+            pass
+
+        def isatty(self) -> bool:
+            return False
+
+    client = FakeClient([make_claim(), None])
+    install(monkeypatch, client)
+    destination = TextOnlyDestination()
+    monkeypatch.setattr(sys, "stdout", destination)
+    script = "import sys; sys.stdout.buffer.write(b'valid\\n\\xff\\xfe\\n'); sys.stdout.flush()"
+
+    run_command_worker([sys.executable, "-c", script], idle_timeout=0)
+
+    assert "".join(destination.parts) == "valid\n\\xff\\xfe\n"
+    assert client.actions == [("complete", "t_ABCDEFGHIJKL", {})]
+    log = next(tmp_path.glob(".labtasker/runs/default/**/run.log")).read_bytes()
+    assert log == b"valid\n\xff\xfe\n"
+
+
 @pytest.mark.skipif(os.name != "posix", reason="pipe fd behavior is POSIX-specific")
 def test_pipe_drain_relays_small_output_before_eof(tmp_path: Path) -> None:
     read_fd, write_fd = os.pipe()
