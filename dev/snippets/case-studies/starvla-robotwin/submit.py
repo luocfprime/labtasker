@@ -3,7 +3,10 @@ from itertools import product
 
 import labtasker
 
-ROBOTWIN_TASKS = [...]  # StarVLA's 50 task names
+# TODO: Replace these placeholders with values from your StarVLA configuration.
+ROBOTWIN_TASKS = [...]
+CHECKPOINT = ...
+SEED = ...
 MODES = ["demo_clean", "demo_randomized"]
 
 for task, mode in product(ROBOTWIN_TASKS, MODES):

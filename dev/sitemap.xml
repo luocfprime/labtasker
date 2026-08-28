@@ -4,22 +4,19 @@
         <loc>https://luocfprime.github.io/labtasker/dev/</loc>
       </url>
       <url>
-        <loc>https://luocfprime.github.io/labtasker/dev/why-labtasker/</loc>
-      </url>
-      <url>
         <loc>https://luocfprime.github.io/labtasker/dev/getting-started/</loc>
       </url>
       <url>
         <loc>https://luocfprime.github.io/labtasker/dev/demo/</loc>
       </url>
       <url>
+        <loc>https://luocfprime.github.io/labtasker/dev/why-labtasker/</loc>
+      </url>
+      <url>
         <loc>https://luocfprime.github.io/labtasker/dev/concepts/</loc>
       </url>
       <url>
         <loc>https://luocfprime.github.io/labtasker/dev/inference-evaluation/</loc>
-      </url>
-      <url>
-        <loc>https://luocfprime.github.io/labtasker/dev/case-studies/starvla-robotwin/</loc>
       </url>
       <url>
         <loc>https://luocfprime.github.io/labtasker/dev/workers/python/</loc>
@@ -41,6 +38,9 @@
       </url>
       <url>
         <loc>https://luocfprime.github.io/labtasker/dev/guides/agent-skill/</loc>
+      </url>
+      <url>
+        <loc>https://luocfprime.github.io/labtasker/dev/case-studies/starvla-robotwin/</loc>
       </url>
       <url>
         <loc>https://luocfprime.github.io/labtasker/dev/reference/configuration/</loc>
