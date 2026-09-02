@@ -1197,8 +1197,12 @@ Labtasker's <code>labtasker</code> skill supplies those operating rules, so a re
 as “run these cases in parallel across 8 GPUs with Labtasker” is enough to start
 the standard Labtasker workflow.</p>
 <p>The skill covers v2 Task submission, Worker design, routing, inspection,
-updates, and recovery. It does not choose the experiment, allocate GPUs, or keep
-the agent inside the execution loop. Its short
+updates, recovery, and adapting an existing experiment pipeline. During a
+migration it asks about the project's entry points, reusable setup, retry units,
+resources, dependencies, and outputs, then owns the mapping into Labtasker
+instead of requiring a newcomer to design Tasks, Workers, routes, or Queues. It
+does not choose the experiment, allocate GPUs, or keep the agent inside the
+execution loop. Its short
 <a href="https://github.com/luocfprime/labtasker/blob/main/skills/labtasker/SKILL.md"><code>SKILL.md</code></a>
 routes deployment, Worker, and recovery questions to three bundled references;
 the official installable package is
