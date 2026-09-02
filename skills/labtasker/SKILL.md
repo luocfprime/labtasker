@@ -1,6 +1,6 @@
 ---
 name: labtasker
-description: Use Labtasker v2 to queue and run independent ML inference, evaluation, or experiment Tasks; design routes and Workers; inspect or recover Tasks; and convert serial experiment loops into parallel work. Do not use it as a GPU allocator, cluster scheduler, workflow DAG, or artifact store.
+description: Use Labtasker v2 to queue and run independent ML inference, evaluation, or experiment Tasks; migrate existing pipelines; design routes and Workers; and inspect or recover Tasks. Do not use it as a GPU allocator, cluster scheduler, workflow DAG, or artifact store.
 ---
 
 # Labtasker
@@ -31,6 +31,34 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
 
 Read every reference relevant to the request before proposing commands. If an
 installed version may differ, confirm exact options with `labtasker ... --help`.
+
+## Adapt an existing pipeline on the user's terms
+
+When the user asks to migrate, convert, or adapt an existing pipeline, first set
+an internal working preference from the conversation: either lead from their
+existing project or review a concrete migration design they already proposed.
+This preference controls the agent's behavior; never name it, present it as a
+mode, or ask the user to select it.
+
+- If they are new to Labtasker, work project-first. Ask about their existing
+  command or function, what varies between runs, expensive setup, independent
+  failure and retry units, current resource launching, dependencies, and output
+  storage. Do not ask them to choose a Task, Worker, route, Queue, or Labtasker
+  deployment. Make those mappings yourself and explain them after the relevant
+  project facts are known.
+- If they already propose a concrete Labtasker design, collaborate at that level,
+  correct mistaken mappings, and still recommend a complete design rather than
+  returning the decisions to them.
+- If neither is clear, ask naturally whether this is their first Labtasker
+  integration or whether they already have a concrete migration design to work
+  from. Never offer “use Labtasker concepts” as a conversation mode.
+
+Do not ask a classification question when the context already answers it. Ask
+only one or two decision-changing project questions at a time, inspect the
+current pipeline when available, then present the existing flow, what stays
+unchanged, what Labtasker coordinates, and what remains externally owned. Read
+[workers-and-workloads.md](references/workers-and-workloads.md) for the detailed
+migration interview and mapping rules.
 
 ## Use the default local path first
 

@@ -1,5 +1,57 @@
 # Workers and workload design
 
+## Lead a pipeline migration
+
+For an existing pipeline, learn the workload before naming Labtasker
+abstractions. Inspect the current entry point and configuration when the project
+is available. Treat the questions below as a decision ladder, not an intake
+checklist. Ask at most one or two unanswered questions that can change the next
+recommendation:
+
+- What command or function performs one run, and which input values change?
+- What work can fail and be retried independently without corrupting outputs?
+- Which model, dataset, simulator, or other expensive state could stay loaded
+  across runs?
+- Then ask how resources are launched, whether stages depend on one another,
+  where outputs live, or how retries should behave only when the described
+  workflow makes that fact relevant to the immediate decision.
+
+Treat facts stated by the user or visible in the repository as answered. When
+risk is low, state a reasonable assumption and give a conditional recommendation
+instead of waiting for a complete questionnaire. Do not ask about stage
+dependencies for a single-stage program or ask about machine scope when the
+launcher already answers it. Do not ask a newcomer “Which Worker type?”,
+“What route?”, “How many Queues?”, or “Which Labtasker deployment?” Translate the
+facts into a recommendation:
+
+| Project fact | Recommended mapping |
+| --- | --- |
+| One independently retryable run | One Task |
+| Values that change the execution | `args` |
+| Searchable experiment or batch labels | `metadata` |
+| Small metrics and artifact references | `result` |
+| Existing executable with acceptable per-run startup | Command Worker |
+| Expensive reusable in-process state | Python Worker |
+| Equivalent executors for the same work | One shared route |
+| A separately managed body of work | One Queue |
+| GPU, node, Pod, or process allocation | Existing launcher or scheduler |
+| Stage dependencies and barriers | Existing workflow controller |
+| Large or durable outputs | Existing shared or object storage |
+
+When a fact leaves a real trade-off, ask about the consequence rather than the
+Labtasker mechanism. For example, ask whether avoiding repeated model loading is
+worth a small Python refactor; do not ask the user to choose between a Command
+Worker and Python Worker.
+
+Before editing code, summarize the proposed migration in project terms first:
+
+1. the current entry point and independent work item;
+2. what code, launcher, and storage remain unchanged;
+3. what Labtasker will submit, distribute, retry, and record;
+4. what stays owned by the resource scheduler, workflow system, or artifact
+   store; and
+5. the concrete Task, Worker, route, Queue, and deployment mapping, with reasons.
+
 ## Map an experiment
 
 Submit each independently retryable case as a Task. In AIGC this may be one
