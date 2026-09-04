@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "lcf", email = "luocfprime@gmail.com" }]
 dependencies = [
   "httpx>=0.28,<1",
-  "pydantic>=2.10,<3",
+  "pydantic>=2.13.5,<3",
   "typer>=0.16,<1",
 ]
 
