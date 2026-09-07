@@ -13,7 +13,7 @@ authors = [{ name = "lcf", email = "luocfprime@gmail.com" }]
 dependencies = [
   "alembic>=1.14,<2",
   "fastapi>=0.115,<1",
-  "pydantic>=2.10,<3",
+  "pydantic>=2.13.5,<3",
   "sqlalchemy>=2.0,<3",
   "typer>=0.16,<1",
   "uvicorn>=0.34,<1",
