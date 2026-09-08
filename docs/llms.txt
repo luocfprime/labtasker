@@ -37,4 +37,5 @@ These documents describe Labtasker v2. Labtasker schedules Tasks across Worker p
 
 ## Optional
 
+- [Use the Web UI](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/webui.md): Launch the optional Labtasker WebUI, connect to an existing Server or local project, and inspect progress and results in a browser.
 - [Development](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/development.md): Repository setup, validation, and contribution workflow.

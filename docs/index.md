@@ -103,3 +103,4 @@ and the boundary between the Server and Worker processes.
 | Configure local or shared use | [Configuration](reference/configuration.md) |
 | Check an exact interface | [Python API](reference/python-api.md), [CLI](reference/cli.md), or [HTTP API](reference/http-api.md) |
 | Verify the product contract | [Specification](reference/specification.md) |
+| Browse progress and results in a browser | [Use the Web UI](guides/webui.md) |

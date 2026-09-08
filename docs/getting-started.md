@@ -147,6 +147,9 @@ labtasker task get TASK_ID
 You have submitted several cases, processed them from one Queue, and inspected
 the recorded results.
 
+To explore these results in a browser, [open Labtasker WebUI](guides/webui.md),
+connect to this project directory, and add a `result.score` column.
+
 ## What Labtasker created
 
 The local Server runs as a detached process. It keeps running when you close the

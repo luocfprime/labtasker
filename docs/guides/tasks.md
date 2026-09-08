@@ -36,6 +36,9 @@ an error.
 
 ## Inspect
 
+For a browser view of Queue progress, Task details, and result columns, use
+[Labtasker WebUI](webui.md). To inspect Tasks from the CLI:
+
 ```bash
 labtasker task get t_ABCDEFGHIJKL
 labtasker task list --status pending --limit 100

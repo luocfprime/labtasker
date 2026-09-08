@@ -177,6 +177,22 @@ Labtasker also includes an [Agent Skill](docs/guides/agent-skill.md) that helps
 compatible coding agents submit Tasks, design Workers, inspect progress, and
 recover failed work through the documented interfaces.
 
+## Web UI
+
+[Labtasker WebUI](https://github.com/luocfprime/labtasker-webui) is a separately
+installed browser interface for Labtasker v2. Track Queue progress, filter Tasks,
+compare result fields in custom columns, and save views for each experiment.
+
+[![Labtasker WebUI showing Queue progress, Task filters, and custom result columns](docs/assets/webui-screenshot.png)](https://github.com/luocfprime/labtasker-webui)
+
+```bash
+uvx labtasker-webui
+```
+
+Open <http://127.0.0.1:8080> and connect to an existing HTTP Server or a running
+local project. See [Use the Web UI](docs/guides/webui.md) for connection steps
+and Task controls.
+
 ## Development
 
 ```bash

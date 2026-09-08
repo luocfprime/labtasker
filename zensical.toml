@@ -28,6 +28,7 @@ nav = [
     { "Query Tasks" = "guides/query.md" },
     { "Recover from failures" = "guides/failure-recovery.md" },
     { "Use the Agent Skill" = "guides/agent-skill.md" },
+    { "Use the Web UI" = "guides/webui.md" },
   ] },
   { "Case studies" = [
     { "RoboTwin evaluation with StarVLA" = "case-studies/starvla-robotwin.md" },
