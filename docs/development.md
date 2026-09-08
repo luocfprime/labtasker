@@ -84,6 +84,13 @@ license.
 
 ## Test suites
 
+CI runs the ordinary test suite and independent Client/Server wheel installation
+checks on Ubuntu with Python 3.11, 3.12, 3.13, and 3.14. Each version has a
+separate result, and one failure does not cancel the other versions. Formatting,
+lint, type checks, and the documentation build run once on Python 3.11. Packages
+are built once on Python 3.11, then the same wheels are tested on all four
+versions. The real distributed launcher suite runs in the release workflow.
+
 Ordinary unit and integration tests run without ML frameworks. The explicitly
 marked launcher suite exercises real `torchrun` and Accelerate installations:
 

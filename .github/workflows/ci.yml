@@ -5,8 +5,10 @@ on:
   push:
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -16,18 +18,67 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy packages/labtasker-client/src packages/labtasker-server/src
-      - run: uv run pytest
       - run: uv run zensical build --clean
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --group dev --frozen
+      - run: uv run pytest -m 'not distributed_integration'
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
       - run: uv build --all-packages
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-dist
+          path: dist/
+          if-no-files-found: error
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: python-dist
+          path: dist/
       - name: Smoke-test independent wheels
         run: |
           client_smoke_dir=$(mktemp -d)
           server_smoke_dir=$(mktemp -d)
-          export EXPECTED_VERSION=$(uv run python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          export EXPECTED_VERSION=$(uv run --no-project python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
           client_wheel=$(find dist -maxdepth 1 -name 'labtasker_client-*.whl' -print -quit)
           server_wheel=$(find dist -maxdepth 1 -name 'labtasker_server-*.whl' -print -quit)
-          uv venv "$client_smoke_dir"
-          uv venv "$server_smoke_dir"
+          uv venv --python "$UV_PYTHON" "$client_smoke_dir"
+          uv venv --python "$UV_PYTHON" "$server_smoke_dir"
           uv pip install --python "$client_smoke_dir/bin/python" "$client_wheel"
           uv pip install --python "$server_smoke_dir/bin/python" "$server_wheel"
           "$client_smoke_dir/bin/python" - <<'PY'
