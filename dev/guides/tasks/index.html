@@ -800,6 +800,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../webui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the Web UI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1240,6 +1267,8 @@ actions make cancellation, requeue, and deletion explicit.</p>
 when every submitted field is the same. Reusing the ID with different data is
 an error.</p>
 <h2 id="inspect">Inspect</h2>
+<p>For a browser view of Queue progress, Task details, and result columns, use
+<a href="../webui/">Labtasker WebUI</a>. To inspect Tasks from the CLI:</p>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>get<span class="w"> </span>t_ABCDEFGHIJKL
 labtasker<span class="w"> </span>task<span class="w"> </span>list<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
 labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'metadata.group == "paper"'</span>
