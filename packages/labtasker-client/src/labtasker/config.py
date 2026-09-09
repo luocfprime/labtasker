@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Literal, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
+import httpx
+
 from labtasker.errors import ConfigError
 from labtasker.local import LocalPaths, local_paths, require_local_capabilities
 from labtasker.validation import RequestValidationError, invalid_config, validate_identifier
@@ -175,7 +177,14 @@ def _validate_url(value: str | None, *, source: str) -> str | None:
             field="url",
         )
     path = parsed.path.rstrip("/")
-    return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
+    normalized = urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
+    try:
+        # urlsplit validates structure but not IDNA labels or encodable paths.
+        # Reject URLs the actual transport cannot construct as configuration errors.
+        httpx.URL(normalized)
+    except (httpx.InvalidURL, UnicodeError) as error:
+        raise invalid_config("URL is invalid.", source=source, field="url") from error
+    return normalized
 
 
 def _validate_queue(value: str | None, *, source: str) -> str:

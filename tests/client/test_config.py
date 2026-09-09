@@ -123,6 +123,9 @@ def test_legacy_config_presence_stops_resolution(tmp_path: Path) -> None:
         "http://example.test?query=1",
         "http://example.test#fragment",
         "http://",
+        "http://💩.test",
+        "http://\ud800/",
+        "http://example.test/\ud800",
         "",
     ],
 )

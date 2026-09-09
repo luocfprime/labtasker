@@ -630,7 +630,7 @@ def _json_object(value: str, *, option: str) -> dict[str, Any]:
             object_pairs_hook=reject_duplicate_keys,
         )
         return validate_json_object(parsed, field=option)
-    except (json.JSONDecodeError, ValueError, RequestValidationError) as error:
+    except (json.JSONDecodeError, ValueError, RequestValidationError, RecursionError) as error:
         raise typer.BadParameter(f"{option} must be one strict JSON object: {error}") from error
 
 

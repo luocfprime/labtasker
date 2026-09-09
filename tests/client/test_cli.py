@@ -171,6 +171,24 @@ def test_invalid_json_is_a_usage_error_without_network(fake_client: None, value:
     assert "--args must be one strict JSON object" in result.stderr
 
 
+@pytest.mark.parametrize("depth", [65, 1500])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["task", "submit", "--args"],
+        ["task", "submit", "--metadata"],
+        ["task", "update", "t_ABCDEFGHIJKL", "--changes"],
+    ],
+)
+def test_deep_json_is_a_usage_error(fake_client: None, argv: list[str], depth: int) -> None:
+    payload = '{"x":' + "[" * depth + "0" + "]" * depth + "}"
+    result = runner.invoke(app, [*argv, payload])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert FakeClient.last_submit is None
+    assert f"{argv[-1]} must be one strict JSON object" in result.stderr
+
+
 @pytest.mark.parametrize(
     "argv",
     [

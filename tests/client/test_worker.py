@@ -8,10 +8,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 import labtasker.execution as execution_module
 from labtasker.binding import TaskArg
+from labtasker.client import Client
 from labtasker.config import ResolvedConfig
 from labtasker.errors import (
     APIError,
@@ -484,6 +486,74 @@ def test_heartbeat_distinguishes_completion_revocation_and_protocol_failure(
     else:
         assert control.revoked and control.fatal_error is error
     control.executor_done()
+
+
+def test_heartbeat_recovers_after_deep_error_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("labtasker.worker.HEARTBEAT_INTERVAL_SECONDS", 0.001)
+    recovered = threading.Event()
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(
+                503, content=b'{"error":' + b"[" * 1100 + b"0" + b"]" * 1100 + b"}"
+            )
+        recovered.set()
+        return httpx.Response(200, json={"lease_expires_at": "2026-09-09T12:00:00Z"})
+
+    client = Client(url="http://server.test")
+    client._http.close()
+    client._http = httpx.Client(
+        base_url="http://server.test/api/v2/", transport=httpx.MockTransport(handler)
+    )
+    control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
+    heartbeat = Heartbeat(
+        client,
+        queue="default",
+        task_id="t_ABCDEFGHIJKL",
+        run_id="r_ABCDEFGHIJKL",
+        control=control,
+    )
+    heartbeat.start()
+    try:
+        assert recovered.wait(1), "invalid JSON stopped the heartbeat thread"
+    finally:
+        heartbeat.stop()
+        control.executor_done()
+        client.close()
+    assert control.active and control.fatal_error is None
+    assert len(requests) >= 2
+    assert requests[0].content == requests[1].content
+
+
+def test_terminal_report_recovers_after_deep_error_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("labtasker.worker.TERMINAL_BACKOFF_SECONDS", (0.0,))
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) < 5:
+            return httpx.Response(
+                503, content=b'{"error":' + b"[" * 1100 + b"0" + b"]" * 1100 + b"}"
+            )
+        return httpx.Response(204)
+
+    client = Client(url="http://server.test")
+    client._http.close()
+    client._http = httpx.Client(
+        base_url="http://server.test/api/v2/", transport=httpx.MockTransport(handler)
+    )
+    with client:
+        assert report_complete_until_resolved(
+            client,
+            queue="default",
+            task_id="t_ABCDEFGHIJKL",
+            run_id="r_ABCDEFGHIJKL",
+            result={"score": 1},
+        )
+    assert len(requests) == 5
+    assert len({request.content for request in requests}) == 1
 
 
 def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:

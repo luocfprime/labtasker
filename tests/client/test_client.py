@@ -50,6 +50,31 @@ def error_response(status: int, code: str) -> httpx.Response:
     )
 
 
+@pytest.mark.parametrize("status", [200, 503])
+@pytest.mark.parametrize("recovers", [False, True])
+def test_deep_json_responses_keep_bounded_transport_retries(
+    monkeypatch: pytest.MonkeyPatch, status: int, recovers: bool
+) -> None:
+    monkeypatch.setattr("labtasker.client.RETRY_BACKOFF_SECONDS", (0.0, 0.0))
+    nested = b"[" * 1100 + b"0" + b"]" * 1100
+    body = nested if status == 200 else b'{"error":' + nested + b"}"
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if recovers and len(requests) == 3:
+            return httpx.Response(200, json=[])
+        return httpx.Response(status, content=body)
+
+    with mock_client(handler) as client:
+        if recovers:
+            assert client.list_queues() == []
+        else:
+            with pytest.raises(TransportError):
+                client.list_queues()
+    assert len(requests) == 3
+
+
 @pytest.mark.parametrize(
     ("version", "expected", "warn"),
     [

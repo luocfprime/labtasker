@@ -822,7 +822,7 @@ def _parse_model(
     _require_status(response, statuses)
     try:
         return model.model_validate_json(response.content, strict=True)
-    except (ValidationError, ValueError, TypeError) as error:
+    except (ValidationError, ValueError, TypeError, RecursionError) as error:
         raise TransportError(
             "The Server returned an invalid success response.",
             {"http_status": response.status_code},
@@ -833,7 +833,7 @@ def _parse_queue_list(response: httpx.Response, statuses: set[int]) -> list[Queu
     _require_status(response, statuses)
     try:
         return QUEUE_LIST_ADAPTER.validate_json(response.content, strict=True)
-    except (ValidationError, ValueError, TypeError) as error:
+    except (ValidationError, ValueError, TypeError, RecursionError) as error:
         raise TransportError(
             "The Server returned an invalid Queue list.",
             {"http_status": response.status_code},
@@ -878,7 +878,7 @@ def _parse_api_error(response: httpx.Response) -> APIError:
         if not isinstance(code, str) or not isinstance(message, str):
             raise ValueError
         normalized_details = validate_json_object(details, field="error.details")
-    except (ValueError, TypeError) as error:
+    except (ValueError, TypeError, RecursionError) as error:
         raise TransportError(
             "The Server returned an invalid error response.",
             {"http_status": response.status_code},
