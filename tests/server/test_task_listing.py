@@ -1,11 +1,73 @@
 from __future__ import annotations
 
+import base64
+import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from labtasker_server.app import create_app
 from labtasker_server.config import ServerSettings
+
+
+@pytest.mark.parametrize(
+    "selectors",
+    [
+        {"name_fuzzy": " " * 13000},
+        {"filter": 'name != "' + "\\\\" * 3500 + '"'},
+    ],
+)
+def test_long_selectors_produce_usable_cursors(
+    client: TestClient, selectors: dict[str, str]
+) -> None:
+    create_tasks(client)
+    path = "/api/v2/queues/default/tasks"
+    first = client.get(path, params={**selectors, "limit": 1})
+    assert first.status_code == 200
+    token = first.json()["next_cursor"]
+    assert len(token) < 1024
+    second = client.get(path, params={**selectors, "limit": 100, "cursor": token})
+    assert second.status_code == 200
+    ids = [item["id"] for item in first.json()["items"] + second.json()["items"]]
+    assert len(ids) == len(set(ids)) == 4
+    assert second.json()["next_cursor"] is None
+    changed = client.get(path, params={**selectors, "name_fuzzy": "different", "cursor": token})
+    assert changed.status_code == 422
+    assert changed.json()["error"]["code"] == "invalid_cursor"
+
+
+def test_legacy_cursor_remains_usable(client: TestClient) -> None:
+    create_tasks(client)
+    payload = {
+        "v": 1,
+        "selection": {
+            "queue": "default",
+            "status": None,
+            "name": None,
+            "filter": None,
+            "order_by": "id",
+            "descending": False,
+        },
+        "position": {"value": "t_000000000002", "id": "t_000000000002"},
+    }
+    token = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    response = client.get(
+        "/api/v2/queues/default/tasks",
+        params={"order_by": "id", "descending": "false", "cursor": token},
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == [
+        "t_000000000003",
+        "t_000000000004",
+    ]
+
+
+def test_deeply_nested_cursor_returns_invalid_cursor(client: TestClient) -> None:
+    token = base64.urlsafe_b64encode(("[" * 1100 + "]" * 1100).encode()).decode()
+    response = client.get("/api/v2/queues/default/tasks", params={"cursor": token})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_cursor"
 
 
 class Clock:

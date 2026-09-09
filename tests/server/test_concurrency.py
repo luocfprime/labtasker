@@ -4,6 +4,10 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
+from typing import Any
+
+import pytest
+from sqlalchemy import event
 
 from labtasker_server.database import Database
 from labtasker_server.errors import DomainError
@@ -46,6 +50,43 @@ def captured(operation: Callable[[], object]) -> object:
         return operation()
     except DomainError as error:
         return error
+
+
+@pytest.mark.parametrize("operation", ["get", "list"])
+def test_task_and_routes_share_one_read_snapshot(database_path: Path, operation: str) -> None:
+    first_db, second_db, first, second = services(database_path, Clock())
+    updated = False
+
+    def update_before_routes_load(
+        connection: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> None:
+        nonlocal updated
+        if not updated and statement.startswith("SELECT task_routes."):
+            updated = True
+            # A distinct connection commits both changes after the Task row was
+            # read, before selectinload reads its routes.
+            second.update_task("default", TASK_ID, TaskUpdate(priority=7, routes=["new"]))
+
+    event.listen(first_db.engine, "before_cursor_execute", update_before_routes_load)
+    try:
+        task = (
+            first.get("default", TASK_ID)
+            if operation == "get"
+            else first.list_tasks("default").items[0]
+        )
+        assert updated
+        assert (task.priority, task.routes) == (0, ["default"])
+        latest = first.get("default", TASK_ID)
+        assert (latest.priority, latest.routes) == (7, ["new"])
+    finally:
+        event.remove(first_db.engine, "before_cursor_execute", update_before_routes_load)
+        first_db.dispose()
+        second_db.dispose()
 
 
 def test_two_workers_racing_for_one_task_have_one_winner(database_path: Path) -> None:

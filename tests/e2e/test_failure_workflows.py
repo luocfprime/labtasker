@@ -407,7 +407,25 @@ def test_real_cli_authentication_failure_is_structured_and_does_not_leak_token(
 def test_real_cli_transport_failure_is_json_stdout_without_traceback(tmp_path: Path) -> None:
     with socket.socket() as unavailable:
         unavailable.bind(("127.0.0.1", 0))
+        unavailable.listen()
+        unavailable.settimeout(0.1)
         port = unavailable.getsockname()[1]
+        stopped = threading.Event()
+
+        def reject_connections() -> None:
+            while not stopped.is_set():
+                try:
+                    connection, _ = unavailable.accept()
+                except TimeoutError:
+                    continue
+                with connection:
+                    connection.shutdown(socket.SHUT_RDWR)
+
+        # A bound, non-listening port can silently drop SYNs on macOS. Accept
+        # then disconnect so this tests a transport error without waiting for
+        # the production connect timeout or relying on OS refusal behavior.
+        rejecting = threading.Thread(target=reject_connections)
+        rejecting.start()
         environment = dict(os.environ)
         environment.update(
             {
@@ -416,15 +434,20 @@ def test_real_cli_transport_failure_is_json_stdout_without_traceback(tmp_path: P
             }
         )
         environment.pop("LABTASKER_TOKEN", None)
-        result = subprocess.run(
-            [sys.executable, "-m", "labtasker", "task", "list"],
-            cwd=tmp_path,
-            env=environment,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "labtasker", "task", "list"],
+                cwd=tmp_path,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        finally:
+            stopped.set()
+            rejecting.join(timeout=2)
+            assert not rejecting.is_alive()
 
     assert result.returncode == 1
     payload = json.loads(result.stdout)

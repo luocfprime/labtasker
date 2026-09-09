@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 from dataclasses import dataclass
 
@@ -33,8 +34,8 @@ class CursorPosition:
 
 def encode_cursor(selection: TaskSelection, position: CursorPosition) -> str:
     payload = {
-        "v": 1,
-        "selection": _selection_json(selection),
+        "v": 2,
+        "selection": _selection_digest(selection),
         "position": {"value": position.value, "id": position.task_id},
     }
     encoded = json.dumps(
@@ -56,7 +57,12 @@ def decode_cursor(cursor: str, selection: TaskSelection) -> CursorPosition:
         payload = json.loads(raw)
         if not isinstance(payload, dict) or set(payload) != {"v", "selection", "position"}:
             raise ValueError
-        if payload["v"] != 1 or payload["selection"] != _selection_json(selection):
+        version = payload["v"]
+        if type(version) is not int or version not in {1, 2}:
+            raise ValueError
+        # Accept cursors issued before selectors were replaced with a fixed-size digest.
+        expected = _selection_json(selection) if version == 1 else _selection_digest(selection)
+        if payload["selection"] != expected:
             raise ValueError
         position = payload["position"]
         if not isinstance(position, dict) or set(position) != {"value", "id"}:
@@ -75,10 +81,18 @@ def decode_cursor(cursor: str, selection: TaskSelection) -> CursorPosition:
         json.JSONDecodeError,
         binascii.Error,
         DomainError,
+        RecursionError,
     ) as error:
         raise invalid(
             "invalid_cursor", "Cursor is malformed or does not match this request."
         ) from error
+
+
+def _selection_digest(selection: TaskSelection) -> str:
+    raw = json.dumps(
+        _selection_json(selection), ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _selection_json(selection: TaskSelection) -> dict[str, object]:

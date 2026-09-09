@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+import io
 import logging
+import os
+import select
+import signal
+import threading
+from pathlib import Path
+from typing import cast
 
-from labtasker.tee import _worker_log_formatter
+import pytest
+
+import labtasker.execution as execution
+from labtasker.tee import WorkerTee, _worker_log_formatter
 
 
 def test_default_worker_log_format_has_utc_timestamp_level_and_component() -> None:
@@ -21,3 +31,83 @@ def test_default_worker_log_format_has_utc_timestamp_level_and_component() -> No
     assert _worker_log_formatter().format(record) == (
         "2026-04-24T12:00:00.123Z INFO [labtasker] Worker idle timeout reached; stopping normally."
     )
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_fork_detaches_tee_and_context_without_waiting_for_parent_locks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    held = threading.Event()
+    release = threading.Event()
+    context = cast(execution.ExecutionContext, object())
+    log_path = tmp_path / "run.log"
+    read_fd, write_fd = os.pipe()
+    parent_pid = os.getpid()
+    original_open = Path.open
+
+    class ForkSensitiveLog(io.TextIOWrapper):
+        def flush(self) -> None:
+            if os.getpid() != parent_pid:
+                os.write(write_fd, b"unexpected-child-flush")
+                return
+            super().flush()
+
+        def __del__(self) -> None:
+            if os.getpid() != parent_pid:
+                os.write(write_fd, b"unexpected-child-destructor")
+                return
+            super().__del__()
+
+    def open_log(path: Path, *args: object, **kwargs: object) -> object:
+        if path == log_path:
+            # Return directly: only capture() and the tee retain this wrapper.
+            return ForkSensitiveLog(original_open(path, "ab"), encoding="utf-8")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_log)
+    child: int | None = None
+    execution.activate_context(context)
+    try:
+        with WorkerTee() as tee, tee.capture(log_path):
+            print("parent-before", flush=True)
+
+            def hold_parent_locks() -> None:
+                with tee._lock, execution._CONTEXT_LOCK:
+                    held.set()
+                    release.wait()
+
+            holder = threading.Thread(target=hold_parent_locks)
+            holder.start()
+            assert held.wait(2)
+            try:
+                child = os.fork()
+                if child == 0:
+                    # The at-fork callbacks must return even while another
+                    # parent thread retains both locks. The child's ordinary
+                    # output must no longer enter the parent's run journal.
+                    try:
+                        assert not execution.active_context_present()
+                        assert tee._destination is None
+                        print("child-output", flush=True)
+                        os.write(write_fd, b"ok")
+                    finally:
+                        os._exit(0)
+                assert select.select([read_fd], [], [], 3)[0], "fork child deadlocked"
+                assert os.read(read_fd, 2) == b"ok"
+                _, status = os.waitpid(child, 0)
+                child = None
+                assert os.waitstatus_to_exitcode(status) == 0
+            finally:
+                if child is not None:
+                    os.kill(child, signal.SIGKILL)
+                    os.waitpid(child, 0)
+                release.set()
+                holder.join(timeout=2)
+            assert execution.active_context_present()
+            print("parent-after", flush=True)
+        monkeypatch.setattr(Path, "open", original_open)
+        assert log_path.read_text() == "parent-before\nparent-after\n"
+    finally:
+        execution.deactivate_context(context)
+        os.close(read_fd)
+        os.close(write_fd)

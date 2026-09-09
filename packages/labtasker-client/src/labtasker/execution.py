@@ -375,6 +375,7 @@ def _validate_force_stop_timeout(value: float | None) -> float | None:
 
 
 def _clear_after_fork() -> None:
-    global _ACTIVE_CONTEXT, _ENV_CONTEXT
+    global _ACTIVE_CONTEXT, _ENV_CONTEXT, _CONTEXT_LOCK
+    _CONTEXT_LOCK = threading.RLock()
     _ACTIVE_CONTEXT = None
     _ENV_CONTEXT = None

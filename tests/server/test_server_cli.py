@@ -1,17 +1,123 @@
 from __future__ import annotations
 
 import json
+import os
+import socket
+import time
 from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
-from labtasker_server import __version__
+from labtasker_server import __version__, local
 from labtasker_server.cli import app
 from labtasker_server.local import LocalPaths, RuntimeMetadata, read_metadata
 
 runner = CliRunner()
+
+
+@pytest.mark.parametrize("generation", [None, "old"])
+def test_stopped_artifact_cleanup_holds_database_ownership(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, generation: str | None
+) -> None:
+    paths = local.local_paths(tmp_path)
+    fd = local.try_acquire_database(paths)
+    assert fd is not None
+    metadata = local.make_metadata(
+        paths,
+        generation="old",
+        role="daemon",
+        pid=os.getpid(),
+        automatic_attempt_at=time.time(),
+        database_fd=fd,
+        server_version=__version__,
+    )
+    local.write_metadata(paths, metadata)
+    os.close(fd)
+    with socket.socket(socket.AF_UNIX) as bound:
+        bound.bind(str(paths.socket))
+        original = local.remove_stale_artifacts
+
+        def concurrent_start_is_blocked(actual: LocalPaths) -> None:
+            competing_fd = local.try_acquire_database(actual)
+            if competing_fd is not None:
+                os.close(competing_fd)
+            assert competing_fd is None
+            original(actual)
+
+        monkeypatch.setattr(local, "remove_stale_artifacts", concurrent_start_is_blocked)
+        local.remove_stopped_artifacts(paths, generation=generation)
+    assert not paths.socket.exists()
+    assert not paths.metadata.exists()
+
+
+def test_stopped_cleanup_preserves_new_owner_and_missing_database(tmp_path: Path) -> None:
+    paths = local.local_paths(tmp_path)
+    fd = local.try_acquire_database(paths)
+    assert fd is not None
+    metadata = local.make_metadata(
+        paths,
+        generation="new",
+        role="daemon",
+        pid=os.getpid(),
+        automatic_attempt_at=time.time(),
+        database_fd=fd,
+        server_version=__version__,
+    )
+    local.write_metadata(paths, metadata)
+    try:
+        local.remove_stopped_artifacts(paths, generation="old")
+        assert local.read_metadata(paths) == metadata
+    finally:
+        os.close(fd)
+    local.remove_stopped_artifacts(paths, generation="old")
+    assert local.read_metadata(paths) == metadata
+    paths.database.unlink()
+    local.remove_stopped_artifacts(paths)
+    assert not paths.database.exists()
+    assert local.read_metadata(paths) == metadata
+    paths.metadata.unlink()
+
+
+def test_daemon_socket_cleanup_holds_ownership_and_preserves_throttle(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    paths = local.local_paths(tmp_path)
+    fd = local.try_acquire_database(paths)
+    assert fd is not None
+    metadata = local.make_metadata(
+        paths,
+        generation="old",
+        role="daemon",
+        pid=os.getpid(),
+        automatic_attempt_at=time.time(),
+        database_fd=fd,
+        server_version=__version__,
+    )
+    local.write_metadata(paths, metadata)
+    with socket.socket(socket.AF_UNIX) as bound:
+        bound.bind(str(paths.socket))
+        # Initialization may fail while ownership is still held. Cleanup must
+        # leave the socket untouched until the next coordinator owns the file.
+        local.remove_stopped_artifacts(paths, generation="old", preserve_metadata=True)
+        assert paths.socket.exists()
+        os.close(fd)
+        original = local.read_metadata
+
+        def competing_start_after_generation_read(actual: LocalPaths) -> RuntimeMetadata | None:
+            result = original(actual)
+            competing_fd = local.try_acquire_database(actual)
+            if competing_fd is not None:
+                os.close(competing_fd)
+            assert competing_fd is None
+            return result
+
+        monkeypatch.setattr(local, "read_metadata", competing_start_after_generation_read)
+        local.remove_stopped_artifacts(paths, generation="old", preserve_metadata=True)
+        assert not paths.socket.exists()
+        assert original(paths) == metadata
+    paths.metadata.unlink()
 
 
 def test_version_reports_server_distribution(

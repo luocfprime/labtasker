@@ -117,6 +117,26 @@ lint, type checks, and the documentation build run once on Python 3.11. Packages
 are built once on Python 3.11, then the same wheels are tested on all four
 versions. The real distributed launcher suite runs in the release workflow.
 
+A focused macOS/Python 3.11 CI job checks database ownership, inherited locks,
+local daemon startup and recovery, Command Worker cancellation, and Worker
+fork/log isolation. This catches platform-specific regressions without requiring
+ML dependencies on macOS.
+
+CI and the release workflow also check the previous published Client against
+the current Server over real HTTP. Run the same check from the repository root:
+
+```bash
+uv run python tests/compatibility/check_previous_client.py --client-version 2.1.0
+```
+
+The script uses `uv` to install Client 2.1.0 from PyPI into a temporary isolated
+environment and starts the current Server with a temporary SQLite database.
+It checks submission, retrieval, listing, claims, heartbeats, completion, failure
+reports, and an empty Queue. This check needs access to PyPI and runs separately
+from ordinary `pytest` collection. For the next release after 2.2.0, update the
+baseline in both workflows and this command to the immediately previous
+published v2 Client.
+
 Ordinary unit and integration tests run without ML frameworks. The explicitly
 marked launcher suite exercises real `torchrun` and Accelerate installations:
 

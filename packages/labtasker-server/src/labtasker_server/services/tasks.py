@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, cast, overload
 
-from sqlalchemy import and_, func, or_, select, text, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from labtasker_server.database import Database
@@ -278,7 +278,6 @@ class TaskService:
             filter_expression=filter_expression,
         )
         with self.database.read_session() as session:
-            session.execute(text("BEGIN"))
             if session.get(QueueRow, queue) is None:
                 raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
             value = (

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,6 +13,7 @@ from sqlalchemy import inspect, text
 from labtasker_server.config import ServerSettings
 from labtasker_server.database import Database, DatabaseOwnershipError
 from labtasker_server.errors import DomainError
+from labtasker_server.local import local_paths, try_acquire_database
 from labtasker_server.services.queues import QueueService
 
 
@@ -30,6 +34,117 @@ def test_database_has_one_process_owner_and_releases_on_dispose(tmp_path: Path) 
     finally:
         first.dispose()
 
+    replacement = Database(path)
+    replacement.dispose()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Requires descriptor inheritance")
+@pytest.mark.parametrize("crash", [False, True])
+def test_database_ownership_survives_exec_and_sqlite_connection_close(
+    tmp_path: Path, crash: bool
+) -> None:
+    paths = local_paths(tmp_path)
+    fd = try_acquire_database(paths)
+    assert fd is not None
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            """
+import os, sys
+from pathlib import Path
+from labtasker_server.database import Database
+fd = int(sys.argv[2])
+database = Database(Path(sys.argv[1]), ownership_fd=fd)
+os.close(fd)
+database.initialize()
+print('ready', flush=True)
+sys.stdin.readline()
+database.dispose()
+""",
+            str(paths.database),
+            str(fd),
+        ],
+        pass_fds=(fd,),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    os.close(fd)
+    try:
+        assert process.stdout is not None
+        assert process.stdout.readline().strip() == "ready"
+        # Ordinary SQLite handles may open/close without releasing ownership.
+        connection = sqlite3.connect(paths.database)
+        assert connection.execute("SELECT name FROM queues").fetchall() == [("default",)]
+        connection.close()
+        alias = tmp_path / "alias.db"
+        os.link(paths.database, alias)
+        for path in (paths.database, alias):
+            with pytest.raises(DatabaseOwnershipError):
+                Database(path)
+        assert try_acquire_database(paths) is None
+        if crash:
+            process.kill()
+        else:
+            assert process.stdin is not None
+            process.stdin.write("exit\n")
+            process.stdin.flush()
+        process.communicate(timeout=5)
+        replacement = Database(paths.database)
+        replacement.dispose()
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.communicate(timeout=5)
+
+
+@pytest.mark.parametrize("service", ["TaskService", "WorkerService"])
+def test_failed_startup_scan_releases_database_ownership(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, service: str
+) -> None:
+    from labtasker_server.app import create_app
+
+    def fail(*_: object) -> None:
+        raise RuntimeError("injected scan failure")
+
+    method = "expire_leases" if service == "TaskService" else "expire"
+    settings = ServerSettings(database=tmp_path / "server.db")
+    with monkeypatch.context() as patch:
+        patch.setattr(f"labtasker_server.app.{service}.{method}", fail)
+        with pytest.raises(RuntimeError, match="injected scan failure"):
+            create_app(settings)
+    app = create_app(settings)
+    app.state.database.dispose()
+
+
+def test_engine_construction_failure_releases_database_ownership(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*_: object) -> None:
+        raise RuntimeError("injected engine failure")
+
+    path = tmp_path / "server.db"
+    with monkeypatch.context() as patch:
+        patch.setattr("labtasker_server.database._create_sqlite_engine", fail)
+        with pytest.raises(RuntimeError, match="injected engine failure"):
+            Database(path)
+    replacement = Database(path)
+    replacement.dispose()
+
+
+def test_engine_disposal_failure_still_releases_database_ownership(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail() -> None:
+        raise RuntimeError("injected disposal failure")
+
+    path = tmp_path / "server.db"
+    database = Database(path)
+    monkeypatch.setattr(database.engine, "dispose", fail)
+    with pytest.raises(RuntimeError, match="injected disposal failure"):
+        database.dispose()
     replacement = Database(path)
     replacement.dispose()
 

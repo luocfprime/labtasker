@@ -239,7 +239,7 @@ def _run_pipes(
         with log_path.open("ab", buffering=0) as log:
             stdout_thread = _start_drain(process.stdout, sys.stdout, log, lock, "stdout")
             stderr_thread = _start_drain(process.stderr, sys.stderr, log, lock, "stderr")
-            _wait_process(process, control, force_stop_timeout)
+            _wait_process(process, control, force_stop_timeout, (stdout_thread, stderr_thread))
             stdout_thread.join()
             stderr_thread.join()
     except BaseException:
@@ -304,7 +304,7 @@ def _run_pty(
             last_size: bytes | None = None
             output_open = True
             while output_open or process.poll() is None:
-                if control.revoked and process.poll() is None:
+                if control.revoked:
                     _terminate_process_group(process, force_stop_timeout)
                 size = _terminal_size(sys.stdin.fileno())
                 if size is not None and size != last_size:
@@ -348,30 +348,96 @@ def _wait_process(
     process: subprocess.Popen[bytes],
     control: RunControl,
     force_stop_timeout: float | None,
+    output_threads: tuple[threading.Thread, threading.Thread],
 ) -> None:
-    while process.poll() is None:
+    # A launcher can exit while its descendants still own the output pipes.
+    # Continue observing cancellation until that remaining output has drained.
+    while process.poll() is None or any(thread.is_alive() for thread in output_threads):
         if control.revoked:
             _terminate_process_group(process, force_stop_timeout)
             return
-        with suppress(subprocess.TimeoutExpired):
-            process.wait(timeout=0.1)
+        if process.poll() is None:
+            with suppress(subprocess.TimeoutExpired):
+                process.wait(timeout=0.1)
+        else:
+            time.sleep(0.1)
 
 
 def _terminate_process_group(
     process: subprocess.Popen[bytes],
     force_stop_timeout: float | None,
 ) -> None:
-    if process.poll() is not None:
-        return
-    os.killpg(process.pid, signal.SIGTERM)
-    if force_stop_timeout is None:
-        process.wait()
-        return
+    deadline = None if force_stop_timeout is None else time.monotonic() + force_stop_timeout
+    _signal_process_group(process.pid, signal.SIGTERM)
+    # Waiting only for the launcher loses surviving ranks when SIGTERM makes
+    # the launcher exit first. Reap it, but retain the group's original deadline.
+    while True:
+        process.poll()
+        if not _process_group_alive(process.pid):
+            break
+        if deadline is not None and time.monotonic() >= deadline:
+            _signal_process_group(process.pid, signal.SIGKILL)
+            break
+        time.sleep(0.01 if deadline is None else min(0.01, max(0, deadline - time.monotonic())))
+    process.wait()
+
+
+def _process_group_alive(group_id: int) -> bool:
     try:
-        process.wait(timeout=force_stop_timeout)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
+        os.killpg(group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        if _PLATFORM != "darwin":
+            raise
+    if _PLATFORM == "darwin":
+        # Darwin can report EPERM rather than ESRCH for a zombie-only group.
+        # Its built-in ps exposes process states without depending on /proc.
+        try:
+            result = subprocess.run(
+                ["/bin/ps", "-axo", "pgid=,stat="],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                check=True,
+                timeout=1,
+            )
+            return any(
+                int(fields[0]) == group_id and not fields[1].startswith("Z")
+                for line in result.stdout.splitlines()
+                if (fields := line.split())
+            )
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+            return True
+    if _PLATFORM != "linux":
+        return True
+    # Linux containers may retain orphan zombies indefinitely when PID 1 does
+    # not reap. They still satisfy killpg(0), but cannot execute or receive a
+    # signal. Keep waiting for actual group members, including those that have
+    # closed their output streams; on inspection errors remain conservative.
+    try:
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdecimal():
+                continue
+            try:
+                fields = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+            except FileNotFoundError:
+                continue
+            if int(fields[2]) == group_id and fields[0] not in {"Z", "X"}:
+                return True
+    except (OSError, ValueError, IndexError):
+        return True
+    return False
+
+
+def _signal_process_group(group_id: int, requested_signal: signal.Signals) -> None:
+    try:
+        os.killpg(group_id, requested_signal)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        if _process_group_alive(group_id):
+            raise
 
 
 def _command_environment(

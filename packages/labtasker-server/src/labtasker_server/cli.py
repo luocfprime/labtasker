@@ -27,9 +27,7 @@ from labtasker_server.local import (
     metadata_matches_database,
     metadata_owner_is_verified,
     read_metadata,
-    remove_generation_artifacts,
-    remove_generation_socket,
-    remove_stale_artifacts,
+    remove_stopped_artifacts,
     require_local_capabilities,
     socket_health,
     startup_age,
@@ -209,7 +207,7 @@ def stop(
     if database_is_free(paths):
         if has_runtime_artifacts(paths):
             try:
-                remove_stale_artifacts(paths)
+                remove_stopped_artifacts(paths)
             except RuntimeError as error:
                 typer.echo(f"[labtasker-server] Local Server stop error: {error}", err=True)
                 raise typer.Exit(1) from error
@@ -231,7 +229,7 @@ def stop(
         os.kill(metadata.pid, signal.SIGTERM)
     typer.echo(f"[labtasker-server] stopping local daemon pid={metadata.pid}", err=True)
     if _wait_for_exit(paths.directory, timeout=30.0):
-        remove_generation_artifacts(paths, metadata.generation)
+        remove_stopped_artifacts(paths, generation=metadata.generation)
         typer.echo(f"[labtasker-server] stopped local daemon pid={metadata.pid}", err=True)
         return
     if not force:
@@ -262,7 +260,7 @@ def stop(
             err=True,
         )
         raise typer.Exit(1)
-    remove_generation_artifacts(paths, current.generation)
+    remove_stopped_artifacts(paths, generation=current.generation)
     typer.echo(f"[labtasker-server] stopped local daemon pid={current.pid}", err=True)
 
 
@@ -331,7 +329,7 @@ def daemon(
             listener.close()
         # Preserve the attempt metadata so an unexpected exit remains throttled.
         # An explicit successful stop removes the full generation itself.
-        remove_generation_socket(paths, generation)
+        remove_stopped_artifacts(paths, generation=generation, preserve_metadata=True)
 
 
 def _local_status(directory: Path) -> dict[str, object]:

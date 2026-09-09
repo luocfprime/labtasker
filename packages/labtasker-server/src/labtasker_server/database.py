@@ -5,11 +5,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - explicit HTTP remains best effort off POSIX
-    fcntl = None  # type: ignore[assignment]
-
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, event, inspect, text
@@ -19,6 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from labtasker_server.errors import DomainError
 from labtasker_server.models import QueueRow
 from labtasker_server.name_search import name_matches_fuzzy
+from labtasker_server.ownership import lock_database
 
 LOCAL_GITIGNORE = "*\n!.gitignore\n"
 
@@ -38,8 +34,13 @@ class Database:
         if labtasker_dir is not None:
             _ensure_local_gitignore(labtasker_dir)
         self._ownership_fd: int | None = _acquire_database_ownership(self.path, ownership_fd)
-        self.engine = _create_sqlite_engine(self.path)
-        self._session_factory = sessionmaker(self.engine, expire_on_commit=False)
+        try:
+            self.engine = _create_sqlite_engine(self.path)
+            self._session_factory = sessionmaker(self.engine, expire_on_commit=False)
+        except BaseException:
+            os.close(self._ownership_fd)
+            self._ownership_fd = None
+            raise
 
     def initialize(self) -> None:
         existing_tables = set(inspect(self.engine).get_table_names())
@@ -64,6 +65,9 @@ class Database:
     @contextmanager
     def read_session(self) -> Iterator[Session]:
         with self._session_factory() as session:
+            # sqlite3's legacy transaction mode does not begin on SELECT. Keep
+            # all reads (including relationship loaders) in one SQLite snapshot.
+            session.execute(text("BEGIN"))
             yield session
 
     @contextmanager
@@ -88,23 +92,27 @@ class Database:
                 raise
 
     def dispose(self) -> None:
-        self.engine.dispose()
-        if self._ownership_fd is not None:
-            os.close(self._ownership_fd)
-            self._ownership_fd = None
+        try:
+            self.engine.dispose()
+        finally:
+            if self._ownership_fd is not None:
+                os.close(self._ownership_fd)
+                self._ownership_fd = None
 
 
 def _acquire_database_ownership(path: Path, inherited_fd: int | None) -> int:
     if inherited_fd is None:
         fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
-        if fcntl is not None:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                os.close(fd)
-                raise DatabaseOwnershipError(
-                    f"Another Server process already owns database {path}."
-                ) from error
+        try:
+            lock_database(fd)
+        except BlockingIOError as error:
+            os.close(fd)
+            raise DatabaseOwnershipError(
+                f"Another Server process already owns database {path}."
+            ) from error
+        except BaseException:
+            os.close(fd)
+            raise
     else:
         fd = os.dup(inherited_fd)
         os.set_inheritable(fd, False)

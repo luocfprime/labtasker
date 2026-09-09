@@ -3,11 +3,13 @@ from __future__ import annotations
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
 import time
 from collections import deque
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,7 +19,7 @@ import pytest
 
 import labtasker.execution as execution_module
 from labtasker.command_template import TemplateSyntaxError
-from labtasker.command_worker import _run_pty, _start_drain, run_command_worker
+from labtasker.command_worker import _run_pipes, _run_pty, _start_drain, run_command_worker
 from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError
 from labtasker.execution import RunControl, finish, task_info
@@ -392,6 +394,131 @@ def test_confirmed_revocation_terminates_command_group_and_continues(
     )
     assert time.monotonic() - started < 3
     assert client.actions == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process-group behavior is POSIX-specific")
+@pytest.mark.parametrize("launcher_exits", [False, True])
+@pytest.mark.parametrize("force_stop_timeout", [0.1, None])
+def test_revocation_kills_surviving_descendant_after_launcher_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    launcher_exits: bool,
+    force_stop_timeout: float | None,
+) -> None:
+    ready = tmp_path / "descendant-ready"
+    child_script = (
+        "import os,signal,sys,time; from pathlib import Path; "
+        + ("signal.signal(signal.SIGTERM, signal.SIG_IGN); " if force_stop_timeout else "")
+        + "Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(30)"
+    )
+    launcher_script = (
+        "import subprocess,sys,time; "
+        "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]]); "
+        + ("sys.exit(0)" if launcher_exits else "time.sleep(30)")
+    )
+    processes: list[subprocess.Popen[bytes]] = []
+    original_popen = subprocess.Popen
+
+    def launch(*args: Any, **kwargs: Any) -> subprocess.Popen[bytes]:
+        process = original_popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr("labtasker.command_worker.subprocess.Popen", launch)
+    control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
+    finished = threading.Event()
+    timed_out = threading.Event()
+
+    def revoke_and_rescue() -> None:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if (
+                ready.exists()
+                and processes
+                and (not launcher_exits or processes[0].poll() is not None)
+            ):
+                control.revoke("cancel")
+                break
+            time.sleep(0.01)
+        if not finished.wait(max(0, deadline - time.monotonic())):
+            timed_out.set()
+            if processes:
+                with suppress(ProcessLookupError):
+                    os.killpg(processes[0].pid, signal.SIGKILL)
+
+    rescuer = threading.Thread(target=revoke_and_rescue, daemon=True)
+    rescuer.start()
+    try:
+        process = _run_pipes(
+            [sys.executable, "-c", launcher_script, child_script, str(ready)],
+            dict(os.environ),
+            tmp_path / "run.log",
+            control,
+            force_stop_timeout,
+        )
+        # Returning from pipe drainage proves the surviving child released its
+        # inherited streams; waiting for the launcher alone cannot achieve this.
+        assert control.revoked
+        assert process.returncode == (0 if launcher_exits else -signal.SIGTERM)
+        assert not timed_out.is_set(), "descendant survived the force-stop deadline"
+    finally:
+        finished.set()
+        rescuer.join(timeout=6)
+        control.executor_done()
+        if processes:
+            with suppress(ProcessLookupError):
+                os.killpg(processes[0].pid, signal.SIGKILL)
+            processes[0].wait(timeout=3)
+
+
+@pytest.mark.parametrize("state, expected", [("Z", False), ("X", False), ("S", True)])
+def test_linux_group_wait_ignores_zombies_but_waits_for_live_members(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, state: str, expected: bool
+) -> None:
+    from labtasker.command_worker import _process_group_alive
+
+    process = tmp_path / "123"
+    process.mkdir()
+    # A process name may itself contain spaces and closing parentheses.
+    (process / "stat").write_text(f"123 (worker ) child) {state} 1 456 456 0 0")
+    monkeypatch.setattr("labtasker.command_worker._PLATFORM", "linux")
+    monkeypatch.setattr("labtasker.command_worker.Path", lambda _: tmp_path)
+    monkeypatch.setattr("labtasker.command_worker.os.killpg", lambda *_: None)
+    assert _process_group_alive(456) is expected
+
+
+def test_linux_group_wait_is_conservative_when_process_inspection_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from labtasker.command_worker import _process_group_alive
+
+    monkeypatch.setattr("labtasker.command_worker._PLATFORM", "linux")
+    monkeypatch.setattr("labtasker.command_worker.Path", lambda _: tmp_path / "unavailable")
+    monkeypatch.setattr("labtasker.command_worker.os.killpg", lambda *_: None)
+    assert _process_group_alive(456)
+
+
+@pytest.mark.parametrize("state", ["Z", "S"])
+def test_darwin_zombie_signal_permission_error_is_not_a_live_process_failure(
+    monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    from labtasker.command_worker import _process_group_alive, _signal_process_group
+
+    def denied(*_: object) -> None:
+        raise PermissionError("Darwin zombie group")
+
+    monkeypatch.setattr("labtasker.command_worker._PLATFORM", "darwin")
+    monkeypatch.setattr("labtasker.command_worker.os.killpg", denied)
+    monkeypatch.setattr(
+        "labtasker.command_worker.subprocess.run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=f"456 {state}\n789 S\n"),
+    )
+    assert _process_group_alive(456) is (state == "S")
+    if state == "Z":
+        _signal_process_group(456, signal.SIGTERM)
+    else:
+        with pytest.raises(PermissionError):
+            _signal_process_group(456, signal.SIGTERM)
 
 
 def test_environment_context_loads_task_info_and_finish_without_import_side_effects(

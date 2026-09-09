@@ -17,6 +17,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal, cast
 
+from labtasker_server.ownership import lock_database
+
 try:
     import fcntl
 except ImportError:  # pragma: no cover - local mode is rejected off POSIX
@@ -111,10 +113,13 @@ def try_acquire_database(paths: LocalPaths, *, create: bool = True) -> int | Non
     flags = os.O_RDWR | (os.O_CREAT if create else 0)
     fd = os.open(paths.database, flags, 0o600)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_database(fd)
     except BlockingIOError:
         os.close(fd)
         return None
+    except BaseException:
+        os.close(fd)
+        raise
     return fd
 
 
@@ -350,6 +355,9 @@ def ensure_local_daemon(
         if socket_health(paths):
             return False, read_metadata(paths)
         previous = read_metadata(paths)
+        if previous is not None and not metadata_matches_database(paths, previous):
+            emit("ignoring launch throttle from metadata for a different database inode")
+            previous = None
         remaining = 0.0 if bypass_throttle else throttle_remaining(previous)
         if remaining > 0:
             raise RuntimeError(
@@ -440,31 +448,32 @@ def remove_stale_artifacts(paths: LocalPaths) -> None:
         path.unlink()
 
 
-def remove_generation_artifacts(paths: LocalPaths, generation: str) -> None:
-    metadata = read_metadata(paths)
-    if metadata is None or metadata.generation != generation:
+def remove_stopped_artifacts(
+    paths: LocalPaths, *, generation: str | None = None, preserve_metadata: bool = False
+) -> None:
+    fd = try_acquire_database(paths, create=False)
+    if fd is None:
         return
     try:
-        info = paths.socket.lstat()
-    except FileNotFoundError:
-        pass
-    else:
-        if info.st_uid == os.geteuid() and stat.S_ISSOCK(info.st_mode):
-            paths.socket.unlink()
-    with suppress(FileNotFoundError):
-        paths.metadata.unlink()
-
-
-def remove_generation_socket(paths: LocalPaths, generation: str) -> None:
-    metadata = read_metadata(paths)
-    if metadata is None or metadata.generation != generation:
-        return
-    try:
-        info = paths.socket.lstat()
-    except FileNotFoundError:
-        return
-    if info.st_uid == os.geteuid() and stat.S_ISSOCK(info.st_mode):
-        paths.socket.unlink()
+        # A missing database returns a /dev/null sentinel, not an ownership
+        # lock. Leave artifacts for the next coordinator rather than racing it.
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return
+        if generation is not None:
+            metadata = read_metadata(paths)
+            if metadata is None or metadata.generation != generation:
+                return
+        if preserve_metadata:
+            try:
+                info = paths.socket.lstat()
+            except FileNotFoundError:
+                return
+            if info.st_uid == os.geteuid() and stat.S_ISSOCK(info.st_mode):
+                paths.socket.unlink()
+        else:
+            remove_stale_artifacts(paths)
+    finally:
+        os.close(fd)
 
 
 def has_runtime_artifacts(paths: LocalPaths) -> bool:

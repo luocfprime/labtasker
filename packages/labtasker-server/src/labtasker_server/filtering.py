@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, TypeAlias, cast
 
-from sqlalchemy import and_, false, func, not_, or_, select, true
-from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy import Boolean, and_, column, false, func, not_, or_, select, table, true
+from sqlalchemy.sql import operators
+from sqlalchemy.sql.elements import BinaryExpression, ColumnElement, Grouping
+from sqlalchemy.sql.selectable import CTE
 
 from labtasker_server.errors import DomainError, invalid
 from labtasker_server.models import TaskRouteRow, TaskRow, WorkerRow
@@ -127,9 +129,44 @@ def compile_filter(expression: str, *, worker: bool = False) -> ColumnElement[bo
 
 
 def compile_filter_node(node: FilterNode, *, worker: bool = False) -> ColumnElement[bool]:
+    fragments: list[CTE] = []
+    expression = _compile_filter_node(node, worker, 0, fragments)
+    if fragments:
+        return (
+            select(expression)
+            .correlate(WorkerRow if worker else TaskRow)
+            .add_cte(*fragments, nest_here=True)
+            .scalar_subquery()
+        )
+    return expression
+
+
+def _compile_filter_node(
+    node: FilterNode, worker: bool, boolean_depth: int, fragments: list[CTE]
+) -> ColumnElement[bool]:
     if isinstance(node, BooleanExpression):
-        compiled = [compile_filter_node(child, worker=worker) for child in node.children]
-        return and_(*compiled) if node.operator == "and" else or_(*compiled)
+        compiled = [
+            _compile_filter_node(child, worker, boolean_depth + 1, fragments)
+            for child in node.children
+        ]
+        expression = _balanced_boolean(compiled, node.operator)
+        if boolean_depth and boolean_depth % 4 == 0:
+            # Older SQLite builds have a small SQL parser stack. Lift nested
+            # expressions into flat WITH entries instead of rejecting valid
+            # filters or expanding their Boolean logic. Correlation preserves
+            # evaluation against the current Task/Worker, including SQL NULL.
+            source = WorkerRow if worker else TaskRow
+            fragment = (
+                select(expression.label("matches"))
+                .correlate(source)
+                .cte(f"filter_{len(fragments)}")
+            )
+            fragments.append(fragment)
+            # Refer by the same locally scoped SQL name without recursively nesting
+            # SQLAlchemy's CTE objects (which also have a Python stack limit).
+            reference = table(fragment.name, column("matches", Boolean()))
+            return select(reference.c.matches).scalar_subquery()
+        return expression
     if isinstance(node, Presence):
         runtime = _runtime_path(node.path, worker=worker)
         if runtime.kind in {"fixed", "routes"}:
@@ -141,6 +178,23 @@ def compile_filter_node(node: FilterNode, *, worker: bool = False) -> ColumnElem
     if isinstance(node, Membership):
         return _compile_membership(node, worker=worker)
     raise AssertionError(f"Unknown filter node: {node!r}")
+
+
+def _balanced_boolean(
+    predicates: list[ColumnElement[bool]], operator: Literal["and", "or"]
+) -> ColumnElement[bool]:
+    # SQLite builds a left-deep tree for a flat chain. Valid filters can reach
+    # its expression-depth limit even below the byte cap. Binary expressions
+    # retain these balanced parentheses instead of SQLAlchemy flattening them.
+    operation = operators.and_ if operator == "and" else operators.or_
+    while len(predicates) > 1:
+        predicates = [
+            Grouping(BinaryExpression(predicates[i], predicates[i + 1], operation, type_=Boolean()))
+            if i + 1 < len(predicates)
+            else predicates[i]
+            for i in range(0, len(predicates), 2)
+        ]
+    return predicates[0]
 
 
 def _parse_expression(node: ast.expr, *, worker: bool = False) -> FilterNode:

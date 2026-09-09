@@ -63,6 +63,12 @@ def _kill_daemon_and_wait_for_backoff(directory: Path) -> int:
     deadline = time.monotonic() + 5
     while True:
         if _server_status(directory)["state"] == "backoff":
+            # Keep the next assertion inside the backoff window even when
+            # process startup/status inspection consumed most of the interval.
+            paths = server_local_paths(directory)
+            payload = json.loads(paths.metadata.read_text(encoding="utf-8"))
+            payload["automatic_attempt_at"] = time.time()
+            paths.metadata.write_text(json.dumps(payload), encoding="utf-8")
             return pid
         assert time.monotonic() < deadline
         time.sleep(0.05)
@@ -228,6 +234,34 @@ def test_dead_daemon_is_throttled_and_explicit_start_recovers(
         assert "[labtasker-server] started local daemon" in restarted.stderr
         with Client() as client:
             assert len(client.list_queues()) == 1
+    finally:
+        stopped = _server_command(tmp_path, "stop")
+        assert stopped.returncode == 0, stopped.stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="local mode requires POSIX")
+def test_replaced_closed_database_ignores_previous_launch_throttle(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    for name in LOCAL_ENVIRONMENT_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    paths = server_local_paths(tmp_path)
+    try:
+        with Client() as client:
+            assert len(client.list_queues()) == 1
+        previous_metadata = paths.metadata.read_bytes()
+        stopped = _server_command(tmp_path, "stop")
+        assert stopped.returncode == 0, stopped.stderr
+        # Preserve the old inode so the replacement cannot reuse it. Restore
+        # stale runtime metadata as can remain after an earlier failed launch.
+        paths.database.rename(paths.database.with_suffix(".old"))
+        paths.metadata.write_bytes(previous_metadata)
+        with Client() as client:
+            assert len(client.list_queues()) == 1
+        current = json.loads(paths.metadata.read_text())
+        previous = json.loads(previous_metadata)
+        assert current["database_inode"] != previous["database_inode"]
     finally:
         stopped = _server_command(tmp_path, "stop")
         assert stopped.returncode == 0, stopped.stderr

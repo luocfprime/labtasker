@@ -35,6 +35,8 @@ jobs:
           enable-cache: true
       - run: uv sync --all-packages --group dev --frozen
       - run: uv run pytest -m 'not distributed_integration'
+      - name: Check previous released Client compatibility
+        run: uv run python tests/compatibility/check_previous_client.py --client-version 2.1.0
 
   build:
     runs-on: ubuntu-latest
@@ -51,6 +53,24 @@ jobs:
           name: python-dist
           path: dist/
           if-no-files-found: error
+
+  macos-regressions:
+    runs-on: macos-latest
+    env:
+      UV_PYTHON: "3.11"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --group dev --frozen
+      - name: Check database ownership, local daemon, and Worker processes
+        run: >-
+          uv run pytest tests/server/test_database.py tests/server/test_server_cli.py
+          tests/client/test_local.py tests/e2e/test_local_mode.py tests/client/test_tee.py
+          tests/client/test_command_worker.py
+          tests/server/test_http_foundation.py::test_shutdown_keeps_ownership_until_background_database_command_finishes
+          tests/test_workspace.py::test_worker_tee_fork_child_does_not_inherit_active_run_log
 
   package:
     needs: build

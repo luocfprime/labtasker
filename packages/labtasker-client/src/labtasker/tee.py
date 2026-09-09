@@ -125,4 +125,14 @@ def _worker_log_formatter() -> logging.Formatter:
 
 def _clear_tee_after_fork() -> None:
     if _ACTIVE_TEE is not None:
-        _ACTIVE_TEE.clear_destination()
+        # Another parent thread may own the inherited lock or be flushing the
+        # log's TextIO buffer. Neither can be waited on in the forked child.
+        tee = _ACTIVE_TEE
+        tee._lock = threading.RLock()
+        for stream in (tee._stdout, tee._stderr):
+            if stream is not None:
+                stream._lock = tee._lock
+                stream._destination = None
+        # capture() retains its local destination reference, so this cannot
+        # trigger TextIO destruction/flush while the at-fork callback runs.
+        tee._destination = None

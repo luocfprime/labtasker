@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from labtasker_server.database import Database
@@ -21,6 +22,47 @@ from labtasker_server.models import TaskRow
 from labtasker_server.schemas import FailureReport, TaskCreate
 from labtasker_server.services.tasks import TaskService
 from labtasker_server.validation import MAX_FILTER_BYTES
+
+
+def nested_boolean_filter() -> str:
+    expression = 'id>""'
+    for depth in range(150):
+        operator = "or " if depth % 2 else "and "
+        expression = f'id>""{operator}({expression})'
+    return expression
+
+
+@pytest.mark.parametrize("resource", ["tasks", "workers"])
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("or ".join(['id<""'] * 999 + ['id>""']), 1),
+        ("and ".join(['id>""'] * 900), 1),
+        ("and ".join(['id>""'] * 899 + ['id<""']), 0),
+        ("and ".join(['(id<""or id>"")'] * 400), 1),
+        (nested_boolean_filter(), 1),
+    ],
+    ids=["1000-or", "900-and-true", "900-and-false", "400-mixed", "150-nested"],
+)
+def test_large_boolean_filters_execute_within_byte_limit(
+    client: TestClient, resource: str, expression: str, expected: int
+) -> None:
+    assert len(expression.encode()) <= MAX_FILTER_BYTES
+    assert client.put("/api/v2/queues/default/tasks/t_000000000000", json={}).status_code == 201
+    assert (
+        client.put(
+            "/api/v2/queues/default/workers/w_000000000000",
+            json={"route": "default", "status": "idle", "task_id": None},
+        ).status_code
+        == 204
+    )
+    path = f"/api/v2/queues/default/{resource}"
+    response = client.get(path, params={"filter": expression})
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == expected
+    count = client.get(path + "/count", params={"filter": expression})
+    assert count.status_code == 200
+    assert count.json()["count"] == expected
 
 
 @pytest.fixture
@@ -73,6 +115,24 @@ def matching_ids(database: Database, expression: str) -> list[str]:
                 select(TaskRow.task_id).where(compile_filter(expression)).order_by(TaskRow.task_id)
             ).all()
         )
+
+
+@pytest.mark.parametrize("predicate", ["args.x == None", "missing(args.x)", '"old" in routes'])
+@pytest.mark.parametrize("depth", [20, 190])
+def test_deep_boolean_filter_preserves_per_task_selection(
+    task_database: Database, predicate: str, depth: int
+) -> None:
+    expression = predicate
+    for index in range(depth):
+        guard = 'id<""or ' if index % 2 else 'id>""and '
+        expression = f"{guard}({expression})"
+    assert len(expression.encode()) <= MAX_FILTER_BYTES
+    expected = matching_ids(task_database, predicate)
+    assert 0 < len(expected) < 4
+    assert matching_ids(task_database, expression) == expected
+    service = TaskService(task_database)
+    grouped = service.count_tasks("default", filter_expression=expression, group_by="routes")
+    assert grouped == service.count_tasks("default", filter_expression=predicate, group_by="routes")
 
 
 def assert_invalid(expression: str, code: str = "invalid_filter") -> DomainError:

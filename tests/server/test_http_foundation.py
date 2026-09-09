@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from threading import Event
 from typing import cast
 
 import pytest
@@ -13,8 +14,44 @@ from starlette.types import Message, Scope
 from labtasker_server import __version__
 from labtasker_server.app import create_app
 from labtasker_server.config import ServerSettings
+from labtasker_server.database import Database, DatabaseOwnershipError
 from labtasker_server.middleware import RequestBodyLimitMiddleware
 from labtasker_server.validation import MAX_TASK_DATA_BYTES
+
+
+def test_shutdown_keeps_ownership_until_background_database_command_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "server.db"
+    application = create_app(ServerSettings(database=path))
+    started, release = Event(), Event()
+
+    def blocked_scan(*_: object) -> int:
+        started.set()
+        assert release.wait(timeout=5)
+        return 0
+
+    monkeypatch.setattr("labtasker_server.app.EXPIRY_SCAN_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr("labtasker_server.app.TaskService.expire_leases", blocked_scan)
+
+    async def check() -> None:
+        lifespan = application.router.lifespan_context(application)
+        await lifespan.__aenter__()
+        assert await asyncio.to_thread(started.wait, 5)
+        closing = asyncio.create_task(lifespan.__aexit__(None, None, None))
+        try:
+            await asyncio.wait({closing}, timeout=0.05)
+            with pytest.raises(DatabaseOwnershipError):
+                replacement = Database(path)
+                replacement.dispose()
+            assert not closing.done()
+        finally:
+            release.set()
+            await closing
+        replacement = Database(path)
+        replacement.dispose()
+
+    asyncio.run(check())
 
 
 @pytest.mark.parametrize("token", [None, "secret"])

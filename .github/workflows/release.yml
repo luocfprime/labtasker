@@ -37,6 +37,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy packages/labtasker-client/src packages/labtasker-server/src
       - run: uv run pytest
+      - name: Check previous released Client compatibility
+        run: uv run python tests/compatibility/check_previous_client.py --client-version 2.1.0
       - run: uv run zensical build --clean
       - run: uv build --all-packages
       - name: Verify release distributions

@@ -68,14 +68,14 @@ def create_app(
     database = Database(settings.database, ownership_fd=settings.database_fd)
     try:
         database.initialize()
+        queue_service = QueueService(database)
+        task_service = TaskService(database, now_us=now_us)
+        task_service.expire_leases()
+        worker_service = WorkerService(database, now_us=now_us)
+        worker_service.expire()
     except BaseException:
         database.dispose()
         raise
-    queue_service = QueueService(database)
-    task_service = TaskService(database, now_us=now_us)
-    task_service.expire_leases()
-    worker_service = WorkerService(database, now_us=now_us)
-    worker_service.expire()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -462,11 +462,22 @@ def create_app(
 async def _expiry_scanner(task_service: TaskService, worker_service: WorkerService) -> None:
     while True:
         await asyncio.sleep(EXPIRY_SCAN_INTERVAL_SECONDS)
+        scan = asyncio.create_task(asyncio.to_thread(_expire_records, task_service, worker_service))
         try:
-            await asyncio.to_thread(task_service.expire_leases)
-            await asyncio.to_thread(worker_service.expire)
+            await asyncio.shield(scan)
+        except asyncio.CancelledError:
+            # Cancelling to_thread cannot stop its database command. Keep the
+            # ownership descriptor until that command has actually finished.
+            with suppress(Exception):
+                await scan
+            raise
         except Exception:
             logger.exception("Heartbeat expiry scan failed; it will retry in 60 seconds.")
+
+
+def _expire_records(task_service: TaskService, worker_service: WorkerService) -> None:
+    task_service.expire_leases()
+    worker_service.expire()
 
 
 def _unauthorized() -> DomainError:

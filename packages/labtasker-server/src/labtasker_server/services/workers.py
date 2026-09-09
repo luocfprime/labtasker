@@ -4,7 +4,7 @@ import re
 from collections.abc import Callable
 from typing import Any, Literal, cast
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select
 
 from labtasker_server.database import Database
 from labtasker_server.errors import conflict, invalid, not_found
@@ -112,7 +112,6 @@ class WorkerService:
         if position is not None:
             conditions.append(WorkerRow.worker_id > position[0])
         with self.database.read_session() as session:
-            session.execute(text("BEGIN"))
             if session.get(QueueRow, queue) is None:
                 raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
             rows = session.scalars(
@@ -138,7 +137,6 @@ class WorkerService:
         fields = grouping_fields(group_by, {"route", "status"}, limit, cursor)
         conditions = self._conditions(queue, filter_expression)
         with self.database.read_session() as session:
-            session.execute(text("BEGIN"))
             if session.get(QueueRow, queue) is None:
                 raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
             count = (
