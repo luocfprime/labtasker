@@ -2,6 +2,9 @@
 
 ## Submit repeatably
 
+Before submission, follow the route-record and user-confirmation workflow in
+[workers-and-workloads.md](workers-and-workloads.md#record-route-settings-and-confirm-reuse-before-submission).
+
 CLI `--args`, `--metadata`, and `--changes` each accept one strict JSON object.
 The CLI does not infer types from repeated `key=value` options.
 

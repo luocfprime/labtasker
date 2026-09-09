@@ -80,8 +80,9 @@ case-sensitive; `SDXL` and `sdxl` differ. The default route on both sides is
 
 Routes have no wildcard, regular expression, negation, priority, or fallback
 syntax. They are not registered resources and do not prove that an implementation
-is online. Use descriptive implementation or workload names such as `robotwin`,
-`clip-openai`, and `clip-openclip`.
+is online. Prefer human-readable implementation or workload names such as
+`robotwin`, `clip-openai`, and `clip-openclip`; avoid names consisting only of a
+hash or random string so people can recognize what work a route accepts.
 
 For a rollout, run separate Workers for the old and new routes. A Task may list
 both when either implementation is acceptable:
@@ -96,6 +97,66 @@ labtasker.submit_task(
 Starting a new Worker never changes old Tasks. To let a new implementation help
 with a pending backlog, explicitly replace the selected Tasks' complete routes
 list. Running Tasks cannot be updated.
+
+### Record route settings and confirm reuse before submission
+
+Keep a durable route record in the experiment project's existing route document,
+or use `experiments/labtasker-routes.md` when none exists. Reuse that same document across
+agent sessions. This is a project convention, not a Server-side registry.
+
+For each route, record:
+
+- its exact name, purpose, and Server/project and Queue scope, without credentials;
+- the first confirmed submission date, including timezone; leave it unknown for
+  historical routes when evidence is unavailable;
+- the concrete execution settings: implementation and entry point, fixed Worker
+  configuration, model/checkpoint revision, relevant dependencies or environment,
+  and any resource requirements that affect compatibility;
+- the code repository and commit, plus any uncommitted changes that affect
+  execution; a branch name alone is not a reproducible version;
+- the accepted Task args and their allowed variation, expected outputs, and
+  compatibility conditions; link to durable configuration files where useful;
+- the parameter combinations the Worker needs: record concrete fixed startup
+  arguments and the required per-Task args, their types, defaults, and supported
+  combinations or constraints. Include a reusable command or configuration
+  example, distinguishing fixed values from values that may vary per Task;
+- dated compatibility decisions or revisions, preserving earlier settings
+  rather than silently overwriting them. Representative Task IDs are not needed.
+
+Before submitting a batch:
+
+1. Read the route record and inspect all pages of running Tasks in the target
+   Server and Queue. Summarize their distinct `routes` and relevant settings;
+   follow the pagination guidance in [operations-and-recovery.md](operations-and-recovery.md).
+   A running Task's routes list describes acceptable implementations, not which
+   route its current Worker actually uses, and is not an inventory of Workers.
+2. Compare the proposed workload with those routes and the recorded historical
+   routes. Never decide compatibility-based reuse on the user's behalf. Present
+   the candidate route, matching settings, and any differences, then explicitly
+   ask: "你提交的实验似乎和 `xxx` route 类似，可能是同一组实验，是否复用？"
+   Adapt the wording to the user's language and replace `xxx` with the actual
+   route. Wait for explicit approval of that route for the proposed batch before
+   submitting with it. Similar settings, historical reuse, a route record, or a
+   general request to submit experiments is not consent to reuse. A shared
+   experiment name or broad task category is also insufficient. Ask once for
+   the batch, not per Task; an explicit approval already given for this exact
+   batch and route remains valid while the relevant settings are unchanged.
+3. If there are no running Tasks, say so and check the document for reusable
+   routes; absence of running Tasks does not imply a route is obsolete or has no
+   available Worker. If inspection fails or settings are unknown, disclose the
+   gap and ask the user to resolve it before submission rather than assuming a
+   match or treating failure as an empty result.
+4. Reuse a route only with the user's explicit approval and when its executors
+   can accept the new Task inputs and
+   produce acceptable outputs under the documented settings. Changes to ordinary
+   per-Task values within that contract do not require a new route. Incompatible
+   implementation, configuration, or output changes need a distinct readable
+   route; never silently redefine an old route that existing Workers still use.
+5. Prepare the route entry before submission, marking an unsubmitted entry as
+   planned. After the first confirmed successful submission, record its date.
+   On reuse, preserve the original first-submission date and record any
+   newly confirmed compatible settings. Do not invent missing revisions or
+   dates. Keep this record available to subsequent agent sessions.
 
 ## Wrap an existing command
 

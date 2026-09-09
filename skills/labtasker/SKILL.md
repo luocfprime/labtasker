@@ -23,7 +23,7 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
   Windows, Unix-socket requests, package selection, or “does it support this?”
   questions.
 - Read [workers-and-workloads.md](references/workers-and-workloads.md) when
-  converting an experiment, choosing routes or Queues, binding Task args,
+  submitting Tasks, converting an experiment, choosing routes or Queues, binding Task args,
   wrapping a command, reusing a loaded model, or using a distributed launcher.
 - Read [operations-and-recovery.md](references/operations-and-recovery.md) for
   idempotent submission, priority, filtering, pagination, updates, cancellation,

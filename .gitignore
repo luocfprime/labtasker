@@ -1,6 +1,7 @@
 .venv/
 .pytest_cache/
 .coverage
+coverage/
 coverage.xml
 htmlcov/
 .mypy_cache/
@@ -12,3 +13,5 @@ build/
 dist/
 site/
 .labtasker/
+.DS_Store
+.idea/
