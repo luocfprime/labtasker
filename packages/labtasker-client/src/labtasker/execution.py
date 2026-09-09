@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
-import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
@@ -147,6 +147,8 @@ class ExecutionContext:
         with self._lock:
             if self._finish_started:
                 raise RuntimeError("finish() has already been called for this execution.")
+            if self.control is not None and self.control.revoked:
+                raise RuntimeError("The current run was revoked before finish() could complete it.")
             self._finish_started = True
         _best_effort_journal(lambda: self.journal.reporting("complete", result))
         accepted = self.reporter(result)
@@ -352,10 +354,8 @@ def _best_effort_journal(operation: Callable[[], None]) -> None:
     try:
         operation()
     except Exception as error:
-        warnings.warn(
-            f"Labtasker could not update the local run journal: {error}",
-            RuntimeWarning,
-            stacklevel=3,
+        logging.getLogger("labtasker.worker").warning(
+            "Labtasker could not update the local run journal: %s", error
         )
 
 

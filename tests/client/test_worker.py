@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
+import sys
 import threading
 import time
+import warnings
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
@@ -198,8 +201,11 @@ def test_journal_creation_failure_unclaims_before_worker_exits(
     assert client.actions == [("unclaim", "t_ABCDEFGHIJKL", None)]
 
 
+@pytest.mark.parametrize("phase", ["reporting", "acknowledged"])
 def test_mid_run_journal_failure_does_not_block_server_completion(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    phase: str,
 ) -> None:
     client = FakeClient([make_claim(), None])
     install_fake_client(monkeypatch, client)
@@ -207,16 +213,163 @@ def test_mid_run_journal_failure_does_not_block_server_completion(
     def fail_reporting(*_: object, **__: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr("labtasker.journal.LocalRunJournal.reporting", fail_reporting)
+    monkeypatch.setattr(f"labtasker.journal.LocalRunJournal.{phase}", fail_reporting)
 
     @loop(idle_timeout=0)
     def handler() -> None:
         finish({"server_is_authoritative": True})
 
-    with pytest.warns(RuntimeWarning, match="could not update the local run journal: disk full"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         handler()
 
     assert client.actions == [("complete", "t_ABCDEFGHIJKL", {"server_is_authoritative": True})]
+    assert "could not update the local run journal: disk full" in caplog.text
+
+
+def test_finish_after_confirmed_revocation_does_not_report(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient([make_claim(), None])
+    install_fake_client(monkeypatch, client)
+
+    @loop(idle_timeout=0)
+    def handler() -> None:
+        context = execution_module._ACTIVE_CONTEXT
+        assert context is not None and context.control is not None
+        context.control.revoke("cancel")
+        with pytest.raises(RuntimeError, match="revoked"):
+            finish({"late": True})
+        assert context.journal.phase == "running"
+
+    handler()
+    assert client.actions == []
+
+
+def test_default_log_handler_disk_error_does_not_interrupt_finish_or_terminal_retry(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import labtasker.tee as tee_module
+
+    client = FakeClient([make_claim(), None])
+    install_fake_client(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker.TERMINAL_BACKOFF_SECONDS", (0.0,))
+    original = client._complete
+    attempts = 0
+
+    def complete(**kwargs: Any) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TransportError("offline")
+        original(**kwargs)
+
+    def fail_journal(*args: object, **kwargs: object) -> None:
+        raise OSError("disk full")
+
+    class FullDisk:
+        write = fail_journal
+        flush = fail_journal
+
+    monkeypatch.setattr(client, "_complete", complete)
+    monkeypatch.setattr(LocalRunJournal, "reporting", fail_journal)
+
+    @loop(idle_timeout=0)
+    def handler() -> None:
+        tee = tee_module._ACTIVE_TEE
+        assert tee is not None and tee._stderr is not None
+        destination = tee._stderr._destination
+        stream_handler = logging.StreamHandler(sys.stderr)
+        logger = logging.getLogger("labtasker.worker")
+        logger.addHandler(stream_handler)
+        tee._stderr._destination = FullDisk()  # type: ignore[assignment]
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                finish({"score": 1})
+        finally:
+            tee._stderr._destination = destination
+            logger.removeHandler(stream_handler)
+
+    handler()
+    assert attempts == 2
+    assert client.actions == [("complete", "t_ABCDEFGHIJKL", {"score": 1})]
+    diagnostics = capsys.readouterr().err
+    assert "could not update the local run journal: disk full" in diagnostics
+    assert "Terminal report transport error; retrying: offline" in diagnostics
+
+
+@pytest.mark.parametrize("action", ["complete", "finish", "fail", "unclaim"])
+def test_terminal_retry_stops_after_heartbeat_confirms_revocation(
+    monkeypatch: pytest.MonkeyPatch, action: str
+) -> None:
+    client = FakeClient([make_claim(), None])
+    install_fake_client(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker.HEARTBEAT_INTERVAL_SECONDS", 0.001)
+    monkeypatch.setattr("labtasker.worker.TERMINAL_BACKOFF_SECONDS", (0.0,))
+    reporting = threading.Event()
+    attempts = 0
+
+    def heartbeat(**_: object) -> None:
+        if reporting.is_set():
+            raise APIError(409, "stale_run", "revoked", {})
+
+    def failed_report(**_: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        assert attempts == 1, "retried after confirmed ownership loss"
+        reporting.set()
+        context = execution_module._ACTIVE_CONTEXT
+        assert context is not None and context.control is not None
+        deadline = time.monotonic() + 1
+        while not context.control.revoked and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert context.control.revoked
+        raise TransportError("terminal response lost")
+
+    monkeypatch.setattr(client, "_heartbeat", heartbeat)
+    monkeypatch.setattr(client, f"_{'complete' if action == 'finish' else action}", failed_report)
+
+    @loop(idle_timeout=0, max_consecutive_failures=1)
+    def handler() -> None:
+        if action == "finish":
+            finish({"result": 1})
+        elif action == "fail":
+            raise ValueError("workload error")
+        elif action == "unclaim":
+            raise TransientError("try again")
+
+    handler()
+    assert attempts == 1
+    assert client.actions == []
+
+
+def test_benign_completed_control_does_not_cancel_completion_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeClient([make_claim(), None])
+    install_fake_client(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker.TERMINAL_BACKOFF_SECONDS", (0.0,))
+    original = client._complete
+    attempts = 0
+
+    def complete(**kwargs: Any) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            context = execution_module._ACTIVE_CONTEXT
+            assert context is not None and context.control is not None
+            context.control.complete()
+            raise TransportError("accepted completion response lost")
+        original(**kwargs)
+
+    monkeypatch.setattr(client, "_complete", complete)
+
+    @loop(idle_timeout=0)
+    def handler() -> None:
+        finish({"score": 1})
+
+    handler()
+    assert attempts == 2
+    assert client.actions == [("complete", "t_ABCDEFGHIJKL", {"score": 1})]
 
 
 def test_failure_levels_and_binding_error_continue_worker(

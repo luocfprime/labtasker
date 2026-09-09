@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
 import pytest
@@ -473,6 +474,50 @@ def test_invalid_filter_fails_locally_before_network(filter_value: str) -> None:
     with mock_client(handler) as client, pytest.raises(RequestValidationError):
         client.list_tasks(filter=filter_value)
     assert calls == 0
+
+
+@pytest.mark.parametrize("value", ["\ud800", "\udfff"])
+@pytest.mark.parametrize(
+    ("operation", "field", "options"),
+    [
+        ("list_tasks", "name", {}),
+        ("count_tasks", "name", {}),
+        ("count_tasks", "name", {"group_by": ["routes"]}),
+        ("list_tasks", "cursor", {}),
+        ("count_tasks", "cursor", {"group_by": ["routes"]}),
+        ("list_workers", "cursor", {}),
+        ("count_workers", "cursor", {"group_by": ["route"]}),
+    ],
+)
+def test_query_surrogates_fail_before_local_endpoint_preparation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    operation: str,
+    field: str,
+    options: dict[str, object],
+    value: str,
+) -> None:
+    def unexpected_prepare() -> None:
+        pytest.fail("Invalid query must not prepare or start the local Server")
+
+    with Client._from_local_directory(tmp_path, queue="default") as client:
+        monkeypatch.setattr(client, "_prepare_endpoint", unexpected_prepare)
+        with pytest.raises(RequestValidationError, match=field):
+            getattr(client, operation)(**options, **{field: value})
+    assert not (tmp_path / ".labtasker").exists()
+
+
+@pytest.mark.parametrize("operation", ["list_tasks", "count_tasks"])
+def test_query_names_keep_selector_rules(operation: str) -> None:
+    name = "😀\0" * 300
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["name"] == name
+        body = {"count": 0} if operation == "count_tasks" else {"items": [], "next_cursor": None}
+        return httpx.Response(200, json=body)
+
+    with mock_client(handler) as client:
+        getattr(client, operation)(name=name)
 
 
 @pytest.mark.parametrize("operation", ["list_tasks", "count_tasks"])

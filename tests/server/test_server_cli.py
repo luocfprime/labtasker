@@ -183,6 +183,54 @@ def test_malformed_runtime_metadata_is_ignored(tmp_path: Path) -> None:
         assert read_metadata(paths) is None, field
 
 
+@pytest.mark.parametrize("malformation", ["deep_json", "huge_timestamp", "wrong_timestamp_type"])
+def test_malformed_metadata_allows_status_and_stopped_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, malformation: str
+) -> None:
+    paths = LocalPaths(
+        directory=tmp_path,
+        database=tmp_path / ".labtasker/server.db",
+        log=tmp_path / ".labtasker/server.log",
+        runtime_directory=tmp_path / "runtime",
+        socket=tmp_path / "runtime/server.sock",
+        metadata=tmp_path / "runtime/server.json",
+    )
+    local.ensure_runtime_directory(paths)
+    descriptor = local.try_acquire_database(paths)
+    assert descriptor is not None
+    try:
+        metadata = local.make_metadata(
+            paths,
+            generation="generation",
+            role="coordinator",
+            pid=os.getpid(),
+            automatic_attempt_at=time.time(),
+            database_fd=descriptor,
+            server_version=__version__,
+        )
+    finally:
+        os.close(descriptor)
+    payload = asdict(metadata)
+    if malformation == "deep_json":
+        encoded = "[" * 1500 + "0" + "]" * 1500
+    else:
+        payload["automatic_attempt_at"] = 10**400 if malformation == "huge_timestamp" else []
+        encoded = json.dumps(payload)
+    paths.metadata.write_text(encoded, encoding="utf-8")
+    assert read_metadata(paths) is None
+    monkeypatch.setattr("labtasker_server.cli.local_paths", lambda *_: paths)
+    status = runner.invoke(app, ["status"])
+    assert status.exit_code == 0, status.output
+    result = json.loads(status.stdout)
+    assert result["state"] == "stale"
+    assert result["pid"] is None
+    assert result["retry_after_seconds"] is None
+    stopped = runner.invoke(app, ["stop"])
+    assert stopped.exit_code == 0, stopped.output
+    assert not paths.metadata.exists()
+    assert json.loads(runner.invoke(app, ["status"]).stdout)["state"] == "stopped"
+
+
 def test_server_cli_has_explicit_serve_and_local_management_commands() -> None:
     root = runner.invoke(app, ["--help"])
     serve = runner.invoke(app, ["serve", "--help"])

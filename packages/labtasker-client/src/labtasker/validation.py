@@ -242,3 +242,5 @@ def validate_page_parameters(limit: int | None, cursor: str | None) -> None:
         raise RequestValidationError("limit must be an integer from 1 through 1000")
     if cursor is not None and (not isinstance(cursor, str) or not cursor):
         raise RequestValidationError("cursor must be a nonempty string or None")
+    if cursor is not None:
+        validate_unicode_scalar(cursor, field="cursor")

@@ -151,7 +151,7 @@ def _run_command_claim(
             resolved = resolve_argv(templates, claim.task.args)
         except TemplateBindingError as error:
             return _report_command_failure(
-                client, journal, claim, queue, "TaskBindingError", str(error)
+                client, journal, claim, queue, "TaskBindingError", str(error), control=control
             )
         environment = _command_environment(client, claim, journal, queue, route)
         try:
@@ -179,6 +179,7 @@ def _run_command_claim(
                 queue,
                 type(error).__name__,
                 str(error),
+                control=control,
             )
         if control.fatal_error is not None:
             raise control.fatal_error
@@ -193,19 +194,19 @@ def _run_command_claim(
             return _ExecutionResult(succeeded=True)
         if journal.phase == "reporting" and journal.terminal_action == "complete":
             result = journal.read_result()
-            accepted = _report_command_complete(client, claim, queue, result)
+            accepted = _report_command_complete(client, claim, queue, result, control=control)
             _finish_journal(journal, accepted)
             return _ExecutionResult(succeeded=accepted)
         if control.completed:
             return _ExecutionResult(succeeded=True)
         if process.returncode == 0:
             _journal_best_effort(lambda: journal.reporting("complete", {}))
-            accepted = _report_command_complete(client, claim, queue, {})
+            accepted = _report_command_complete(client, claim, queue, {}, control=control)
             _finish_journal(journal, accepted)
             return _ExecutionResult(succeeded=accepted)
         message = _returncode_message(process.returncode)
         return _report_command_failure(
-            client, journal, claim, queue, "CommandProcessError", message
+            client, journal, claim, queue, "CommandProcessError", message, control=control
         )
     except KeyboardInterrupt:
         if control.active:
@@ -522,6 +523,8 @@ def _report_command_complete(
     claim: ClaimResponse,
     queue: str,
     result: dict[str, JSONValue],
+    *,
+    control: RunControl | None = None,
 ) -> bool:
     return _report_until_resolved(
         lambda: client._complete(
@@ -529,7 +532,8 @@ def _report_command_complete(
             run_id=claim.run_id,
             result=result,
             queue=queue,
-        )
+        ),
+        control=control,
     )
 
 
@@ -540,6 +544,8 @@ def _report_command_failure(
     queue: str,
     error_type: str,
     message: str,
+    *,
+    control: RunControl | None = None,
 ) -> _ExecutionResult:
     error_type = _safe_diagnostic_text(error_type)
     message = _safe_diagnostic_text(message)
@@ -558,7 +564,8 @@ def _report_command_failure(
             message=message,
             traceback=None,
             queue=queue,
-        )
+        ),
+        control=control,
     )
     _finish_journal(journal, accepted)
 

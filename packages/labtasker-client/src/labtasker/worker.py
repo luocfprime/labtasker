@@ -252,6 +252,7 @@ def _run_python_claim(
             task_id=claim.task.id,
             run_id=claim.run_id,
             result=result,
+            control=control,
         )
         if accepted:
             control.complete()
@@ -290,13 +291,13 @@ def _run_python_claim(
                 fatal = error
                 logger.critical("Fatal Worker failure for Task %s.", claim.task.id, exc_info=True)
                 if control.active and not context.finished:
-                    _report_failure(client, journal, claim, queue, error)
+                    _report_failure(client, journal, claim, queue, error, control=control)
             except TransientError as error:
                 logger.warning("%s: %s", type(error).__name__, error)
                 if (
                     control.active
                     and not context.finished
-                    and _report_unclaim(client, journal, claim, queue)
+                    and _report_unclaim(client, journal, claim, queue, control=control)
                 ):
                     result = _ExecutionResult(failure=type(error).__name__)
             except Exception as error:
@@ -304,13 +305,15 @@ def _run_python_claim(
                 if (
                     control.active
                     and not context.finished
-                    and _report_failure(client, journal, claim, queue, error)
+                    and _report_failure(client, journal, claim, queue, error, control=control)
                 ):
                     result = _ExecutionResult(failure=type(error).__name__)
             else:
                 if control.active and not context.finished:
                     result = _ExecutionResult(
-                        succeeded=_report_complete(client, journal, claim, queue, {})
+                        succeeded=_report_complete(
+                            client, journal, claim, queue, {}, control=control
+                        )
                     )
     except KeyboardInterrupt:
         if control.active and not context.finished:
@@ -337,6 +340,7 @@ def report_complete_until_resolved(
     task_id: str,
     run_id: str,
     result: dict[str, JSONValue],
+    control: RunControl | None = None,
 ) -> bool:
     return _report_until_resolved(
         lambda: client._complete(
@@ -344,7 +348,8 @@ def report_complete_until_resolved(
             run_id=run_id,
             result=result,
             queue=queue,
-        )
+        ),
+        control=control,
     )
 
 
@@ -354,6 +359,8 @@ def _report_complete(
     claim: ClaimResponse,
     queue: str,
     result: dict[str, JSONValue],
+    *,
+    control: RunControl | None = None,
 ) -> bool:
     _journal_best_effort(lambda: journal.reporting("complete", result))
     accepted = report_complete_until_resolved(
@@ -362,6 +369,7 @@ def _report_complete(
         task_id=claim.task.id,
         run_id=claim.run_id,
         result=result,
+        control=control,
     )
     _finish_journal(journal, accepted)
 
@@ -373,10 +381,13 @@ def _report_unclaim(
     journal: LocalRunJournal,
     claim: ClaimResponse,
     queue: str,
+    *,
+    control: RunControl | None = None,
 ) -> bool:
     _journal_best_effort(lambda: journal.reporting("unclaim"))
     accepted = _report_until_resolved(
-        lambda: client._unclaim(task_id=claim.task.id, run_id=claim.run_id, queue=queue)
+        lambda: client._unclaim(task_id=claim.task.id, run_id=claim.run_id, queue=queue),
+        control=control,
     )
     _finish_journal(journal, accepted)
 
@@ -389,6 +400,8 @@ def _report_failure(
     claim: ClaimResponse,
     queue: str,
     error: Exception,
+    *,
+    control: RunControl | None = None,
 ) -> bool:
     error_type, message, traceback = _failure_diagnostic(error, claim.run_id)
     payload: dict[str, JSONValue] = {
@@ -405,16 +418,24 @@ def _report_failure(
             message=message,
             traceback=traceback,
             queue=queue,
-        )
+        ),
+        control=control,
     )
     _finish_journal(journal, accepted)
 
     return accepted
 
 
-def _report_until_resolved(operation: Callable[[], None]) -> bool:
+def _report_until_resolved(
+    operation: Callable[[], None], *, control: RunControl | None = None
+) -> bool:
     attempt = 0
     while True:
+        if control is not None:
+            if control.fatal_error is not None:
+                raise control.fatal_error
+            if control.revoked:
+                return False
         try:
             operation()
             return True

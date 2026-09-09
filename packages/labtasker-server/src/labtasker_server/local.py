@@ -212,7 +212,10 @@ def read_metadata(paths: LocalPaths) -> RuntimeMetadata | None:
             return None
         raw = json.loads(paths.metadata.read_text(encoding="utf-8"))
         metadata = RuntimeMetadata(**raw)
-    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        finite_attempt = isinstance(metadata.automatic_attempt_at, (int, float)) and math.isfinite(
+            metadata.automatic_attempt_at
+        )
+    except (OSError, ValueError, TypeError, RecursionError, OverflowError):
         return None
     if (
         not isinstance(metadata.metadata_version, int)
@@ -237,7 +240,7 @@ def read_metadata(paths: LocalPaths) -> RuntimeMetadata | None:
         or isinstance(metadata.database_inode, bool)
         or not isinstance(metadata.automatic_attempt_at, (int, float))
         or isinstance(metadata.automatic_attempt_at, bool)
-        or not math.isfinite(metadata.automatic_attempt_at)
+        or not finite_attempt
         or not (metadata.server_version is None or isinstance(metadata.server_version, str))
     ):
         return None

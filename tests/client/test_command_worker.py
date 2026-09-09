@@ -602,6 +602,53 @@ def test_confirmed_revocation_terminates_command_group_and_continues(
     assert client.actions == []
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX")
+@pytest.mark.parametrize("action", ["complete", "fail"])
+def test_command_terminal_retry_stops_after_heartbeat_confirms_loss(
+    monkeypatch: pytest.MonkeyPatch, action: str
+) -> None:
+    from labtasker.errors import TransportError
+
+    client = FakeClient([make_claim(), None])
+    install(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker.HEARTBEAT_INTERVAL_SECONDS", 0.001)
+    monkeypatch.setattr("labtasker.worker.TERMINAL_BACKOFF_SECONDS", (0.0,))
+    controls: list[RunControl] = []
+    reporting = threading.Event()
+    attempts = 0
+
+    def make_control(**kwargs: Any) -> RunControl:
+        control = RunControl(**kwargs)
+        controls.append(control)
+        return control
+
+    def heartbeat(**_: object) -> None:
+        if reporting.is_set():
+            raise APIError(409, "stale_run", "revoked", {})
+
+    def failed_report(**_: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        assert attempts == 1, "retried after confirmed ownership loss"
+        reporting.set()
+        deadline = time.monotonic() + 1
+        while not controls[0].revoked and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert controls[0].revoked
+        raise TransportError("terminal endpoint unavailable")
+
+    monkeypatch.setattr("labtasker.command_worker.RunControl", make_control)
+    monkeypatch.setattr(client, "_heartbeat", heartbeat)
+    monkeypatch.setattr(client, f"_{action}", failed_report)
+    run_command_worker(
+        [sys.executable, "-c", "pass" if action == "complete" else "raise SystemExit(1)"],
+        idle_timeout=0,
+        max_consecutive_failures=1,
+    )
+    assert attempts == 1
+    assert client.actions == []
+
+
 @pytest.mark.skipif(os.name != "posix", reason="process-group behavior is POSIX-specific")
 @pytest.mark.parametrize("launcher_exits", [False, True])
 @pytest.mark.parametrize("force_stop_timeout", [0.1, None])

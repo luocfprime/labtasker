@@ -239,8 +239,12 @@ class Client:
             validate_unicode_scalar(name_fuzzy, field="name_fuzzy")
         if name is not None and not isinstance(name, str):
             raise RequestValidationError("name selector must be a string or None.")
+        if name is not None:
+            validate_unicode_scalar(name, field="name")
         if cursor is not None and not isinstance(cursor, str):
             raise RequestValidationError("cursor must be a string or None.")
+        if cursor is not None:
+            validate_unicode_scalar(cursor, field="cursor")
         params = _without_none(
             {
                 "status": status,
@@ -312,6 +316,8 @@ class Client:
             validate_unicode_scalar(name_fuzzy, field="name_fuzzy")
         if name is not None and not isinstance(name, str):
             raise RequestValidationError("name selector must be a string or None")
+        if name is not None:
+            validate_unicode_scalar(name, field="name")
         groups = validate_grouping(group_by, {"routes", "status"}, limit, cursor)
         return self._count_query(
             "tasks",
