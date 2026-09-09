@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import io
 import json
 import os
@@ -19,7 +20,13 @@ import pytest
 
 import labtasker.execution as execution_module
 from labtasker.command_template import TemplateSyntaxError
-from labtasker.command_worker import _run_pipes, _run_pty, _start_drain, run_command_worker
+from labtasker.command_worker import (
+    _CommandLog,
+    _run_pipes,
+    _run_pty,
+    _start_drain,
+    run_command_worker,
+)
 from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError
 from labtasker.execution import RunControl, finish, task_info
@@ -233,7 +240,7 @@ def test_pipe_drain_relays_small_output_before_eof(tmp_path: Path) -> None:
     log_path = tmp_path / "run.log"
     try:
         with log_path.open("wb", buffering=0) as log:
-            thread = _start_drain(source, destination, log, threading.Lock(), "stdout")
+            thread = _start_drain(source, destination, _CommandLog(log), "stdout")
             os.write(write_fd, b"ready\n")
             deadline = time.monotonic() + 1
             while destination_buffer.getvalue() != b"ready\n" and time.monotonic() < deadline:
@@ -270,8 +277,7 @@ def test_pipe_drain_keeps_draining_after_destination_closes(tmp_path: Path) -> N
         thread = _start_drain(
             process.stdout,
             ClosedDestination(),
-            log,
-            threading.Lock(),
+            _CommandLog(log),
             "stdout",
         )
         process.wait(timeout=3)
@@ -318,6 +324,206 @@ def test_pty_worker_gives_child_one_terminal_and_captures_combined_raw_output(
     assert b"tty=True,True,True" in log_path.read_bytes()
     assert b"stderr-line" in log_path.read_bytes()
     assert b"tty=True,True,True" in stdout_bytes.getvalue()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PTY execution is POSIX-specific")
+@pytest.mark.parametrize("force_stop_timeout", [None, 0.1])
+@pytest.mark.parametrize("relay_fails", [False, True])
+def test_pty_cancellation_drains_cleanup_output_while_waiting(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    force_stop_timeout: float | None,
+    relay_fails: bool,
+) -> None:
+    import pty
+
+    ready = tmp_path / "ready"
+    log_path = tmp_path / "pty.log"
+    outer_master, outer_slave = pty.openpty()
+    stdin = os.fdopen(os.dup(outer_slave), "r", encoding="utf-8")
+    stdout_bytes = io.BytesIO()
+    stdout = io.TextIOWrapper(stdout_bytes, encoding="utf-8", write_through=True)
+    if relay_fails:
+        stdout.close()
+    monkeypatch.setattr(sys, "stdin", stdin)
+    monkeypatch.setattr(sys, "stdout", stdout)
+    control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
+    finished = threading.Event()
+    rescued = threading.Event()
+    script = """
+import os, signal, sys, time
+from pathlib import Path
+def cleanup(*_):
+    for _ in range(256):
+        os.write(1, b'x' * 1024)
+    if sys.argv[2] == 'hang':
+        time.sleep(30)
+    sys.exit(0)
+signal.signal(signal.SIGTERM, cleanup)
+Path(sys.argv[1]).write_text(str(os.getpgrp()))
+while True:
+    time.sleep(.1)
+"""
+
+    def cancel_and_rescue() -> None:
+        deadline = time.monotonic() + 5
+        group_id: int | None = None
+        while time.monotonic() < deadline:
+            if ready.exists() and (text := ready.read_text()):
+                group_id = int(text)
+                control.revoke("cancel")
+                break
+            time.sleep(0.01)
+        if not finished.wait(max(0, deadline - time.monotonic())):
+            rescued.set()
+            if group_id is not None:
+                with suppress(ProcessLookupError):
+                    os.killpg(group_id, signal.SIGKILL)
+
+    rescuer = threading.Thread(target=cancel_and_rescue, daemon=True)
+    rescuer.start()
+    started = time.monotonic()
+    try:
+        process = _run_pty(
+            [
+                sys.executable,
+                "-c",
+                script,
+                str(ready),
+                "exit" if force_stop_timeout is None else "hang",
+            ],
+            dict(os.environ),
+            log_path,
+            control,
+            force_stop_timeout,
+        )
+        assert not rescued.is_set(), "PTY cleanup blocked behind undrained output"
+        if force_stop_timeout is None:
+            assert process.returncode == 0
+            assert log_path.read_bytes() == b"x" * (256 * 1024)
+            if not relay_fails:
+                assert stdout_bytes.getvalue() == log_path.read_bytes()
+        else:
+            assert process.returncode == -signal.SIGKILL
+            assert time.monotonic() - started < 3
+    finally:
+        finished.set()
+        rescuer.join(timeout=6)
+        control.executor_done()
+        stdin.close()
+        os.close(outer_master)
+        os.close(outer_slave)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX")
+@pytest.mark.parametrize("mode", ["pipes", "pty"])
+def test_command_keeps_draining_after_log_disk_fills(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mode: str,
+) -> None:
+    import pty
+
+    class FullDisk(io.BytesIO):
+        attempts = 0
+
+        def write(self, chunk: bytes) -> int:
+            self.attempts += 1
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+    sink = FullDisk()
+    log_path = tmp_path / "run.log"
+    original_open = Path.open
+    monkeypatch.setattr(
+        Path,
+        "open",
+        lambda path, *args, **kwargs: (
+            sink if path == log_path else original_open(path, *args, **kwargs)
+        ),
+    )
+    outer_master, outer_slave = pty.openpty()
+    stdin = os.fdopen(os.dup(outer_slave), "r", encoding="utf-8")
+    stdout_bytes, stderr_bytes = io.BytesIO(), io.BytesIO()
+    monkeypatch.setattr(sys, "stdin", stdin)
+    monkeypatch.setattr(
+        sys, "stdout", io.TextIOWrapper(stdout_bytes, encoding="utf-8", write_through=True)
+    )
+    monkeypatch.setattr(
+        sys, "stderr", io.TextIOWrapper(stderr_bytes, encoding="utf-8", write_through=True)
+    )
+    processes: list[subprocess.Popen[bytes]] = []
+    original_popen = subprocess.Popen
+
+    def launch(*args: Any, **kwargs: Any) -> subprocess.Popen[bytes]:
+        process = original_popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr("labtasker.command_worker.subprocess.Popen", launch)
+    finished, rescued = threading.Event(), threading.Event()
+
+    def rescue() -> None:
+        if not finished.wait(5):
+            rescued.set()
+            if processes:
+                with suppress(ProcessLookupError):
+                    os.killpg(processes[0].pid, signal.SIGKILL)
+
+    rescuer = threading.Thread(target=rescue, daemon=True)
+    rescuer.start()
+    control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
+    size = 1024 * 1024
+    script = f"import os; os.write(1, b'x' * {size}); os.write(2, b'y' * {size})"
+    try:
+        run = _run_pipes if mode == "pipes" else _run_pty
+        process = run([sys.executable, "-c", script], dict(os.environ), log_path, control, None)
+        assert not rescued.is_set(), "child blocked after the log sink failed"
+        assert process.returncode == 0
+        assert sink.attempts == 1
+        assert sum("Could not write command run.log" in r.message for r in caplog.records) == 1
+        if mode == "pipes":
+            assert stdout_bytes.getvalue() == b"x" * size
+            assert stderr_bytes.getvalue() == b"y" * size
+        else:
+            assert stdout_bytes.getvalue() == b"x" * size + b"y" * size
+    finally:
+        finished.set()
+        rescuer.join(timeout=6)
+        control.executor_done()
+        stdin.close()
+        os.close(outer_master)
+        os.close(outer_slave)
+
+
+def test_command_log_retries_short_writes_without_losing_bytes() -> None:
+    class ShortWriter(io.BytesIO):
+        def write(self, chunk: bytes) -> int:
+            return super().write(chunk[:3])
+
+    stream = ShortWriter()
+    sink = _CommandLog(stream)
+    sink.write(b"complete-output")
+    assert stream.getvalue() == b"complete-output"
+
+
+@pytest.mark.parametrize("written", [0, None])
+def test_command_log_disables_nonprogressing_sink_once(
+    caplog: pytest.LogCaptureFixture, written: int | None
+) -> None:
+    class StuckWriter(io.BytesIO):
+        attempts = 0
+
+        def write(self, chunk):
+            self.attempts += 1
+            return written
+
+    stream = StuckWriter()
+    sink = _CommandLog(stream)
+    sink.write(b"first")
+    sink.write(b"second")
+    assert stream.attempts == 1
+    assert sum("Could not write command run.log" in r.message for r in caplog.records) == 1
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")

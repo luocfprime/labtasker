@@ -7,7 +7,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, create_engine, event, inspect, text
+from sqlalchemy import URL, Connection, Engine, create_engine, event, insert, inspect, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -43,24 +43,26 @@ class Database:
             raise
 
     def initialize(self) -> None:
-        existing_tables = set(inspect(self.engine).get_table_names())
-        is_fresh = not existing_tables
-        if existing_tables and "alembic_version" not in existing_tables:
-            raise RuntimeError("Database has tables but is not a recognized Labtasker v2 schema.")
-
         alembic_config = Config()
         alembic_config.set_main_option(
             "script_location",
             str(Path(__file__).resolve().parent / "migrations"),
         )
         with self.engine.begin() as connection:
+            # sqlite3's legacy mode does not begin a transaction for DDL.
+            # Commit schema changes and initial Queue together, including when
+            # startup fails or is interrupted between migration operations.
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
+            existing_tables = set(inspect(connection).get_table_names())
+            if existing_tables and "alembic_version" not in existing_tables:
+                raise RuntimeError(
+                    "Database has tables but is not a recognized Labtasker v2 schema."
+                )
             alembic_config.attributes["connection"] = connection
             command.upgrade(alembic_config, "head")
-        _verify_sqlite_settings(self.engine)
-
-        if is_fresh:
-            with self.write_session() as session:
-                session.add(QueueRow(name="default"))
+            _verify_sqlite_settings(connection)
+            if not existing_tables:
+                connection.execute(insert(QueueRow).values(name="default"))
 
     @contextmanager
     def read_session(self) -> Iterator[Session]:
@@ -136,7 +138,7 @@ def _acquire_database_ownership(path: Path, inherited_fd: int | None) -> int:
 
 def _create_sqlite_engine(path: Path) -> Engine:
     engine = create_engine(
-        f"sqlite+pysqlite:///{path}",
+        URL.create("sqlite+pysqlite", database=str(path)),
         connect_args={"check_same_thread": False, "timeout": 5.0},
     )
 
@@ -170,14 +172,13 @@ def _is_sqlite_busy(error: OperationalError) -> bool:
     return code in {5, 6} or "database is locked" in str(error.orig).lower()
 
 
-def _verify_sqlite_settings(engine: Engine) -> None:
-    with engine.connect() as connection:
-        actual = {
-            "journal_mode": connection.scalar(text("PRAGMA journal_mode")),
-            "foreign_keys": connection.scalar(text("PRAGMA foreign_keys")),
-            "busy_timeout": connection.scalar(text("PRAGMA busy_timeout")),
-            "synchronous": connection.scalar(text("PRAGMA synchronous")),
-        }
+def _verify_sqlite_settings(connection: Connection) -> None:
+    actual = {
+        "journal_mode": connection.scalar(text("PRAGMA journal_mode")),
+        "foreign_keys": connection.scalar(text("PRAGMA foreign_keys")),
+        "busy_timeout": connection.scalar(text("PRAGMA busy_timeout")),
+        "synchronous": connection.scalar(text("PRAGMA synchronous")),
+    }
     expected = {
         "journal_mode": "wal",
         "foreign_keys": 1,

@@ -7,8 +7,10 @@ import sys
 from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from alembic.util.exc import CommandError
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
 
 from labtasker_server.config import ServerSettings
 from labtasker_server.database import Database, DatabaseOwnershipError
@@ -149,6 +151,26 @@ def test_engine_disposal_failure_still_releases_database_ownership(
     replacement.dispose()
 
 
+@pytest.mark.parametrize("relative_path", ["queue?one.db", "project?run=1/server.db"])
+def test_database_path_is_not_parsed_as_a_url(tmp_path: Path, relative_path: str) -> None:
+    path = tmp_path / relative_path
+    database = Database(path)
+    try:
+        database.initialize()
+        with database.read_session() as session:
+            files = session.execute(text("PRAGMA database_list")).all()
+            assert Path(next(row[2] for row in files if row[1] == "main")) == path.resolve()
+        connection = sqlite3.connect(path)
+        try:
+            assert connection.execute("SELECT name FROM queues").fetchall() == [("default",)]
+        finally:
+            connection.close()
+        with pytest.raises(DatabaseOwnershipError):
+            Database(path)
+    finally:
+        database.dispose()
+
+
 def test_database_preserves_existing_gitignore_and_ignores_other_parents(
     tmp_path: Path,
 ) -> None:
@@ -253,6 +275,111 @@ def test_migration_failure_aborts_initialization(
         database.initialize()
     assert "queues" not in inspect(database.engine).get_table_names()
     database.dispose()
+
+
+@pytest.mark.parametrize("failure_stage", ["migration_ddl", "verify", "default_insert"])
+def test_failed_fresh_initialization_rolls_back_schema_and_can_retry(
+    database_path: Path, monkeypatch: pytest.MonkeyPatch, failure_stage: str
+) -> None:
+    database = Database(database_path)
+
+    def fail_after_statement(
+        _connection: object, _cursor: object, statement: str, *_: object
+    ) -> None:
+        normalized = statement.strip().lower()
+        if (failure_stage == "migration_ddl" and normalized.startswith("create table tasks")) or (
+            failure_stage == "default_insert" and normalized.startswith("insert into queues")
+        ):
+            raise RuntimeError("injected initialization failure")
+
+    def fail_verification(*_: object) -> None:
+        raise RuntimeError("injected initialization failure")
+
+    event.listen(database.engine, "after_cursor_execute", fail_after_statement)
+    try:
+        with monkeypatch.context() as patch:
+            if failure_stage == "verify":
+                patch.setattr(
+                    "labtasker_server.database._verify_sqlite_settings", fail_verification
+                )
+            with pytest.raises(RuntimeError, match="injected initialization failure"):
+                database.initialize()
+    finally:
+        database.dispose()
+
+    # Read through an independent connection after closing the failed Server.
+    with sqlite3.connect(database_path) as connection:
+        assert (
+            connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
+        )
+    replacement = Database(database_path)
+    try:
+        replacement.initialize()
+        assert [queue.name for queue in QueueService(replacement).list()] == ["default"]
+        assert "workers" in inspect(replacement.engine).get_table_names()
+    finally:
+        replacement.dispose()
+
+
+def test_failed_forward_migration_preserves_revision_and_task_data(database_path: Path) -> None:
+    from labtasker_server.schemas import TaskCreate
+    from labtasker_server.services.tasks import TaskService
+
+    database = Database(database_path)
+    try:
+        database.initialize()
+        original, _ = TaskService(database).create(
+            "default", "t_ABCDEFGHIJKL", TaskCreate(args={"seed": 17}, routes=["a", "b"])
+        )
+        config = Config()
+        config.set_main_option(
+            "script_location",
+            str(
+                Path(__file__).parents[2]
+                / "packages/labtasker-server/src/labtasker_server/migrations"
+            ),
+        )
+        with database.engine.begin() as connection:
+            connection.execute(text("BEGIN IMMEDIATE"))
+            config.attributes["connection"] = connection
+            command.downgrade(config, "0001_initial")
+    finally:
+        database.dispose()
+
+    def fail_after_worker_table(
+        _connection: object, _cursor: object, statement: str, *_: object
+    ) -> None:
+        if statement.strip().lower().startswith("create table workers"):
+            raise RuntimeError("injected upgrade failure")
+
+    upgrading = Database(database_path)
+    event.listen(upgrading.engine, "after_cursor_execute", fail_after_worker_table)
+    try:
+        with pytest.raises(RuntimeError, match="injected upgrade failure"):
+            upgrading.initialize()
+    finally:
+        upgrading.dispose()
+    with sqlite3.connect(database_path) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+            "0001_initial",
+        )
+        assert (
+            connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='workers'"
+            ).fetchall()
+            == []
+        )
+        assert connection.execute("SELECT args_json FROM tasks").fetchone() == ('{"seed":17}',)
+    replacement = Database(database_path)
+    try:
+        replacement.initialize()
+        assert TaskService(replacement).get("default", original.id) == original
+        with replacement.read_session() as session:
+            assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0002_worker_observations"
+            )
+    finally:
+        replacement.dispose()
 
 
 def test_write_lock_timeout_maps_to_database_busy(database_path: Path) -> None:

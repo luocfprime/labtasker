@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
 import sys
@@ -83,7 +84,14 @@ class WorkerTee:
     def capture(self, path: Path) -> Iterator[None]:
         if self._destination is not None:
             raise RuntimeError("A Worker log destination is already active.")
-        with path.open("a", encoding="utf-8", errors="backslashreplace") as destination:
+        # Do not leave parent log bytes in a userspace buffer that a fork child
+        # could flush again when its inherited capture context unwinds.
+        with io.TextIOWrapper(
+            path.open("ab", buffering=0),
+            encoding="utf-8",
+            errors="backslashreplace",
+            write_through=True,
+        ) as destination:
             self._destination = destination
             if self._stdout is not None:
                 self._stdout.set_destination(destination)

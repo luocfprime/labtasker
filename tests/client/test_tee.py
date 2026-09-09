@@ -43,7 +43,6 @@ def test_fork_detaches_tee_and_context_without_waiting_for_parent_locks(
     log_path = tmp_path / "run.log"
     read_fd, write_fd = os.pipe()
     parent_pid = os.getpid()
-    original_open = Path.open
 
     class ForkSensitiveLog(io.TextIOWrapper):
         def flush(self) -> None:
@@ -58,13 +57,7 @@ def test_fork_detaches_tee_and_context_without_waiting_for_parent_locks(
                 return
             super().__del__()
 
-    def open_log(path: Path, *args: object, **kwargs: object) -> object:
-        if path == log_path:
-            # Return directly: only capture() and the tee retain this wrapper.
-            return ForkSensitiveLog(original_open(path, "ab"), encoding="utf-8")
-        return original_open(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", open_log)
+    monkeypatch.setattr("labtasker.tee.io.TextIOWrapper", ForkSensitiveLog)
     child: int | None = None
     execution.activate_context(context)
     try:
@@ -105,9 +98,45 @@ def test_fork_detaches_tee_and_context_without_waiting_for_parent_locks(
                 holder.join(timeout=2)
             assert execution.active_context_present()
             print("parent-after", flush=True)
-        monkeypatch.setattr(Path, "open", original_open)
         assert log_path.read_text() == "parent-before\nparent-after\n"
     finally:
         execution.deactivate_context(context)
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_fork_child_unwinding_capture_does_not_flush_parent_log_twice(tmp_path: Path) -> None:
+    log_path = tmp_path / "run.log"
+    read_fd, write_fd = os.pipe()
+    child: int | None = None
+    try:
+        try:
+            with WorkerTee() as tee, tee.capture(log_path):
+                # Deliberately omit flush, including UTF-8 and a surrogate that
+                # must retain the existing backslashreplace encoding behavior.
+                print("parent-中文-\ud800")
+                child = os.fork()
+                if child == 0:
+                    print("child-only")
+                    raise SystemExit(0)
+                assert select.select([read_fd], [], [], 3)[0], "child capture close deadlocked"
+                assert os.read(read_fd, 2) == b"ok"
+                _, status = os.waitpid(child, 0)
+                child = None
+                assert os.waitstatus_to_exitcode(status) == 0
+                print("parent-after")
+        except SystemExit:
+            # The child has now performed normal context-manager unwinding,
+            # including TextIOWrapper.close(), unlike the direct os._exit test.
+            if child == 0:
+                os.write(write_fd, b"ok")
+                os._exit(0)
+            raise
+        assert log_path.read_text() == "parent-中文-\\ud800\nparent-after\n"
+    finally:
+        if child not in {None, 0}:
+            os.kill(child, signal.SIGKILL)
+            os.waitpid(child, 0)
         os.close(read_fd)
         os.close(write_fd)

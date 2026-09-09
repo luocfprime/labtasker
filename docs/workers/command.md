@@ -53,6 +53,10 @@ pipes, drains stdout and stderr concurrently, and connects stdin to `/dev/null`.
 Both modes forward output live and copy the raw bytes to the local `run.log`;
 there is no public PTY option.
 
+If writing `run.log` fails during execution, the Worker warns and continues
+draining and forwarding output. The log may be incomplete; this failure alone
+does not change the Task outcome.
+
 If the child has not called `finish()`, exit code zero succeeds with `{}` and any
 other exit code is a charged failure. After a successful `finish()`, a later
 non-zero exit is logged locally but does not change the succeeded Task.

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, TypeAlias, cast
 
-from sqlalchemy import Boolean, and_, column, false, func, not_, or_, select, table, true
+from sqlalchemy import Boolean, and_, case, column, false, func, not_, or_, select, table, true
 from sqlalchemy.sql import operators
 from sqlalchemy.sql.elements import BinaryExpression, ColumnElement, Grouping
 from sqlalchemy.sql.selectable import CTE
@@ -555,7 +555,11 @@ def _compile_membership(node: Membership, *, worker: bool = False) -> ColumnElem
         match = _route_exists(value)
         return not_(match) if node.operator == "not in" else match
 
-    each = func.json_each(runtime.value).table_valued("key", "value", "type").alias()
+    # A Boolean SELECT (including a lifted CTE) need not short-circuit AND.
+    # Protect json_each itself: extracted JSON strings are unquoted SQL text
+    # and may not be valid JSON. Non-array paths still fail the is_array guard.
+    array_value = case((runtime.json_type == "array", runtime.value), else_="[]")
+    each = func.json_each(array_value).table_valued("key", "value", "type").alias()
     match = (
         select(1).select_from(each).where(_json_equal(each.c.value, each.c.type, value)).exists()
     )

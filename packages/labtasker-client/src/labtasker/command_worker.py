@@ -9,7 +9,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import IO, Any
@@ -234,11 +234,11 @@ def _run_pipes(
     )
     assert process.stdout is not None
     assert process.stderr is not None
-    lock = threading.Lock()
     try:
         with log_path.open("ab", buffering=0) as log:
-            stdout_thread = _start_drain(process.stdout, sys.stdout, log, lock, "stdout")
-            stderr_thread = _start_drain(process.stderr, sys.stderr, log, lock, "stderr")
+            sink = _CommandLog(log)
+            stdout_thread = _start_drain(process.stdout, sys.stdout, sink, "stdout")
+            stderr_thread = _start_drain(process.stderr, sys.stderr, sink, "stderr")
             _wait_process(process, control, force_stop_timeout, (stdout_thread, stderr_thread))
             stdout_thread.join()
             stderr_thread.join()
@@ -248,11 +248,35 @@ def _run_pipes(
     return process
 
 
+class _CommandLog:
+    def __init__(self, stream: IO[bytes]) -> None:
+        self._stream = stream
+        self._lock = threading.Lock()
+        self._failed = False
+
+    def write(self, chunk: bytes) -> None:
+        with self._lock:
+            if self._failed:
+                return
+            try:
+                offset = 0
+                while offset < len(chunk):
+                    written = self._stream.write(chunk[offset:])
+                    if written is None or written <= 0:
+                        raise OSError("run.log write made no progress")
+                    offset += written
+            except (OSError, ValueError) as error:
+                self._failed = True
+                logger.warning(
+                    "Could not write command run.log (%s); continuing without the local log.",
+                    error,
+                )
+
+
 def _start_drain(
     source: IO[bytes],
     destination: object,
-    log: IO[bytes],
-    lock: threading.Lock,
+    log: _CommandLog,
     name: str,
 ) -> threading.Thread:
     def drain() -> None:
@@ -261,8 +285,7 @@ def _start_drain(
             chunk = os.read(source.fileno(), 65536)
             if not chunk:
                 return
-            with lock:
-                log.write(chunk)
+            log.write(chunk)
             if relay:
                 try:
                     _write_bytes(destination, chunk)
@@ -301,11 +324,35 @@ def _run_pty(
     os.close(slave)
     try:
         with log_path.open("ab", buffering=0) as log, _raw_terminal(sys.stdin.fileno()):
+            sink = _CommandLog(log)
             last_size: bytes | None = None
             output_open = True
+            relay = True
+
+            def drain_output() -> None:
+                nonlocal output_open, relay
+                remaining = 65536
+                while output_open and remaining and select.select([master], [], [], 0)[0]:
+                    try:
+                        chunk = os.read(master, remaining)
+                    except OSError as error:
+                        if error.errno != errno.EIO:
+                            raise
+                        chunk = b""
+                    if chunk:
+                        sink.write(chunk)
+                        if relay:
+                            try:
+                                _write_bytes(sys.stdout, chunk)
+                            except Exception:
+                                relay = False
+                        remaining -= len(chunk)
+                    else:
+                        output_open = False
+
             while output_open or process.poll() is None:
                 if control.revoked:
-                    _terminate_process_group(process, force_stop_timeout)
+                    _terminate_process_group(process, force_stop_timeout, drain_output)
                 size = _terminal_size(sys.stdin.fileno())
                 if size is not None and size != last_size:
                     try:
@@ -320,17 +367,7 @@ def _run_pty(
                     readers.append(sys.stdin.fileno())
                 ready, _, _ = select.select(readers, [], [], 0.1)
                 if master in ready:
-                    try:
-                        chunk = os.read(master, 65536)
-                    except OSError as error:
-                        if error.errno != errno.EIO:
-                            raise
-                        chunk = b""
-                    if chunk:
-                        log.write(chunk)
-                        _write_bytes(sys.stdout, chunk)
-                    else:
-                        output_open = False
+                    drain_output()
                 if sys.stdin.fileno() in ready:
                     chunk = os.read(sys.stdin.fileno(), 65536)
                     if chunk:
@@ -366,12 +403,17 @@ def _wait_process(
 def _terminate_process_group(
     process: subprocess.Popen[bytes],
     force_stop_timeout: float | None,
+    drain_output: Callable[[], None] | None = None,
 ) -> None:
     deadline = None if force_stop_timeout is None else time.monotonic() + force_stop_timeout
     _signal_process_group(process.pid, signal.SIGTERM)
     # Waiting only for the launcher loses surviving ranks when SIGTERM makes
     # the launcher exit first. Reap it, but retain the group's original deadline.
     while True:
+        # PTY output has no separate reader thread. Keep draining while a
+        # cooperative signal handler writes cleanup output before exiting.
+        if drain_output is not None:
+            drain_output()
         process.poll()
         if not _process_group_alive(process.pid):
             break

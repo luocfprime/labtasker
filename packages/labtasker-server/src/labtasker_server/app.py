@@ -7,11 +7,13 @@ from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Query, Request, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
+from starlette.exceptions import HTTPException
 
 from labtasker_server import __version__
 from labtasker_server.config import ServerSettings
@@ -50,7 +52,7 @@ from labtasker_server.schemas import (
 from labtasker_server.services.queues import QueueService
 from labtasker_server.services.tasks import TaskService, system_now_us
 from labtasker_server.services.workers import WorkerService
-from labtasker_server.validation import MAX_TASK_DATA_BYTES
+from labtasker_server.validation import MAX_JSON_DEPTH, MAX_TASK_DATA_BYTES
 
 EXPIRY_SCAN_INTERVAL_SECONDS = 60
 logger = logging.getLogger(__name__)
@@ -147,6 +149,32 @@ def create_app(
                 }
             },
         )
+
+    @app.exception_handler(HTTPException)
+    async def handle_http_error(request: Request, exc: HTTPException) -> Response:
+        # FastAPI wraps decoder limits and invalid byte encodings in HTTP 400
+        # before Pydantic sees the body. Keep those in the validation contract.
+        if (
+            exc.status_code == 400
+            and exc.detail == "There was an error parsing the body"
+            and isinstance(exc.__cause__, (ValueError, RecursionError))
+        ):
+            if isinstance(exc.__cause__, RecursionError):
+                error = DomainError(
+                    422,
+                    "json_too_deep",
+                    "JSON value is too deeply nested.",
+                    {"max_depth": MAX_JSON_DEPTH},
+                )
+            else:
+                error = DomainError(
+                    422,
+                    "invalid_request",
+                    "Request validation failed.",
+                    {"errors": [{"location": ["body"], "message": "Malformed JSON body."}]},
+                )
+            return await handle_domain_error(request, error)
+        return await http_exception_handler(request, exc)
 
     def require_auth(
         request: Request,
@@ -498,6 +526,10 @@ def _validation_error(
 ) -> tuple[str, dict[str, object] | None]:
     for error in exc.errors():
         error_type = str(error.get("type", ""))
+        if error_type == "recursion_loop":
+            # A JSON body cannot contain reference cycles. This is Pydantic's
+            # own nesting limit, reached before the domain depth validator.
+            return "json_too_deep", {"max_depth": MAX_JSON_DEPTH}
         if error_type == "json_invalid":
             return "invalid_request", {
                 "errors": [{"location": ["body"], "message": "Malformed JSON body."}]

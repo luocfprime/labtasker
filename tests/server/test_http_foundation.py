@@ -236,6 +236,58 @@ def test_malformed_json_has_one_stable_body_location(client: TestClient) -> None
     }
 
 
+@pytest.mark.parametrize("body", [b'{"priority":' + b"1" * 5000 + b"}", b"\xff"])
+def test_json_decoder_failures_use_validation_envelope(client: TestClient, body: bytes) -> None:
+    response = client.put(
+        "/api/v2/queues/default/tasks/t_ABCDEFGHIJKL",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "invalid_request",
+            "message": "Request validation failed.",
+            "details": {
+                "errors": [{"location": ["body"], "message": "Malformed JSON body."}],
+            },
+        }
+    }
+
+
+@pytest.mark.parametrize("depth", [65, 255, 1500])
+@pytest.mark.parametrize(
+    ("method", "suffix", "prefix"),
+    [
+        ("PUT", "", b'{"args":{"value":'),
+        ("PATCH", "", b'{"metadata":{"value":'),
+        ("POST", "/complete", b'{"run_id":"r_ABCDEFGHIJKL","result":{"value":'),
+    ],
+)
+def test_extreme_json_depth_has_one_domain_error(
+    client: TestClient, depth: int, method: str, suffix: str, prefix: bytes
+) -> None:
+    response = client.request(
+        method,
+        f"/api/v2/queues/default/tasks/t_ABCDEFGHIJKL{suffix}",
+        content=prefix + b"[" * depth + b"0" + b"]" * depth + b"}}",
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "json_too_deep",
+            "message": "JSON value is too deeply nested.",
+            "details": {"max_depth": 64},
+        }
+    }
+
+
+def test_framework_routing_errors_keep_their_status(client: TestClient) -> None:
+    assert client.get("/not-a-route").status_code == 404
+    assert client.post("/health").status_code == 405
+
+
 def test_declared_oversized_request_is_rejected(client: TestClient) -> None:
     body = b"x" * (MAX_TASK_DATA_BYTES + 1)
     response = client.put(

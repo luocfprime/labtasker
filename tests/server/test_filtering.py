@@ -135,6 +135,35 @@ def test_deep_boolean_filter_preserves_per_task_selection(
     assert grouped == service.count_tasks("default", filter_expression=predicate, group_by="routes")
 
 
+@pytest.mark.parametrize("depth", [0, 5, 190])
+@pytest.mark.parametrize(
+    ("predicate", "expected"),
+    [("1 in args.x", [10]), ("1 not in args.x", [9, 11, 12]), ('"abc" in args.x', [12])],
+)
+def test_array_membership_handles_non_arrays_in_boolean_values(
+    client: TestClient, depth: int, predicate: str, expected: list[int]
+) -> None:
+    path = "/api/v2/queues/default/tasks"
+    values = [None, 0, True, {}, "abc", "1", "[1]", "null", '"', [], [1], [True], ["abc"]]
+    for index, value in enumerate(values):
+        assert client.put(f"{path}/t_{index:012d}", json={"args": {"x": value}}).status_code == 201
+    assert client.put(f"{path}/t_999999999999", json={"args": {}}).status_code == 201
+    expression = predicate
+    for index in range(depth):
+        guard = 'id<""or ' if index % 2 else 'id>""and '
+        expression = f"{guard}({expression})"
+    response = client.get(
+        path, params={"filter": expression, "order_by": "id", "descending": False}
+    )
+    assert response.status_code == 200
+    assert [task["id"] for task in response.json()["items"]] == [
+        f"t_{index:012d}" for index in expected
+    ]
+    count = client.get(path + "/count", params={"filter": expression})
+    assert count.status_code == 200
+    assert count.json() == {"count": len(expected)}
+
+
 def assert_invalid(expression: str, code: str = "invalid_filter") -> DomainError:
     with pytest.raises(DomainError) as raised:
         compile_filter(expression)
