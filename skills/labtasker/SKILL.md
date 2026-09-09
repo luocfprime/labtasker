@@ -1,6 +1,6 @@
 ---
 name: labtasker
-description: Use Labtasker v2 to queue and run independent ML inference, evaluation, or experiment Tasks; migrate existing pipelines; design routes and Workers; and inspect or recover Tasks. Do not use it as a GPU allocator, cluster scheduler, workflow DAG, or artifact store.
+description: Use Labtasker v2 to queue and run independent ML inference, evaluation, or experiment Tasks; migrate pipelines; design routes and Workers; inspect Task demand and Worker activity; and recover Tasks. Do not use it as a GPU allocator, cluster scheduler, workflow DAG, or artifact store.
 ---
 
 # Labtasker
@@ -20,14 +20,17 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
 
 - Read [deployment-and-capabilities.md](references/deployment-and-capabilities.md)
   for installation, local versus shared operation, HTTP authentication,
-  Windows, Unix-socket requests, package selection, or “does it support this?”
+  Windows, Unix-socket requests, package selection, version warnings, or “does it support this?”
   questions.
 - Read [workers-and-workloads.md](references/workers-and-workloads.md) when
   submitting Tasks, converting an experiment, choosing routes or Queues, binding Task args,
   wrapping a command, reusing a loaded model, or using a distributed launcher.
 - Read [operations-and-recovery.md](references/operations-and-recovery.md) for
-  idempotent submission, priority, filtering, pagination, updates, cancellation,
+  idempotent submission, priority, filtering, fuzzy name search, pagination, updates, cancellation,
   retries, interruption, and rerunning work.
+- Read [observations-and-counts.md](references/observations-and-counts.md) for
+  online Workers, route presence, busy/idle activity, grouped counts, and
+  paginated monitoring queries.
 
 Read every reference relevant to the request before proposing commands. If an
 installed version may differ, confirm exact options with `labtasker ... --help`.
@@ -113,7 +116,8 @@ contacting a Server.
 - A **Task** is one independent job plus its JSON inputs, state, retry count,
   metadata, and small result.
 - A **Worker** is one user-started process that repeatedly executes compatible
-  Tasks. The Server stores Tasks, not Worker processes or GPU capacity.
+  Tasks. The Server stores authoritative Tasks and supplementary expiring Worker
+  observations; it does not manage processes or GPU capacity.
 - A **route** is an exact, case-sensitive compatibility label shared by a Task
   and the implementation allowed to run it.
 - A **Queue** is an independently managed body of Tasks, not a Worker, GPU,

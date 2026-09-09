@@ -125,8 +125,10 @@ For each route, record:
 
 Before submitting a batch:
 
-1. Read the route record and inspect all pages of running Tasks in the target
-   Server and Queue. Summarize their distinct `routes` and relevant settings;
+1. Read the route record and inspect all pages of online Worker observations
+   and running Tasks in the target Server and Queue. Summarize observed Worker
+   routes/activity, Task `routes`, and relevant recorded settings. Read
+   [observations-and-counts.md](observations-and-counts.md) for presence limits;
    follow the pagination guidance in [operations-and-recovery.md](operations-and-recovery.md).
    A running Task's routes list describes acceptable implementations, not which
    route its current Worker actually uses, and is not an inventory of Workers.
@@ -247,7 +249,8 @@ exit cannot rewrite the succeeded Task.
 Command Workers have no reserved child exit codes or output-text protocol.
 Every nonzero exit code or signal is the same charged Task failure, while stdout
 and stderr are only relayed and logged. A child exit code does not become the
-outer Worker's exit code; after resolving that Task, the Worker continues.
+outer Worker's exit code; after resolving that Task, the Worker normally
+continues subject to the consecutive-failure guard below.
 Use a Python Worker when the workload must deliberately choose
 `TransientError`, `TaskError`, or `FatalWorkerError`.
 
@@ -262,6 +265,19 @@ does not mean “run exactly one Task” when the Queue remains non-empty.
 There is no infinite-wait value, daemon mode, `once`, `max_tasks`, or automatic
 Worker restart. Use an external process supervisor when a Worker must be kept
 available indefinitely or restarted after process failure.
+
+Each loop has `max_consecutive_failures=5`; Python `loop()` accepts this keyword
+and CLI `labtasker loop` exposes `--max-consecutive-failures`. It must be a positive non-Boolean integer, with no
+disable value or environment setting. Accepted ordinary failures (including
+binding errors, child startup failures and nonzero exits) and accepted
+`TransientError` unclaims increment it. Successful completion resets it,
+including accepted `finish()` followed by ordinary cleanup failure. Empty polls,
+cancellation and ownership loss leave it unchanged; transport retries and
+observation failures do not increment it. After reporting and cleanup, reaching
+the limit raises `FatalWorkerError` before another claim; CLI exits `1`. Explicit
+`FatalWorkerError` still exits immediately, even after `finish()`. This local
+guard changes neither Task retry accounting nor fencing. Each invocation starts
+at zero: configure supervisor restart backoff and frequency limits externally.
 
 ## Reuse loaded Python state
 

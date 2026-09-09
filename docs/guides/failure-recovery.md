@@ -46,6 +46,9 @@ raises `FatalWorkerError` before claiming more work. The Command CLI exits `1`;
 leave the Python exception uncaught to exit nonzero. Current Task reporting,
 retry budgets and run fencing are unchanged.
 
+Worker observation failures never increment this count or interrupt execution.
+Observations describe recent activity; their expiry does not revoke a Task run.
+
 The count is local to each loop invocation. Configure supervisor restart backoff
 and restart frequency limits, because a restart clears it. This limits damage
 within a Worker lifetime; it cannot restore attempts already consumed.
@@ -78,6 +81,19 @@ cannot change the new run.
 
 There is no separate execution timeout. A Task can run longer than five minutes
 as long as its Worker keeps sending heartbeats.
+
+## Communication failures
+
+While a Task is already executing, transport failures in heartbeats or unresolved
+terminal reports are retried without directly stopping the workload or charging
+another failure. A brief Server outage can therefore be transparent if ownership
+is retained. Confirmed cancellation or ownership loss still requires the old
+execution to stop or cooperate with cancellation.
+
+Startup checks and claims have bounded retries. If those retries are exhausted,
+the Worker exits; an unavailable Server is not an empty Queue. Supplementary
+Worker observation errors are isolated from startup, claiming, execution, and
+Task reporting. A workload's own network calls remain its responsibility.
 
 ## Cancellation
 

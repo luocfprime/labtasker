@@ -66,9 +66,35 @@ Repeatable, task-specific workflows live under `.agents/skills/`. Use the
 `public-contract-change` skill when changing behavior across HTTP, Python, CLI,
 persistence, and documentation surfaces. Use `documentation` for maintained
 user guidance. Use `skill-development` when changing the public Agent Skill: it
-tests realistic questions with a full-repository Question Agent and fresh Answer
-Agents restricted to `skills/`, then revises the skill until a new holdout
-converges.
+uses a separate examiner and fresh candidate agents restricted to the public
+skill, its bundled references, and task-facing public interfaces. The examiner
+provisions temporary Servers and databases, checks observable results, and keeps
+holdout questions and rubrics hidden from the reviser. Revisions are bounded;
+failed or unexecuted cases remain visible in the report.
+
+The [agent regression suite](https://github.com/luocfprime/labtasker/tree/main/tests/skill)
+lives in `tests/skill/`, outside the installed skill and ordinary pytest discovery.
+Each case contains `candidate.md`, private `examiner.md`, and executable setup or
+checking scripts where applicable. Its README describes running the helpers and
+dispatching candidate attempts. Evaluation reports, metadata, and raw evidence belong in ignored
+`tests/skill/runs/`. Record the skill snapshot, software and case versions,
+candidate configuration, and results so later runs can compare the same cases.
+
+Agent regression tests assess whether a short user request leads to correct
+operations: submitting experiments, checking progress, diagnosing waiting work,
+selecting and recovering Tasks, configuring a connection, or adapting a script.
+Questions give goals, necessary background, environment entry points, and real
+constraints. They do not prescribe commands, APIs, pagination, execution steps,
+or the expected conclusion. Detailed acceptance criteria stay with the examiner,
+who checks results, unintended changes, interpretation, and avoidable questions
+or detours while allowing different correct approaches.
+
+For new features, extend the user workflow they enable. Low-level retry, fencing,
+type, process-tree, and database behavior belongs primarily in ordinary automated
+tests. The agent suite's scripts provision environments and verify operation
+results. Validate those checks before grading candidates, and keep fixture
+validation distinct from an agent pass. Record changed question versions rather
+than presenting results from more prescriptive prompts as evidence for new ones.
 
 ## Package boundary
 

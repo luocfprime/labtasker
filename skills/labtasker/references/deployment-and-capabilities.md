@@ -72,8 +72,10 @@ secret manager so a credential is not committed with the project.
 
 Authentication is one Server-wide bearer token for every application API call;
 `/health` and `/openapi.json` remain unauthenticated for discovery. Labtasker
-does not provide users, roles, separate user tokens, per-Queue ACLs, or Worker
-identity. A Queue is a scheduling namespace, not a security boundary. Use
+does not provide users, roles, separate user tokens, per-Queue ACLs, or
+authenticated Worker identities. Observation IDs identify loop invocations,
+not security principals.
+A Queue is a scheduling namespace, not a security boundary. Use
 separate Server trust domains or external network/authentication controls when
 different groups require isolation.
 
@@ -91,6 +93,19 @@ An explicit HTTP Client never starts, stops, restarts, or otherwise supervises
 the Server. Run exactly one Server process for each SQLite database file; do not
 use multiple Uvicorn workers or multiple hosts against the same file. Store the
 database on storage whose local file locking has the required semantics.
+
+## Diagnose version differences
+
+`Client.server_version` reports the normalized Server package version from the
+latest ordinary API response, or `None` if its version header is absent or
+invalid. Reading it makes no request; `/health` is not a feature handshake.
+When the Server is older than the Client, each Client emits an advisory warning
+to stderr once per distinct older version. The warning does not change success,
+exit status, retries, or Worker execution, and does not prove why a request failed.
+There is no automatic feature fallback or generic version gate. Inspect the
+actual API error when an operation fails; upgrade a user-owned deployment when
+needed, respecting shared Server ownership. A missing version is unknown,
+not evidence of incompatibility.
 
 ## Respect platform boundaries
 
@@ -113,7 +128,7 @@ supported POSIX host.
 | Request | Labtasker answer |
 | --- | --- |
 | Allocate, reserve, or discover a free GPU | No. The user, shell, or cluster scheduler starts Workers on allocated resources. |
-| Register Workers or report which routes are online | No. The Server stores Tasks and active runs, not a Worker or capacity registry. |
+| See online Workers or route presence | Yes. Bundled Workers automatically report expiring observations; use `list_workers` / `count_workers` or `worker list` / `worker count`. Read [observations-and-counts.md](observations-and-counts.md). This is approximate presence, not resource capacity or process control. |
 | Schedule machines, pods, or multi-node rendezvous | No. Use SLURM, Kubernetes, Koala, or another external scheduler. |
 | Express Task dependencies or a workflow DAG | No. Use a workflow engine and submit independent leaves to Labtasker. |
 | Store checkpoints, images, videos, or datasets | No. Use project or artifact storage and record references in Task data. |

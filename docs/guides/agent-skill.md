@@ -7,14 +7,18 @@ as “run these cases in parallel across 8 GPUs with Labtasker” is enough to s
 the standard Labtasker workflow.
 
 The skill covers v2 Task submission, Worker design, routing, inspection,
-updates, recovery, and adapting an existing experiment pipeline. During a
-migration it asks about the project's entry points, reusable setup, retry units,
-resources, dependencies, and outputs, then owns the mapping into Labtasker
+updates, recovery, and adapting an existing experiment pipeline. It also explains
+how to compare pending Task demand with observed Worker activity through
+Python or CLI grouped counts, including pagination and delayed observations.
+It covers fuzzy Task name search, advisory Server version warnings, and the
+Worker’s consecutive-failure limit without confusing it with Task retry budgets.
+During a migration it asks about the project's entry points, reusable setup,
+retry units, resources, dependencies, and outputs, then owns the mapping into Labtasker
 instead of requiring a newcomer to design Tasks, Workers, routes, or Queues. It
 does not choose the experiment, allocate GPUs, or keep the agent inside the
 execution loop. Its short
 [`SKILL.md`](https://github.com/luocfprime/labtasker/blob/main/skills/labtasker/SKILL.md)
-routes deployment, Worker, and recovery questions to three bundled references;
+routes deployment, Worker, inspection, and recovery questions to focused references;
 the official installable package is
 [`skills/labtasker/`](https://github.com/luocfprime/labtasker/tree/main/skills/labtasker).
 
@@ -71,3 +75,21 @@ so every discovery method reads the same files.
 The agent skill describes the public Labtasker product. Contributor-only
 workflows such as releases and cross-surface contract changes remain separate
 under `.agents/skills/` and are documented in [Development](../development.md).
+
+## Maintaining the skill
+
+The public skill and its bundled references are maintained together. Feature
+changes should update the relevant reference and add a realistic agent scenario
+to the [skill regression suite](https://github.com/luocfprime/labtasker/tree/main/tests/skill).
+The suite separates candidate requests from examiner setup and checks. Candidates
+operate only in temporary test environments, using the skill and public
+interfaces. Test fixtures and grading rules are not part of the installed skill.
+Questions describe ordinary user goals without prescribing the API, commands,
+steps, or expected answer. The examiner checks whether the goal was met, whether
+the agent interpreted the results correctly, and whether it made unnecessary
+changes or requests for clarification. Low-level product invariants remain in
+the ordinary automated tests.
+
+See [Development](../development.md#agent-workflows) for the examination and
+revision workflow. Executable setup/check validation and an independent agent
+pass are separate results; neither guarantees support on untested platforms.

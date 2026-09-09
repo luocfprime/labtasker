@@ -103,6 +103,24 @@ not object-key membership and is invalid. `"baseline" in metadata.tags` means
 array containment. General unary `not (...)` is unsupported; use explicit `!=`,
 `not in`, `exists`, or `missing` forms.
 
+For a remembered experiment name, use `labtasker task list --name-fuzzy 'tr ev'`
+or Python `list_tasks(name_fuzzy="tr ev")`. The same selector works with
+`task count` and `count_tasks`, including grouped counts. Matching case-folds
+Unicode, splits the query into whitespace-separated words, and requires each
+word's characters to occur in order in the name. Words match independently:
+`tr ev` and `EV TR` both match `train_model_eval`. This is subsequence search,
+not substring search, regex, wildcard matching, or relevance ranking.
+
+Exact `name`, `name_fuzzy`, `status`, and `filter` combine with AND. Empty or
+whitespace-only fuzzy input adds no restriction; nonempty input excludes absent
+or empty names. Keep the raw fuzzy input unchanged across pagination, including
+case and whitespace. Fuzzy search is a list/count selector, not a filter-language
+function or mutation selector. Inspect the matches and use explicit IDs or a
+supported filter for subsequent changes.
+
+For online Worker queries and Server-side Task grouping by routes/status, read
+[observations-and-counts.md](observations-and-counts.md).
+
 ## Prioritize and update pending work
 
 Workers claim higher `priority` first. Equal-priority pending Tasks keep stable
@@ -198,6 +216,9 @@ In a Python Worker:
 | Bad Task or ordinary execution failure | `TaskError` or an ordinary exception | Charge the attempt; retry or become failed | Continue |
 | Worker process is no longer trustworthy | `FatalWorkerError` | Charge the attempt; retry or become failed | Exit |
 
+The Continue outcomes above are subject to the local
+[consecutive-failure guard](workers-and-workloads.md#choose-worker-lifetime-deliberately).
+
 A charged failure returns to pending while `attempt < max_attempts`; otherwise
 it becomes failed. `TransientError` rolls back only the current claim's attempt
 increment; it does not erase older charged failures. Both a retryable charged
@@ -216,6 +237,15 @@ and retry heartbeat and terminal-report transport. A restart shorter than the
 remaining lease can therefore be transparent. Before a restarted Server begins
 serving, it applies the ordinary expiry transition to leases already past their
 deadline; heartbeat loss is a charged failure, not a special restart state.
+
+Startup checks and claims retain bounded retries: an exhausted claim transport
+failure exits instead of starting unconfirmed work or pretending the Queue is
+empty. This differs from heartbeat and unresolved terminal-report transport
+retries during an already-started execution. Observation errors are isolated
+from all phases and cannot stop startup, claiming, execution, or alter outcomes.
+Confirmed cancellation or ownership loss still requires stopping/cooperatively
+cancelling the old execution. Network errors inside user code remain the
+workload's responsibility.
 
 When a Worker disappears, lease recovery returns the Task to pending or marks it
 failed according to its retry budget. Recovery is normally committed roughly
@@ -246,11 +276,13 @@ selection, local daemon startup or reconnection, and other diagnostics go to
 stderr, so redirecting stdout remains machine-readable. Successful delete
 commands are quiet on stdout.
 
-Handled configuration, transport, and API errors write no stdout, put a stable
-structured error envelope on stderr, and exit `1` without an application
-traceback. CLI argument or usage errors exit `2`; an interrupted Worker retains
-the conventional `130`. Use the exit status, not log text, to decide whether a
-finite command succeeded.
+Handled configuration, transport, and API errors write one stable structured
+error envelope to stdout and exit `1` without an application traceback.
+Diagnostics remain on stderr. For finite commands, parse stdout as the response
+channel and use the exit status and top-level `error` key to distinguish a
+successful value from an error. Do not assume JSON stdout implies success.
+CLI argument or usage errors instead write natural-language stderr and exit `2`;
+an interrupted Worker retains the conventional `130`.
 
 `labtasker loop` is different: it is a long-running supervised process that
 writes ordinary timestamped operational logs and relays user-code output. It
