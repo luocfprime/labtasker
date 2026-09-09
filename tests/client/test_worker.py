@@ -13,7 +13,14 @@ import pytest
 import labtasker.execution as execution_module
 from labtasker.binding import TaskArg
 from labtasker.config import ResolvedConfig
-from labtasker.errors import APIError, ConfigError, FatalWorkerError, TransientError, TransportError
+from labtasker.errors import (
+    APIError,
+    ConfigError,
+    FatalWorkerError,
+    TaskError,
+    TransientError,
+    TransportError,
+)
 from labtasker.execution import (
     ExecutionContext,
     RunControl,
@@ -557,3 +564,91 @@ def test_distributed_and_nested_worker_guards(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("LABTASKER_RUN_ID", "r_ABCDEFGHIJKL")
     with pytest.raises(ConfigError, match="nested Worker"):
         _guard_worker_topology()
+
+
+@pytest.mark.parametrize("error_type", [ValueError, TaskError, TransientError])
+def test_failure_guard_stops_before_next_claim(monkeypatch, error_type):
+    client = FakeClient([make_claim(run_id=f"r_{i:012d}") for i in range(6)])
+    install_fake_client(monkeypatch, client)
+
+    @loop(idle_timeout=0)
+    def handler():
+        raise error_type("broken")
+
+    with pytest.raises(FatalWorkerError, match="5 consecutive execution failures"):
+        handler()
+    assert len(client.actions) == 5
+    assert len(client.claim_run_ids) == 5
+    assert len(client.claims) == 1
+    assert all(
+        a[0] == ("unclaim" if error_type is TransientError else "fail") for a in client.actions
+    )
+
+
+@pytest.mark.parametrize("mode", ["success", "finish", "stale", "idle", "revoke"])
+def test_failure_guard_reset_and_neutral_results(monkeypatch, mode):
+    claims = [make_claim(run_id=f"r_{i:012d}", args={"index": i}) for i in range(5)]
+    if mode == "idle":
+        claims.insert(1, None)
+    client = FakeClient(claims)
+    install_fake_client(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker.time.sleep", lambda _: None)
+    original_fail = client._fail
+
+    def report(**kwargs):
+        if mode == "stale" and len(client.actions) == 1:
+            client.actions.append(("stale", "", None))
+            raise APIError(409, "stale_run", "revoked", {})
+        original_fail(**kwargs)
+
+    monkeypatch.setattr(client, "_fail", report)
+
+    @loop(idle_timeout=1, max_consecutive_failures=2)
+    def handler(index: int = TaskArg()):
+        if index == 1 and mode == "revoke":
+            execution_module._ACTIVE_CONTEXT.control.revoke("cancel")
+        if index == 1 and mode == "success":
+            return
+        if index == 1 and mode == "finish":
+            finish()
+        raise ValueError("broken")
+
+    with pytest.raises(FatalWorkerError):
+        handler()
+    assert len(client.actions) == (
+        4 if mode in {"success", "finish"} else 3 if mode == "stale" else 2
+    )
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 1.5, "5", None])
+def test_failure_limit_validated_before_client(monkeypatch, value):
+    monkeypatch.setattr("labtasker.worker.Client", lambda **_: pytest.fail("Client constructed"))
+    with pytest.raises(ValueError, match="positive integer"):
+        loop(max_consecutive_failures=value)
+
+
+def test_failure_report_retries_count_once(monkeypatch):
+    client = FakeClient([make_claim(run_id=f"r_{i:012d}") for i in range(3)])
+    install_fake_client(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker.time.sleep", lambda _: None)
+    calls = 0
+    original = client._fail
+
+    def report(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls < 4:
+            raise TransportError("unavailable")
+        original(**kwargs)
+
+    monkeypatch.setattr(client, "_fail", report)
+
+    @loop(max_consecutive_failures=2)
+    def handler():
+        raise ValueError("broken")
+
+    with pytest.raises(FatalWorkerError):
+        handler()
+    assert calls == 5
+    assert len(client.claim_run_ids) == 2
+    assert len(client.actions) == 2

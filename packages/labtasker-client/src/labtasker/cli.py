@@ -98,6 +98,12 @@ def worker_loop(
         str | None,
         typer.Option(help="Queue to claim from; otherwise use Client configuration."),
     ] = None,
+    max_consecutive_failures: Annotated[
+        int,
+        typer.Option(
+            help="Stop after this many consecutive execution failures (positive integer)."
+        ),
+    ] = 5,
     idle_timeout: Annotated[
         float,
         typer.Option(help="Seconds without an eligible Task before normal exit."),
@@ -137,6 +143,7 @@ def worker_loop(
             route=route,
             queue=queue,
             idle_timeout=idle_timeout,
+            max_consecutive_failures=max_consecutive_failures,
             force_stop_timeout=force_stop_timeout,
         )
     except (TemplateSyntaxError, RequestValidationError) as error:

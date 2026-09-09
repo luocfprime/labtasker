@@ -443,3 +443,77 @@ def test_ordinary_config_environment_is_not_mistaken_for_execution(
     monkeypatch.setenv("LABTASKER_QUEUE", "default")
     with pytest.raises(RuntimeError, match="No active"):
         task_info()
+
+
+@pytest.mark.parametrize("kind", ["exit", "startup", "binding"])
+def test_command_failure_guard_stops_after_reporting(monkeypatch, kind):
+    from labtasker.errors import FatalWorkerError
+
+    client = FakeClient([make_claim(run_id=f"r_{i:012d}") for i in range(3)])
+    install(monkeypatch, client)
+    argv = {
+        "exit": [sys.executable, "-c", "raise SystemExit(7)"],
+        "startup": ["/definitely/missing/command"],
+        "binding": [sys.executable, "%{missing}"],
+    }[kind]
+    with pytest.raises(FatalWorkerError, match="2 consecutive execution failures"):
+        run_command_worker(argv, max_consecutive_failures=2)
+    assert len(client.actions) == 2
+    assert all(a[0] == "fail" for a in client.actions)
+    assert len(client.claims) == 1
+
+
+def test_command_success_resets_failure_guard(monkeypatch):
+    from labtasker.errors import FatalWorkerError
+
+    client = FakeClient(
+        [
+            make_claim(run_id=f"r_{i:012d}", args={"code": code})
+            for i, code in enumerate([1, 0, 1, 1, 1])
+        ]
+    )
+    install(monkeypatch, client)
+    with pytest.raises(FatalWorkerError):
+        run_command_worker(
+            [sys.executable, "-c", "import sys; sys.exit(int(sys.argv[1]))", "%{code}"],
+            max_consecutive_failures=2,
+        )
+    assert [a[0] for a in client.actions] == ["fail", "complete", "fail", "fail"]
+    assert len(client.claims) == 1
+
+
+@pytest.mark.parametrize("mode", ["stale", "retry"])
+def test_command_reporting_does_not_inflate_or_reset_count(monkeypatch, mode):
+    from labtasker.errors import FatalWorkerError, TransportError
+
+    client = FakeClient([make_claim(run_id=f"r_{i:012d}") for i in range(4)])
+    install(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker.time.sleep", lambda _: None)
+    original = client._fail
+    calls = 0
+
+    def report(**kwargs):
+        nonlocal calls
+        calls += 1
+        if mode == "stale" and calls == 2:
+            raise APIError(409, "stale_run", "revoked", {})
+        if mode == "retry" and calls < 4:
+            raise TransportError("unavailable")
+        original(**kwargs)
+
+    monkeypatch.setattr(client, "_fail", report)
+    with pytest.raises(FatalWorkerError):
+        run_command_worker(
+            [sys.executable, "-c", "raise SystemExit(7)"], max_consecutive_failures=2
+        )
+    assert len(client.actions) == 2
+    assert len(client.claims) == (1 if mode == "stale" else 2)
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 1.5, "5", None])
+def test_command_failure_limit_is_validated_before_client(monkeypatch, value):
+    monkeypatch.setattr(
+        "labtasker.command_worker.Client", lambda **_: pytest.fail("Client constructed")
+    )
+    with pytest.raises(ValueError, match="positive integer"):
+        run_command_worker(["echo"], max_consecutive_failures=value)

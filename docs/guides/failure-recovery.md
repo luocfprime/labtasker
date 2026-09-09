@@ -12,8 +12,8 @@ For Python Workers:
 | Outcome | Task effect | Worker effect |
 | --- | --- | --- |
 | normal return or `finish()` | succeeded | continues |
-| ordinary exception or `TaskError` | charged failure | continues |
-| `TransientError` | pending, incident uncharged | continues |
+| ordinary exception or `TaskError` | charged failure | continues below failure limit |
+| `TransientError` | pending, incident uncharged | continues below failure limit |
 | `FatalWorkerError` | charged failure | exits |
 | `KeyboardInterrupt` | tries to return the Task to pending | exits |
 
@@ -22,6 +22,33 @@ a non-zero exit code is a charged failure. After the Server accepts `finish()`,
 a later exception or non-zero child exit does not change the succeeded Task. A
 charged failure returns to pending while retry budget remains; otherwise the
 Task becomes failed.
+
+## Consecutive failure protection
+
+Workers stop after five consecutive execution failures by default. Configure a
+positive integer with `@loop(max_consecutive_failures=5)` or:
+
+```bash
+labtasker loop --max-consecutive-failures 5 -- python evaluate.py
+```
+
+Ordinary exceptions, `TaskError`, `TransientError`, Command nonzero exits,
+startup failures and argument binding failures count once per execution, after
+reporting resolves. `TransientError` still returns the Task without charging its
+retry budget. Network retries of the same report do not add failures.
+
+Successful completion resets the count, including successful `finish()` followed
+by cleanup errors. Empty polls, cancellation, lease loss and reports rejected as
+stale/finalized preserve it. `FatalWorkerError` still exits immediately.
+
+At the limit the Worker logs the count, limit, last Task ID and error type, then
+raises `FatalWorkerError` before claiming more work. The Command CLI exits `1`;
+leave the Python exception uncaught to exit nonzero. Current Task reporting,
+retry budgets and run fencing are unchanged.
+
+The count is local to each loop invocation. Configure supervisor restart backoff
+and restart frequency limits, because a restart clears it. This limits damage
+within a Worker lifetime; it cannot restore attempts already consumed.
 
 ## Heartbeat recovery
 

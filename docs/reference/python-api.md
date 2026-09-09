@@ -200,7 +200,7 @@ Task states are exactly `pending`, `running`, `succeeded`, `failed`, and
 
 ```text
 @loop(route="default", queue=None, idle_timeout=300,
-      force_stop_timeout=None)
+      force_stop_timeout=None, max_consecutive_failures=5)
 def worker(...): ...
 
 TaskArg(default=..., path=None, resolver=None)

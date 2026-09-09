@@ -10,6 +10,7 @@ import threading
 import time
 import traceback as traceback_module
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import ParamSpec, TypeVar, cast
 
 from labtasker.binding import CompiledBinding, compile_binding
@@ -42,6 +43,33 @@ POLL_INTERVAL_SECONDS = 1.0
 TERMINAL_BACKOFF_SECONDS = (0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0)
 MAX_REQUEST_BYTES = 1024 * 1024
 logger = logging.getLogger("labtasker.worker")
+
+
+@dataclass(frozen=True)
+class _ExecutionResult:
+    succeeded: bool = False
+    failure: str | None = None
+
+
+class _FailureGuard:
+    def __init__(self, limit: int) -> None:
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise RequestValidationError("max_consecutive_failures must be a positive integer")
+        self.limit = limit
+        self.count = 0
+
+    def observe(self, result: _ExecutionResult, task_id: str) -> None:
+        if result.succeeded:
+            self.count = 0
+        elif result.failure is not None:
+            self.count += 1
+            if self.count >= self.limit:
+                message = (
+                    f"Worker stopping after {self.count} consecutive execution failures "
+                    f"(limit={self.limit}, last_task={task_id}, last_error={result.failure})."
+                )
+                logger.critical(message)
+                raise FatalWorkerError(message)
 
 
 class Heartbeat:
@@ -102,7 +130,9 @@ def loop(
     queue: str | None = None,
     idle_timeout: float = 300.0,
     force_stop_timeout: float | None = None,
+    max_consecutive_failures: int = 5,
 ) -> Callable[[Callable[P, R]], Callable[P, None]]:
+    _FailureGuard(max_consecutive_failures)
     normalized_route = validate_identifier(route, field="route")
     normalized_idle_timeout = _validate_idle_timeout(idle_timeout)
     normalized_force_stop_timeout = _validate_force_stop_timeout(force_stop_timeout)
@@ -124,6 +154,7 @@ def loop(
                 queue=queue,
                 idle_timeout=normalized_idle_timeout,
                 force_stop_timeout=normalized_force_stop_timeout,
+                max_consecutive_failures=max_consecutive_failures,
             )
 
         return run
@@ -140,7 +171,9 @@ def _run_python_worker(
     queue: str | None,
     idle_timeout: float,
     force_stop_timeout: float | None,
+    max_consecutive_failures: int = 5,
 ) -> None:
+    guard = _FailureGuard(max_consecutive_failures)
     _guard_worker_topology()
     with Client(queue=queue) as client, WorkerTee() as tee:
         configure_worker_logger()
@@ -166,7 +199,7 @@ def _run_python_worker(
                 claim.task.attempt,
                 route,
             )
-            _run_python_claim(
+            result = _run_python_claim(
                 client,
                 tee,
                 binding,
@@ -177,6 +210,8 @@ def _run_python_worker(
                 route=route,
                 force_stop_timeout=force_stop_timeout,
             )
+
+            guard.observe(result, claim.task.id)
 
 
 def _run_python_claim(
@@ -190,7 +225,7 @@ def _run_python_claim(
     queue: str,
     route: str,
     force_stop_timeout: float | None,
-) -> None:
+) -> _ExecutionResult:
     try:
         journal = LocalRunJournal.create(
             claim=claim,
@@ -241,6 +276,7 @@ def _run_python_claim(
     )
     activate_context(context)
     heartbeat.start()
+    result = _ExecutionResult()
     fatal: FatalWorkerError | None = None
     try:
         with tee.capture(journal.log_path):
@@ -253,15 +289,25 @@ def _run_python_claim(
                     _report_failure(client, journal, claim, queue, error)
             except TransientError as error:
                 logger.warning("%s: %s", type(error).__name__, error)
-                if control.active and not context.finished:
-                    _report_unclaim(client, journal, claim, queue)
+                if (
+                    control.active
+                    and not context.finished
+                    and _report_unclaim(client, journal, claim, queue)
+                ):
+                    result = _ExecutionResult(failure=type(error).__name__)
             except Exception as error:
                 logger.exception("Task %s failed.", claim.task.id)
-                if control.active and not context.finished:
-                    _report_failure(client, journal, claim, queue, error)
+                if (
+                    control.active
+                    and not context.finished
+                    and _report_failure(client, journal, claim, queue, error)
+                ):
+                    result = _ExecutionResult(failure=type(error).__name__)
             else:
                 if control.active and not context.finished:
-                    _report_complete(client, journal, claim, queue, {})
+                    result = _ExecutionResult(
+                        succeeded=_report_complete(client, journal, claim, queue, {})
+                    )
     except KeyboardInterrupt:
         if control.active and not context.finished:
             _best_effort_unclaim(client, claim, queue)
@@ -274,6 +320,10 @@ def _run_python_claim(
         raise fatal
     if control.fatal_error is not None:
         raise control.fatal_error
+
+    if context.finished or control.completed:
+        return _ExecutionResult(succeeded=True)
+    return result
 
 
 def report_complete_until_resolved(
@@ -300,7 +350,7 @@ def _report_complete(
     claim: ClaimResponse,
     queue: str,
     result: dict[str, JSONValue],
-) -> None:
+) -> bool:
     _journal_best_effort(lambda: journal.reporting("complete", result))
     accepted = report_complete_until_resolved(
         client,
@@ -311,18 +361,22 @@ def _report_complete(
     )
     _finish_journal(journal, accepted)
 
+    return accepted
+
 
 def _report_unclaim(
     client: Client,
     journal: LocalRunJournal,
     claim: ClaimResponse,
     queue: str,
-) -> None:
+) -> bool:
     _journal_best_effort(lambda: journal.reporting("unclaim"))
     accepted = _report_until_resolved(
         lambda: client._unclaim(task_id=claim.task.id, run_id=claim.run_id, queue=queue)
     )
     _finish_journal(journal, accepted)
+
+    return accepted
 
 
 def _report_failure(
@@ -331,7 +385,7 @@ def _report_failure(
     claim: ClaimResponse,
     queue: str,
     error: Exception,
-) -> None:
+) -> bool:
     error_type, message, traceback = _failure_diagnostic(error, claim.run_id)
     payload: dict[str, JSONValue] = {
         "type": error_type,
@@ -350,6 +404,8 @@ def _report_failure(
         )
     )
     _finish_journal(journal, accepted)
+
+    return accepted
 
 
 def _report_until_resolved(operation: Callable[[], None]) -> bool:

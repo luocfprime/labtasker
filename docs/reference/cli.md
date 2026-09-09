@@ -79,6 +79,9 @@ not writable.
 It claims through one exact route and executes at most one child at a time. The
 required `--` separates Labtasker options from one direct argv template; see
 [Command Workers](../workers/command.md).
+`--max-consecutive-failures INTEGER` defaults to `5` and must be positive.
+The Worker exits `1` after reporting that many consecutive execution failures;
+see [failure protection](../guides/failure-recovery.md#consecutive-failure-protection).
 
 Server commands have a separate ownership boundary:
 

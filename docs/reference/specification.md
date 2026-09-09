@@ -2138,6 +2138,7 @@ loop(
     queue: str | None = None,
     idle_timeout: float = 300.0,
     force_stop_timeout: float | None = None,
+    max_consecutive_failures: int = 5,
 )
 ```
 
@@ -2397,7 +2398,8 @@ The word “retry” refers to three deliberately separate mechanisms:
 | HTTP transport attempts such as claim's three tries | Client request logic | That request fails; for claim/startup failure the local Worker exits nonzero. |
 | Worker process restart | External supervisor or Agent | Labtasker itself has no restart counter or policy. |
 
-Accordingly, reaching a Task's `max_attempts` never terminates its Worker. The
+Reaching a Task's `max_attempts` does not itself terminate its Worker.
+The independent local consecutive-failure limit can terminate that Worker. The
 Server maintains Task and current-run correctness only: Task lifecycle/retry
 fields, `active_run_id`, heartbeat expiry, terminal-deduplication slots and the
 latest-run summary. It stores no `worker_id`, Worker row, online/idle/crashed
@@ -2409,7 +2411,35 @@ execution, not the health of a persistent Worker.
 An explicit empty claim starts the `idle_timeout`; a successful claim resets it.
 When the timeout expires without work, a decorated Python Worker returns `None`
 and a command Worker exits zero. Task success, ordinary charged failure and
-transient unclaim resolve only the current run and return to claim.
+transient unclaim resolve the current run before the local failure guard decides
+whether to return to claim.
+
+Each Worker loop has a local `max_consecutive_failures` limit, default `5`.
+Python `loop()` and the Command Worker accept this keyword; `labtasker loop`
+exposes `--max-consecutive-failures INTEGER`. Only positive non-Boolean integers
+are accepted, validated before Client construction or network access. There is
+no disable value, environment variable, Server configuration or persisted count.
+
+An accepted failure report for an ordinary exception (including `TaskError` and
+binding errors), Command nonzero exit or startup failure increments the count.
+An accepted `TransientError` unclaim also increments it, without changing its
+uncharged Task semantics. Successful completion resets the count, including
+successful `finish()` followed by ordinary cleanup exceptions or nonzero child
+exit. Empty polls, confirmed cancellation and lease loss leave it unchanged;
+a report rejected as stale/finalized does not count as an execution failure.
+Terminal-report network retries never count as additional executions.
+
+After reporting and local execution cleanup, reaching the limit logs the count,
+limit, last Task ID and error type, then raises `FatalWorkerError` before another
+claim. The CLI exits `1`; an uncaught Python exception exits nonzero. Explicit
+`FatalWorkerError` keeps its immediate-exit semantics, including after `finish()`.
+The Server's retry budget, Task state and `run_id` fencing remain unchanged.
+This protection is independent of supplementary Worker observability.
+
+The count starts at zero for each loop invocation. External supervisors must
+configure restart backoff and restart frequency limits: restarting clears the
+count and can otherwise repeatedly damage the Queue. The guard cannot recover
+retry attempts already consumed before exit.
 
 Worker process statuses stay conventional and small:
 

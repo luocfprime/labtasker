@@ -291,6 +291,7 @@ def test_loop_requires_separator_command_and_preserves_every_argv_element(
                 "queue": None,
                 "idle_timeout": 0.0,
                 "force_stop_timeout": 2.5,
+                "max_consecutive_failures": 5,
             },
         )
     ]
@@ -456,3 +457,37 @@ def test_name_fuzzy_cli(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
         {"count": 0} if command == "count" else {"items": [], "next_cursor": None}
     )
     assert "--name-fuzzy" in runner.invoke(app, ["task", command, "--help"]).stdout
+
+
+def test_loop_failure_limit_cli_exits_nonzero_after_report(monkeypatch, caplog):
+    import sys
+
+    from test_command_worker import FakeClient, install, make_claim
+
+    client = FakeClient([make_claim()])
+    install(monkeypatch, client)
+    result = runner.invoke(
+        app,
+        [
+            "loop",
+            "--max-consecutive-failures",
+            "1",
+            "--",
+            sys.executable,
+            "-c",
+            "raise SystemExit(7)",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "1 consecutive execution failures" in caplog.text
+    assert "CommandProcessError" in caplog.text
+    assert len(client.actions) == 1
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "1.5"])
+def test_loop_rejects_invalid_failure_limit(monkeypatch, value):
+    monkeypatch.setattr(
+        "labtasker.command_worker.Client", lambda **_: pytest.fail("Client constructed")
+    )
+    result = runner.invoke(app, ["loop", "--max-consecutive-failures", value, "--", "echo"])
+    assert result.exit_code == 2

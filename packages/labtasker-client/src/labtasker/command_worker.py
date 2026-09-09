@@ -31,6 +31,8 @@ from labtasker.worker import (
     POLL_INTERVAL_SECONDS,
     Heartbeat,
     _best_effort_unclaim,
+    _ExecutionResult,
+    _FailureGuard,
     _finish_journal,
     _generate_run_id,
     _guard_worker_topology,
@@ -53,7 +55,9 @@ def run_command_worker(
     queue: str | None = None,
     idle_timeout: float = 300.0,
     force_stop_timeout: float | None = None,
+    max_consecutive_failures: int = 5,
 ) -> None:
+    guard = _FailureGuard(max_consecutive_failures)
     templates = compile_argv(argv)
     normalized_route = validate_identifier(route, field="route")
     normalized_idle_timeout = _validate_idle_timeout(idle_timeout)
@@ -88,7 +92,7 @@ def run_command_worker(
                 claim.task.attempt,
                 normalized_route,
             )
-            _run_command_claim(
+            result = _run_command_claim(
                 client,
                 templates,
                 claim=claim,
@@ -96,6 +100,8 @@ def run_command_worker(
                 route=normalized_route,
                 force_stop_timeout=normalized_force_stop_timeout,
             )
+
+            guard.observe(result, claim.task.id)
 
 
 def _guard_command_worker_platform() -> None:
@@ -114,7 +120,7 @@ def _run_command_claim(
     queue: str,
     route: str,
     force_stop_timeout: float | None,
-) -> None:
+) -> _ExecutionResult:
     try:
         journal = LocalRunJournal.create(
             claim=claim,
@@ -140,8 +146,9 @@ def _run_command_claim(
         try:
             resolved = resolve_argv(templates, claim.task.args)
         except TemplateBindingError as error:
-            _report_command_failure(client, journal, claim, queue, "TaskBindingError", str(error))
-            return
+            return _report_command_failure(
+                client, journal, claim, queue, "TaskBindingError", str(error)
+            )
         environment = _command_environment(client, claim, journal, queue, route)
         try:
             if _interactive_terminal():
@@ -161,7 +168,7 @@ def _run_command_claim(
                     force_stop_timeout,
                 )
         except OSError as error:
-            _report_command_failure(
+            return _report_command_failure(
                 client,
                 journal,
                 claim,
@@ -169,32 +176,33 @@ def _run_command_claim(
                 type(error).__name__,
                 str(error),
             )
-            return
         if control.fatal_error is not None:
             raise control.fatal_error
         if control.revoked:
             _journal_best_effort(journal.revoked)
-            return
+            return _ExecutionResult()
         try:
             journal = LocalRunJournal.open(journal.run_dir)
         except Exception:
             logger.warning("Could not reload command child journal.", exc_info=True)
         if journal.phase == "acknowledged" and journal.terminal_action == "complete":
-            return
+            return _ExecutionResult(succeeded=True)
         if journal.phase == "reporting" and journal.terminal_action == "complete":
             result = journal.read_result()
             accepted = _report_command_complete(client, claim, queue, result)
             _finish_journal(journal, accepted)
-            return
+            return _ExecutionResult(succeeded=accepted)
         if control.completed:
-            return
+            return _ExecutionResult(succeeded=True)
         if process.returncode == 0:
             _journal_best_effort(lambda: journal.reporting("complete", {}))
             accepted = _report_command_complete(client, claim, queue, {})
             _finish_journal(journal, accepted)
-            return
+            return _ExecutionResult(succeeded=accepted)
         message = _returncode_message(process.returncode)
-        _report_command_failure(client, journal, claim, queue, "CommandProcessError", message)
+        return _report_command_failure(
+            client, journal, claim, queue, "CommandProcessError", message
+        )
     except KeyboardInterrupt:
         if control.active:
             _best_effort_unclaim(client, claim, queue)
@@ -420,7 +428,7 @@ def _report_command_failure(
     queue: str,
     error_type: str,
     message: str,
-) -> None:
+) -> _ExecutionResult:
     error_type = _safe_diagnostic_text(error_type)
     message = _safe_diagnostic_text(message)
     logger.error("%s: %s", error_type, message)
@@ -441,6 +449,8 @@ def _report_command_failure(
         )
     )
     _finish_journal(journal, accepted)
+
+    return _ExecutionResult(failure=error_type if accepted else None)
 
 
 def _returncode_message(returncode: int) -> str:
