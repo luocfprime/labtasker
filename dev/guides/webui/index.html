@@ -1218,7 +1218,13 @@ if its Server is not already running. The WebUI attaches to the existing
 instance; it does not start the Server. See <a href="../../reference/configuration/">Configuration</a>
 for Labtasker Server setup.</p>
 <h2 id="explore-an-experiment">Explore an experiment</h2>
-<p>Open a Queue to see its Task list and status counts. Filter by status or use a
+<p>Open a Queue to see its Task list and status counts. The Task name input uses case-insensitive fuzzy
+subsequence search: <code>tr ev</code> and <code>ev tr</code> both find <code>train_model_eval</code>. Every
+whitespace-separated word must match. Press Enter or leave the input to apply;
+clearing it removes the name restriction. List and count matching runs on the
+Server across the Queue, with the existing sorting preserved. For strict equality,
+use <code>name == "train_model_eval"</code> in Advanced filter.</p>
+<p>Filter by status or use a
 <a href="../query/">Task query</a>, for example:</p>
 <div class="highlight"><pre><span></span><code>status in ["pending", "running"]
 </code></pre></div>

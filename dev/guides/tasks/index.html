@@ -710,6 +710,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#diagnose-pending-routes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Diagnose pending routes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1221,6 +1232,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#diagnose-pending-routes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Diagnose pending routes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1315,6 +1337,21 @@ labtasker<span class="w"> </span>queue<span class="w"> </span>delete<span class=
 <p>Deleting a non-empty Queue requires explicit <code>--cascade</code>. The <code>default</code> Queue is
 created when a fresh database is initialized, not recreated after an explicit
 deletion.</p>
+<h2 id="diagnose-pending-routes">Diagnose pending routes</h2>
+<p>Inspect all routes referenced by pending Tasks, then compare observed Workers:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--group-by<span class="w"> </span>routes
+labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--group-by<span class="w"> </span>route,status
+labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'route == "sdxl"'</span>
+</code></pre></div>
+<p>These commands return one page; follow <code>next_cursor</code> with <code>--cursor</code> before
+interpreting an absent group as zero. A Task compatible with multiple routes
+counts in every route group. The top-level Task count counts each Task once.</p>
+<p>Worker <code>idle</code> means awaiting work; <code>busy</code> includes execution, reporting and
+cleanup after <code>finish()</code>. An active route has at least one unexpired observation,
+whether idle or busy. Reporting is periodic and may be delayed, so zero observed
+Workers is a diagnostic clue rather than proof that no process exists. Task state
+and leases remain authoritative. See <a href="../../reference/http-api/#worker-observations">Worker observations</a>
+for freshness and <a href="../../reference/python-api/#grouped-counts">grouped counts</a> for Python use.</p>
 
 
 

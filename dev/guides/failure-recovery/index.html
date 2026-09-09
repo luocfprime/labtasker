@@ -721,6 +721,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#consecutive-failure-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Consecutive failure protection
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#heartbeat-recovery" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1178,6 +1189,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#consecutive-failure-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Consecutive failure protection
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#heartbeat-recovery" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1263,12 +1285,12 @@ uncharged incident leaves that retry budget unchanged.</p>
 <tr>
 <td>ordinary exception or <code>TaskError</code></td>
 <td>charged failure</td>
-<td>continues</td>
+<td>continues below failure limit</td>
 </tr>
 <tr>
 <td><code>TransientError</code></td>
 <td>pending, incident uncharged</td>
-<td>continues</td>
+<td>continues below failure limit</td>
 </tr>
 <tr>
 <td><code>FatalWorkerError</code></td>
@@ -1287,6 +1309,25 @@ a non-zero exit code is a charged failure. After the Server accepts <code>finish
 a later exception or non-zero child exit does not change the succeeded Task. A
 charged failure returns to pending while retry budget remains; otherwise the
 Task becomes failed.</p>
+<h2 id="consecutive-failure-protection">Consecutive failure protection</h2>
+<p>Workers stop after five consecutive execution failures by default. Configure a
+positive integer with <code>@loop(max_consecutive_failures=5)</code> or:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>loop<span class="w"> </span>--max-consecutive-failures<span class="w"> </span><span class="m">5</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>evaluate.py
+</code></pre></div>
+<p>Ordinary exceptions, <code>TaskError</code>, <code>TransientError</code>, Command nonzero exits,
+startup failures and argument binding failures count once per execution, after
+reporting resolves. <code>TransientError</code> still returns the Task without charging its
+retry budget. Network retries of the same report do not add failures.</p>
+<p>Successful completion resets the count, including successful <code>finish()</code> followed
+by cleanup errors. Empty polls, cancellation, lease loss and reports rejected as
+stale/finalized preserve it. <code>FatalWorkerError</code> still exits immediately.</p>
+<p>At the limit the Worker logs the count, limit, last Task ID and error type, then
+raises <code>FatalWorkerError</code> before claiming more work. The Command CLI exits <code>1</code>;
+leave the Python exception uncaught to exit nonzero. Current Task reporting,
+retry budgets and run fencing are unchanged.</p>
+<p>The count is local to each loop invocation. Configure supervisor restart backoff
+and restart frequency limits, because a restart clears it. This limits damage
+within a Worker lifetime; it cannot restore attempts already consumed.</p>
 <h2 id="heartbeat-recovery">Heartbeat recovery</h2>
 <p>Every claim receives a private run ID and a five-minute lease. The Worker sends a
 heartbeat once per minute. Transport failures are retried. If heartbeats stop,

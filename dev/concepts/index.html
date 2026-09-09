@@ -1389,7 +1389,9 @@ Worker finishes a Task, it asks the Server for another.</p>
 <li><a href="../workers/distributed/">Distributed launchers</a> run one Task through a
   supported multi-process launcher.</li>
 </ul>
-<p>The Server does not track Worker processes or their hardware. You start, stop,
+<p>The Server keeps expiring Worker observations (<code>idle</code> or <code>busy</code>) for inspection,
+without managing processes or tracking hardware. These observations may lag
+behind execution and never decide Task ownership. You start, stop,
 and supervise the Workers.</p>
 <h2 id="routes-match-tasks-with-worker-code">Routes match Tasks with Worker code</h2>
 <p>A <strong>route</strong> is an exact, case-sensitive compatibility label. Every Worker uses

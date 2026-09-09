@@ -1070,6 +1070,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#grouped-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Grouped counts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#update-body" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1082,6 +1093,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker-observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker observations
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -1306,6 +1328,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#grouped-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Grouped counts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#update-body" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1318,6 +1351,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker-observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker observations
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -1409,6 +1453,15 @@ curl<span class="w"> </span>http://127.0.0.1:8000/openapi.json<span class="w"> <
 <p>When enabled, authenticate application requests with:</p>
 <div class="highlight"><pre><span></span><code><span class="err">Authorization: Bearer &lt;token&gt;</span>
 </code></pre></div>
+<p>Application responses under <code>/api/</code> include <code>Labtasker-Server-Version</code> with the
+Server package version, including empty successes and handled errors. With
+authentication enabled, only requests carrying the valid token receive it;
+otherwise it is public. <code>/health</code> and <code>/openapi.json</code> do not include it.</p>
+<p>Clients can observe this header without a preflight request. Older Servers or
+proxies may omit it; absence is not proof of incompatibility. The Python Client
+warns on stderr when a known Server version is older, while preserving the
+operation's result or error. Package version differences do not themselves
+establish protocol incompatibility.</p>
 <h2 id="discovery">Discovery</h2>
 <table>
 <thead>
@@ -1484,7 +1537,7 @@ curl<span class="w"> </span>http://127.0.0.1:8000/openapi.json<span class="w"> <
 <tr>
 <td><code>GET /api/v2/queues/{queue}/tasks/count</code></td>
 <td>Selection query parameters</td>
-<td><code>200</code> with <code>{"count":N}</code> for the complete selection.</td>
+<td><code>200</code> with <code>{"count":N}</code>, or a grouped page when <code>group_by</code> is supplied.</td>
 </tr>
 <tr>
 <td><code>PATCH /api/v2/queues/{queue}/tasks/{task_id}</code></td>
@@ -1531,12 +1584,45 @@ Task's current representation. JSON object-key order, route input order, and an
 omitted default versus the same explicit default do not change that identity.</p>
 <h3 id="list-and-count-queries">List and count queries</h3>
 <p>Task listing accepts:</p>
-<div class="highlight"><pre><span></span><code>status, name, filter, order_by, descending, limit, cursor
+<div class="highlight"><pre><span></span><code>status, name, name_fuzzy, filter, order_by, descending, limit, cursor
 </code></pre></div>
-<p>Count accepts <code>status</code>, <code>name</code>, and <code>filter</code>. Selectors are combined with AND.
+<p>Count accepts <code>status</code>, <code>name</code>, <code>name_fuzzy</code>, <code>filter</code>, and optional <code>group_by</code>
+with grouped <code>limit</code>/<code>cursor</code>. Selectors are combined with AND.
 <code>limit</code> is 1 to 1000 and defaults to 100. A non-null <code>next_cursor</code> must be reused
 with the same Queue, selectors, filter, order field, and direction. The cursor is
 opaque. See <a href="../../guides/query/">Query language</a> for filter syntax.</p>
+<p><code>name_fuzzy</code> searches names using case-insensitive subsequences. Each
+whitespace-separated word must match; words may occur in any order. Empty or
+whitespace-only search adds no restriction. Non-empty search excludes unnamed
+Tasks. Matching happens on the Server before pagination, uses literal punctuation,
+and preserves ordering. Exact <code>name</code> and <code>filter</code> equality remain available.</p>
+<h3 id="grouped-counts">Grouped counts</h3>
+<p><code>GET /api/v2/queues/{queue}/tasks/count?status=pending&amp;group_by=routes,status</code>
+returns, for example:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"group_by"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"routes"</span><span class="p">,</span><span class="w"> </span><span class="s2">"status"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"items"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"routes"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a"</span><span class="p">,</span><span class="w"> </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pending"</span><span class="p">},</span><span class="w"> </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"routes"</span><span class="p">:</span><span class="w"> </span><span class="s2">"b"</span><span class="p">,</span><span class="w"> </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pending"</span><span class="p">},</span><span class="w"> </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"next_cursor"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>One selected Task in this example supports both <code>a</code> and <code>b</code>. Selection applies
+before route expansion. <code>count</code> is the deduplicated complete Task total; groups
+can overlap. Task grouping supports only <code>routes</code>, <code>status</code>, or their combination
+in either order, with one comma-separated <code>group_by</code> parameter and no spaces.
+No arbitrary aggregation expressions or separate route records are introduced.</p>
+<p>Groups sort lexically by values in the requested dimension order. Only nonzero
+groups appear. <code>limit</code> defaults to 100 groups, with range 1–1000. Cursors bind the
+resource, Queue, complete selection and ordered dimensions; page size may change.
+Malformed or mismatched cursors return <code>422 invalid_cursor</code>. Count and items
+share a read transaction, but subsequent pages read current data.</p>
+<p>Empty grouping, whitespace, unsupported or repeated dimensions, repeated
+<code>group_by</code> parameters, and pagination without grouping return <code>422 invalid_request</code>.
+Ungrouped responses remain <code>{"count":N}</code>. A Client requesting grouping must reject
+an old Server's scalar response rather than treating it as grouped data.</p>
 <h3 id="update-body">Update body</h3>
 <p>A Task update contains at least one of:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
@@ -1554,6 +1640,62 @@ last error, run ownership, and timestamps are Server-owned. Bulk update counts
 only rows that match and remain non-running; a concurrent claim either sees all
 new values or excludes that Task. Validation failure for one matched non-running
 Task rolls back the complete batch.</p>
+<h2 id="worker-observations">Worker observations</h2>
+<p>All paths below require an existing Queue and the ordinary application token.</p>
+<table>
+<thead>
+<tr>
+<th>Method and path</th>
+<th>Input</th>
+<th>Success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/v2/queues/{queue}/workers</code></td>
+<td><code>filter</code>, <code>limit</code>, <code>cursor</code></td>
+<td><code>200</code> with <code>{"items":[...],"next_cursor":...}</code>, ID ascending, default 100/max 1000.</td>
+</tr>
+<tr>
+<td><code>GET /api/v2/queues/{queue}/workers/count</code></td>
+<td><code>filter</code>, optional <code>group_by</code>, grouped <code>limit</code>/<code>cursor</code></td>
+<td><code>200</code> with scalar or grouped counts. Dimensions: <code>route</code>, <code>status</code>, or both in either order.</td>
+</tr>
+<tr>
+<td><code>PUT /api/v2/queues/{queue}/workers/{id}</code></td>
+<td>Complete <code>{"route":"sdxl","status":"busy","task_id":"t_ABCDEFGHIJKL"}</code></td>
+<td><code>204</code>; creates or renews the observation.</td>
+</tr>
+<tr>
+<td><code>DELETE /api/v2/queues/{queue}/workers/{id}</code></td>
+<td>None</td>
+<td><code>204</code>, including an absent Worker in an existing Queue.</td>
+</tr>
+</tbody>
+</table>
+<p>Each observation exposes <code>id</code>, <code>queue</code>, <code>route</code>, <code>status</code>, nullable <code>task_id</code>,
+<code>last_seen_at</code>, and <code>expires_at</code>. IDs match <code>w_[A-Za-z0-9_-]{12}</code> and identify one
+loop invocation across successive Tasks. All seven fields support the existing
+filter grammar with their own types; Task-only paths are rejected. Worker count
+pagination and filtering follow the grouped-count rules above. List cursors bind
+the Queue and exact filter.</p>
+<p>A report requires all three fields; <code>task_id</code> accepts null or a valid Task ID
+without a Task lookup. Updating an existing instance to another route returns
+<code>409 worker_route_conflict</code>. <code>idle</code> means waiting for work; <code>busy</code> begins at
+confirmed claim and covers execution, reporting and cleanup, even after Task
+completion. The bundled Worker reports null when idle and its Task ID when busy.</p>
+<p>The Server assigns both timestamps and expires each accepted observation after
+300 seconds. Bundled Workers report every 60 seconds and on activity changes
+through an independent reporter. Only unexpired rows appear in reads; expired
+rows are deleted at startup and on the lease-scan cadence. These are latest
+observations, with no history, process-control or Task-ownership effect. An
+advisory Task reference can be terminal, deleted or stale. Counts are approximate.</p>
+<p>Observation failures never stop or block the Task loop or affect its failure
+guard. Once the loop has independently decided to exit, it waits at most one
+second for reporter shutdown and best-effort withdrawal. Crashes and failed
+withdrawals fall back to expiry. A delayed PUT can recreate a withdrawn row;
+there are no tombstones. Worker observations do not block Queue deletion and
+are removed with the Queue. Reports never recreate a missing Queue.</p>
 <h2 id="worker-protocol">Worker protocol</h2>
 <p>These endpoints let an independent executor implement the same lease/fencing
 contract as the bundled Workers. They are not public convenience methods on the

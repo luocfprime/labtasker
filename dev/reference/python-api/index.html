@@ -972,6 +972,45 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#grouped-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Grouped counts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker-observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker observations
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-submission-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task submission details
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task submission details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#submission-and-idempotency" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1240,6 +1279,45 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#grouped-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Grouped counts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worker-observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Worker observations
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-submission-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Task submission details
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task submission details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#submission-and-idempotency" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1366,13 +1444,25 @@ overrides only that operation's Queue; changing Servers requires a new Client.</
 <p><code>close()</code> is idempotent and never stops a local Server. Operations on a closed
 Client raise <code>RuntimeError("Client is closed.")</code>. The package-level default
 Client has no close/reset API. There is no asynchronous Client.</p>
+<p><code>Client.server_version</code> is a read-only <code>str | None</code>: the normalized PEP 440 Server
+package version from the latest business response. It is <code>None</code> before a
+response or when that response has no usable version header. Reading it never
+makes a request. Older Servers may not advertise their version.</p>
+<p>When a response reports a Server older than the Client, the Client writes an
+advisory <code>warning</code> to stderr recommending an upgrade. Each Client instance warns
+once per distinct older Server version, including patch and prerelease
+differences. Results, exceptions, and retries are unchanged; the warning does
+not mean the current operation is incompatible. There is no version preflight or
+automatic fallback. Applications needing feature-specific compatibility checks
+must account for <code>server_version</code> being unknown and still handle operation errors.</p>
 <h2 id="task-operations">Task operations</h2>
 <div class="highlight"><pre><span></span><code>submit_task(args=None, *, name=None, metadata=None, priority=0,
             max_attempts=3, routes=None, task_id=None, queue=None) -&gt; Task
 get_task(task_id, *, queue=None) -&gt; Task
-list_tasks(*, status=None, name=None, filter=None, order_by="created_at",
+list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -&gt; TaskPage
-count_tasks(*, status=None, name=None, filter=None, queue=None) -&gt; int
+count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None,
+            group_by=None, limit=None, cursor=None, queue=None) -&gt; int | GroupCountPage
 update_task(task_id, changes, *, queue=None) -&gt; Task
 update_tasks(*, filter, changes, queue=None) -&gt; BulkUpdateResult
 cancel_task(task_id, *, queue=None) -&gt; Task
@@ -1401,7 +1491,7 @@ delete_task(task_id, *, queue=None) -&gt; None
 </tr>
 <tr>
 <td><code>count_tasks</code></td>
-<td>Returns an <code>int</code> for the complete selection; it is independent of list pagination.</td>
+<td>Returns an <code>int</code> for the complete selection, or a <code>GroupCountPage</code> when <code>group_by</code> is supplied.</td>
 </tr>
 <tr>
 <td><code>update_task</code></td>
@@ -1425,6 +1515,45 @@ delete_task(task_id, *, queue=None) -&gt; None
 </tr>
 </tbody>
 </table>
+<h3 id="grouped-counts">Grouped counts</h3>
+<p>Use an ordered sequence of dimensions, not a comma-separated Python string:</p>
+<div class="highlight"><pre><span></span><code><span class="n">page</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">count_tasks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"pending"</span><span class="p">,</span> <span class="n">group_by</span><span class="o">=</span><span class="p">[</span><span class="s2">"routes"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">])</span>
+<span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">page</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">group</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">group</span><span class="o">.</span><span class="n">count</span><span class="p">)</span>
+</code></pre></div>
+<p>Task dimensions are <code>routes</code> and <code>status</code>, singly or together in either order.
+<code>GroupCountPage</code> contains <code>group_by</code>, <code>count</code>, <code>items: list[CountGroup]</code>, and
+<code>next_cursor</code>. Each <code>CountGroup</code> has <code>key: dict[str, str]</code> and <code>count</code>.
+The top-level count covers the complete selection. Multi-route Tasks appear in
+each compatible route group, so summing groups can exceed that total.</p>
+<p><code>limit</code> defaults to 100 groups and accepts 1–1000; <code>cursor</code> continues one page.
+Both require grouping. Groups sort by their keys in the requested dimension
+order. Follow cursors with the same selection and grouping; page size may change.
+Each page reads current data, so concurrent changes can affect later pages.
+Empty, repeated, whitespace-containing and unsupported dimensions are rejected.
+An old Server's scalar response to a grouped request raises <code>TransportError</code>.</p>
+<h2 id="worker-observations">Worker observations</h2>
+<div class="highlight"><pre><span></span><code>list_workers(*, filter=None, limit=100, cursor=None, queue=None) -&gt; WorkerPage
+count_workers(*, filter=None, group_by=None, limit=None, cursor=None,
+              queue=None) -&gt; int | GroupCountPage
+</code></pre></div>
+<p>These methods also have package-level forms. <code>WorkerPage</code> contains <code>items</code> and
+<code>next_cursor</code>, sorted by Worker ID ascending with the same 1–1000 page limit.
+Each <code>WorkerObservation</code> exposes <code>id</code>, <code>queue</code>, <code>route</code>, <code>status</code>, nullable
+<code>task_id</code>, <code>last_seen_at</code>, and <code>expires_at</code>. Timestamps are UTC. All seven fields
+support the <a href="../../guides/query/">query language</a> operators for their types.</p>
+<div class="highlight"><pre><span></span><code><span class="n">workers</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">list_workers</span><span class="p">(</span><span class="nb">filter</span><span class="o">=</span><span class="s1">'route == "sdxl" and status == "idle"'</span><span class="p">)</span>
+<span class="n">counts</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">count_workers</span><span class="p">(</span><span class="n">group_by</span><span class="o">=</span><span class="p">[</span><span class="s2">"route"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">])</span>
+</code></pre></div>
+<p>Worker grouping supports <code>route</code> and <code>status</code>, singly or together. Plain counting
+returns an integer; grouped counting follows the Task page contract above.
+Only unexpired observations are returned. <code>idle</code> means awaiting work; <code>busy</code>
+includes execution, reporting and cleanup after <code>finish()</code>. Observations renew
+periodically and can be delayed. An advisory <code>task_id</code> may refer to a terminal or
+deleted Task. Use Task state for ownership and recovery decisions. Worker
+observation failures never block Task execution or consume the failure guard.
+There are no public Worker control methods.</p>
+<h2 id="task-submission-details">Task submission details</h2>
 <h3 id="submission-and-idempotency">Submission and idempotency</h3>
 <p>Task data must use strict JSON-compatible Python values. <code>args</code>, <code>metadata</code>, and
 <code>result</code> are objects; arrays are Python lists; object keys are strings. NaN,
@@ -1446,9 +1575,15 @@ even if it is now running or terminal. A different definition at that ID raises
 Object-key order, route input order, and explicitly supplied default values do
 not change the normalized definition.</p>
 <h3 id="selection-and-pagination">Selection and pagination</h3>
-<p><code>status</code>, exact <code>name</code>, and <code>filter</code> are combined with AND. <code>limit</code> must be from
+<p><code>status</code>, exact <code>name</code>, fuzzy <code>name_fuzzy</code>, and <code>filter</code> are combined with AND. <code>limit</code> must be from
 1 through 1000. Ordering is stable and supports <code>id</code>, <code>name</code>, <code>status</code>,
 <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>last_route</code>, and the public timestamps.</p>
+<p>Name search uses <code>list_tasks(name_fuzzy="tr ev")</code> or
+<code>count_tasks(name_fuzzy="tr ev")</code>. It ignores case and outer whitespace; every
+whitespace-separated word must be a subsequence of the name, independently of
+word order. Empty searches do not restrict names. Punctuation is literal and
+ordering is unchanged. Use <code>name="train_model_eval"</code> or
+<code>filter='name == "train_model_eval"'</code> for strict equality.</p>
 <p>Follow <code>next_cursor</code> with the same Queue, selectors, filter, order field, and
 direction:</p>
 <div class="highlight"><pre><span></span><code><span class="n">page</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">list_tasks</span><span class="p">(</span><span class="nb">filter</span><span class="o">=</span><span class="s1">'status == "failed"'</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
@@ -1580,7 +1715,7 @@ Server.</p>
 <code>cancelled</code>. Timestamps are timezone-aware UTC <code>datetime</code> values.</p>
 <h2 id="worker-api">Worker API</h2>
 <div class="highlight"><pre><span></span><code>@loop(route="default", queue=None, idle_timeout=300,
-      force_stop_timeout=None)
+      force_stop_timeout=None, max_consecutive_failures=5)
 def worker(...): ...
 
 TaskArg(default=..., path=None, resolver=None)
