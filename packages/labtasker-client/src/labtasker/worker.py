@@ -286,7 +286,12 @@ def _run_python_claim(
     try:
         with tee.capture(journal.log_path):
             try:
-                binding.invoke(claim.task.args, startup_args, startup_kwargs)
+                try:
+                    binding.invoke(claim.task.args, startup_args, startup_kwargs)
+                finally:
+                    # The force-stop deadline applies to user execution, not
+                    # subsequent terminal-report retries or local cleanup.
+                    control.executor_done()
             except FatalWorkerError as error:
                 fatal = error
                 logger.critical("Fatal Worker failure for Task %s.", claim.task.id, exc_info=True)

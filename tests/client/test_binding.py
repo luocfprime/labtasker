@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from functools import partial
 from typing import Any
 
 import pytest
 
 from labtasker.binding import BindingError, TaskArg, compile_binding
+from labtasker.worker import loop
 
 
 def test_named_binding_ignores_extra_args_and_keeps_startup_values() -> None:
@@ -134,3 +136,47 @@ def test_startup_cannot_override_injected_parameter() -> None:
 def test_taskarg_typing_facade_returns_runtime_marker() -> None:
     marker: int = TaskArg(default=3)
     assert marker != 3
+
+
+@pytest.mark.parametrize("target", ["handler", "resolver"])
+@pytest.mark.parametrize("kind", ["coroutine", "async-generator"])
+@pytest.mark.parametrize(
+    "wrapper", ["function", "instance", "partial-function", "partial-instance"]
+)
+def test_async_definitions_are_rejected_before_client_creation(
+    monkeypatch: pytest.MonkeyPatch, target: str, kind: str, wrapper: str
+) -> None:
+    async def coroutine(value: object) -> object:
+        return value
+
+    async def generator(value: object):
+        yield value
+
+    class CoroutineCallable:
+        async def __call__(self, value: object) -> object:
+            return value
+
+    class GeneratorCallable:
+        async def __call__(self, value: object):
+            yield value
+
+    value: Any
+    if "instance" in wrapper:
+        value = CoroutineCallable() if kind == "coroutine" else GeneratorCallable()
+    else:
+        value = coroutine if kind == "coroutine" else generator
+    if wrapper.startswith("partial"):
+        value = partial(value)
+
+    def unexpected_client(**_: object) -> None:
+        pytest.fail("Invalid asynchronous definitions must fail before Client construction")
+
+    monkeypatch.setattr("labtasker.worker.Client", unexpected_client)
+    if target == "resolver":
+
+        def handler(item=TaskArg(resolver=value)) -> None:
+            pass
+    else:
+        handler = value
+    with pytest.raises(TypeError, match="synchronous"):
+        loop()(handler)

@@ -46,7 +46,8 @@ class Database:
         alembic_config = Config()
         alembic_config.set_main_option(
             "script_location",
-            str(Path(__file__).resolve().parent / "migrations"),
+            # Alembic's ConfigParser interpolates percent signs in option values.
+            str(Path(__file__).resolve().parent / "migrations").replace("%", "%%"),
         )
         with self.engine.begin() as connection:
             # sqlite3's legacy mode does not begin a transaction for DDL.

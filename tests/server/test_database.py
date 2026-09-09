@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -169,6 +170,48 @@ def test_database_path_is_not_parsed_as_a_url(tmp_path: Path, relative_path: str
             Database(path)
     finally:
         database.dispose()
+
+
+def test_server_package_installed_under_percent_path_can_initialize_and_restart(
+    tmp_path: Path,
+) -> None:
+    import labtasker_server
+
+    package_directory = tmp_path / "100%-environment"
+    shutil.copytree(
+        Path(labtasker_server.__file__).parent,
+        package_directory / "labtasker_server",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    script = """
+from pathlib import Path
+import labtasker_server
+from labtasker_server.database import Database
+from labtasker_server.services.queues import QueueService
+assert '100%-environment' in labtasker_server.__file__
+database = Database(Path('server.db'))
+try:
+    database.initialize()
+    service = QueueService(database)
+    if Path('initialized').exists():
+        assert [queue.name for queue in service.list()] == ['default', 'persisted']
+    else:
+        assert [queue.name for queue in service.list()] == ['default']
+        service.create('persisted')
+        Path('initialized').touch()
+finally:
+    database.dispose()
+"""
+    for _ in range(2):
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=tmp_path,
+            env={**os.environ, "PYTHONPATH": str(package_directory)},
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, result.stderr
 
 
 def test_database_preserves_existing_gitignore_and_ignores_other_parents(

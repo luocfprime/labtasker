@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, TypeVar, get_type_hints, overload
 
 from pydantic import TypeAdapter, ValidationError
@@ -185,4 +186,9 @@ def _validate_resolver(resolver: object, name: str) -> None:
 
 
 def _is_async_callable(value: object) -> bool:
-    return inspect.iscoroutinefunction(value) or inspect.iscoroutinefunction(type(value).__call__)
+    while isinstance(value, partial):
+        value = value.func
+    return any(
+        inspect.iscoroutinefunction(candidate) or inspect.isasyncgenfunction(candidate)
+        for candidate in (value, type(value).__call__)
+    )

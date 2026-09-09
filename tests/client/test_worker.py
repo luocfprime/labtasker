@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 import sys
 import threading
 import time
@@ -242,6 +243,62 @@ def test_finish_after_confirmed_revocation_does_not_report(monkeypatch: pytest.M
 
     handler()
     assert client.actions == []
+
+
+@pytest.mark.parametrize(
+    ("mode", "exit_code"),
+    [("returned", 0), ("raised", 0), ("active", 1), ("finish-active", 1)],
+)
+def test_force_stop_only_applies_while_user_function_is_active(
+    tmp_path: Path, mode: str, exit_code: int
+) -> None:
+    # Run the real watchdog/os._exit in an isolated process. Revocation is
+    # synchronized to the terminal request, after normal/exceptional return,
+    # or while inline code/finish() still occupies the executor.
+    script = """
+import sys, time
+from types import SimpleNamespace
+import labtasker.execution as execution
+import labtasker.worker as worker
+from labtasker.binding import compile_binding
+from labtasker.config import ResolvedConfig
+from labtasker.errors import TransportError
+from labtasker.models import ClaimResponse
+from labtasker.tee import WorkerTee
+mode = sys.argv[1]
+claim = ClaimResponse.model_validate_json(sys.argv[2])
+worker.TERMINAL_BACKOFF_SECONDS = (1.0 if mode == 'finish-active' else 0.2,)
+def report(**kwargs):
+    execution._ACTIVE_CONTEXT.control.revoke('cancel')
+    raise TransportError('terminal response lost')
+client = SimpleNamespace(
+    configuration=ResolvedConfig(url='http://server', queue='default', token=None, local=None),
+    _complete=report, _fail=report, _heartbeat=lambda **kwargs: None,
+)
+def handler():
+    if mode == 'raised':
+        raise ValueError('workload failed')
+    if mode == 'active':
+        execution._ACTIVE_CONTEXT.control.revoke('cancel')
+        time.sleep(2)
+    if mode == 'finish-active':
+        execution.finish({'score': 1})
+with WorkerTee() as tee:
+    worker._run_python_claim(
+        client, tee, compile_binding(handler), (), {}, claim=claim,
+        queue='default', route='default', force_stop_timeout=0.03,
+    )
+print('worker-survived')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, mode, make_claim().model_dump_json()],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert result.returncode == exit_code, result.stderr
+    assert ("worker-survived" in result.stdout) is (exit_code == 0)
 
 
 def test_default_log_handler_disk_error_does_not_interrupt_finish_or_terminal_retry(
