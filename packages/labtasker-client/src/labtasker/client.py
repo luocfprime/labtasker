@@ -181,6 +181,7 @@ class Client:
         *,
         status: TaskStatus | None = None,
         name: str | None = None,
+        name_fuzzy: str | None = None,
         filter: str | None = None,
         order_by: TaskOrderField = "created_at",
         descending: bool = True,
@@ -197,6 +198,10 @@ class Client:
             raise RequestValidationError("descending must be a Boolean.")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
             raise RequestValidationError("limit must be an integer from 1 through 1000.")
+        if name_fuzzy is not None:
+            if not isinstance(name_fuzzy, str):
+                raise RequestValidationError("name_fuzzy selector must be a string or None.")
+            validate_unicode_scalar(name_fuzzy, field="name_fuzzy")
         if name is not None and not isinstance(name, str):
             raise RequestValidationError("name selector must be a string or None.")
         if cursor is not None and not isinstance(cursor, str):
@@ -205,6 +210,7 @@ class Client:
             {
                 "status": status,
                 "name": name,
+                "name_fuzzy": name_fuzzy,
                 "filter": filter,
                 "order_by": order_by,
                 "descending": "true" if descending else "false",
@@ -226,6 +232,7 @@ class Client:
         *,
         status: TaskStatus | None = None,
         name: str | None = None,
+        name_fuzzy: str | None = None,
         filter: str | None = None,
         queue: str | None = None,
     ) -> int:
@@ -233,13 +240,19 @@ class Client:
         queue_name = self._queue(queue)
         status = validate_status(status)
         filter = validate_filter(filter)
+        if name_fuzzy is not None:
+            if not isinstance(name_fuzzy, str):
+                raise RequestValidationError("name_fuzzy selector must be a string or None.")
+            validate_unicode_scalar(name_fuzzy, field="name_fuzzy")
         if name is not None and not isinstance(name, str):
             raise RequestValidationError("name selector must be a string or None.")
         result = self._call(
             operation="count_tasks",
             method="GET",
             path=f"queues/{queue_name}/tasks/count",
-            params=_without_none({"status": status, "name": name, "filter": filter}),
+            params=_without_none(
+                {"status": status, "name": name, "name_fuzzy": name_fuzzy, "filter": filter}
+            ),
             parser=lambda response: _parse_model(response, CountResponse, {200}),
             retry=True,
         )

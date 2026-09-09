@@ -22,6 +22,7 @@ class TaskSelection:
     filter: str | None
     order_by: str
     descending: bool
+    name_fuzzy: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,14 +34,7 @@ class CursorPosition:
 def encode_cursor(selection: TaskSelection, position: CursorPosition) -> str:
     payload = {
         "v": 1,
-        "selection": {
-            "queue": selection.queue,
-            "status": selection.status,
-            "name": selection.name,
-            "filter": selection.filter,
-            "order_by": selection.order_by,
-            "descending": selection.descending,
-        },
+        "selection": _selection_json(selection),
         "position": {"value": position.value, "id": position.task_id},
     }
     encoded = json.dumps(
@@ -92,6 +86,7 @@ def _selection_json(selection: TaskSelection) -> dict[str, object]:
         "queue": selection.queue,
         "status": selection.status,
         "name": selection.name,
+        **({"name_fuzzy": selection.name_fuzzy} if selection.name_fuzzy is not None else {}),
         "filter": selection.filter,
         "order_by": selection.order_by,
         "descending": selection.descending,

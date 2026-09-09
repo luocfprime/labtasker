@@ -89,13 +89,19 @@ omitted default versus the same explicit default do not change that identity.
 Task listing accepts:
 
 ```text
-status, name, filter, order_by, descending, limit, cursor
+status, name, name_fuzzy, filter, order_by, descending, limit, cursor
 ```
 
-Count accepts `status`, `name`, and `filter`. Selectors are combined with AND.
+Count accepts `status`, `name`, `name_fuzzy`, and `filter`. Selectors are combined with AND.
 `limit` is 1 to 1000 and defaults to 100. A non-null `next_cursor` must be reused
 with the same Queue, selectors, filter, order field, and direction. The cursor is
 opaque. See [Query language](../guides/query.md) for filter syntax.
+
+`name_fuzzy` searches names using case-insensitive subsequences. Each
+whitespace-separated word must match; words may occur in any order. Empty or
+whitespace-only search adds no restriction. Non-empty search excludes unnamed
+Tasks. Matching happens on the Server before pagination, uses literal punctuation,
+and preserves ordering. Exact `name` and `filter` equality remain available.
 
 ### Update body
 

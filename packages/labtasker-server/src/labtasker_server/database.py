@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from labtasker_server.errors import DomainError
 from labtasker_server.models import QueueRow
+from labtasker_server.name_search import name_matches_fuzzy
 
 LOCAL_GITIGNORE = "*\n!.gitignore\n"
 
@@ -133,6 +134,9 @@ def _create_sqlite_engine(path: Path) -> Engine:
 
     @event.listens_for(engine, "connect")
     def configure_connection(dbapi_connection: object, _: object) -> None:
+        dbapi_connection.create_function(  # type: ignore[attr-defined]
+            "labtasker_name_fuzzy", 2, name_matches_fuzzy, deterministic=True
+        )
         cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
         try:
             cursor.execute("PRAGMA foreign_keys=ON")

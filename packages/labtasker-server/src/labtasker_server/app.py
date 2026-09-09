@@ -217,6 +217,7 @@ def create_app(
         queue: str,
         status: TaskStatus | None = None,
         name: str | None = None,
+        name_fuzzy: str | None = None,
         filter_expression: Annotated[str | None, Query(alias="filter")] = None,
         order_by: TaskOrderField = "created_at",
         descending: bool = True,
@@ -227,6 +228,7 @@ def create_app(
             queue,
             status=status,
             name=name,
+            name_fuzzy=name_fuzzy,
             filter_expression=filter_expression,
             order_by=order_by,
             descending=descending,
@@ -244,6 +246,7 @@ def create_app(
         queue: str,
         status: TaskStatus | None = None,
         name: str | None = None,
+        name_fuzzy: str | None = None,
         filter_expression: Annotated[str | None, Query(alias="filter")] = None,
     ) -> CountResponse:
         return CountResponse(
@@ -251,6 +254,7 @@ def create_app(
                 queue,
                 status=status,
                 name=name,
+                name_fuzzy=name_fuzzy,
                 filter_expression=filter_expression,
             )
         )

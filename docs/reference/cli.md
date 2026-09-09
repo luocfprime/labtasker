@@ -52,7 +52,7 @@ rules.
 | `config show` | One resolved configuration object | Resolves current sources without network access, file creation, or local Server startup; never prints a token. |
 | `task submit` | One Task object | `--args`/`--metadata` default to `{}`, `--priority` to `0`, `--max-attempts` to `3`, and omitted routes to `default`. Repeat `--route` for several exact routes; use `--id` for a caller-chosen idempotent Task ID. |
 | `task get` | One Task object | ID-addressed; an unknown Task is an error, not `null`. |
-| `task list` | `{"items":[...],"next_cursor":...}` | Returns one page. `--status`, exact `--name`, and `--filter` combine with AND. |
+| `task list` | `{"items":[...],"next_cursor":...}` | Returns one page. `--status`, exact `--name`, `--name-fuzzy`, and `--filter` combine with AND. |
 | `task count` | `{"count":N}` | Counts the complete selection independently of list pagination. |
 | `task update TASK_ID` | The resulting Task | Replaces supplied fields on one non-running Task. |
 | `task update --filter ...` | `{"matched":N,"updated":M}` | Requires an explicit filter and atomically updates all matching non-running Tasks. |
@@ -137,3 +137,19 @@ labtasker task list --limit 100 --cursor OPAQUE_CURSOR
 
 There is no automatic pager or interactive confirmation. Destructive scope is
 made explicit with identifiers, filters, or `--cascade` instead.
+
+## Search Task names
+
+```bash
+labtasker task list --name-fuzzy "tr ev"
+labtasker task count --name-fuzzy "tr ev"
+labtasker task list --name "train_model_eval"
+```
+
+`--name-fuzzy` ignores case and surrounding whitespace. Every whitespace-separated
+word must appear as a subsequence in the Task name; words can appear in any order.
+`tr ev` and `ev tr` both match `train_model_eval`. Empty searches add no
+restriction. Punctuation is literal; this is not the full fzf query language.
+The Server searches the Queue before pagination and preserves the chosen ordering.
+All supplied selectors combine with AND. Keep the same search input when reusing
+a cursor. `--name` and `--filter 'name == "..."'` retain strict equality.

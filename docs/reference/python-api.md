@@ -42,9 +42,9 @@ Client has no close/reset API. There is no asynchronous Client.
 submit_task(args=None, *, name=None, metadata=None, priority=0,
             max_attempts=3, routes=None, task_id=None, queue=None) -> Task
 get_task(task_id, *, queue=None) -> Task
-list_tasks(*, status=None, name=None, filter=None, order_by="created_at",
+list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -> TaskPage
-count_tasks(*, status=None, name=None, filter=None, queue=None) -> int
+count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, queue=None) -> int
 update_task(task_id, changes, *, queue=None) -> Task
 update_tasks(*, filter, changes, queue=None) -> BulkUpdateResult
 cancel_task(task_id, *, queue=None) -> Task
@@ -92,9 +92,16 @@ not change the normalized definition.
 
 ### Selection and pagination
 
-`status`, exact `name`, and `filter` are combined with AND. `limit` must be from
+`status`, exact `name`, fuzzy `name_fuzzy`, and `filter` are combined with AND. `limit` must be from
 1 through 1000. Ordering is stable and supports `id`, `name`, `status`,
 `priority`, `attempt`, `max_attempts`, `last_route`, and the public timestamps.
+
+Name search uses `list_tasks(name_fuzzy="tr ev")` or
+`count_tasks(name_fuzzy="tr ev")`. It ignores case and outer whitespace; every
+whitespace-separated word must be a subsequence of the name, independently of
+word order. Empty searches do not restrict names. Punctuation is literal and
+ordering is unchanged. Use `name="train_model_eval"` or
+`filter='name == "train_model_eval"'` for strict equality.
 
 Follow `next_cursor` with the same Queue, selectors, filter, order field, and
 direction:

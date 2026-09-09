@@ -3732,6 +3732,7 @@ list_tasks(
     *,
     status: TaskStatus | None = None,
     name: str | None = None,
+    name_fuzzy: str | None = None,
     filter: str | None = None,
     order_by: TaskOrderField = "created_at",
     descending: bool = True,
@@ -3741,15 +3742,33 @@ list_tasks(
 ) -> TaskPage
 ```
 
-`status`, `name` and `filter` are optional and are ANDed when combined. `name`
-means exact string equality. Listing has no `task_id` shortcut because
+`status`, `name`, `name_fuzzy` and `filter` are optional and are ANDed when combined. `name`
+means exact string equality. `name_fuzzy` is an optional, case-insensitive
+name search: apply Unicode case folding to the name and query, split the query
+on Unicode whitespace, and require each word to occur as a subsequence of the
+name. Characters within a word must appear in order, but words are matched
+independently and may overlap or occur in any order. Both `tr ev` and `EV TR`
+match `train_model_eval`. Empty or whitespace-only search imposes no name
+restriction; a non-empty search excludes null and empty names. Punctuation is
+literal, with no regex, wildcard, fzf extended operators, smart-case rule, accent
+normalization, or relevance ranking. Existing ordering remains unchanged.
+
+The Server evaluates the predicate before pagination over the selected Queue;
+list and count use the same predicate. Exact `name`, `name_fuzzy`, `status`, and
+`filter` combine with AND. `filter='name == "..."'` remains strict equality;
+this change adds no fuzzy expression function. CLI list and count expose
+`--name-fuzzy`, and Python exposes `name_fuzzy` on both Client and module functions.
+The raw `name_fuzzy` input participates in cursor selection identity, so changing
+its case, whitespace, or word order requires starting a new pagination query.
+
+Listing has no `task_id` shortcut because
 `get_task()` is the canonical ID lookup. `TaskPage` is a frozen client-owned
 Pydantic model containing `items: list[Task]` and `next_cursor: str | None`.
 
 HTTP uses:
 
 ```http
-GET /api/v2/queues/{queue}/tasks?status=...&name=...&filter=...&order_by=created_at&descending=true&limit=100&cursor=...
+GET /api/v2/queues/{queue}/tasks?status=...&name=...&name_fuzzy=...&filter=...&order_by=created_at&descending=true&limit=100&cursor=...
 ```
 
 The CLI mirrors those names:
@@ -3786,17 +3805,18 @@ count_tasks(
     *,
     status: TaskStatus | None = None,
     name: str | None = None,
+    name_fuzzy: str | None = None,
     filter: str | None = None,
     queue: str | None = None,
 ) -> int
 ```
 
-It uses exactly the same `status`, exact `name`, and `filter` selection semantics
+It uses exactly the same `status`, exact `name`, `name_fuzzy`, and `filter` selection semantics
 as `list_tasks`, with supplied predicates ANDed. It has no `order_by`, direction,
 limit, cursor, grouping or per-route aggregation. HTTP uses:
 
 ```http
-GET /api/v2/queues/{queue}/tasks/count?status=...&name=...&filter=...
+GET /api/v2/queues/{queue}/tasks/count?status=...&name=...&name_fuzzy=...&filter=...
 ```
 
 and returns one strict object:
@@ -3806,7 +3826,7 @@ and returns one strict object:
 ```
 
 The Python method unwraps that object to an ordinary non-negative `int`. The CLI
-mirrors the three selectors and Queue:
+mirrors the four selectors and Queue:
 
 ```text
 labtasker task count --status pending --filter 'priority >= 10' --queue experiments

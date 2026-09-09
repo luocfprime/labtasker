@@ -30,7 +30,14 @@ for Labtasker Server setup.
 
 ## Explore an experiment
 
-Open a Queue to see its Task list and status counts. Filter by status or use a
+Open a Queue to see its Task list and status counts. The Task name input uses case-insensitive fuzzy
+subsequence search: `tr ev` and `ev tr` both find `train_model_eval`. Every
+whitespace-separated word must match. Press Enter or leave the input to apply;
+clearing it removes the name restriction. List and count matching runs on the
+Server across the Queue, with the existing sorting preserved. For strict equality,
+use `name == "train_model_eval"` in Advanced filter.
+
+Filter by status or use a
 [Task query](query.md), for example:
 
 ```text

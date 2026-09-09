@@ -367,3 +367,23 @@ def test_invalid_filter_fails_locally_before_network(filter_value: str) -> None:
     with mock_client(handler) as client, pytest.raises(RequestValidationError):
         client.list_tasks(filter=filter_value)
     assert calls == 0
+
+
+@pytest.mark.parametrize("operation", ["list_tasks", "count_tasks"])
+def test_name_fuzzy_is_forwarded_with_exact_and_other_selectors(operation: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["name_fuzzy"] == " EV tr "
+        assert request.url.params["name"] == "train_eval"
+        assert request.url.params["status"] == "pending"
+        assert request.url.params["filter"] == "priority > 0"
+        body = {"count": 0} if operation == "count_tasks" else {"items": [], "next_cursor": None}
+        return httpx.Response(200, json=body)
+
+    with mock_client(handler) as client:
+        getattr(client, operation)(
+            name="train_eval", name_fuzzy=" EV tr ", status="pending", filter="priority > 0"
+        )
+        with pytest.raises(RequestValidationError, match="name_fuzzy"):
+            getattr(client, operation)(name_fuzzy=42)
+        with pytest.raises(RequestValidationError, match="name_fuzzy"):
+            getattr(client, operation)(name_fuzzy="\ud800")

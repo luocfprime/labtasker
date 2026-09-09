@@ -152,3 +152,9 @@ def test_default_client_is_constructed_lazily_once_across_threads(
         clients = list(executor.map(lambda _: api._client(), range(32)))
     assert len(constructed) == 1
     assert all(client is constructed[0] for client in clients)
+
+
+@pytest.mark.parametrize("operation", ["list_tasks", "count_tasks"])
+def test_fuzzy_function_facade(recording_client: RecordingClient, operation: str) -> None:
+    getattr(api, operation)(name_fuzzy="tr ev", queue="experiments")
+    assert recording_client.calls[-1][2]["name_fuzzy"] == "tr ev"

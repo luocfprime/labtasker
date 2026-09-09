@@ -39,6 +39,7 @@ from labtasker_server.validation import (
     validate_identifier,
     validate_run_id,
     validate_task_id,
+    validate_unicode_scalar,
 )
 
 HEARTBEAT_TIMEOUT_US = 300_000_000
@@ -188,6 +189,7 @@ class TaskService:
         *,
         status: TaskStatus | None = None,
         name: str | None = None,
+        name_fuzzy: str | None = None,
         filter_expression: str | None = None,
         order_by: TaskOrderField = "created_at",
         descending: bool = True,
@@ -200,6 +202,7 @@ class TaskService:
             queue=queue,
             status=status,
             name=name,
+            name_fuzzy=name_fuzzy,
             filter=filter_expression,
             order_by=order_by,
             descending=descending,
@@ -209,6 +212,7 @@ class TaskService:
             queue,
             status=status,
             name=name,
+            name_fuzzy=name_fuzzy,
             filter_expression=filter_expression,
         )
         if position is not None:
@@ -256,6 +260,7 @@ class TaskService:
         *,
         status: TaskStatus | None = None,
         name: str | None = None,
+        name_fuzzy: str | None = None,
         filter_expression: str | None = None,
     ) -> int:
         queue = validate_identifier(queue, kind="Queue")
@@ -263,6 +268,7 @@ class TaskService:
             queue,
             status=status,
             name=name,
+            name_fuzzy=name_fuzzy,
             filter_expression=filter_expression,
         )
         with self.database.read_session() as session:
@@ -623,6 +629,7 @@ def _selection_conditions(
     *,
     status: TaskStatus | None,
     name: str | None,
+    name_fuzzy: str | None,
     filter_expression: str | None,
 ) -> list[Any]:
     conditions: list[Any] = [TaskRow.queue_name == queue]
@@ -630,6 +637,10 @@ def _selection_conditions(
         conditions.append(TaskRow.status == status)
     if name is not None:
         conditions.append(TaskRow.name == name)
+    if name_fuzzy is not None:
+        validate_unicode_scalar(name_fuzzy, field="name_fuzzy")
+        if name_fuzzy.strip():
+            conditions.append(func.labtasker_name_fuzzy(TaskRow.name, name_fuzzy) == 1)
     if filter_expression is not None:
         conditions.append(compile_filter(filter_expression))
     return conditions

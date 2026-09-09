@@ -433,3 +433,26 @@ def test_every_leaf_help_has_a_specific_description(command: list[str]) -> None:
         if line.startswith("  ") and "--help" not in line
     )
     assert description.endswith(".")
+
+
+@pytest.mark.parametrize("command", ["list", "count"])
+def test_name_fuzzy_cli(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from labtasker.models import TaskPage
+
+    class SearchClient(FakeClient):
+        def list_tasks(self, **kwargs: object) -> TaskPage:
+            assert kwargs["name_fuzzy"] == "tr ev"
+            assert kwargs["name"] == "train_eval"
+            return TaskPage(items=[], next_cursor=None)
+
+        def count_tasks(self, **kwargs: object) -> int:
+            self.list_tasks(**kwargs)
+            return 0
+
+    monkeypatch.setattr("labtasker.cli.Client", SearchClient)
+    result = runner.invoke(app, ["task", command, "--name-fuzzy", "tr ev", "--name", "train_eval"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == (
+        {"count": 0} if command == "count" else {"items": [], "next_cursor": None}
+    )
+    assert "--name-fuzzy" in runner.invoke(app, ["task", command, "--help"]).stdout

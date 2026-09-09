@@ -240,6 +240,10 @@ def task_list(
         str | None,
         typer.Option(help="Select an exact Task name; empty string is valid."),
     ] = None,
+    name_fuzzy: Annotated[
+        str | None,
+        typer.Option(help="Case-insensitive subsequence search; every word must match."),
+    ] = None,
     filter: Annotated[
         str | None,
         typer.Option(help="Additional Task query expression."),
@@ -267,7 +271,7 @@ def task_list(
 ) -> None:
     """List one page of Tasks and print items plus next_cursor as JSON.
 
-    --status, --name, and --filter are combined with logical AND.
+    --status, --name, --name-fuzzy, and --filter are combined with logical AND.
     Reuse a returned cursor only with the same selectors and ordering.
 
     Example:
@@ -282,6 +286,7 @@ def task_list(
             lambda client: client.list_tasks(
                 status=status,
                 name=name,
+                name_fuzzy=name_fuzzy,
                 filter=filter,
                 order_by=order_by,
                 descending=descending,
@@ -303,6 +308,10 @@ def task_count(
     name: Annotated[
         str | None,
         typer.Option(help="Select an exact Task name; empty string is valid."),
+    ] = None,
+    name_fuzzy: Annotated[
+        str | None,
+        typer.Option(help="Case-insensitive subsequence search; every word must match."),
     ] = None,
     filter: Annotated[
         str | None,
@@ -326,6 +335,7 @@ def task_count(
             lambda client: client.count_tasks(
                 status=status,
                 name=name,
+                name_fuzzy=name_fuzzy,
                 filter=filter,
                 queue=queue,
             )

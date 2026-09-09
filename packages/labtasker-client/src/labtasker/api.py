@@ -41,6 +41,7 @@ def list_tasks(
     *,
     status: TaskStatus | None = None,
     name: str | None = None,
+    name_fuzzy: str | None = None,
     filter: str | None = None,
     order_by: TaskOrderField = "created_at",
     descending: bool = True,
@@ -51,6 +52,7 @@ def list_tasks(
     return _client().list_tasks(
         status=status,
         name=name,
+        name_fuzzy=name_fuzzy,
         filter=filter,
         order_by=order_by,
         descending=descending,
@@ -64,10 +66,13 @@ def count_tasks(
     *,
     status: TaskStatus | None = None,
     name: str | None = None,
+    name_fuzzy: str | None = None,
     filter: str | None = None,
     queue: str | None = None,
 ) -> int:
-    return _client().count_tasks(status=status, name=name, filter=filter, queue=queue)
+    return _client().count_tasks(
+        status=status, name=name, name_fuzzy=name_fuzzy, filter=filter, queue=queue
+    )
 
 
 def update_task(
