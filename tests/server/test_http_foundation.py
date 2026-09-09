@@ -10,10 +10,42 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import Message, Scope
 
+from labtasker_server import __version__
 from labtasker_server.app import create_app
 from labtasker_server.config import ServerSettings
 from labtasker_server.middleware import RequestBodyLimitMiddleware
 from labtasker_server.validation import MAX_TASK_DATA_BYTES
+
+
+@pytest.mark.parametrize("token", [None, "secret"])
+def test_version_headers_cover_authenticated_successes_and_errors(
+    tmp_path: Path, token: str | None
+) -> None:
+    app = create_app(ServerSettings(database=tmp_path / "server.db", token=token))
+    with TestClient(app) as client:
+        headers = {} if token is None else {"Authorization": "Bearer secret"}
+        responses = [
+            client.get("/api/v2/queues", headers=headers),
+            client.delete("/api/v2/queues/default/tasks/t_ABCDEFGHIJKL", headers=headers),
+            client.get("/api/v2/queues/missing/tasks", headers=headers),
+            client.get("/api/v2/queues/default/tasks?limit=invalid", headers=headers),
+            client.put(
+                "/api/v2/queues/default/tasks/t_ABCDEFGHIJKL",
+                headers={**headers, "Content-Length": str(MAX_TASK_DATA_BYTES + 1)},
+            ),
+            client.get("/api/v99/queues", headers=headers),
+        ]
+        assert [response.status_code for response in responses] == [200, 204, 404, 422, 413, 404]
+        assert all(
+            response.headers["Labtasker-Server-Version"] == __version__ for response in responses
+        )
+        for path in ["/health", "/openapi.json"]:
+            assert "Labtasker-Server-Version" not in client.get(path, headers=headers).headers
+        if token:
+            for authorization in ["", "Basic secret", "Bearer wrong"]:
+                for path in ["/api/v2/queues", "/api/v99/queues"]:
+                    response = client.get(path, headers={"Authorization": authorization})
+                    assert "Labtasker-Server-Version" not in response.headers
 
 
 def test_health_and_schema_discovery_are_unauthenticated(client: TestClient) -> None:
@@ -61,6 +93,11 @@ def test_openapi_describes_the_complete_v2_surface_and_real_response_statuses(
         if not path.startswith("/api/v2"):
             continue
         for operation in methods.values():
+            for status, response in operation["responses"].items():
+                if status != "401":
+                    assert response["headers"]["Labtasker-Server-Version"]["schema"] == {
+                        "type": "string"
+                    }
             assert operation["responses"]["422"]["content"]["application/json"]["schema"] == {
                 "$ref": "#/components/schemas/ErrorEnvelope"
             }

@@ -32,6 +32,17 @@ When enabled, authenticate application requests with:
 Authorization: Bearer <token>
 ```
 
+Application responses under `/api/` include `Labtasker-Server-Version` with the
+Server package version, including empty successes and handled errors. With
+authentication enabled, only requests carrying the valid token receive it;
+otherwise it is public. `/health` and `/openapi.json` do not include it.
+
+Clients can observe this header without a preflight request. Older Servers or
+proxies may omit it; absence is not proof of incompatibility. The Python Client
+warns on stderr when a known Server version is older, while preserving the
+operation's result or error. Package version differences do not themselves
+establish protocol incompatibility.
+
 ## Discovery
 
 | Method and path | Success |

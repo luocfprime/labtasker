@@ -36,6 +36,19 @@ overrides only that operation's Queue; changing Servers requires a new Client.
 Client raise `RuntimeError("Client is closed.")`. The package-level default
 Client has no close/reset API. There is no asynchronous Client.
 
+`Client.server_version` is a read-only `str | None`: the normalized PEP 440 Server
+package version from the latest business response. It is `None` before a
+response or when that response has no usable version header. Reading it never
+makes a request. Older Servers may not advertise their version.
+
+When a response reports a Server older than the Client, the Client writes an
+advisory `warning` to stderr recommending an upgrade. Each Client instance warns
+once per distinct older Server version, including patch and prerelease
+differences. Results, exceptions, and retries are unchanged; the warning does
+not mean the current operation is incompatible. There is no version preflight or
+automatic fallback. Applications needing feature-specific compatibility checks
+must account for `server_version` being unknown and still handle operation errors.
+
 ## Task operations
 
 ```text

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hmac
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager, suppress
@@ -10,13 +9,19 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
 
+from labtasker_server import __version__
 from labtasker_server.config import ServerSettings
 from labtasker_server.database import Database
 from labtasker_server.errors import DomainError
-from labtasker_server.middleware import RequestBodyLimitMiddleware
+from labtasker_server.middleware import (
+    RequestBodyLimitMiddleware,
+    ServerVersionMiddleware,
+    is_authenticated,
+)
 from labtasker_server.schemas import (
     BulkUpdateRequest,
     BulkUpdateResult,
@@ -78,6 +83,7 @@ def create_app(
 
     app = FastAPI(docs_url=None, redoc_url=None, lifespan=lifespan)
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_TASK_DATA_BYTES)
+    app.add_middleware(ServerVersionMiddleware, version=__version__, token=settings.token)
     app.state.database = database
     app.state.settings = settings
     app.state.task_service = task_service
@@ -135,14 +141,10 @@ def create_app(
         )
 
     def require_auth(
+        request: Request,
         credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(BEARER)],
     ) -> None:
-        token = settings.token
-        if token is None:
-            return
-        if credentials is None or credentials.scheme.lower() != "bearer":
-            raise _unauthorized()
-        if not hmac.compare_digest(credentials.credentials.encode(), token.encode("ascii")):
+        if not is_authenticated(request.headers.get("authorization"), settings.token):
             raise _unauthorized()
 
     authenticated = [Depends(require_auth)]
@@ -367,6 +369,18 @@ def create_app(
         task_service.delete(queue, task_id)
         return Response(status_code=204)
 
+    for route in app.routes:
+        if isinstance(route, APIRoute) and route.path.startswith("/api/"):
+            for status in {route.status_code or 200, *route.responses}:
+                if str(status) == "401":
+                    continue
+                route.responses.setdefault(status, {}).setdefault("headers", {})[
+                    "Labtasker-Server-Version"
+                ] = {
+                    "description": "Server package version; present only with valid credentials "
+                    "when authentication is enabled.",
+                    "schema": {"type": "string"},
+                }
     return app
 
 

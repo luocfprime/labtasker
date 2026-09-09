@@ -47,6 +47,13 @@ Finite resource commands are CLI forms of the same Python and HTTP operations.
 They do not add hidden prompts, implicit pagination, or alternate lifecycle
 rules.
 
+Business responses that report an older Server package version produce a
+`[labtasker] warning:` on stderr recommending a Server upgrade. This adds no HTTP
+request and changes neither stdout nor exit status. A Client instance warns once
+per distinct older Server version, so a long-running Worker does not repeat the
+warning on every heartbeat. Separate CLI invocations may each warn. Servers that
+do not advertise a usable version do not trigger this warning.
+
 | Command | Successful stdout | Contract |
 | --- | --- | --- |
 | `config show` | One resolved configuration object | Resolves current sources without network access, file creation, or local Server startup; never prints a token. |

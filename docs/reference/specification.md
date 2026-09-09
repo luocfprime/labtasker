@@ -1777,6 +1777,32 @@ state machine in section 5.5. It does not use health as a capability handshake o
 replace the ordinary operation response. `/health.api_version` remains useful for
 deployment diagnosis, local ownership checks and Worker startup validation.
 
+Application responses under `/api/` advertise the Server package version in
+`Labtasker-Server-Version`, including successful, empty, and handled error
+responses. When authentication is configured, the header is emitted only for
+requests bearing the valid Server token. With authentication disabled, it is
+public. `/health` and `/openapi.json` do not carry this header. The header does
+not change response bodies, authentication, or the API version.
+
+The Client observes this header on ordinary business responses, with no extra
+request or preflight. Read-only `Client.server_version: str | None` returns the
+normalized PEP 440 version from the latest observed business response. It starts
+as `None`; a missing, invalid, or longer-than-128-character header resets it to
+`None`. Reading the property never performs I/O. A network failure provides no
+new observation. Older Servers and proxies may omit the header; absence does
+not establish incompatibility.
+
+If the observed Server version precedes the Client package version under PEP 440
+ordering (including patch and prerelease differences), the Client writes one
+`[labtasker] warning:` line to stderr recommending a Server upgrade and noting
+that newer features may be unavailable. Each Client instance warns at most once
+per distinct normalized older Server version. Equal, newer, and unknown versions
+do not warn. This applies to Python, CLI, and Worker calls without changing
+stdout, return values, exception types/codes/details, exit status, retries, or
+Task execution. The warning is advisory, not a claim that version mismatch caused
+an operation failure. It is not a Python warnings-filter-dependent exception.
+There is no generic feature-version gate or automatic protocol fallback.
+
 `/openapi.json` is the sole generated machine-readable schema. The repository
 does not commit a generated SDK or maintain a second hand-written wire-model
 package. CI runs the real client package against the real Server; after the first

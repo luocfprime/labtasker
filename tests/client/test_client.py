@@ -50,6 +50,87 @@ def error_response(status: int, code: str) -> httpx.Response:
     )
 
 
+@pytest.mark.parametrize(
+    ("version", "expected", "warn"),
+    [
+        ("2.1.0", "2.1.0", True),
+        ("2.10.0", "2.10.0", False),
+        ("3.0.0", "3.0.0", False),
+        ("2.10.0rc1", "2.10.0rc1", True),
+        (None, None, False),
+        ("unknown", None, False),
+        ("9" * 129, None, False),
+    ],
+)
+def test_version_warning_uses_business_response_only(
+    version: str | None,
+    expected: str | None,
+    warn: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("labtasker.__version__", "2.10.0")
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        headers = {} if version is None else {"Labtasker-Server-Version": version}
+        return httpx.Response(200, json=[], headers=headers)
+
+    with mock_client(handler) as client:
+        assert client.server_version is None
+        assert requests == []
+        assert client.list_queues() == []
+        assert client.list_queues() == []
+        assert client.server_version == expected
+    assert len(requests) == 2
+    assert all(request.url.path.endswith("/api/v2/queues") for request in requests)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.count("warning:") == int(warn)
+    if warn:
+        assert "Consider upgrading the Server to 2.10.0 or later" in captured.err
+
+
+def test_version_updates_and_missing_header_clear_previous_observation(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    versions = iter(["0.1.0", "0.2.0", None, "invalid", "0.1.0"])
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        version = next(versions)
+        return httpx.Response(
+            200, json=[], headers={} if version is None else {"Labtasker-Server-Version": version}
+        )
+
+    with mock_client(handler) as client:
+        for expected in ["0.1.0", "0.2.0", None, None, "0.1.0"]:
+            client.list_queues()
+            assert client.server_version == expected
+    assert capsys.readouterr().err.count("warning:") == 2
+
+
+def test_version_warning_preserves_api_error_and_request_count(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        response = error_response(409, "task_not_running")
+        response.headers["Labtasker-Server-Version"] = "0.1.0"
+        return response
+
+    with mock_client(handler) as client, pytest.raises(APIError) as raised:
+        client.cancel_task("t_ABCDEFGHIJKL")
+    assert len(requests) == 1
+    assert raised.value.status_code == 409
+    assert raised.value.code == "task_not_running"
+    assert raised.value.message == "failed"
+    assert raised.value.details == {}
+    assert capsys.readouterr().err.count("warning:") == 1
+
+
 def test_http_endpoint_is_announced_once_after_connection(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

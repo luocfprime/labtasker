@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TypeVar
 
 import httpx
+from packaging.version import InvalidVersion, Version
 from pydantic import TypeAdapter, ValidationError
 
 from labtasker.config import ResolvedConfig, resolve_config
@@ -98,6 +99,8 @@ class Client:
         self._closed = False
         self._endpoint_announced = False
         self._local_ready = False
+        self._server_version: str | None = None
+        self._warned_server_versions: set[Version] = set()
 
     def __enter__(self) -> Client:
         self._ensure_open()
@@ -111,6 +114,34 @@ class Client:
             return
         self._closed = True
         self._http.close()
+
+    @property
+    def server_version(self) -> str | None:
+        """Version from the latest business response, or None; never makes a request."""
+        return self._server_version
+
+    def _observe_server_version(self, response: httpx.Response) -> None:
+        # Import lazily because the package exports Client before defining its version.
+        from labtasker import __version__
+
+        self._server_version = None
+        raw_version = response.headers.get("Labtasker-Server-Version")
+        if raw_version is None or len(raw_version) > 128:
+            return
+        try:
+            server_version = Version(raw_version)
+            client_version = Version(__version__)
+        except InvalidVersion:
+            return
+        self._server_version = str(server_version)
+        if server_version < client_version and server_version not in self._warned_server_versions:
+            self._warned_server_versions.add(server_version)
+            print(
+                f"[labtasker] warning: Labtasker Server {server_version} is older than "
+                f"Client {client_version}. Consider upgrading the Server to {client_version} "
+                "or later; newer features may be unavailable.",
+                file=sys.stderr,
+            )
 
     @property
     def configuration(self) -> ResolvedConfig:
@@ -546,6 +577,7 @@ class Client:
                 elif attempt + 1 == attempts:
                     raise last_transport_error from error
             else:
+                self._observe_server_version(response)
                 self._announce_http_endpoint()
                 if response.is_error:
                     try:

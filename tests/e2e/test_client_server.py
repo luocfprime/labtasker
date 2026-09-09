@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -8,6 +9,31 @@ import pytest
 
 from labtasker import APIError, Client, TaskArg, TaskError, finish, loop, task_info
 from labtasker.command_worker import run_command_worker
+
+
+def test_real_server_version_warning_in_python_and_cli(
+    server_url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from typer.testing import CliRunner
+
+    from labtasker.cli import app
+    from labtasker_server import __version__ as server_version
+
+    monkeypatch.setattr("labtasker.__version__", "999.0.0")
+    with Client(url=server_url, token="secret") as client:
+        assert client.server_version is None
+        client.list_queues()
+        client.list_queues()
+        assert client.server_version == server_version
+    assert capsys.readouterr().err.count("warning:") == 1
+
+    monkeypatch.setenv("LABTASKER_URL", server_url)
+    monkeypatch.setenv("LABTASKER_TOKEN", "secret")
+    result = CliRunner().invoke(app, ["queue", "list"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == [{"name": "default"}]
+    assert result.stderr.count("warning:") == 1
+    assert "999.0.0" in result.stderr
 
 
 def test_real_client_server_resource_workflow(server_url: str) -> None:

@@ -1,7 +1,45 @@
 from __future__ import annotations
 
+import hmac
+
+from fastapi.security.utils import get_authorization_scheme_param
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+
+def is_authenticated(authorization: str | None, token: str | None) -> bool:
+    if token is None:
+        return True
+    scheme, credentials = get_authorization_scheme_param(authorization)
+    return scheme.lower() == "bearer" and hmac.compare_digest(
+        credentials.encode(), token.encode("ascii")
+    )
+
+
+class ServerVersionMiddleware:
+    """Advertise the application version only to authenticated API callers."""
+
+    def __init__(self, app: ASGIApp, *, version: str, token: str | None) -> None:
+        self.app = app
+        self.version = version
+        self.token = token
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if (
+            scope["type"] != "http"
+            or not scope["path"].startswith("/api/")
+            or not is_authenticated(Headers(scope=scope).get("authorization"), self.token)
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_version(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["Labtasker-Server-Version"] = self.version
+            await send(message)
+
+        await self.app(scope, receive, send_version)
 
 
 class RequestBodyLimitMiddleware:
