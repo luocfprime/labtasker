@@ -652,3 +652,36 @@ def test_failure_report_retries_count_once(monkeypatch):
     assert calls == 5
     assert len(client.claim_run_ids) == 2
     assert len(client.actions) == 2
+
+
+def test_observation_network_failure_never_stops_healthy_loop_or_charges_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+
+    attempted = threading.Event()
+
+    def failed(request: httpx.Request) -> httpx.Response:
+        attempted.set()
+        raise httpx.ConnectTimeout("observation endpoint is offline", request=request)
+
+    monkeypatch.setattr(
+        "labtasker.observations._make_http_client",
+        lambda config: httpx.Client(
+            base_url="http://server/api/v2/", transport=httpx.MockTransport(failed)
+        ),
+    )
+    client = FakeClient(
+        [make_claim(), make_claim(task_id="t_BCDEFGHIJKLM", run_id="r_BCDEFGHIJKLM"), None]
+    )
+    install_fake_client(monkeypatch, client)
+    executed = []
+
+    @loop(idle_timeout=0, max_consecutive_failures=1)
+    def handler() -> None:
+        assert attempted.wait(2)
+        executed.append(task_info().id)
+
+    handler()
+    assert len(executed) == 2
+    assert [action[0] for action in client.actions] == ["complete", "complete"]

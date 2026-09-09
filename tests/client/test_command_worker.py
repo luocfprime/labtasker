@@ -517,3 +517,29 @@ def test_command_failure_limit_is_validated_before_client(monkeypatch, value):
     )
     with pytest.raises(ValueError, match="positive integer"):
         run_command_worker(["echo"], max_consecutive_failures=value)
+
+
+def test_command_observation_failure_does_not_stop_tasks_or_charge_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+
+    attempted = threading.Event()
+
+    def failed(request: httpx.Request) -> httpx.Response:
+        attempted.set()
+        raise httpx.ConnectTimeout("observation offline", request=request)
+
+    monkeypatch.setattr(
+        "labtasker.observations._make_http_client",
+        lambda config: httpx.Client(
+            base_url="http://server/api/v2/", transport=httpx.MockTransport(failed)
+        ),
+    )
+    client = FakeClient(
+        [make_claim(), make_claim(task_id="t_BCDEFGHIJKLM", run_id="r_BCDEFGHIJKLM"), None]
+    )
+    install(monkeypatch, client)
+    run_command_worker([sys.executable, "-c", "pass"], idle_timeout=0, max_consecutive_failures=1)
+    assert attempted.is_set()
+    assert [action[0] for action in client.actions] == ["complete", "complete"]

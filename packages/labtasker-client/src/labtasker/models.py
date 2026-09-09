@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from labtasker.types import JSONValue, TaskStatus
 from labtasker.validation import (
@@ -216,3 +216,72 @@ def _utc_datetime(value: datetime) -> datetime:
     if offset.total_seconds() != 0:
         raise ValueError("timestamp must use UTC")
     return value.astimezone(UTC)
+
+
+class CountGroup(ResponseModel):
+    key: dict[str, str]
+    count: int
+
+    @model_validator(mode="after")
+    def validate_group(self) -> CountGroup:
+        if not self.key or self.count <= 0:
+            raise ValueError("A count group must have a key and a positive count.")
+        return self
+
+
+class GroupCountPage(ResponseModel):
+    group_by: list[str]
+    count: int
+    items: list[CountGroup]
+    next_cursor: str | None
+
+    @model_validator(mode="after")
+    def validate_page(self) -> GroupCountPage:
+        if not self.group_by or len(set(self.group_by)) != len(self.group_by) or self.count < 0:
+            raise ValueError("Invalid grouping or total count.")
+        seen: set[tuple[str, ...]] = set()
+        for item in self.items:
+            if set(item.key) != set(self.group_by) or item.count > self.count:
+                raise ValueError("Group keys/count do not match the page.")
+            key = tuple(item.key[field] for field in self.group_by)
+            if key in seen:
+                raise ValueError("Duplicate group key.")
+            seen.add(key)
+        return self
+
+
+class WorkerObservation(ResponseModel):
+    id: str
+    queue: str
+    route: str
+    status: Literal["idle", "busy"]
+    task_id: str | None
+    last_seen_at: datetime
+    expires_at: datetime
+
+    @field_validator("id")
+    @classmethod
+    def validate_worker(cls, value: str) -> str:
+        from labtasker.validation import validate_worker_id
+
+        return validate_worker_id(value)
+
+    @field_validator("queue", "route")
+    @classmethod
+    def validate_label(cls, value: str, info: object) -> str:
+        return validate_identifier(value, field=getattr(info, "field_name", "Worker"))
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task(cls, value: str | None) -> str | None:
+        return None if value is None else validate_task_id(value)
+
+    @field_validator("last_seen_at", "expires_at")
+    @classmethod
+    def validate_time(cls, value: datetime) -> datetime:
+        return _utc_datetime(value)
+
+
+class WorkerPage(ResponseModel):
+    items: list[WorkerObservation]
+    next_cursor: str | None

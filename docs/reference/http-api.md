@@ -67,7 +67,7 @@ Queue names are explicit path components and are not authentication identities.
 | `PUT /api/v2/queues/{queue}/tasks/{task_id}` | Task creation object | `201` on creation; `200` for an identical replay at the same ID; `409 task_id_conflict` for a different definition. |
 | `GET /api/v2/queues/{queue}/tasks/{task_id}` | None | `200` with one Task; `404 task_not_found` when absent. |
 | `GET /api/v2/queues/{queue}/tasks` | Selection and pagination query parameters | `200` with `{"items":[...],"next_cursor":...}`. Returns one page only. |
-| `GET /api/v2/queues/{queue}/tasks/count` | Selection query parameters | `200` with `{"count":N}` for the complete selection. |
+| `GET /api/v2/queues/{queue}/tasks/count` | Selection query parameters | `200` with `{"count":N}`, or a grouped page when `group_by` is supplied. |
 | `PATCH /api/v2/queues/{queue}/tasks/{task_id}` | Non-empty Task update object | `200` with the Task. Running Tasks reject updates. Object/list fields are complete replacements. |
 | `PATCH /api/v2/queues/{queue}/tasks` | `{"filter":...,"changes":...}` | `200` with `{"matched":N,"updated":M}`. The filter is required; the update is atomic across matching non-running Tasks. |
 | `POST /api/v2/queues/{queue}/tasks/{task_id}/cancel` | No body | `200` with the cancelled Task. Accepts pending/running and is idempotent for cancelled. |
@@ -103,7 +103,8 @@ Task listing accepts:
 status, name, name_fuzzy, filter, order_by, descending, limit, cursor
 ```
 
-Count accepts `status`, `name`, `name_fuzzy`, and `filter`. Selectors are combined with AND.
+Count accepts `status`, `name`, `name_fuzzy`, `filter`, and optional `group_by`
+with grouped `limit`/`cursor`. Selectors are combined with AND.
 `limit` is 1 to 1000 and defaults to 100. A non-null `next_cursor` must be reused
 with the same Queue, selectors, filter, order field, and direction. The cursor is
 opaque. See [Query language](../guides/query.md) for filter syntax.
@@ -113,6 +114,40 @@ whitespace-separated word must match; words may occur in any order. Empty or
 whitespace-only search adds no restriction. Non-empty search excludes unnamed
 Tasks. Matching happens on the Server before pagination, uses literal punctuation,
 and preserves ordering. Exact `name` and `filter` equality remain available.
+
+### Grouped counts
+
+`GET /api/v2/queues/{queue}/tasks/count?status=pending&group_by=routes,status`
+returns, for example:
+
+```json
+{
+  "group_by": ["routes", "status"],
+  "count": 2,
+  "items": [
+    {"key": {"routes": "a", "status": "pending"}, "count": 2},
+    {"key": {"routes": "b", "status": "pending"}, "count": 1}
+  ],
+  "next_cursor": null
+}
+```
+
+One selected Task in this example supports both `a` and `b`. Selection applies
+before route expansion. `count` is the deduplicated complete Task total; groups
+can overlap. Task grouping supports only `routes`, `status`, or their combination
+in either order, with one comma-separated `group_by` parameter and no spaces.
+No arbitrary aggregation expressions or separate route records are introduced.
+
+Groups sort lexically by values in the requested dimension order. Only nonzero
+groups appear. `limit` defaults to 100 groups, with range 1–1000. Cursors bind the
+resource, Queue, complete selection and ordered dimensions; page size may change.
+Malformed or mismatched cursors return `422 invalid_cursor`. Count and items
+share a read transaction, but subsequent pages read current data.
+
+Empty grouping, whitespace, unsupported or repeated dimensions, repeated
+`group_by` parameters, and pagination without grouping return `422 invalid_request`.
+Ungrouped responses remain `{"count":N}`. A Client requesting grouping must reject
+an old Server's scalar response rather than treating it as grouped data.
 
 ### Update body
 
@@ -135,6 +170,44 @@ last error, run ownership, and timestamps are Server-owned. Bulk update counts
 only rows that match and remain non-running; a concurrent claim either sees all
 new values or excludes that Task. Validation failure for one matched non-running
 Task rolls back the complete batch.
+
+## Worker observations
+
+All paths below require an existing Queue and the ordinary application token.
+
+| Method and path | Input | Success |
+| --- | --- | --- |
+| `GET /api/v2/queues/{queue}/workers` | `filter`, `limit`, `cursor` | `200` with `{"items":[...],"next_cursor":...}`, ID ascending, default 100/max 1000. |
+| `GET /api/v2/queues/{queue}/workers/count` | `filter`, optional `group_by`, grouped `limit`/`cursor` | `200` with scalar or grouped counts. Dimensions: `route`, `status`, or both in either order. |
+| `PUT /api/v2/queues/{queue}/workers/{id}` | Complete `{"route":"sdxl","status":"busy","task_id":"t_ABCDEFGHIJKL"}` | `204`; creates or renews the observation. |
+| `DELETE /api/v2/queues/{queue}/workers/{id}` | None | `204`, including an absent Worker in an existing Queue. |
+
+Each observation exposes `id`, `queue`, `route`, `status`, nullable `task_id`,
+`last_seen_at`, and `expires_at`. IDs match `w_[A-Za-z0-9_-]{12}` and identify one
+loop invocation across successive Tasks. All seven fields support the existing
+filter grammar with their own types; Task-only paths are rejected. Worker count
+pagination and filtering follow the grouped-count rules above. List cursors bind
+the Queue and exact filter.
+
+A report requires all three fields; `task_id` accepts null or a valid Task ID
+without a Task lookup. Updating an existing instance to another route returns
+`409 worker_route_conflict`. `idle` means waiting for work; `busy` begins at
+confirmed claim and covers execution, reporting and cleanup, even after Task
+completion. The bundled Worker reports null when idle and its Task ID when busy.
+
+The Server assigns both timestamps and expires each accepted observation after
+300 seconds. Bundled Workers report every 60 seconds and on activity changes
+through an independent reporter. Only unexpired rows appear in reads; expired
+rows are deleted at startup and on the lease-scan cadence. These are latest
+observations, with no history, process-control or Task-ownership effect. An
+advisory Task reference can be terminal, deleted or stale. Counts are approximate.
+
+Observation failures never stop or block the Task loop or affect its failure
+guard. Once the loop has independently decided to exit, it waits at most one
+second for reporter shutdown and best-effort withdrawal. Crashes and failed
+withdrawals fall back to expiry. A delayed PUT can recreate a withdrawn row;
+there are no tombstones. Worker observations do not block Queue deletion and
+are removed with the Queue. Reports never recreate a missing Queue.
 
 ## Worker protocol
 

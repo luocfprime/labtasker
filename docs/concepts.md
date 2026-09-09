@@ -73,7 +73,9 @@ Choose a Worker form based on how your experiment runs:
 - [Distributed launchers](workers/distributed.md) run one Task through a
   supported multi-process launcher.
 
-The Server does not track Worker processes or their hardware. You start, stop,
+The Server keeps expiring Worker observations (`idle` or `busy`) for inspection,
+without managing processes or tracking hardware. These observations may lag
+behind execution and never decide Task ownership. You start, stop,
 and supervise the Workers.
 
 ## Routes match Tasks with Worker code

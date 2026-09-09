@@ -21,3 +21,17 @@ def isolated_client_environment(
     ):
         monkeypatch.delenv(name, raising=False)
     yield
+
+
+@pytest.fixture(autouse=True)
+def isolated_observation_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Runtime unit tests never contact a real observation endpoint."""
+    import httpx
+
+    monkeypatch.setattr(
+        "labtasker.observations._make_http_client",
+        lambda configuration: httpx.Client(
+            base_url="http://server/api/v2/",
+            transport=httpx.MockTransport(lambda request: httpx.Response(204)),
+        ),
+    )

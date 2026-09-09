@@ -24,6 +24,7 @@ from labtasker.command_template import (
 from labtasker.execution import RunControl, _validate_force_stop_timeout
 from labtasker.journal import LocalRunJournal
 from labtasker.models import ClaimResponse
+from labtasker.observations import ObservationReporter
 from labtasker.tee import configure_worker_logger
 from labtasker.types import JSONValue
 from labtasker.validation import validate_identifier
@@ -68,40 +69,43 @@ def run_command_worker(
     with Client(queue=queue) as client:
         queue_name = client.configuration.queue
         _preflight(client, queue_name)
-        idle_deadline: float | None = None
-        while True:
-            claim = client._claim(
-                route=normalized_route,
-                run_id=_generate_run_id(),
-                queue=queue_name,
-            )
-            if claim is None:
-                now = time.monotonic()
-                if idle_deadline is None:
-                    idle_deadline = now + normalized_idle_timeout
-                if now >= idle_deadline:
-                    logger.info("Worker idle timeout reached; stopping normally.")
-                    return
-                time.sleep(min(POLL_INTERVAL_SECONDS, idle_deadline - now))
-                continue
-            idle_deadline = None
-            logger.info(
-                "Claimed Task %s as run %s (attempt %d, route %s).",
-                claim.task.id,
-                claim.run_id,
-                claim.task.attempt,
-                normalized_route,
-            )
-            result = _run_command_claim(
-                client,
-                templates,
-                claim=claim,
-                queue=queue_name,
-                route=normalized_route,
-                force_stop_timeout=normalized_force_stop_timeout,
-            )
+        with ObservationReporter(client.configuration, normalized_route) as observer:
+            idle_deadline: float | None = None
+            while True:
+                claim = client._claim(
+                    route=normalized_route,
+                    run_id=_generate_run_id(),
+                    queue=queue_name,
+                )
+                if claim is None:
+                    now = time.monotonic()
+                    if idle_deadline is None:
+                        idle_deadline = now + normalized_idle_timeout
+                    if now >= idle_deadline:
+                        logger.info("Worker idle timeout reached; stopping normally.")
+                        return
+                    time.sleep(min(POLL_INTERVAL_SECONDS, idle_deadline - now))
+                    continue
+                idle_deadline = None
+                observer.activity(claim.task.id)
+                logger.info(
+                    "Claimed Task %s as run %s (attempt %d, route %s).",
+                    claim.task.id,
+                    claim.run_id,
+                    claim.task.attempt,
+                    normalized_route,
+                )
+                result = _run_command_claim(
+                    client,
+                    templates,
+                    claim=claim,
+                    queue=queue_name,
+                    route=normalized_route,
+                    force_stop_timeout=normalized_force_stop_timeout,
+                )
 
-            guard.observe(result, claim.task.id)
+                guard.observe(result, claim.task.id)
+                observer.activity(None)
 
 
 def _guard_command_worker_platform() -> None:

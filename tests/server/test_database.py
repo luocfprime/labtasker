@@ -63,6 +63,7 @@ def test_fresh_database_has_migrated_schema_default_queue_and_pragmas(
             "queues",
             "task_routes",
             "tasks",
+            "workers",
         }
         assert {index["name"] for index in inspect(database.engine).get_indexes("tasks")} == {
             "ix_tasks_claim",
@@ -73,7 +74,10 @@ def test_fresh_database_has_migrated_schema_default_queue_and_pragmas(
             "uq_tasks_active_run_id",
         }
         with database.read_session() as session:
-            assert session.scalar(text("SELECT version_num FROM alembic_version")) == "0001_initial"
+            assert (
+                session.scalar(text("SELECT version_num FROM alembic_version"))
+                == "0002_worker_observations"
+            )
             assert session.scalars(text("SELECT name FROM queues")).all() == ["default"]
             assert session.scalar(text("PRAGMA foreign_keys")) == 1
             assert session.scalar(text("PRAGMA journal_mode")) == "wal"

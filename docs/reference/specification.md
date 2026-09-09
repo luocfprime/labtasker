@@ -17,6 +17,12 @@ the implementation and tests must agree with it.
 Each section is either **Decided** or **Open**. Open choices are added only when a
 concrete v1 problem or an already-decided change requires them.
 
+Section 8.6 defines supplementary Worker observations and restricted grouped
+counts. Task ownership and scheduling remain independent of these observations.
+Section 3.0 clarifies the high-priority network-resilience boundary: protect
+started Task execution and isolate supplementary observation failures, while
+preserving bounded retry and failure-exit behavior during startup and claim.
+
 ## 0. Scope and minimalism
 
 Status: **Decided**
@@ -351,8 +357,9 @@ whitespace, slashes or arbitrary Unicode.
 ### 1.3 Meaning of a route
 
 A route is an opaque execution-compatibility label. It is not a persistent Route,
-Provider or Worker entity. The server does not register routes, report whether
-they are online, or verify the implementation behind a claimed route.
+Provider or Worker entity. The Server does not register routes or verify the
+implementation behind a claimed route. Route presence can be derived from
+unexpired Worker observations; it is approximate and does not imply spare capacity.
 
 Multiple worker processes may use the same route. Sharing a route means that tasks
 do not need to distinguish those workers. Implementations that may require
@@ -418,7 +425,7 @@ The successful claim records the route used for that run alongside `run_id`.
 - Worker-side task filters no longer participate in claim.
 - Query filters remain available for listing and explicit batch actions.
 - Argument-shape matching no longer acts as implicit routing.
-- No Route/Provider/Worker registry is introduced.
+- No Route/Provider registry is introduced. Worker observations are defined in section 8.6.
 - Routes do not express CPU/GPU requests, capacity or resource reservation.
 
 ## 2. Argument handling
@@ -689,6 +696,53 @@ also removed rather than retained as client-only compatibility modes.
 
 Status: **Decided**
 
+### 3.0 Network resilience: high-priority boundary
+
+Status: **Decided** — scope clarified on 2026-09-09.
+
+**A Labtasker transport failure must not directly interrupt an already-started
+Task execution or be classified as a workload failure. Supplementary Worker
+observation failures must not affect the Worker's normal operation.** This is
+not a blanket requirement that every network failure keep the loop alive:
+startup and claim retain their existing bounded retry and failure-exit behavior.
+
+- Startup checks may fail and exit before Task execution starts. Claim retries
+  retain the same logical request and `run_id` for at most three transport
+  attempts. If none obtains a usable response, propagate the transport failure
+  and exit the Worker; do not start unconfirmed work or issue a new logical claim
+  to hide the uncertain outcome. Any unacknowledged Server claim is recovered
+  through the existing lease mechanism. A transport error is not an empty Queue.
+- During Task execution, heartbeat transport errors trigger continued heartbeat
+  attempts, not cancellation, termination of a command child or an exception
+  injected into user code. A timeout or lost response is not proof of revocation.
+- Completion, failure and unclaim reports retain their existing idempotent
+  retry-until-resolved behavior. Waiting for a terminal acknowledgement can
+  delay the next claim; it is not a workload failure. Transport retries do not
+  themselves consume Task retry budget or increment `max_consecutive_failures`.
+- Worker-observation registration, renewal and withdrawal errors remain fully
+  isolated as specified in section 8.6, including during startup and claim.
+  They must not cause loop exit, pause claiming, cancel execution or alter Task
+  outcomes. The one-second observation shutdown wait starts only after an
+  independent lifecycle reason has already selected exit; it cannot initiate it.
+
+An explicit, valid Server decision is different from uncertain communication.
+Continue to honor authentication/validation errors, missing Queues, cancellation
+and confirmed ownership loss under their existing contracts. A long partition
+can expire a Task lease and allow reassignment. On confirmed loss of ownership,
+stop or cooperatively cancel the old execution as specified in section 8.1,
+then normally continue the loop. Never weaken `run_id` fencing to accept stale
+results. This clarification does not change lease expiry or automatic recovery.
+
+Standalone Client/CLI requests keep their existing finite retry/error behavior.
+Network I/O inside user workload code remains subject to workload-owned retry
+and the existing exception classification; Labtasker does not transparently
+resume an arbitrary failed user call or replay its side effects.
+
+Validation must distinguish the phases: startup/claim transport exhaustion may
+exit; heartbeat and terminal-report transport failures must not synthesize
+workload failure; observation errors must not affect any Task/loop operation;
+confirmed ownership loss must retain fencing and cancellation semantics.
+
 ### 3.1 v1 behavior being reconsidered
 
 On a task exception, v1 may show two timed interactive prompts:
@@ -874,8 +928,8 @@ A Worker does not exit on the first claim response with no eligible pending Task
 It enters a bounded idle grace period and retries claim, allowing a briefly fixed,
 retried or newly submitted Task to use the already-started process.
 
-This remains client-side polling. It does not create an idle Worker record,
-heartbeat an idle process, or add server long-poll/SSE behavior. The grace timer
+This remains client-side polling with no Server long-poll/SSE behavior.
+Independent Worker observations in section 8.6 also cover idle periods. The grace timer
 starts with the first empty claim response, resets after any successful claim, and
 ends in a normal process exit if no Task appears before the deadline. Poll cadence
 is an internal constant rather than another public tuning option.
@@ -1377,8 +1431,8 @@ The daemon has no idle shutdown. It remains alive across terminal detach and SSH
 disconnect until explicit stop, process failure or machine shutdown. Host service
 or cgroup policy may still kill it; this is ordinary process failure, and the next
 local operation starts a replacement when the fixed launch throttle permits.
-Unlike tmux, Labtasker has no session or registered idle Worker whose absence
-could define a safe `exit-empty` condition.
+Worker observations are approximate; their absence cannot define a safe
+`exit-empty` condition for the Server.
 
 Because database ownership is the only lock and every acquisition attempt is
 non-blocking, the local protocol has no two-lock ordering or circular wait. A
@@ -1928,10 +1982,11 @@ than taking another Task. Reusing an active `run_id` with a different Queue or
 route returns `409 run_id_conflict`; an idempotency token never silently changes
 the logical claim request it identifies. This makes a lost claim response safely
 retryable without adding `claim_id` or an Idempotency-Key subsystem. The Client
-makes at most three transport attempts for one logical claim, always replaying
-the exact same request; if none obtains an explicit response, the Worker exits
-nonzero. An explicit empty `204` ends that logical claim and normal idle polling
-uses a new `run_id`.
+makes at most three transport attempts, always replaying the exact same request.
+If none obtains a usable response, the transport error propagates and the Worker
+exits under section 3.0; any unacknowledged claim relies on lease recovery.
+An explicit empty `204` ends that logical claim and normal idle polling uses a
+new `run_id`.
 
 A successful claim returns the complete public Task plus execution ownership:
 
@@ -2112,8 +2167,9 @@ second Task concurrently.
 Status: **Decided**
 
 One invocation of a decorated Worker function, or one `labtasker loop` command,
-defines one local Worker process lifecycle. The server stores no Worker resource
-or process state. A Worker executes at most one Task at a time, while its code,
+defines one Worker loop lifecycle. The Server stores an expiring observation
+for that invocation (section 8.6), without controlling its process. A Worker
+executes at most one Task at a time, while its code,
 loaded models and ordinary non-Task function arguments remain fixed and reusable
 across successive Tasks in that process. Worker entrypoints are intended to run
 as dedicated processes rather than as one responsibility inside an unrelated
@@ -2385,28 +2441,31 @@ Before its first claim, a Worker validates its static arguments and required
 platform capabilities, resolves and validates configuration, confirms
 authentication and Queue existence, and validates a Python handler's static
 signature and `TaskArg` definitions. A platform-capability failure occurs before
-Client construction or network access. Other failure at this stage raises the
-corresponding Python exception or writes a CLI log diagnostic and exits nonzero.
-It cannot create a Task failure because no Task is owned. Exhausting the three
-transport attempts for a logical claim has the same Worker failure behavior.
+Client construction or network access. Failure at this stage raises the
+corresponding Python exception or writes a CLI log diagnostic and exits nonzero,
+including transport failure after the applicable request retry budget. It cannot
+create a Task execution failure because local execution has not started.
+Exhausting the three transport attempts for a logical claim also exits the
+Worker. These startup/claim exits are explicitly permitted by section 3.0.
 
 The word “retry” refers to three deliberately separate mechanisms:
 
 | Mechanism | Owner | Effect when exhausted |
 |---|---|---|
 | Task `attempt / max_attempts` | Server Task state | The Task becomes `failed`; the Worker continues claiming other Tasks. |
-| HTTP transport attempts such as claim's three tries | Client request logic | That request fails; for claim/startup failure the local Worker exits nonzero. |
+| Bounded HTTP transport attempts | Client request logic | The request fails; startup/claim transport exhaustion exits the Worker. Task heartbeat and terminal reporting have separate recovery policies. |
 | Worker process restart | External supervisor or Agent | Labtasker itself has no restart counter or policy. |
 
 Reaching a Task's `max_attempts` does not itself terminate its Worker.
 The independent local consecutive-failure limit can terminate that Worker. The
 Server maintains Task and current-run correctness only: Task lifecycle/retry
 fields, `active_run_id`, heartbeat expiry, terminal-deduplication slots and the
-latest-run summary. It stores no `worker_id`, Worker row, online/idle/crashed
-status, process retry counter, resource inventory, current-process heartbeat or
-remote lifecycle command. Claim `route` is used for matching and copied to
-`last_route`; it does not register a Worker. Run heartbeat describes one claimed
-execution, not the health of a persistent Worker.
+latest-run summary. Supplementary Worker rows store approximate activity only;
+they add no process retry counter, resource inventory or remote lifecycle command.
+Claim `route` is used for matching and copied to `last_route`; claim does not
+register a Worker. Run heartbeat describes one claimed execution, independently
+of Worker observation renewal.
+
 
 An explicit empty claim starts the `idle_timeout`; a successful claim resets it.
 When the timeout expires without work, a decorated Python Worker returns `None`
@@ -2445,7 +2504,7 @@ Worker process statuses stay conventional and small:
 
 ```text
 0    normal idle-timeout completion
-1    Worker configuration, protocol, transport, FatalWorkerError or force-stop failure
+1    Worker configuration, definitive protocol, FatalWorkerError or force-stop failure
 2    CLI argument/usage error (Typer convention)
 130  KeyboardInterrupt
 ```
@@ -2461,12 +2520,13 @@ outcome, and Labtasker installs no SIGTERM handler. `FatalWorkerError` first
 resolves the idempotent `fail` report under the terminal-report rules only when
 the run remains active, and is then re-raised. If `finish()` already succeeded,
 it sends no Task action and is simply re-raised to terminate the unsafe Worker;
-the Task remains succeeded. Claim/config/protocol/transport failures raise their
-corresponding `LabtaskerError`. Only idle timeout returns normally.
+the Task remains succeeded. Configuration and definitive protocol failures raise
+their corresponding `LabtaskerError`. Worker-managed transport failures stay in
+the recovery paths defined by section 3.0. Only idle timeout returns normally.
 
 V2 adds no `max_tasks`, `once`, `stop_after_current`, `daemon` or automatic
-restart option. Without a server-side Worker identity, a remote
-`stop_after_current` would require an otherwise unnecessary control channel;
+restart option. Observations provide no remote control channel; a remote
+`stop_after_current` would require a separate process-control protocol;
 daemon/restart behavior belongs to the external process supervisor. `max_tasks`
 and `once` are omitted until a concrete bounded-worker workflow justifies their
 counting and outcome semantics. `idle_timeout=0` means exit on the first explicit
@@ -2826,6 +2886,288 @@ This ownership boundary receives dedicated tests:
   client runtime dependencies or required by unrelated unit tests, but the suite
   runs before a v2 release and in scheduled CI.
 
+### 8.6 Supplementary Worker observability
+
+Status: **Decided** (2026-09-09).
+
+The motivating workflow is discovering which routes have listening Workers and
+inspecting pending work without inferring all execution capacity from running
+Tasks. Running Tasks cannot reveal idle Workers or reliably describe a Worker
+that is still cleaning up after `finish()`.
+
+The following constraints are agreed for this revision:
+
+- Accept a moderate implementation scope: Worker presence storage and migration,
+  shared Worker reporting behavior, an HTTP/Python/CLI slice, and focused failure
+  tests. Include online counts and meaningfully defined busy/idle observations;
+  exclude Worker history, remote process control and scheduling dependencies.
+- Task state and the existing run-fenced protocol remain authoritative for
+  execution correctness and recovery. Worker observations are supplementary
+  information. Do not spend substantial complexity maintaining strong
+  consistency between Worker observations and Task state.
+- Allow reporting jitter and delayed observations. Prefer prompt notification on
+  a state change with periodic reporting to repair missed notifications. The
+  Worker reporting interval is 60 seconds. Each accepted observation renews its
+  expiry to 300 seconds after the Server's receipt time; Client wall-clock time
+  does not determine freshness. These observation timings are independent of
+  Task-run heartbeat and lease ownership. Delivery delays remain permitted.
+  These values are fixed in the first version; add no Worker/Queue timing
+  options, CLI flags or environment-variable overrides.
+- Use an independent Worker-observation reporting loop for periodic renewal
+  and prompt activity-change notifications. Do not piggyback this information
+  on claim requests or Task-run heartbeats. One reporter serializes observation
+  requests and covers waiting, execution, reporting and post-finish cleanup.
+  Keep only the latest not-yet-sent observation, coalescing intermediate activity
+  changes rather than queueing every transition. After failure, retry the latest
+  observation on the next periodic or activity-change notification; do not add
+  an independent exponential-backoff retry loop or replay obsolete snapshots.
+  Rate-limit repeated failure diagnostics and log recovery. Reuse the existing
+  transport timeout mechanism for observation requests; do not add a new strict
+  end-to-end request deadline or ordinary immediate transport-retry loop here.
+  Repeated warnings are limited to one per 60 seconds. Reporting failures retain the
+  non-blocking execution boundary below.
+- Failure to register or report Worker observations must not block startup,
+  claim or execution when the ordinary Task protocol remains usable. Missing or
+  stale observations are an acceptable degradation; provide diagnostics without
+  changing Task outcomes. Task communication follows the phase-specific
+  network-resilience boundary in section 3.0, including permitted startup/claim
+  failure exits and the existing effects of confirmed protocol decisions.
+- An observation network error, timeout, failed registration/renewal/withdrawal,
+  or expired observation must never cause an otherwise-running loop to exit,
+  pause claiming, cancel execution, change a Task outcome or increment the local
+  consecutive-failure guard. Contain reporter exceptions in the observation
+  path. Observation timeout handling is not a Worker-stop mechanism.
+- Worker expiry or a busy/idle observation must not authorize, revoke, recover
+  or otherwise mutate a Task run. Task ownership remains guarded by `run_id` and
+  its existing lease. In particular, zero observed online Workers is not proof
+  that no execution process exists.
+- A Worker reports only two activity states: waiting for work, or occupied with
+  a claimed execution including reporting and cleanup. Do not expose separate
+  executing/reporting/cleaning phases. A Worker remains occupied after `finish()`
+  until its local execution flow ends and it can return to claiming. Exact public
+  states are `idle` and `busy`. Enter `busy` after a claim is confirmed successful;
+  retain `idle` while awaiting or retrying an unconfirmed claim response. Return
+  to `idle` after execution/reporting/cleanup when ready to resume claiming.
+- Worker observations include the instance identifier, Queue, route, activity,
+  last-contact time and an advisory associated Task ID when applicable. The Task
+  reference can be stale, terminal or deleted; it imposes no cross-record
+  consistency or Task-mutation requirement. Hostname, PID and user-defined names
+  are outside the selected first-version field scope.
+- The local consecutive-failure count and limit in section 8.2 are not included
+  in the first-version Worker observation schema. Keep enforcement and its
+  diagnostic logging local; do not add exit history for this feature.
+
+A Worker observation identity belongs to one invocation of the Worker loop.
+This loop-scoped choice is confirmed after comparison with process identity.
+Generate a fresh Client-side instance ID for each invocation and retain it
+across that invocation's Tasks, idle polling, observation retries and temporary
+Server disconnections. A new invocation gets a new ID, even if it runs in the
+same OS process, on the same route, or under the same launcher command. Do not
+derive identity from PID, hostname or route, or require a user-supplied stable
+name. IDs match `w_[A-Za-z0-9_-]{12}`, using nine random bytes encoded as
+unpadded URL-safe base64.
+
+This ID identifies an observed execution loop, not a Task or an ownership token.
+Each claim continues to use a fresh private `run_id`. Multiple Workers on the
+same route have distinct instance IDs. The outer Command Worker owns the
+observation; its command child and distributed ranks do not independently
+register as Workers. A reconnect within the same invocation retains its ID;
+a process restart starts a new invocation. Old and new observations can briefly
+coexist until the old one expires, so counts are not exact live-process counts.
+
+Expired Worker observations are excluded from online list/count results as soon
+as their expiry is reached, independently of physical cleanup. Clean up expired
+rows in the background; do not expose retained offline observations or Worker
+history. Only after an independent existing lifecycle reason has already
+determined that the loop should exit, attempt to withdraw its observation.
+Wait at most one second in total for observation-reporter shutdown and withdrawal,
+then stop waiting and continue the already-decided exit. This budget must not
+start during ordinary execution, initiate an exit, change its exit result or
+limit Task execution/cleanup. Successful withdrawal is not a prerequisite for
+exit. Stop further reporting as part of shutdown; crashes, failed withdrawal
+and unfinished requests fall back to expiry. Do not forcibly terminate workload
+threads or processes to enforce this observation-only wait budget. Delete expired
+rows at Server startup and on the existing lease-scan cadence; physical cleanup
+does not control online query eligibility.
+
+Registration and renewal use one complete-observation reporting operation:
+create the row when absent, otherwise update the observation and renew its
+expiry. A still-running loop can recreate a cleaned-up observation using its
+unchanged instance ID after connectivity returns. Do not require a separate
+register-then-heartbeat handshake. Use
+`PUT /api/v2/queues/{queue}/workers/{id}` with complete `route`, `status` and
+nullable advisory `task_id` fields, returning `204` without a body on success.
+Use `DELETE` on the same path to withdraw, also returning `204`; withdrawing an
+absent Worker in an existing Queue is successful. Both operations require an
+existing Queue and never create one implicitly. A stored instance cannot change
+its route: a conflicting report returns `409 worker_route_conflict`. All three
+report fields are required. `task_id` accepts null or a syntactically valid Task
+ID. Bundled Workers report null when idle and the claimed ID when busy; the
+Server imposes no Task lookup, foreign key or cross-field consistency check.
+
+Online Worker observations do not prevent Queue deletion. Preserve the existing
+Task-based Queue deletion rules and remove its Worker observations when the
+Queue is deleted. Subsequent observations for that absent Queue fail through
+the ordinary Queue-not-found contract; they do not restore the Queue.
+
+Accept last-arriving observations without a strict closed-instance registry.
+Although the Client serializes reporting and stops sending on exit, an earlier
+timed-out request may be processed after withdrawal and temporarily recreate
+the row. This is permitted: absent further reports it expires 300 seconds after
+its last accepted observation. Do not introduce closed-instance tombstones or
+generation tracking merely to eliminate this supplementary-observation race.
+None of these observation updates changes Task ownership or recovery.
+
+Route-level presence means at least one unexpired Worker observation in the same
+Queue for that route, whether the Worker is waiting or busy. Route presence is
+separate from a Worker's two activity states and does not imply spare capacity.
+
+The primary route-inspection use case is examining all routes referenced by
+pending Tasks to diagnose waiting work. Query Task counts with `status=pending`
+and `group_by=routes`, then independently query Worker counts by `route`.
+Clients can align these small results for a combined display. Worker-only routes
+may be included by the consumer; the Server does not impose a joined view.
+A multi-route Task contributes to multiple groups, so route counts are not
+disjoint partitions of Tasks. There is no Route registry or lifecycle.
+
+This feature's delivery scope is HTTP API, Python API and CLI. Web UI design
+and implementation are separate follow-up work. Presentation order does not by
+itself require separate endpoints; the independent queries can support later
+Task-demand, Worker-capacity and combined views without a Route resource.
+
+Task and Worker grouping are computed by the Server and exposed through count
+operations. Worker read operations are `GET /api/v2/queues/{queue}/workers` and
+`GET /api/v2/queues/{queue}/workers/count`, Python `list_workers()` and
+`count_workers()`, and CLI `labtasker worker list|count`. Do not add a separate
+Worker get operation, history query or user-facing remote-control command.
+Worker list and count accept the same `filter` expression form, reusing the
+existing filter language syntax with a Worker-specific field/type mapping.
+Do not create a second expression language. All seven public Worker fields are
+filterable, using the existing language's operators applicable to their types,
+including the nullable `task_id` and timestamp rules. Task-only paths do not
+become Worker fields merely because the parser is shared. A Worker query remains
+scoped to its URL Queue and excludes expired observations before user filtering.
+
+Public Worker observations expose `id`, `queue`, `route`, `status`, nullable
+`task_id`, `last_seen_at`, and `expires_at`. Both timestamps are Server-generated
+UTC values. Expose the Server's expiry directly rather than requiring consumers
+to reconstruct it from a hard-coded timeout. Worker lists use fixed `id`
+lexicographic ascending order, `limit`/`cursor` pagination with default 100 and
+maximum 1000 records, and live per-page reads without a cross-page snapshot.
+Do not add an `order_by` option. Worker grouped counts follow the same page-size,
+dimension-order and live-read rules as Task grouped counts.
+
+Worker counting uses the same count-only grouping model as Task counting:
+allow `route`, `status`, and their combination, with statuses `idle` and `busy`.
+Unlike Task `routes`, Worker `route` is single-valued. Count only unexpired
+observations. Ungrouped HTTP counting returns `{count: int}`; grouped responses
+use `group_by`, `count`, `items` containing `key`/`count`, and `next_cursor`.
+Do not introduce a separate fixed online/idle/busy metric structure. Python
+`count_workers()` follows the same ungrouped-integer/grouped-page convention,
+and CLI uses `--group-by route,status` with comma-separated, space-free fields
+and JSON output. Worker observations and Task facts remain independent sources.
+
+The existing `GET /api/v2/queues/{queue}/tasks/count` accepts restricted grouping.
+Supported dimensions are `routes`, `status`, and their combination in either
+order. `last_route`, metadata and other fields are outside this version. Metrics
+remain counts; no arbitrary expressions, joined summaries or separate `/stats`
+endpoint are introduced.
+
+Grouped count responses have exactly these top-level fields: `group_by`, an
+ordered array of the requested dimension names; `count`, the deduplicated
+matching Task total; `items`, the current page of groups; and `next_cursor`,
+the next-page token or null. Each group has `key`, an object mapping each
+requested dimension name to its string value, and `count`, its Task count.
+Do not encode group keys as positional arrays or add fixed `by_status` metrics.
+For a `routes` dimension, the key value is one expanded route string, despite
+the plural field name. JSON object member order is not the grouping-order
+contract; the top-level `group_by` array defines dimension order.
+
+Selection applies before aggregation. For `routes`, expand membership: a
+multi-route Task appears in each compatible group, including when running.
+This is not an actual-run route distribution. Top-level Task totals must not be
+calculated by summing overlapping route groups. Return only groups that contain
+at least one selected Task; do not generate zero-count combinations. After
+completely reading the relevant groups, consumers may interpret an absent
+combination as zero. An unvisited result page must not be interpreted as zero.
+
+Grouped HTTP counting uses `limit` and `cursor`: the default limit is 100 groups,
+the maximum is 1000 groups, and the minimum is one. Pagination applies after
+selection and aggregation over the complete matching Task set. Any top-level
+Task count describes that complete set at the request's read, not only the
+returned groups. Group cursors are distinct from Task-list cursors. Follow the
+existing Task-list cursor principle: bind a cursor to its operation/resource,
+Queue, complete selection (including status/name/name_fuzzy where applicable
+and the exact filter expression), and ordered grouping dimensions. Worker-list
+cursors similarly bind their fixed ordering and selection. Reject malformed
+or mismatched cursors with the existing `invalid_cursor` error. Page size is
+not bound and can change between requests. Do not require equivalent-but-
+differently-written filter expressions to share a cursor. Exact encoding
+remains an implementation detail, not a public decoding contract.
+
+Sort groups lexicographically ascending by their key values in the order of the
+requested grouping fields, using deterministic case-sensitive string ordering.
+Thus `routes,status` orders by route and then status, while `status,routes`
+orders by status and then route. Status ordering is lexical, not lifecycle
+ordering; do not add a special status-order policy or count-based ordering.
+
+Each page reads current data independently. Do not preserve a cross-request
+snapshot or introduce snapshot resources. Concurrent Task changes may alter
+counts, introduce or remove groups, and change the top-level count between
+pages. Combining pages is not guaranteed to represent any single instant;
+the exact continuation behavior must follow the defined group-key ordering.
+
+The following CLI syntax and compatibility requirements are agreed:
+
+- Add `--group-by` to `labtasker task count`; use a single comma-separated
+  argument with no spaces, for example `--group-by routes,status`.
+- The option help must explicitly say `Comma-separated grouping fields, with
+  no spaces (for example: routes,status). Supported fields: routes, status.`
+  Do not document space-separated or repeated-option
+  syntax as alternative forms.
+- Explicit grouped queries produce deterministic structured JSON. Do not add
+  a default table, TTY-dependent formatting or a separate stats command.
+- Grouped CLI counting exposes `--limit` and `--cursor`, returns one page of
+  JSON with `next_cursor`, and does not automatically fetch subsequent pages.
+  Its page-size default and maximum match HTTP grouped counting.
+- Without grouping, preserve existing HTTP `{count: int}`, Python integer
+  return and CLI output behavior. New structured results are opt-in through
+  grouping.
+
+Extend both Client and module-level `count_tasks()` with an optional `group_by`
+argument instead of adding a separate grouped-count method. Calls without
+grouping retain the integer result. Grouped calls return a typed page matching
+the HTTP grouped response; use typing overloads to describe these cases. The
+Python `group_by` accepts an ordered sequence of field names, including lists
+and tuples, such as `["routes", "status"]`. Do not also accept a comma-separated
+string in Python; the Client serializes the sequence to the HTTP parameter.
+Grouped calls return `GroupCountPage`, containing `CountGroup` items; Worker
+listing returns `WorkerPage` containing `WorkerObservation` items.
+
+Grouping validation is strict: reject empty grouping values, whitespace,
+duplicate fields and unsupported fields/combinations instead of trimming or
+deduplicating. Repeating CLI `--group-by` is an error. Ungrouped counting rejects
+explicit `limit` or `cursor` parameters; do not silently ignore them. Client and
+CLI defaults must distinguish omission from an explicitly supplied page size,
+so existing plain-count calls remain unchanged. HTTP grouping and pagination validation uses `422 invalid_request`; malformed
+or mismatched cursors use `422 invalid_cursor`. Repeated HTTP `group_by`
+parameters are rejected. Python and CLI reject invalid grouping before network access.
+
+Compatibility is additive: existing ungrouped count requests and Task protocol
+messages remain unchanged. An old Client does not report observations. A new
+Worker may execute Tasks against an old Server even when all observation calls
+fail. A new Client rejects a scalar count response to a grouped request with
+`TransportError`, since old Servers may ignore unknown query parameters. Do not
+silently aggregate a Task-list page or invent zero Worker counts on HTTP errors.
+
+Persist one mutable row per Queue/Worker ID, with Queue deletion cascading to
+observations and indexes for expiry cleanup and Queue/route/status queries.
+Migration `0002_worker_observations` adds this table without changing Task data.
+Count and grouped items share a read transaction within a response. Aggregate
+in SQL over the complete selection, then paginate groups; do not load Task JSON
+or all Task rows into the Client. Observation mutations remain separate from
+Task transactions and preserve the single-Server SQLite ownership model.
+
 ## 9. Client and CLI API
 
 Status: **Decided**
@@ -2837,13 +3179,14 @@ The v2 client executable has this complete command tree:
 ```text
 labtasker task submit|get|list|count|update|cancel|requeue|delete
 labtasker queue create|list|delete
+labtasker worker list|count
 labtasker loop
 labtasker config show
 ```
 
 The Server remains a separate runtime package and executable with the
 `start|status|stop|logs|serve` commands from section 5.5; there is no `labtasker
-server` command. V2 provides no `worker`, `event`, `admin`, pager or TUI commands
+server` command. V2 provides no `event`, `admin`, pager or TUI commands
 and no abbreviated command aliases such as `ls` or `rm`.
 
 CLI output is command-shaped rather than universally JSON. Finite resource and
@@ -3109,6 +3452,7 @@ The top-level functions and Client methods use the same resource-qualified names
 submit_task / get_task / list_tasks / count_tasks / update_task / update_tasks
 cancel_task / requeue_task / delete_task
 create_queue / list_queues / delete_queue
+list_workers / count_workers
 ```
 
 V2 provides no shorter `submit`/`cancel` aliases and does not retain v1's `ls`
@@ -3125,11 +3469,13 @@ Client
 submit_task  get_task  list_tasks  count_tasks
 update_task  update_tasks  cancel_task  requeue_task  delete_task
 create_queue  list_queues  delete_queue
+list_workers  count_workers
 
 loop  TaskArg  TaskInfo  task_info  finish
 cancellation_requested  set_force_stop_timeout
 
 Task  TaskPage  Queue  BulkUpdateResult  LastError
+WorkerObservation  WorkerPage  CountGroup  GroupCountPage
 JSONValue  TaskStatus  TaskOrderField  TaskUpdate
 
 LabtaskerError  ConfigError  TransportError  APIError
@@ -3863,13 +4209,16 @@ count_tasks(
     name: str | None = None,
     name_fuzzy: str | None = None,
     filter: str | None = None,
+    group_by: Sequence[str] | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
     queue: str | None = None,
-) -> int
+) -> int | GroupCountPage
 ```
 
 It uses exactly the same `status`, exact `name`, `name_fuzzy`, and `filter` selection semantics
-as `list_tasks`, with supplied predicates ANDed. It has no `order_by`, direction,
-limit, cursor, grouping or per-route aggregation. HTTP uses:
+as `list_tasks`, with supplied predicates ANDed. It has no `order_by` or direction.
+Optional grouping and group pagination follow section 8.6. Ungrouped HTTP uses:
 
 ```http
 GET /api/v2/queues/{queue}/tasks/count?status=...&name=...&name_fuzzy=...&filter=...
@@ -3946,6 +4295,7 @@ and change inspection noisy.
 |---|---|
 | 2026-08-28 | Expose eager root `--version` options on both runtime executables, reporting the owning runtime distribution and package version on stdout without configuration, network or local-daemon side effects; list the option in root help without embedding the current version there. |
 | 2026-08-28 | Make stdout the single machine-readable response channel for finite Client commands: successful data or a handled `LabtaskerError` envelope is written there, diagnostics remain on stderr, and exit status distinguishes success from failure. Keep usage errors and continuing `loop` failures as natural-language stderr, with no output-mode flag or response wrapper. |
+| 2026-09-09 | Add supplementary loop-scoped Worker observations with independent best-effort reporting, 60-second renewal and 300-second expiry; preserve Task authority and the phase-specific network-resilience boundary in section 3.0. Extend existing Task counts and new Worker counts with restricted ordered grouping through HTTP, Python and CLI (section 8.6). This supersedes historical decisions excluding Worker observations and grouping; routes remain labels and no remote process control is added. |
 | 2026-08-24 | Standardize finite diagnostics as `[labtasker]` or `[labtasker-server]`, emit one explicit successful Client connection line with local/remote Server kind and Unix/HTTP(S) transport, and give default long-running Worker and Server logs millisecond UTC timestamps, levels and component prefixes. |
 | 2026-08-21 | Make CWD-bound local mode the default endpoint when no URL is configured: store the durable SQLite database under that exact canonical CWD, derive an owner-only tmux-style `/tmp/labtasker-UID` Unix socket without parent/VCS discovery, and let every explicit HTTP URL disable all local process management. |
 | 2026-08-21 | Make local endpoint selection and daemon transitions unconditionally visible on stderr for CLI and direct Python use, while preserving requested data on stdout and never printing credentials. |

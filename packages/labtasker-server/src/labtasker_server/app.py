@@ -17,6 +17,7 @@ from labtasker_server import __version__
 from labtasker_server.config import ServerSettings
 from labtasker_server.database import Database
 from labtasker_server.errors import DomainError
+from labtasker_server.grouping import request_error
 from labtasker_server.middleware import (
     RequestBodyLimitMiddleware,
     ServerVersionMiddleware,
@@ -31,6 +32,7 @@ from labtasker_server.schemas import (
     CountResponse,
     ErrorEnvelope,
     FailRequest,
+    GroupCountPage,
     HealthyResponse,
     HeartbeatResponse,
     Queue,
@@ -42,9 +44,12 @@ from labtasker_server.schemas import (
     TaskStatus,
     TaskUpdate,
     UnhealthyResponse,
+    WorkerPage,
+    WorkerReport,
 )
 from labtasker_server.services.queues import QueueService
 from labtasker_server.services.tasks import TaskService, system_now_us
+from labtasker_server.services.workers import WorkerService
 from labtasker_server.validation import MAX_TASK_DATA_BYTES
 
 EXPIRY_SCAN_INTERVAL_SECONDS = 60
@@ -69,10 +74,12 @@ def create_app(
     queue_service = QueueService(database)
     task_service = TaskService(database, now_us=now_us)
     task_service.expire_leases()
+    worker_service = WorkerService(database, now_us=now_us)
+    worker_service.expire()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        scanner = asyncio.create_task(_expiry_scanner(task_service))
+        scanner = asyncio.create_task(_expiry_scanner(task_service, worker_service))
         try:
             yield
         finally:
@@ -87,6 +94,7 @@ def create_app(
     app.state.database = database
     app.state.settings = settings
     app.state.task_service = task_service
+    app.state.worker_service = worker_service
 
     @app.exception_handler(DomainError)
     async def handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:
@@ -240,26 +248,93 @@ def create_app(
 
     @app.get(
         "/api/v2/queues/{queue}/tasks/count",
-        response_model=CountResponse,
+        response_model=CountResponse | GroupCountPage,
         dependencies=authenticated,
         responses=API_ERROR_RESPONSES,
     )
     def count_tasks(
+        request: Request,
         queue: str,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
         filter_expression: Annotated[str | None, Query(alias="filter")] = None,
-    ) -> CountResponse:
-        return CountResponse(
-            count=task_service.count_tasks(
-                queue,
-                status=status,
-                name=name,
-                name_fuzzy=name_fuzzy,
-                filter_expression=filter_expression,
-            )
+        group_by: str | None = None,
+        limit: Annotated[int | None, Query(ge=1, le=1000)] = None,
+        cursor: str | None = None,
+    ) -> CountResponse | GroupCountPage:
+        _single_grouping(request)
+        result = task_service.count_tasks(
+            queue,
+            status=status,
+            name=name,
+            name_fuzzy=name_fuzzy,
+            filter_expression=filter_expression,
+            group_by=group_by,
+            limit=limit,
+            cursor=cursor,
         )
+        return CountResponse(count=result) if isinstance(result, int) else result
+
+    @app.get(
+        "/api/v2/queues/{queue}/workers",
+        response_model=WorkerPage,
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
+    def list_workers(
+        queue: str,
+        filter_expression: Annotated[str | None, Query(alias="filter")] = None,
+        limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+        cursor: str | None = None,
+    ) -> WorkerPage:
+        return worker_service.list(
+            queue, filter_expression=filter_expression, limit=limit, cursor=cursor
+        )
+
+    @app.get(
+        "/api/v2/queues/{queue}/workers/count",
+        response_model=CountResponse | GroupCountPage,
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
+    def count_workers(
+        request: Request,
+        queue: str,
+        filter_expression: Annotated[str | None, Query(alias="filter")] = None,
+        group_by: str | None = None,
+        limit: Annotated[int | None, Query(ge=1, le=1000)] = None,
+        cursor: str | None = None,
+    ) -> CountResponse | GroupCountPage:
+        _single_grouping(request)
+        result = worker_service.count(
+            queue,
+            filter_expression=filter_expression,
+            group_by=group_by,
+            limit=limit,
+            cursor=cursor,
+        )
+        return CountResponse(count=result) if isinstance(result, int) else result
+
+    @app.put(
+        "/api/v2/queues/{queue}/workers/{id}",
+        status_code=204,
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
+    def report_worker(queue: str, id: str, report: WorkerReport) -> Response:
+        worker_service.report(queue, id, report)
+        return Response(status_code=204)
+
+    @app.delete(
+        "/api/v2/queues/{queue}/workers/{id}",
+        status_code=204,
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
+    def withdraw_worker(queue: str, id: str) -> Response:
+        worker_service.withdraw(queue, id)
+        return Response(status_code=204)
 
     @app.get(
         "/api/v2/queues/{queue}/tasks/{task_id}",
@@ -384,11 +459,12 @@ def create_app(
     return app
 
 
-async def _expiry_scanner(task_service: TaskService) -> None:
+async def _expiry_scanner(task_service: TaskService, worker_service: WorkerService) -> None:
     while True:
         await asyncio.sleep(EXPIRY_SCAN_INTERVAL_SECONDS)
         try:
             await asyncio.to_thread(task_service.expire_leases)
+            await asyncio.to_thread(worker_service.expire)
         except Exception:
             logger.exception("Heartbeat expiry scan failed; it will retry in 60 seconds.")
 
@@ -432,3 +508,8 @@ def _specific_validation_message(code: str) -> str:
     if code == "invalid_task_name":
         return "Task name is invalid."
     raise AssertionError(f"Unknown specific validation code: {code}")
+
+
+def _single_grouping(request: Request) -> None:
+    if len(request.query_params.getlist("group_by")) > 1:
+        request_error("group_by", "Specify group_by only once.")

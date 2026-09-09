@@ -102,3 +102,24 @@ labtasker queue delete experiments --cascade
 Deleting a non-empty Queue requires explicit `--cascade`. The `default` Queue is
 created when a fresh database is initialized, not recreated after an explicit
 deletion.
+
+## Diagnose pending routes
+
+Inspect all routes referenced by pending Tasks, then compare observed Workers:
+
+```bash
+labtasker task count --status pending --group-by routes
+labtasker worker count --group-by route,status
+labtasker worker list --filter 'route == "sdxl"'
+```
+
+These commands return one page; follow `next_cursor` with `--cursor` before
+interpreting an absent group as zero. A Task compatible with multiple routes
+counts in every route group. The top-level Task count counts each Task once.
+
+Worker `idle` means awaiting work; `busy` includes execution, reporting and
+cleanup after `finish()`. An active route has at least one unexpired observation,
+whether idle or busy. Reporting is periodic and may be delayed, so zero observed
+Workers is a diagnostic clue rather than proof that no process exists. Task state
+and leases remain authoritative. See [Worker observations](../reference/http-api.md#worker-observations)
+for freshness and [grouped counts](../reference/python-api.md#grouped-counts) for Python use.

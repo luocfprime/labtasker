@@ -7,12 +7,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, cast, overload
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, or_, select, text, update
 from sqlalchemy.orm import Session, selectinload
 
 from labtasker_server.database import Database
 from labtasker_server.errors import conflict, invalid, not_found
 from labtasker_server.filtering import compile_filter
+from labtasker_server.grouping import grouped_page, grouping_fields
 from labtasker_server.models import QueueRow, TaskRouteRow, TaskRow
 from labtasker_server.pagination import (
     CursorPosition,
@@ -24,6 +25,7 @@ from labtasker_server.schemas import (
     BulkUpdateResult,
     ClaimResponse,
     FailureReport,
+    GroupCountPage,
     HeartbeatResponse,
     LastError,
     Task,
@@ -262,8 +264,12 @@ class TaskService:
         name: str | None = None,
         name_fuzzy: str | None = None,
         filter_expression: str | None = None,
-    ) -> int:
+        group_by: str | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> int | GroupCountPage:
         queue = validate_identifier(queue, kind="Queue")
+        fields = grouping_fields(group_by, {"routes", "status"}, limit, cursor)
         conditions = _selection_conditions(
             queue,
             status=status,
@@ -272,10 +278,42 @@ class TaskService:
             filter_expression=filter_expression,
         )
         with self.database.read_session() as session:
+            session.execute(text("BEGIN"))
             if session.get(QueueRow, queue) is None:
                 raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
-            value = session.scalar(select(func.count()).select_from(TaskRow).where(*conditions))
-            return 0 if value is None else value
+            value = (
+                session.scalar(select(func.count()).select_from(TaskRow).where(*conditions)) or 0
+            )
+            if fields is None:
+                return value
+            source = select(TaskRow).select_from(TaskRow).where(*conditions)
+            if "routes" in fields:
+                source = source.join(
+                    TaskRouteRow,
+                    and_(
+                        TaskRouteRow.queue_name == TaskRow.queue_name,
+                        TaskRouteRow.task_id == TaskRow.task_id,
+                    ),
+                )
+            selection = {
+                "operation": "tasks.count",
+                "queue": queue,
+                "status": status,
+                "name": name,
+                "name_fuzzy": name_fuzzy,
+                "filter": filter_expression,
+                "group_by": fields,
+            }
+            return grouped_page(
+                session,
+                source,
+                {"routes": TaskRouteRow.route, "status": TaskRow.status},
+                fields,
+                selection,
+                value,
+                limit,
+                cursor,
+            )
 
     def update_task(self, queue: str, task_id: str, changes: TaskUpdate) -> Task:
         queue = validate_identifier(queue, kind="Queue")

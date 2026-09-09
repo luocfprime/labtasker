@@ -17,7 +17,7 @@ from labtasker.command_worker import run_command_worker
 from labtasker.config import resolve_config
 from labtasker.errors import LabtaskerError
 from labtasker.types import TaskOrderField, TaskStatus, TaskUpdate
-from labtasker.validation import RequestValidationError, validate_json_object
+from labtasker.validation import RequestValidationError, validate_grouping, validate_json_object
 
 T = TypeVar("T")
 app = typer.Typer(
@@ -45,6 +45,13 @@ config_app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode=None,
 )
+worker_app = typer.Typer(
+    help="Inspect online Worker observations.",
+    add_completion=False,
+    no_args_is_help=True,
+    rich_markup_mode=None,
+)
+app.add_typer(worker_app, name="worker")
 app.add_typer(task_app, name="task")
 app.add_typer(queue_app, name="queue")
 app.add_typer(config_app, name="config")
@@ -324,6 +331,25 @@ def task_count(
         str | None,
         typer.Option(help="Additional Task query expression."),
     ] = None,
+    group_by: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--group-by",
+            help=(
+                "Comma-separated grouping fields, with no spaces "
+                "(for example: routes,status). Supported fields: routes, status. Specify once."
+            ),
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option(
+            min=1, max=1000, help="Maximum groups in this page (default 100); requires --group-by."
+        ),
+    ] = None,
+    cursor: Annotated[
+        str | None, typer.Option(help="Next group page cursor; requires --group-by.")
+    ] = None,
     queue: Annotated[
         str | None,
         typer.Option(help="Task Queue; otherwise use Client configuration."),
@@ -337,6 +363,7 @@ def task_count(
       labtasker task count --status failed \\
         --filter 'last_error.type == "ValueError"'
     """
+    count_options = _invoke(lambda: _count_options(group_by, {"routes", "status"}, limit, cursor))
     count = _invoke(
         lambda: _with_client(
             lambda client: client.count_tasks(
@@ -345,10 +372,84 @@ def task_count(
                 name_fuzzy=name_fuzzy,
                 filter=filter,
                 queue=queue,
+                **count_options,
             )
         )
     )
-    _write_json({"count": count})
+    _write_json({"count": count} if isinstance(count, int) else count)
+
+
+@worker_app.command("list")
+def worker_list(
+    filter: Annotated[str | None, typer.Option(help="Worker filter expression.")] = None,
+    limit: Annotated[
+        int, typer.Option(min=1, max=1000, help="Maximum Workers in this page.")
+    ] = 100,
+    cursor: Annotated[
+        str | None, typer.Option(help="Next cursor from the same Worker query.")
+    ] = None,
+    queue: Annotated[
+        str | None, typer.Option(help="Queue; otherwise use Client configuration.")
+    ] = None,
+) -> None:
+    """List one page of unexpired Worker observations as JSON, ordered by ID."""
+    _write_json(
+        _invoke(
+            lambda: _with_client(
+                lambda client: client.list_workers(
+                    filter=filter, limit=limit, cursor=cursor, queue=queue
+                )
+            )
+        )
+    )
+
+
+@worker_app.command("count")
+def worker_count(
+    filter: Annotated[str | None, typer.Option(help="Worker filter expression.")] = None,
+    group_by: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--group-by",
+            help=(
+                "Comma-separated grouping fields, with no spaces "
+                "(for example: route,status). Supported fields: route, status. Specify once."
+            ),
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option(
+            min=1, max=1000, help="Maximum groups in this page (default 100); requires --group-by."
+        ),
+    ] = None,
+    cursor: Annotated[
+        str | None, typer.Option(help="Next group page cursor; requires --group-by.")
+    ] = None,
+    queue: Annotated[
+        str | None, typer.Option(help="Queue; otherwise use Client configuration.")
+    ] = None,
+) -> None:
+    """Count unexpired Worker observations, optionally grouped, as JSON."""
+    options = _invoke(lambda: _count_options(group_by, {"route", "status"}, limit, cursor))
+    result = _invoke(
+        lambda: _with_client(
+            lambda client: client.count_workers(filter=filter, queue=queue, **options)
+        )
+    )
+    _write_json({"count": result} if isinstance(result, int) else result)
+
+
+def _count_options(
+    group_by: list[str] | None, allowed: set[str], limit: int | None, cursor: str | None
+) -> dict[str, Any]:
+    if group_by is not None and len(group_by) != 1:
+        raise RequestValidationError("Specify --group-by only once, comma-separated with no spaces")
+    value = None if group_by is None else group_by[0].split(",")
+    fields = validate_grouping(value, allowed, limit, cursor)
+    if fields is None:
+        return {}
+    return {"group_by": fields, "limit": limit, "cursor": cursor}
 
 
 @task_app.command("update")

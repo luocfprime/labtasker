@@ -11,7 +11,7 @@ from sqlalchemy import and_, false, func, not_, or_, select, true
 from sqlalchemy.sql.elements import ColumnElement
 
 from labtasker_server.errors import DomainError, invalid
-from labtasker_server.models import TaskRouteRow, TaskRow
+from labtasker_server.models import TaskRouteRow, TaskRow, WorkerRow
 from labtasker_server.validation import INT64_MAX, INT64_MIN, MAX_FILTER_BYTES
 
 Scalar: TypeAlias = bool | int | float | str | None
@@ -32,6 +32,15 @@ BUILTIN_TYPES: dict[str, tuple[str, bool]] = {
     "updated_at": ("timestamp", False),
     "started_at": ("timestamp", True),
     "finished_at": ("timestamp", True),
+}
+WORKER_TYPES: dict[str, tuple[str, bool]] = {
+    "id": ("string", False),
+    "queue": ("string", False),
+    "route": ("string", False),
+    "status": ("worker_status", False),
+    "task_id": ("string", True),
+    "last_seen_at": ("timestamp", False),
+    "expires_at": ("timestamp", False),
 }
 LAST_ERROR_TYPES: dict[str, tuple[str, bool, str]] = {
     "type": ("string", False, "type"),
@@ -89,7 +98,7 @@ class RuntimePath:
     nullable: bool
 
 
-def parse_filter(expression: str) -> FilterNode:
+def parse_filter(expression: str, *, worker: bool = False) -> FilterNode:
     if any(0xD800 <= ord(character) <= 0xDFFF for character in expression):
         raise invalid("invalid_filter", "Filter contains a lone Unicode surrogate.")
     if len(expression.encode("utf-8")) > MAX_FILTER_BYTES:
@@ -102,7 +111,7 @@ def parse_filter(expression: str) -> FilterNode:
         raise invalid("invalid_filter", "Filter must not be empty.")
     try:
         parsed = ast.parse(expression, mode="eval")
-        return _parse_expression(parsed.body)
+        return _parse_expression(parsed.body, worker=worker)
     except (SyntaxError, ValueError, RecursionError) as error:
         details: dict[str, object] = {}
         if isinstance(error, SyntaxError) and error.offset is not None:
@@ -110,31 +119,31 @@ def parse_filter(expression: str) -> FilterNode:
         raise invalid("invalid_filter", "Filter syntax is invalid.", **details) from error
 
 
-def compile_filter(expression: str) -> ColumnElement[bool]:
+def compile_filter(expression: str, *, worker: bool = False) -> ColumnElement[bool]:
     try:
-        return compile_filter_node(parse_filter(expression))
+        return compile_filter_node(parse_filter(expression, worker=worker), worker=worker)
     except RecursionError as error:
         raise invalid("invalid_filter", "Filter expression is too deeply nested.") from error
 
 
-def compile_filter_node(node: FilterNode) -> ColumnElement[bool]:
+def compile_filter_node(node: FilterNode, *, worker: bool = False) -> ColumnElement[bool]:
     if isinstance(node, BooleanExpression):
-        compiled = [compile_filter_node(child) for child in node.children]
+        compiled = [compile_filter_node(child, worker=worker) for child in node.children]
         return and_(*compiled) if node.operator == "and" else or_(*compiled)
     if isinstance(node, Presence):
-        runtime = _runtime_path(node.path)
+        runtime = _runtime_path(node.path, worker=worker)
         if runtime.kind in {"fixed", "routes"}:
             return true() if node.exists else false()
         present = runtime.json_type.is_not(None)
         return cast(ColumnElement[bool], present if node.exists else not_(present))
     if isinstance(node, Comparison):
-        return _compile_comparison(node)
+        return _compile_comparison(node, worker=worker)
     if isinstance(node, Membership):
-        return _compile_membership(node)
+        return _compile_membership(node, worker=worker)
     raise AssertionError(f"Unknown filter node: {node!r}")
 
 
-def _parse_expression(node: ast.expr) -> FilterNode:
+def _parse_expression(node: ast.expr, *, worker: bool = False) -> FilterNode:
     if isinstance(node, ast.BoolOp):
         if isinstance(node.op, ast.And):
             bool_operator: Literal["and", "or"] = "and"
@@ -144,7 +153,7 @@ def _parse_expression(node: ast.expr) -> FilterNode:
             raise _filter_error(node, "Only 'and' and 'or' Boolean operators are supported.")
         return BooleanExpression(
             bool_operator,
-            tuple(_parse_expression(value) for value in node.values),
+            tuple(_parse_expression(value, worker=worker) for value in node.values),
         )
 
     if isinstance(node, ast.Call):
@@ -155,7 +164,7 @@ def _parse_expression(node: ast.expr) -> FilterNode:
             or node.keywords
         ):
             raise _filter_error(node, "Only exists(path) and missing(path) are supported.")
-        return Presence(_parse_path(node.args[0]), exists=node.func.id == "exists")
+        return Presence(_parse_path(node.args[0], worker=worker), exists=node.func.id == "exists")
 
     if not isinstance(node, ast.Compare) or len(node.ops) != 1 or len(node.comparators) != 1:
         raise _filter_error(node, "A filter predicate must be one comparison or membership test.")
@@ -167,8 +176,8 @@ def _parse_expression(node: ast.expr) -> FilterNode:
         membership_operator: MembershipOperator = (
             "not in" if isinstance(operator_node, ast.NotIn) else "in"
         )
-        left_path = _try_parse_path(left)
-        right_path = _try_parse_path(right)
+        left_path = _try_parse_path(left, worker=worker)
+        right_path = _try_parse_path(right, worker=worker)
         if left_path is not None and isinstance(right, ast.List):
             return Membership(
                 left_path,
@@ -189,8 +198,8 @@ def _parse_expression(node: ast.expr) -> FilterNode:
         )
 
     comparison_operator = _comparison_operator(operator_node, node)
-    left_path = _try_parse_path(left)
-    right_path = _try_parse_path(right)
+    left_path = _try_parse_path(left, worker=worker)
+    right_path = _try_parse_path(right, worker=worker)
     if left_path is not None and right_path is None:
         return Comparison(left_path, comparison_operator, _parse_scalar(right))
     if right_path is not None and left_path is None:
@@ -202,13 +211,13 @@ def _parse_expression(node: ast.expr) -> FilterNode:
     raise _filter_error(node, "A comparison must contain exactly one path and one scalar literal.")
 
 
-def _try_parse_path(node: ast.expr) -> FilterPath | None:
+def _try_parse_path(node: ast.expr, *, worker: bool = False) -> FilterPath | None:
     if not isinstance(node, (ast.Name, ast.Attribute)):
         return None
-    return _parse_path(node)
+    return _parse_path(node, worker=worker)
 
 
-def _parse_path(node: ast.expr) -> FilterPath:
+def _parse_path(node: ast.expr, *, worker: bool = False) -> FilterPath:
     segments: list[str] = []
     current = node
     while isinstance(current, ast.Attribute):
@@ -219,6 +228,12 @@ def _parse_path(node: ast.expr) -> FilterPath:
     root = current.id
     segments.reverse()
 
+    if worker:
+        if segments or root not in WORKER_TYPES:
+            raise _filter_error(
+                node, f"Unsupported Worker filter path '{_display_path(root, segments)}'."
+            )
+        return FilterPath(root)
     if root in BUILTIN_TYPES or root == "routes":
         if segments:
             raise _filter_error(node, f"'{root}' does not have nested fields.")
@@ -293,7 +308,19 @@ def _reverse_operator(operator: CompareOperator) -> CompareOperator:
     return reversed_operators[operator]
 
 
-def _runtime_path(path: FilterPath) -> RuntimePath:
+def _runtime_path(path: FilterPath, *, worker: bool = False) -> RuntimePath:
+    if worker:
+        declared_type, nullable = WORKER_TYPES[path.root]
+        columns = {
+            "id": WorkerRow.worker_id,
+            "queue": WorkerRow.queue_name,
+            "route": WorkerRow.route,
+            "status": WorkerRow.status,
+            "task_id": WorkerRow.task_id,
+            "last_seen_at": WorkerRow.last_seen_at_us,
+            "expires_at": WorkerRow.expires_at_us,
+        }
+        return RuntimePath("fixed", columns[path.root], None, declared_type, nullable)
     if path.root == "routes":
         return RuntimePath("routes", None, None, "array", False)
     if path.root in BUILTIN_TYPES:
@@ -335,8 +362,8 @@ def _runtime_path(path: FilterPath) -> RuntimePath:
     )
 
 
-def _compile_comparison(node: Comparison) -> ColumnElement[bool]:
-    runtime = _runtime_path(node.path)
+def _compile_comparison(node: Comparison, *, worker: bool = False) -> ColumnElement[bool]:
+    runtime = _runtime_path(node.path, worker=worker)
     if runtime.kind == "routes":
         raise _invalid_filter("Routes support membership tests only.")
     if runtime.kind == "fixed" or runtime.declared_type is not None:
@@ -355,11 +382,13 @@ def _normalize_declared_literal(runtime: RuntimePath, value: Scalar) -> Scalar |
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise _invalid_filter("This field requires a numeric literal.")
         return value
-    if declared_type in {"string", "status"}:
+    if declared_type in {"string", "status", "worker_status"}:
         if not isinstance(value, str):
             raise _invalid_filter("This field requires a string literal.")
         if declared_type == "status" and value not in TASK_STATUSES:
             raise _invalid_filter("Status literal is not a valid Task status.")
+        if declared_type == "worker_status" and value not in {"idle", "busy"}:
+            raise _invalid_filter("Status literal is not a valid Worker status.")
         return value
     if declared_type == "timestamp":
         if not isinstance(value, str):
@@ -438,8 +467,8 @@ def _dynamic_comparison(
     return and_(numeric, comparisons[operator])
 
 
-def _compile_membership(node: Membership) -> ColumnElement[bool]:
-    runtime = _runtime_path(node.path)
+def _compile_membership(node: Membership, *, worker: bool = False) -> ColumnElement[bool]:
+    runtime = _runtime_path(node.path, worker=worker)
     if node.mode == "candidate_set":
         if runtime.kind == "routes":
             raise _invalid_filter("Use a scalar literal on the left to test route membership.")
@@ -489,6 +518,7 @@ def _route_exists(route: str) -> ColumnElement[bool]:
             TaskRouteRow.task_id == TaskRow.task_id,
             TaskRouteRow.route == route,
         )
+        .correlate(TaskRow)
         .exists()
     )
 

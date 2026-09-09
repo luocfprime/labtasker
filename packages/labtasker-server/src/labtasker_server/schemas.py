@@ -16,6 +16,7 @@ from labtasker_server.validation import (
     validate_identifier,
     validate_json_object,
     validate_run_id,
+    validate_task_id,
     validate_task_name,
     validate_unicode_scalar,
 )
@@ -263,3 +264,46 @@ def _validated(operation: Callable[[], T]) -> T:
         return operation()
     except DomainError as error:
         raise _pydantic_error(error) from error
+
+
+class CountGroup(StrictModel):
+    key: dict[str, str]
+    count: int
+
+
+class GroupCountPage(StrictModel):
+    group_by: list[str]
+    count: int
+    items: list[CountGroup]
+    next_cursor: str | None
+
+
+class WorkerObservation(StrictModel):
+    id: str
+    queue: str
+    route: str
+    status: Literal["idle", "busy"]
+    task_id: str | None
+    last_seen_at: datetime
+    expires_at: datetime
+
+
+class WorkerPage(StrictModel):
+    items: list[WorkerObservation]
+    next_cursor: str | None
+
+
+class WorkerReport(StrictModel):
+    route: str
+    status: Literal["idle", "busy"]
+    task_id: str | None
+
+    @field_validator("route")
+    @classmethod
+    def validate_route(cls, value: str) -> str:
+        return _validated(lambda: validate_identifier(value, kind="Route"))
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task(cls, value: str | None) -> str | None:
+        return None if value is None else _validated(lambda: validate_task_id(value))

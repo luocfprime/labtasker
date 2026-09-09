@@ -23,6 +23,9 @@ labtasker task cancel TASK_ID
 labtasker task requeue TASK_ID
 labtasker task delete TASK_ID
 
+labtasker worker list [OPTIONS]
+labtasker worker count [OPTIONS]
+
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
 labtasker-server --version
 labtasker-server start
@@ -60,12 +63,14 @@ do not advertise a usable version do not trigger this warning.
 | `task submit` | One Task object | `--args`/`--metadata` default to `{}`, `--priority` to `0`, `--max-attempts` to `3`, and omitted routes to `default`. Repeat `--route` for several exact routes; use `--id` for a caller-chosen idempotent Task ID. |
 | `task get` | One Task object | ID-addressed; an unknown Task is an error, not `null`. |
 | `task list` | `{"items":[...],"next_cursor":...}` | Returns one page. `--status`, exact `--name`, `--name-fuzzy`, and `--filter` combine with AND. |
-| `task count` | `{"count":N}` | Counts the complete selection independently of list pagination. |
+| `task count` | `{"count":N}` or a grouped page | Counts the complete selection; `--group-by` opts into grouped counts. |
 | `task update TASK_ID` | The resulting Task | Replaces supplied fields on one non-running Task. |
 | `task update --filter ...` | `{"matched":N,"updated":M}` | Requires an explicit filter and atomically updates all matching non-running Tasks. |
 | `task cancel` | The resulting Task | Accepts pending/running; repeating on cancelled is idempotent. |
 | `task requeue` | The resulting Task | Accepts pending/failed/cancelled; resets attempt and last error. Succeeded Tasks require a new submission. |
 | `task delete` | Nothing | Permanently deletes one non-running Task; absent is idempotent. |
+| `worker list` | `{"items":[...],"next_cursor":...}` | Lists unexpired observations by ID ascending; accepts `--filter`, `--limit`, `--cursor`, and `--queue`. |
+| `worker count` | `{"count":N}` or a grouped page | Counts unexpired observations; accepts `--filter`, `--group-by`, `--limit`, `--cursor`, and `--queue`. |
 | `queue create` | One Queue object | Idempotent create-by-name. |
 | `queue list` | Complete Queue array | Not paginated. |
 | `queue delete` | Nothing | Non-empty requires `--cascade`; running Tasks still block deletion. |
@@ -92,6 +97,31 @@ Server commands have a separate ownership boundary:
 | `stop [--force]` | Stops only the reverified local daemon; normal stop never sends SIGKILL. |
 | `logs` | Prints the complete current local Server log; it does not follow. |
 | `serve` | Runs one foreground HTTP Server. One process owns one SQLite file; non-loopback binds require `LABTASKER_SERVER_TOKEN`. |
+
+## Inspect route demand and Worker activity
+
+```bash
+labtasker task count --status pending --group-by routes,status
+labtasker worker count --group-by route,status
+labtasker worker list --filter 'route == "sdxl" and status == "busy"'
+```
+
+`--group-by` is one comma-separated argument with no spaces. Task fields are
+`routes` and `status`; Worker fields are `route` and `status`. Either order is
+valid. Empty fields, duplicates, unsupported fields and repeated `--group-by`
+options are usage errors. Without grouping, count output remains `{"count":N}`.
+
+Grouped output contains `group_by`, the complete matching `count`, one page of
+`items` with `key`/`count`, and `next_cursor`. `--limit` (default 100, maximum
+1000) and `--cursor` require grouping on count commands. Fetch later pages
+explicitly with the same filters and grouping. Multi-route Tasks contribute to
+every compatible route group; group counts may overlap. Pages reflect current
+data rather than a fixed snapshot.
+
+Worker results are supplementary observations: `idle` means waiting, and `busy`
+includes reporting and post-finish cleanup. Delays and temporary missing Workers
+are possible. No observed Worker for a route does not prove no process exists.
+See [HTTP observation semantics](http-api.md#worker-observations).
 
 ## JSON input
 

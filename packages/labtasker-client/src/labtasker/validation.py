@@ -205,3 +205,40 @@ def invalid_config(message: str, *, source: str, field: str | None = None) -> Co
     if field is not None:
         details["field"] = field
     return ConfigError("invalid_config", message, details)
+
+
+def validate_worker_id(value: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"w_[A-Za-z0-9_-]{12}", value):
+        raise RequestValidationError("Worker ID must be w_ followed by 12 URL-safe characters")
+    return value
+
+
+def validate_grouping(
+    value: object, allowed: set[str], limit: int | None, cursor: str | None
+) -> list[str] | None:
+    from collections.abc import Sequence
+
+    if value is None:
+        if limit is not None or cursor is not None:
+            raise RequestValidationError("limit and cursor require group_by")
+        return None
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise RequestValidationError("group_by must be a sequence of field names")
+    fields = list(value)
+    if (
+        not fields
+        or any(not isinstance(field, str) or field not in allowed for field in fields)
+        or len(set(fields)) != len(fields)
+    ):
+        raise RequestValidationError("group_by must contain distinct supported field names")
+    validate_page_parameters(limit, cursor)
+    return fields
+
+
+def validate_page_parameters(limit: int | None, cursor: str | None) -> None:
+    if limit is not None and (
+        isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000
+    ):
+        raise RequestValidationError("limit must be an integer from 1 through 1000")
+    if cursor is not None and (not isinstance(cursor, str) or not cursor):
+        raise RequestValidationError("cursor must be a nonempty string or None")

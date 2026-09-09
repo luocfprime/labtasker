@@ -3,9 +3,9 @@ from __future__ import annotations
 import secrets
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import TypeVar
+from typing import TypeVar, overload
 
 import httpx
 from packaging.version import InvalidVersion, Version
@@ -23,21 +23,25 @@ from labtasker.models import (
     BulkUpdateResult,
     ClaimResponse,
     CountResponse,
+    GroupCountPage,
     HealthResponse,
     HeartbeatResponse,
     Queue,
     ResponseModel,
     Task,
     TaskPage,
+    WorkerPage,
 )
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.validation import (
     RequestValidationError,
     validate_filter,
+    validate_grouping,
     validate_identifier,
     validate_int64,
     validate_json_object,
     validate_order_field,
+    validate_page_parameters,
     validate_routes,
     validate_run_id,
     validate_status,
@@ -258,6 +262,7 @@ class Client:
             retry=True,
         )
 
+    @overload
     def count_tasks(
         self,
         *,
@@ -266,28 +271,160 @@ class Client:
         name_fuzzy: str | None = None,
         filter: str | None = None,
         queue: str | None = None,
-    ) -> int:
+        group_by: None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> int: ...
+
+    @overload
+    def count_tasks(
+        self,
+        *,
+        status: TaskStatus | None = None,
+        name: str | None = None,
+        name_fuzzy: str | None = None,
+        filter: str | None = None,
+        queue: str | None = None,
+        group_by: Sequence[str],
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> GroupCountPage: ...
+
+    def count_tasks(
+        self,
+        *,
+        status: TaskStatus | None = None,
+        name: str | None = None,
+        name_fuzzy: str | None = None,
+        filter: str | None = None,
+        queue: str | None = None,
+        group_by: Sequence[str] | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> int | GroupCountPage:
         self._ensure_open()
         queue_name = self._queue(queue)
         status = validate_status(status)
         filter = validate_filter(filter)
         if name_fuzzy is not None:
             if not isinstance(name_fuzzy, str):
-                raise RequestValidationError("name_fuzzy selector must be a string or None.")
+                raise RequestValidationError("name_fuzzy selector must be a string or None")
             validate_unicode_scalar(name_fuzzy, field="name_fuzzy")
         if name is not None and not isinstance(name, str):
-            raise RequestValidationError("name selector must be a string or None.")
-        result = self._call(
-            operation="count_tasks",
-            method="GET",
-            path=f"queues/{queue_name}/tasks/count",
-            params=_without_none(
-                {"status": status, "name": name, "name_fuzzy": name_fuzzy, "filter": filter}
+            raise RequestValidationError("name selector must be a string or None")
+        groups = validate_grouping(group_by, {"routes", "status"}, limit, cursor)
+        return self._count_query(
+            "tasks",
+            queue_name,
+            groups,
+            _without_none(
+                {
+                    "status": status,
+                    "name": name,
+                    "name_fuzzy": name_fuzzy,
+                    "filter": filter,
+                    "group_by": None if groups is None else ",".join(groups),
+                    "limit": limit,
+                    "cursor": cursor,
+                }
             ),
-            parser=lambda response: _parse_model(response, CountResponse, {200}),
+        )
+
+    def list_workers(
+        self,
+        *,
+        filter: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+        queue: str | None = None,
+    ) -> WorkerPage:
+        self._ensure_open()
+        queue_name = self._queue(queue)
+        filter = validate_filter(filter)
+        validate_page_parameters(limit, cursor)
+        return self._call(
+            operation="list_workers",
+            method="GET",
+            path=f"queues/{queue_name}/workers",
+            params=_without_none({"filter": filter, "limit": limit, "cursor": cursor}),
+            parser=lambda response: _parse_model(response, WorkerPage, {200}),
             retry=True,
         )
-        return result.count
+
+    @overload
+    def count_workers(
+        self,
+        *,
+        filter: str | None = None,
+        group_by: None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        queue: str | None = None,
+    ) -> int: ...
+
+    @overload
+    def count_workers(
+        self,
+        *,
+        filter: str | None = None,
+        group_by: Sequence[str],
+        limit: int | None = None,
+        cursor: str | None = None,
+        queue: str | None = None,
+    ) -> GroupCountPage: ...
+
+    def count_workers(
+        self,
+        *,
+        filter: str | None = None,
+        group_by: Sequence[str] | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        queue: str | None = None,
+    ) -> int | GroupCountPage:
+        self._ensure_open()
+        queue_name = self._queue(queue)
+        filter = validate_filter(filter)
+        groups = validate_grouping(group_by, {"route", "status"}, limit, cursor)
+        return self._count_query(
+            "workers",
+            queue_name,
+            groups,
+            _without_none(
+                {
+                    "filter": filter,
+                    "group_by": None if groups is None else ",".join(groups),
+                    "limit": limit,
+                    "cursor": cursor,
+                }
+            ),
+        )
+
+    def _count_query(
+        self, resource: str, queue: str, groups: list[str] | None, params: dict[str, str | int]
+    ) -> int | GroupCountPage:
+        def parse(response: httpx.Response) -> int | GroupCountPage:
+            if groups is None:
+                return _parse_model(response, CountResponse, {200}).count
+            try:
+                result = _parse_model(response, GroupCountPage, {200})
+            except TransportError as error:
+                raise TransportError(
+                    "Server does not support the requested grouped-count response "
+                    "or returned invalid grouped data."
+                ) from error
+            if result.group_by != groups:
+                raise TransportError("Server returned different grouping fields than requested.")
+            return result
+
+        return self._call(
+            operation=f"count_{resource}",
+            method="GET",
+            path=f"queues/{queue}/{resource}/count",
+            params=params,
+            parser=parse,
+            retry=True,
+        )
 
     def update_task(
         self,

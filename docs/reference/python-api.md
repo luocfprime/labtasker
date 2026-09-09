@@ -57,7 +57,8 @@ submit_task(args=None, *, name=None, metadata=None, priority=0,
 get_task(task_id, *, queue=None) -> Task
 list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -> TaskPage
-count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, queue=None) -> int
+count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None,
+            group_by=None, limit=None, cursor=None, queue=None) -> int | GroupCountPage
 update_task(task_id, changes, *, queue=None) -> Task
 update_tasks(*, filter, changes, queue=None) -> BulkUpdateResult
 cancel_task(task_id, *, queue=None) -> Task
@@ -70,12 +71,65 @@ delete_task(task_id, *, queue=None) -> None
 | `submit_task` | Creates one pending Task and returns it. `args` and `metadata` default to `{}`, `routes` to `["default"]`, and `max_attempts` to `3`. |
 | `get_task` | Returns one Task or raises `APIError` with code `task_not_found`. |
 | `list_tasks` | Returns exactly one `TaskPage`; it never auto-fetches or streams every match. Selectors are combined with logical AND. |
-| `count_tasks` | Returns an `int` for the complete selection; it is independent of list pagination. |
+| `count_tasks` | Returns an `int` for the complete selection, or a `GroupCountPage` when `group_by` is supplied. |
 | `update_task` | Replaces supplied user-owned fields on one non-running Task and returns the resulting Task. |
 | `update_tasks` | Atomically updates all matching non-running Tasks and returns `BulkUpdateResult(matched, updated)`. A non-empty filter is required. |
 | `cancel_task` | Cancels a pending or running Task. Repeating cancel on a cancelled Task is idempotent. |
 | `requeue_task` | Accepts pending, failed, or cancelled; returns it to pending, resets `attempt` to `0`, and clears `last_error`. |
 | `delete_task` | Permanently deletes one non-running Task and returns `None`. Deleting an absent Task is idempotent. |
+
+### Grouped counts
+
+Use an ordered sequence of dimensions, not a comma-separated Python string:
+
+```python
+page = client.count_tasks(status="pending", group_by=["routes", "status"])
+for group in page.items:
+    print(group.key, group.count)
+```
+
+Task dimensions are `routes` and `status`, singly or together in either order.
+`GroupCountPage` contains `group_by`, `count`, `items: list[CountGroup]`, and
+`next_cursor`. Each `CountGroup` has `key: dict[str, str]` and `count`.
+The top-level count covers the complete selection. Multi-route Tasks appear in
+each compatible route group, so summing groups can exceed that total.
+
+`limit` defaults to 100 groups and accepts 1–1000; `cursor` continues one page.
+Both require grouping. Groups sort by their keys in the requested dimension
+order. Follow cursors with the same selection and grouping; page size may change.
+Each page reads current data, so concurrent changes can affect later pages.
+Empty, repeated, whitespace-containing and unsupported dimensions are rejected.
+An old Server's scalar response to a grouped request raises `TransportError`.
+
+## Worker observations
+
+```text
+list_workers(*, filter=None, limit=100, cursor=None, queue=None) -> WorkerPage
+count_workers(*, filter=None, group_by=None, limit=None, cursor=None,
+              queue=None) -> int | GroupCountPage
+```
+
+These methods also have package-level forms. `WorkerPage` contains `items` and
+`next_cursor`, sorted by Worker ID ascending with the same 1–1000 page limit.
+Each `WorkerObservation` exposes `id`, `queue`, `route`, `status`, nullable
+`task_id`, `last_seen_at`, and `expires_at`. Timestamps are UTC. All seven fields
+support the [query language](../guides/query.md) operators for their types.
+
+```python
+workers = client.list_workers(filter='route == "sdxl" and status == "idle"')
+counts = client.count_workers(group_by=["route", "status"])
+```
+
+Worker grouping supports `route` and `status`, singly or together. Plain counting
+returns an integer; grouped counting follows the Task page contract above.
+Only unexpired observations are returned. `idle` means awaiting work; `busy`
+includes execution, reporting and cleanup after `finish()`. Observations renew
+periodically and can be delayed. An advisory `task_id` may refer to a terminal or
+deleted Task. Use Task state for ownership and recovery decisions. Worker
+observation failures never block Task execution or consume the failure guard.
+There are no public Worker control methods.
+
+## Task submission details
 
 ### Submission and idempotency
 

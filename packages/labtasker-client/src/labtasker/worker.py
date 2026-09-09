@@ -32,6 +32,7 @@ from labtasker.execution import (
 )
 from labtasker.journal import LocalRunJournal
 from labtasker.models import ClaimResponse, TaskInfo
+from labtasker.observations import ObservationReporter
 from labtasker.tee import WorkerTee, configure_worker_logger
 from labtasker.types import JSONValue
 from labtasker.validation import RequestValidationError, validate_identifier
@@ -179,39 +180,42 @@ def _run_python_worker(
         configure_worker_logger()
         queue_name = client.configuration.queue
         _preflight(client, queue_name)
-        idle_deadline: float | None = None
-        while True:
-            claim = client._claim(route=route, run_id=_generate_run_id(), queue=queue_name)
-            if claim is None:
-                now = time.monotonic()
-                if idle_deadline is None:
-                    idle_deadline = now + idle_timeout
-                if now >= idle_deadline:
-                    logger.info("Worker idle timeout reached; stopping normally.")
-                    return
-                time.sleep(min(POLL_INTERVAL_SECONDS, idle_deadline - now))
-                continue
-            idle_deadline = None
-            logger.info(
-                "Claimed Task %s as run %s (attempt %d, route %s).",
-                claim.task.id,
-                claim.run_id,
-                claim.task.attempt,
-                route,
-            )
-            result = _run_python_claim(
-                client,
-                tee,
-                binding,
-                startup_args,
-                startup_kwargs,
-                claim=claim,
-                queue=queue_name,
-                route=route,
-                force_stop_timeout=force_stop_timeout,
-            )
+        with ObservationReporter(client.configuration, route) as observer:
+            idle_deadline: float | None = None
+            while True:
+                claim = client._claim(route=route, run_id=_generate_run_id(), queue=queue_name)
+                if claim is None:
+                    now = time.monotonic()
+                    if idle_deadline is None:
+                        idle_deadline = now + idle_timeout
+                    if now >= idle_deadline:
+                        logger.info("Worker idle timeout reached; stopping normally.")
+                        return
+                    time.sleep(min(POLL_INTERVAL_SECONDS, idle_deadline - now))
+                    continue
+                idle_deadline = None
+                observer.activity(claim.task.id)
+                logger.info(
+                    "Claimed Task %s as run %s (attempt %d, route %s).",
+                    claim.task.id,
+                    claim.run_id,
+                    claim.task.attempt,
+                    route,
+                )
+                result = _run_python_claim(
+                    client,
+                    tee,
+                    binding,
+                    startup_args,
+                    startup_kwargs,
+                    claim=claim,
+                    queue=queue_name,
+                    route=route,
+                    force_stop_timeout=force_stop_timeout,
+                )
 
-            guard.observe(result, claim.task.id)
+                guard.observe(result, claim.task.id)
+                observer.activity(None)
 
 
 def _run_python_claim(

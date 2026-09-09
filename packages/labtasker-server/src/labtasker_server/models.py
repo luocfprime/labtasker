@@ -137,3 +137,23 @@ class TaskRouteRow(Base):
     route: Mapped[str] = mapped_column(String(128), primary_key=True)
 
     task: Mapped[TaskRow] = relationship(back_populates="routes")
+
+
+class WorkerRow(Base):
+    """Expiring observations, never Task ownership or process supervision."""
+
+    __tablename__ = "workers"
+    __table_args__ = (
+        ForeignKeyConstraint(["queue_name"], ["queues.name"], ondelete="CASCADE"),
+        CheckConstraint("status IN ('idle','busy')", name="ck_workers_status"),
+        Index("ix_workers_expiry", "expires_at_us"),
+        Index("ix_workers_route", "queue_name", "route", "status"),
+    )
+
+    queue_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    worker_id: Mapped[str] = mapped_column(String(14), primary_key=True)
+    route: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(String(14))
+    last_seen_at_us: Mapped[int] = mapped_column(Integer, nullable=False)
+    expires_at_us: Mapped[int] = mapped_column(Integer, nullable=False)

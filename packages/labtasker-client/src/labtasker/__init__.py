@@ -3,12 +3,14 @@
 from labtasker.api import (
     cancel_task,
     count_tasks,
+    count_workers,
     create_queue,
     delete_queue,
     delete_task,
     get_task,
     list_queues,
     list_tasks,
+    list_workers,
     requeue_task,
     submit_task,
     update_task,
@@ -31,7 +33,18 @@ from labtasker.execution import (
     set_force_stop_timeout,
     task_info,
 )
-from labtasker.models import BulkUpdateResult, LastError, Queue, Task, TaskInfo, TaskPage
+from labtasker.models import (
+    BulkUpdateResult,
+    CountGroup,
+    GroupCountPage,
+    LastError,
+    Queue,
+    Task,
+    TaskInfo,
+    TaskPage,
+    WorkerObservation,
+    WorkerPage,
+)
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.worker import loop
 
@@ -42,7 +55,9 @@ __all__ = [
     "BulkUpdateResult",
     "Client",
     "ConfigError",
+    "CountGroup",
     "FatalWorkerError",
+    "GroupCountPage",
     "JSONValue",
     "LabtaskerError",
     "LastError",
@@ -57,9 +72,12 @@ __all__ = [
     "TaskUpdate",
     "TransientError",
     "TransportError",
+    "WorkerObservation",
+    "WorkerPage",
     "cancel_task",
     "cancellation_requested",
     "count_tasks",
+    "count_workers",
     "create_queue",
     "delete_queue",
     "delete_task",
@@ -67,6 +85,7 @@ __all__ = [
     "get_task",
     "list_queues",
     "list_tasks",
+    "list_workers",
     "loop",
     "requeue_task",
     "set_force_stop_timeout",

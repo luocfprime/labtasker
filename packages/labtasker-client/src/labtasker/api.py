@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from threading import Lock
+from typing import overload
 
 from labtasker.client import Client
-from labtasker.models import BulkUpdateResult, Queue, Task, TaskPage
+from labtasker.models import BulkUpdateResult, GroupCountPage, Queue, Task, TaskPage, WorkerPage
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 
 _default_client: Client | None = None
@@ -62,6 +64,7 @@ def list_tasks(
     )
 
 
+@overload
 def count_tasks(
     *,
     status: TaskStatus | None = None,
@@ -69,9 +72,99 @@ def count_tasks(
     name_fuzzy: str | None = None,
     filter: str | None = None,
     queue: str | None = None,
-) -> int:
+    group_by: None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> int: ...
+
+
+@overload
+def count_tasks(
+    *,
+    status: TaskStatus | None = None,
+    name: str | None = None,
+    name_fuzzy: str | None = None,
+    filter: str | None = None,
+    queue: str | None = None,
+    group_by: Sequence[str],
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> GroupCountPage: ...
+
+
+def count_tasks(
+    *,
+    status: TaskStatus | None = None,
+    name: str | None = None,
+    name_fuzzy: str | None = None,
+    filter: str | None = None,
+    queue: str | None = None,
+    group_by: Sequence[str] | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> int | GroupCountPage:
+    if group_by is None:
+        if limit is not None or cursor is not None:
+            from labtasker.validation import validate_grouping
+
+            validate_grouping(None, {"routes", "status"}, limit, cursor)
+        return _client().count_tasks(
+            status=status, name=name, name_fuzzy=name_fuzzy, filter=filter, queue=queue
+        )
     return _client().count_tasks(
-        status=status, name=name, name_fuzzy=name_fuzzy, filter=filter, queue=queue
+        status=status,
+        name=name,
+        name_fuzzy=name_fuzzy,
+        filter=filter,
+        queue=queue,
+        group_by=group_by,
+        limit=limit,
+        cursor=cursor,
+    )
+
+
+def list_workers(
+    *,
+    filter: str | None = None,
+    limit: int = 100,
+    cursor: str | None = None,
+    queue: str | None = None,
+) -> WorkerPage:
+    return _client().list_workers(filter=filter, limit=limit, cursor=cursor, queue=queue)
+
+
+@overload
+def count_workers(
+    *,
+    filter: str | None = None,
+    group_by: None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+    queue: str | None = None,
+) -> int: ...
+
+
+@overload
+def count_workers(
+    *,
+    filter: str | None = None,
+    group_by: Sequence[str],
+    limit: int | None = None,
+    cursor: str | None = None,
+    queue: str | None = None,
+) -> GroupCountPage: ...
+
+
+def count_workers(
+    *,
+    filter: str | None = None,
+    group_by: Sequence[str] | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+    queue: str | None = None,
+) -> int | GroupCountPage:
+    return _client().count_workers(
+        filter=filter, group_by=group_by, limit=limit, cursor=cursor, queue=queue
     )
 
 

@@ -41,12 +41,24 @@ remain useful after the change ships.
 
 ## Core design invariants
 
+- **High priority: transport failures must not directly interrupt an already
+  started Task execution or be counted as workload failures.** Retry Task
+  heartbeats and unresolved terminal reports under their existing contracts.
+  Supplementary Worker-observation failures must not affect startup, claiming,
+  execution or the failure guard. Startup checks and claim retain their bounded
+  retry and failure-exit behavior; do not reinterpret this rule as requiring
+  indefinite recovery there. Never treat unavailable communication as an empty
+  Queue. Preserve `run_id` fencing and honor confirmed ownership loss. The
+  one-second observation shutdown wait applies only after an independent exit
+  decision. See specification section 3.0 for these distinctions.
 - Minimalism is a product requirement. Add a public concept only for a concrete
   experiment workflow and implement its complete HTTP/Python/CLI slice.
 - Queue is the only server-side namespace and scheduling pool. Routes are exact,
   case-sensitive compatibility labels, not resource records.
-- The Server stores Tasks, not Worker processes. Each Worker process executes at
-  most one Task at a time and claims with a fresh private `run_id`.
+- The Server stores authoritative Tasks and supplementary expiring Worker
+  observations, without managing Worker processes. Observations never affect
+  scheduling or ownership. Each Worker executes at most one Task at a time and
+  claims with a fresh private `run_id`.
 - Preserve `run_id` fencing for heartbeat, completion, failure, cancellation,
   unclaim, lease expiry, and retry races. Never weaken a guard to make a stale
   request appear successful.
