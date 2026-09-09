@@ -716,10 +716,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#find-a-remembered-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Find a remembered name
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ordering-and-pagination" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Ordering and pagination
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compare-waiting-work-with-observed-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compare waiting work with observed Workers
       </span>
     </span>
   </a>
@@ -1189,10 +1211,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#find-a-remembered-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Find a remembered name
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ordering-and-pagination" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Ordering and pagination
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compare-waiting-work-with-observed-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compare waiting work with observed Workers
       </span>
     </span>
   </a>
@@ -1256,6 +1300,21 @@ missing(metadata.owner)
 missing(result.score) or result.score &lt; 0.5
 </code></pre></div>
 <p><code>exists(path)</code> and <code>missing(path)</code> are the only path-existence tests.</p>
+<h2 id="find-a-remembered-name">Find a remembered name</h2>
+<p>Use fuzzy name search when you remember parts of an experiment label:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>list<span class="w"> </span>--name-fuzzy<span class="w"> </span><span class="s1">'tr ev'</span><span class="w"> </span>--status<span class="w"> </span>pending
+labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--name-fuzzy<span class="w"> </span><span class="s1">'tr ev'</span><span class="w"> </span>--status<span class="w"> </span>pending
+</code></pre></div>
+<p>In Python, use <code>list_tasks(name_fuzzy="tr ev", status="pending")</code> or
+<code>count_tasks</code> with the same selectors. Each word must appear as a subsequence
+of the name, ignoring case: both <code>tr ev</code> and <code>EV TR</code> match <code>train_model_eval</code>.
+Words may overlap and match in any order. Punctuation is literal; there are no
+wildcards, regex operators, or relevance ranking. An empty or whitespace-only
+query adds no restriction.</p>
+<p>Exact <code>name</code>, <code>name_fuzzy</code>, <code>status</code>, and <code>filter</code> combine with AND. Fuzzy
+matching is available on list and count, not inside filter expressions or as a
+bulk-update selector. Inspect matches before changing Tasks by ID or a supported
+filter.</p>
 <h2 id="ordering-and-pagination">Ordering and pagination</h2>
 <p>List queries choose one stable order field and direction:</p>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>list<span class="w"> </span><span class="se">\</span>
@@ -1265,7 +1324,35 @@ missing(result.score) or result.score &lt; 0.5
 <span class="w">  </span>--limit<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <p>The Server adds Task ID as a deterministic tie-breaker. A cursor must be reused
-with the same Queue, filter, selectors, order field, and direction.</p>
+with the same Queue, filter, selectors, order field, and direction.
+Keep the raw fuzzy query unchanged too, including its case and whitespace.
+CLI list returns only one page. Continue with <code>--cursor</code> until <code>next_cursor</code> is
+null; Python callers pass it as <code>cursor=</code>. Pages read live state rather than one
+snapshot.</p>
+<h2 id="compare-waiting-work-with-observed-workers">Compare waiting work with observed Workers</h2>
+<p>Group pending Tasks by compatible route, then inspect Worker activity:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--group-by<span class="w"> </span>routes
+labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--group-by<span class="w"> </span>route,status
+labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'route == "sdxl" and status == "idle"'</span>
+</code></pre></div>
+<p>Task grouping supports <code>routes</code> and <code>status</code>; Worker grouping supports <code>route</code>
+and <code>status</code>. Python accepts a list such as <code>group_by=["route", "status"]</code>,
+while CLI accepts one comma-separated value. Filters select records before
+grouping. Worker filters use observation fields, not Task args or metadata.</p>
+<p>Grouped responses contain <code>group_by</code>, <code>count</code>, <code>items</code>, and <code>next_cursor</code>.
+The top-level <code>count</code> is the complete selected total. A Task accepting two routes
+appears in both route groups, so summing those groups double-counts it. <code>limit</code>
+limits groups, not Tasks. Follow every group page with the same selection and
+ordered grouping fields; do not add the totals from successive pages. Without
+grouping, counting returns a scalar in Python and <code>{"count": N}</code> in CLI.</p>
+<p>Align the two sets of route groups locally. Worker observations are approximate
+presence: they expire, do not reserve capacity, and cannot establish Task
+ownership. A busy Worker may still be cleaning up after an already succeeded
+Task. Missing observations must not cause cancellation or requeue. A failed
+query is unavailable information, not a zero count.</p>
+<p>See <a href="../tasks/#diagnose-pending-routes">Manage Tasks</a> for monitoring
+examples and <a href="../../reference/python-api/#grouped-counts">Python API</a> for exact
+models and cursor rules.</p>
 
 
 

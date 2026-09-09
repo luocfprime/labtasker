@@ -1236,6 +1236,9 @@ input, output, and terminal size. In pipelines and schedulers it uses ordinary
 pipes, drains stdout and stderr concurrently, and connects stdin to <code>/dev/null</code>.
 Both modes forward output live and copy the raw bytes to the local <code>run.log</code>;
 there is no public PTY option.</p>
+<p>If writing <code>run.log</code> fails during execution, the Worker warns and continues
+draining and forwarding output. The log may be incomplete; this failure alone
+does not change the Task outcome.</p>
 <p>If the child has not called <code>finish()</code>, exit code zero succeeds with <code>{}</code> and any
 other exit code is a charged failure. After a successful <code>finish()</code>, a later
 non-zero exit is logged locally but does not change the succeeded Task.</p>

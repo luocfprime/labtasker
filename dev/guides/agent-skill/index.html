@@ -780,6 +780,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#maintaining-the-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Maintaining the skill
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1199,6 +1210,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#maintaining-the-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Maintaining the skill
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1224,14 +1246,18 @@ Labtasker's <code>labtasker</code> skill supplies those operating rules, so a re
 as “run these cases in parallel across 8 GPUs with Labtasker” is enough to start
 the standard Labtasker workflow.</p>
 <p>The skill covers v2 Task submission, Worker design, routing, inspection,
-updates, recovery, and adapting an existing experiment pipeline. During a
-migration it asks about the project's entry points, reusable setup, retry units,
-resources, dependencies, and outputs, then owns the mapping into Labtasker
+updates, recovery, and adapting an existing experiment pipeline. It also explains
+how to compare pending Task demand with observed Worker activity through
+Python or CLI grouped counts, including pagination and delayed observations.
+It covers fuzzy Task name search, advisory Server version warnings, and the
+Worker’s consecutive-failure limit without confusing it with Task retry budgets.
+During a migration it asks about the project's entry points, reusable setup,
+retry units, resources, dependencies, and outputs, then owns the mapping into Labtasker
 instead of requiring a newcomer to design Tasks, Workers, routes, or Queues. It
 does not choose the experiment, allocate GPUs, or keep the agent inside the
 execution loop. Its short
 <a href="https://github.com/luocfprime/labtasker/blob/main/skills/labtasker/SKILL.md"><code>SKILL.md</code></a>
-routes deployment, Worker, and recovery questions to three bundled references;
+routes deployment, Worker, inspection, and recovery questions to focused references;
 the official installable package is
 <a href="https://github.com/luocfprime/labtasker/tree/main/skills/labtasker"><code>skills/labtasker/</code></a>.</p>
 <h2 id="llm-readable-documentation">LLM-readable documentation</h2>
@@ -1270,6 +1296,21 @@ so every discovery method reads the same files.</p>
 <p>The agent skill describes the public Labtasker product. Contributor-only
 workflows such as releases and cross-surface contract changes remain separate
 under <code>.agents/skills/</code> and are documented in <a href="../../development/">Development</a>.</p>
+<h2 id="maintaining-the-skill">Maintaining the skill</h2>
+<p>The public skill and its bundled references are maintained together. Feature
+changes should update the relevant reference and add a realistic agent scenario
+to the <a href="https://github.com/luocfprime/labtasker/tree/main/tests/skill">skill regression suite</a>.
+The suite separates candidate requests from examiner setup and checks. Candidates
+operate only in temporary test environments, using the skill and public
+interfaces. Test fixtures and grading rules are not part of the installed skill.
+Questions describe ordinary user goals without prescribing the API, commands,
+steps, or expected answer. The examiner checks whether the goal was met, whether
+the agent interpreted the results correctly, and whether it made unnecessary
+changes or requests for clarification. Low-level product invariants remain in
+the ordinary automated tests.</p>
+<p>See <a href="../../development/#agent-workflows">Development</a> for the examination and
+revision workflow. Executable setup/check validation and an independent agent
+pass are separate results; neither guarantees support on untested platforms.</p>
 
 
 

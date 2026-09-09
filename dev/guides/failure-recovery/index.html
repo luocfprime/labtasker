@@ -743,6 +743,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#communication-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Communication failures
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cancellation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1211,6 +1222,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#communication-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Communication failures
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cancellation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1325,6 +1347,8 @@ stale/finalized preserve it. <code>FatalWorkerError</code> still exits immediate
 raises <code>FatalWorkerError</code> before claiming more work. The Command CLI exits <code>1</code>;
 leave the Python exception uncaught to exit nonzero. Current Task reporting,
 retry budgets and run fencing are unchanged.</p>
+<p>Worker observation failures never increment this count or interrupt execution.
+Observations describe recent activity; their expiry does not revoke a Task run.</p>
 <p>The count is local to each loop invocation. Configure supervisor restart backoff
 and restart frequency limits, because a restart clears it. This limits damage
 within a Worker lifetime; it cannot restore attempts already consumed.</p>
@@ -1350,6 +1374,16 @@ recovered Task, a late heartbeat or result from the old Worker is rejected and
 cannot change the new run.</p>
 <p>There is no separate execution timeout. A Task can run longer than five minutes
 as long as its Worker keeps sending heartbeats.</p>
+<h2 id="communication-failures">Communication failures</h2>
+<p>While a Task is already executing, transport failures in heartbeats or unresolved
+terminal reports are retried without directly stopping the workload or charging
+another failure. A brief Server outage can therefore be transparent if ownership
+is retained. Confirmed cancellation or ownership loss still requires the old
+execution to stop or cooperate with cancellation.</p>
+<p>Startup checks and claims have bounded retries. If those retries are exhausted,
+the Worker exits; an unavailable Server is not an empty Queue. Supplementary
+Worker observation errors are isolated from startup, claiming, execution, and
+Task reporting. A workload's own network calls remain its responsibility.</p>
 <h2 id="cancellation">Cancellation</h2>
 <p>The Server records the cancellation immediately. Local execution may take time
 to stop:</p>

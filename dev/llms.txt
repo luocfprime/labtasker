@@ -21,7 +21,7 @@ These documents describe Labtasker v2. Labtasker schedules Tasks across Worker p
 ## Workflows
 
 - [Manage Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/tasks.md): Submit, inspect, prioritize, cancel, retry, and delete Tasks.
-- [Query Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/query.md): Filter and order Task lists.
+- [Query Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/query.md): Filter, search names, paginate, and group Task counts; compare demand with Worker observations.
 - [Failure and recovery](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/failure-recovery.md): Retries, leases, interruption, and protection from results reported by old runs.
 - [Python Workers](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/workers/python.md): Reuse loaded Python state while processing Tasks.
 - [Command Workers](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/workers/command.md): Execute Tasks as subprocess commands.

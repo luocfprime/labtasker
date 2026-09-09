@@ -3490,6 +3490,11 @@ PTY option:</p>
   the local run log contains both. Output is relayed and appended as raw bytes;
   Labtasker performs no text decoding, newline normalization or ANSI removal, so
   <code>run.log</code> is not guaranteed to be valid UTF-8.</li>
+<li>After command execution starts, a <code>run.log</code> write failure produces a warning
+  and disables further writes to that log sink. The Worker continues draining
+  and relaying child output so storage failure cannot leave the child blocked
+  on a full pipe or PTY. This logging failure alone does not change the Task
+  outcome. Initial journal setup failures retain the behavior in section 8.4.</li>
 </ul>
 <p>V2 therefore has no <code>--pty</code>, <code>--no-pty</code> or <code>--use-pty</code> option. It does not add a
 ConPTY implementation or admit Windows into the Command Worker and then silently

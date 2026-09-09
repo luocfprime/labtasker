@@ -1267,9 +1267,32 @@ validation expectations without loading the full specification into every task.<
 <code>public-contract-change</code> skill when changing behavior across HTTP, Python, CLI,
 persistence, and documentation surfaces. Use <code>documentation</code> for maintained
 user guidance. Use <code>skill-development</code> when changing the public Agent Skill: it
-tests realistic questions with a full-repository Question Agent and fresh Answer
-Agents restricted to <code>skills/</code>, then revises the skill until a new holdout
-converges.</p>
+uses a separate examiner and fresh candidate agents restricted to the public
+skill, its bundled references, and task-facing public interfaces. The examiner
+provisions temporary Servers and databases, checks observable results, and keeps
+holdout questions and rubrics hidden from the reviser. Revisions are bounded;
+failed or unexecuted cases remain visible in the report.</p>
+<p>The <a href="https://github.com/luocfprime/labtasker/tree/main/tests/skill">agent regression suite</a>
+lives in <code>tests/skill/</code>, outside the installed skill and ordinary pytest discovery.
+Each case contains <code>candidate.md</code>, private <code>examiner.md</code>, and executable setup or
+checking scripts where applicable. Its README describes running the helpers and
+dispatching candidate attempts. Evaluation reports, metadata, and raw evidence belong in ignored
+<code>tests/skill/runs/</code>. Record the skill snapshot, software and case versions,
+candidate configuration, and results so later runs can compare the same cases.</p>
+<p>Agent regression tests assess whether a short user request leads to correct
+operations: submitting experiments, checking progress, diagnosing waiting work,
+selecting and recovering Tasks, configuring a connection, or adapting a script.
+Questions give goals, necessary background, environment entry points, and real
+constraints. They do not prescribe commands, APIs, pagination, execution steps,
+or the expected conclusion. Detailed acceptance criteria stay with the examiner,
+who checks results, unintended changes, interpretation, and avoidable questions
+or detours while allowing different correct approaches.</p>
+<p>For new features, extend the user workflow they enable. Low-level retry, fencing,
+type, process-tree, and database behavior belongs primarily in ordinary automated
+tests. The agent suite's scripts provision environments and verify operation
+results. Validate those checks before grading candidates, and keep fixture
+validation distinct from an agent pass. Record changed question versions rather
+than presenting results from more prescriptive prompts as evidence for new ones.</p>
 <h2 id="package-boundary">Package boundary</h2>
 <ul>
 <li><code>labtasker-client</code> contains the Client, Worker runtime, public Python API, and CLI. It
@@ -1288,6 +1311,21 @@ separate result, and one failure does not cancel the other versions. Formatting,
 lint, type checks, and the documentation build run once on Python 3.11. Packages
 are built once on Python 3.11, then the same wheels are tested on all four
 versions. The real distributed launcher suite runs in the release workflow.</p>
+<p>A focused macOS/Python 3.11 CI job checks database ownership, inherited locks,
+local daemon startup and recovery, Command Worker cancellation, and Worker
+fork/log isolation. This catches platform-specific regressions without requiring
+ML dependencies on macOS.</p>
+<p>CI and the release workflow also check the previous published Client against
+the current Server over real HTTP. Run the same check from the repository root:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>tests/compatibility/check_previous_client.py<span class="w"> </span>--client-version<span class="w"> </span><span class="m">2</span>.1.0
+</code></pre></div>
+<p>The script uses <code>uv</code> to install Client 2.1.0 from PyPI into a temporary isolated
+environment and starts the current Server with a temporary SQLite database.
+It checks submission, retrieval, listing, claims, heartbeats, completion, failure
+reports, and an empty Queue. This check needs access to PyPI and runs separately
+from ordinary <code>pytest</code> collection. For the next release after 2.2.0, update the
+baseline in both workflows and this command to the immediately previous
+published v2 Client.</p>
 <p>Ordinary unit and integration tests run without ML frameworks. The explicitly
 marked launcher suite exercises real <code>torchrun</code> and Accelerate installations:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-m<span class="w"> </span>distributed_integration
