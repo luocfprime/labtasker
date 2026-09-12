@@ -3076,6 +3076,9 @@ local mode. A deployment or experiment environment that needs only one side
 installs <code>labtasker-client</code> or <code>labtasker-server</code> directly. An extra such as
 <code>labtasker[slim]</code> is not used because Python extras add dependencies and cannot
 subtract the Server from the default installation.</p>
+<p>All three distributions support Python 3.10 or newer. Client-only installations
+remain useful in established ML environments because they avoid the Server
+dependency tree, not because they have a different Python requirement.</p>
 <p>All three distributions use the same release version and are published together
 initially, but independently installed Client and Server runtime protocol does
 not require exact package-version equality. V2 creates no shared runtime
@@ -3141,14 +3144,21 @@ than Task semantics.</p>
 OpenAPI contract tests, Client-to-Server end to end, deterministic concurrency
 races, concurrent local-daemon startup/recovery, fresh schema plus every
 supported Alembic forward-upgrade fixture, the fake distributed launcher, and
-the real Linux single-node torchrun/Accelerate suite. After 2.0.0, it must also
-pass the previous released v2 Client core flow against the candidate Server. V2
+the real Linux single-node torchrun/Accelerate suite. The complete Client suite
+must also pass on every supported Python version, 3.10 through 3.14, with every
+direct runtime dependency at its declared minimum and, in a separate fresh
+Python 3.10 resolution, with the newest versions allowed by its metadata. The
+complete Server suite must likewise pass at its direct dependency minima on
+every supported Python version, 3.10 through 3.14. Built Client and Server
+wheels are installed independently, and all three distributions are installed
+together, on Python 3.10 through 3.14. After 2.0.0, each release must pass the previous
+released v2 Client core flow against the candidate Server. V2
 sets no arbitrary coverage percentage and does not block release on a large
 probabilistic stress suite or a complete macOS/Windows matrix.</p>
 <h3 id="05-technology-baseline">0.5 Technology baseline</h3>
-<p>The initial implementation targets Python 3.11 or newer and uses one monorepo
-workspace with the three distributions from section 0.3. The selected stack is
-deliberately conventional:</p>
+<p>The Client, Server, full metapackage, and development workspace target Python
+3.10 or newer. The three distributions live in the one monorepo workspace
+described in section 0.3. The selected stack is deliberately conventional:</p>
 <ul>
 <li>the <code>labtasker-client</code> distribution's <code>labtasker</code> package uses Pydantic 2 for
   public boundary models and
@@ -3161,9 +3171,27 @@ deliberately conventional:</p>
   boundaries where behavior depends on persistence or protocol semantics.</li>
 </ul>
 <p>This baseline does not add async HTTP/database variants, SQLModel, a shared core
-distribution, repository/plugin abstractions or multiple storage backends. Exact
-compatible dependency patch versions belong to package metadata and lock files;
-they are not a user-visible protocol negotiation mechanism.</p>
+distribution, repository/plugin abstractions or multiple storage backends.
+Distribution metadata declares the oldest dependency versions exercised by the
+release gate and otherwise avoids upper bounds unless crossing the bound is
+expected to break the supported API. The workspace lock file tracks current
+compatible releases for the ordinary matrix. Automated dependency updates must
+update that lock file without raising published lower bounds. A lower bound is
+raised only for a concrete implementation need, an upstream support boundary, or
+a security requirement, and its minimum-version test is raised in the same
+change. When an older dependency release cannot run on a newer Python version,
+environment markers declare the smallest compatible floor for that interpreter
+without raising the floor for older environments. A separate Python 3.10 Client
+test resolves the newest versions allowed by package metadata rather than
+treating the workspace lock as a fresh upper-edge resolution. Minimum tests use
+the package metadata itself with <code>lowest-direct</code> resolution and verify the
+installed direct versions equal the active declared inclusive floors. They do
+not maintain a second minimum lock or force transitive packages to their oldest
+releases.
+The fresh highest resolution is an early-warning canary rather than the
+reproducible stability gate; the release workflow still requires it before
+publication. Dependency versions are not a user-visible protocol negotiation
+mechanism.</p>
 <h2 id="1-explicit-routing">1. Explicit routing</h2>
 <p>Status: <strong>Decided</strong></p>
 <h3 id="11-contract">1.1 Contract</h3>
@@ -5775,8 +5803,9 @@ CLI error contract rather than producing a partial result.</p>
 <span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"default"</span>
 <span class="n">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"secret"</span>
 </code></pre></div>
-<p>TOML is used because Python 3.11 reads it through the standard-library <code>tomllib</code>;
-v2 does not add a YAML/config-framework dependency. Every key, including <code>url</code>
+<p>TOML is read through standard-library <code>tomllib</code> on Python 3.11 and newer, with
+the small <code>tomli</code> backport used by the Python 3.10 Client; v2 does not add a
+YAML/config-framework dependency. Every key, including <code>url</code>
 and <code>token</code>, is optional. An absent effective URL selects the CWD-bound local mode;
 an effective URL selects explicitly managed HTTP mode. Omitting <code>token</code> means that
 the Client sends no Authorization header; this is ordinary for both local mode and
@@ -6606,6 +6635,10 @@ and change inspection noisy.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>2026-09-12</td>
+<td>Support all three distributions on Python 3.10+; define runtime lower bounds as release-tested compatibility floors, keep automated Python updates lockfile-only, derive and verify exact direct minima without a second lock across Python 3.10 through 3.14, test the Python 3.10 Client against a fresh latest-allowed resolution, and smoke-test independent and full wheel installations across the same Python matrix.</td>
+</tr>
 <tr>
 <td>2026-08-28</td>
 <td>Expose eager root <code>--version</code> options on both runtime executables, reporting the owning runtime distribution and package version on stdout without configuration, network or local-daemon side effects; list the option in root help without embedding the current version there.</td>
