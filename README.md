@@ -44,6 +44,14 @@ The key features are:
   [agent-readable documentation](docs/llms.txt) allow an agent to operate
   Labtasker end to end.
 
+## See Labtasker in action
+
+This visual overview shows Workers sharing a Queue, failed Tasks returning for
+another attempt, live experiment changes, structured results, and agent-driven
+operation.
+
+<video src="https://github.com/user-attachments/assets/152e54dd-734d-479d-b961-5ba428da551c" width="100%" controls playsinline></video>
+
 > [!TIP]
 > **Hand Labtasker operations over to your coding agent.** Install the bundled
 > [Agent Skill](docs/guides/agent-skill.md), then let your agent handle the

@@ -44,6 +44,14 @@ The key features are:
   [agent-readable documentation](llms.txt) allow an agent to operate Labtasker
   end to end.
 
+## See Labtasker in action
+
+This visual overview shows Workers sharing a Queue, failed Tasks returning for
+another attempt, live experiment changes, structured results, and agent-driven
+operation.
+
+<video src="https://github.com/user-attachments/assets/152e54dd-734d-479d-b961-5ba428da551c" width="100%" controls playsinline></video>
+
 ## When to use Labtasker
 
 Labtasker is designed for independent ML work such as:
