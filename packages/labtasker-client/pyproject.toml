@@ -11,7 +11,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "lcf", email = "luocfprime@gmail.com" }]
 dependencies = [
-  "httpx[socks]>=0.28,<1",
+  "httpx[socks]>=0.28.1,<1",
   "packaging>=24,<27",
   "pydantic>=2.13.5,<3",
   "typer>=0.16,<1",
