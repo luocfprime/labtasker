@@ -15,7 +15,7 @@ possible with custom code does not make it a Labtasker interface.
 | User wants to operate a Unix socket directly | Do not. The local socket is private automatic-local transport, not a configurable public Server interface; use HTTP for a self-managed Server. |
 
 The `labtasker` convenience package installs matching Client and Server
-distributions and is the default for local use. All packages require Python 3.11
+distributions and is the default for local use. All packages require Python 3.10
 or newer.
 
 Automatic local mode is selected only when no URL is configured. It is bound to

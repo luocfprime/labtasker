@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any, Literal, cast, overload
 
 from sqlalchemy import and_, func, or_, select, update
@@ -60,6 +60,7 @@ TASK_ORDER_COLUMNS = {
     "finished_at": TaskRow.finished_at_us,
 }
 NULLABLE_ORDER_FIELDS = {"name", "last_route", "started_at", "finished_at"}
+UTC = timezone.utc
 
 
 @dataclass(frozen=True, slots=True)

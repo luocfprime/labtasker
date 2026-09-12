@@ -4,7 +4,7 @@ import ast
 import math
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any, Literal, TypeAlias, cast
 
 from sqlalchemy import Boolean, and_, case, column, false, func, not_, or_, select, table, true
@@ -53,6 +53,7 @@ LAST_ERROR_TYPES: dict[str, tuple[str, bool, str]] = {
     "run_id": ("string", False, "run_id"),
 }
 TASK_STATUSES = {"pending", "running", "succeeded", "failed", "cancelled"}
+UTC = timezone.utc
 
 
 @dataclass(frozen=True, slots=True)

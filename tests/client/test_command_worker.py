@@ -11,7 +11,7 @@ import threading
 import time
 from collections import deque
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -31,6 +31,8 @@ from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError
 from labtasker.execution import RunControl, finish, task_info
 from labtasker.models import ClaimResponse, Queue, Task
+
+UTC = timezone.utc
 
 
 def make_claim(

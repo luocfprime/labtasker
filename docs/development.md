@@ -32,8 +32,15 @@ does not use the single-artifact Pages deployment flow.
 
 ## Dependency and release automation
 
-Dependabot checks the uv workspace and GitHub Actions each week. GitHub reads
-`.github/dependabot.yml` from the repository's default branch.
+Dependabot checks the uv workspace and GitHub Actions each week. Python updates
+are lockfile-only: they refresh the versions exercised by the ordinary test
+matrix without silently raising the distributions' declared lower bounds.
+Runtime lower bounds move only when implementation, upstream support, or a
+security requirement needs a newer version, and the affected minimum-version
+test must move with them. A dependency may have a higher floor on a newer Python
+version when the older release cannot run there; those markers are also exercised
+by the minimum matrix. GitHub reads `.github/dependabot.yml` from the repository's
+default branch.
 
 Publishing a GitHub Release runs the complete ordinary gate, the real Linux
 distributed suite, clean-wheel smoke tests, and then publishes all three
@@ -110,12 +117,21 @@ license.
 
 ## Test suites
 
-CI runs the ordinary test suite and independent Client/Server wheel installation
-checks on Ubuntu with Python 3.11, 3.12, 3.13, and 3.14. Each version has a
-separate result, and one failure does not cancel the other versions. Formatting,
-lint, type checks, and the documentation build run once on Python 3.11. Packages
-are built once on Python 3.11, then the same wheels are tested on all four
-versions. The real distributed launcher suite runs in the release workflow.
+CI runs the ordinary test suite and independent Client/Server/full wheel
+installation checks on Ubuntu with Python 3.10 through 3.14. Separate
+compatibility matrices install both `labtasker-client` and `labtasker-server` on
+each of those Python versions with every direct runtime dependency at its
+declared minimum, then run each distribution's complete test suite. Another
+isolated Python 3.10 job
+resolves the newest dependency versions allowed by Client metadata on every run
+and runs the complete Client suite as a non-blocking compatibility canary. The
+canary complements the reproducible workspace lock with a fresh resolution.
+Each Python version has a separate result, and one failure does not cancel the
+other versions.
+Formatting, lint, type checks, and the documentation build run once on Python
+3.11. Packages are built once on Python 3.11, then the same wheels are tested on
+independent and full installations on Python 3.10 through 3.14. The real
+distributed launcher suite runs in the release workflow.
 
 A focused macOS/Python 3.11 CI job checks database ownership, inherited locks,
 local daemon startup and recovery, Command Worker cancellation, and Worker

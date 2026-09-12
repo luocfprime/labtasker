@@ -65,7 +65,7 @@ migration interview and mapping rules.
 
 ## Use the default local path first
 
-Labtasker requires Python 3.11 or newer. In an ordinary POSIX experiment
+Labtasker requires Python 3.10 or newer. In an ordinary POSIX experiment
 project, install the complete package:
 
 ```bash

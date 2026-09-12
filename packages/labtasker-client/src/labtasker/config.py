@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import os
-import tomllib
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 from labtasker.errors import ConfigError
 from labtasker.local import LocalPaths, local_paths, require_local_capabilities

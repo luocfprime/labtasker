@@ -4,8 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import tomllib
+import sys
 from pathlib import Path
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[4]
 VERSION_PATTERN = re.compile(

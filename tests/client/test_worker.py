@@ -7,7 +7,7 @@ import threading
 import time
 import warnings
 from collections import deque
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -46,6 +46,8 @@ from labtasker.worker import (
     loop,
     report_complete_until_resolved,
 )
+
+UTC = timezone.utc
 
 
 def make_claim(

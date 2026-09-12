@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -17,6 +17,8 @@ from labtasker.validation import (
     validate_task_name,
     validate_unicode_scalar,
 )
+
+UTC = timezone.utc
 
 
 class ResponseModel(BaseModel):

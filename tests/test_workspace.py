@@ -5,10 +5,14 @@ import json
 import os
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
 import pytest
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 import labtasker
 import labtasker_server
@@ -28,6 +32,7 @@ def test_workspace_and_all_distributions_share_one_version() -> None:
 
 
 def test_distribution_metadata_keeps_packages_independent_and_aligned() -> None:
+    workspace = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     client = tomllib.loads(
         (ROOT / "packages/labtasker-client/pyproject.toml").read_text(encoding="utf-8")
     )
@@ -46,6 +51,10 @@ def test_distribution_metadata_keeps_packages_independent_and_aligned() -> None:
     assert client["project"]["name"] == "labtasker-client"
     assert server["project"]["name"] == "labtasker-server"
     assert metapackage["project"]["name"] == "labtasker"
+    assert client["project"]["requires-python"] == ">=3.10"
+    assert server["project"]["requires-python"] == ">=3.10"
+    assert metapackage["project"]["requires-python"] == ">=3.10"
+    assert workspace["project"]["requires-python"] == ">=3.10"
     assert set(metapackage["project"]["dependencies"]) == {
         f"labtasker-client=={WORKSPACE_VERSION}",
         f"labtasker-server=={WORKSPACE_VERSION}",

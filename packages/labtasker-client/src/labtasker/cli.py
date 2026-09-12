@@ -7,7 +7,6 @@ from typing import Annotated, Any, TypeVar, cast
 
 import typer
 from pydantic import BaseModel
-from typer._click.core import Context as ClickContext
 from typer.core import TyperCommand
 
 from labtasker import __version__
@@ -82,10 +81,12 @@ def main(
 class _SeparatedCommand(TyperCommand):
     """Require the explicit boundary between Worker options and child argv."""
 
-    def collect_usage_pieces(self, ctx: ClickContext) -> list[str]:
+    # Typer 0.26 vendored Click, so its internal Context type differs from the
+    # public typer.Context used by earlier supported releases.
+    def collect_usage_pieces(self, ctx: Any) -> list[str]:
         return [*super().collect_usage_pieces(ctx), "--", "COMMAND", "[ARG...]"]
 
-    def parse_args(self, ctx: ClickContext, args: list[str]) -> list[str]:
+    def parse_args(self, ctx: Any, args: list[str]) -> list[str]:
         ctx.meta["labtasker_command_separator"] = "--" in args
         return super().parse_args(ctx, args)
 
@@ -172,7 +173,7 @@ def worker_loop(
 def task_submit(
     args: Annotated[
         str,
-        typer.Option(help="Task arguments as one strict JSON object."),
+        typer.Option(metavar="<str>", help="Task arguments as one strict JSON object."),
     ] = "{}",
     name: Annotated[
         str | None,

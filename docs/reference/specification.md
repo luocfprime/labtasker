@@ -201,6 +201,10 @@ installs `labtasker-client` or `labtasker-server` directly. An extra such as
 `labtasker[slim]` is not used because Python extras add dependencies and cannot
 subtract the Server from the default installation.
 
+All three distributions support Python 3.10 or newer. Client-only installations
+remain useful in established ML environments because they avoid the Server
+dependency tree, not because they have a different Python requirement.
+
 All three distributions use the same release version and are published together
 initially, but independently installed Client and Server runtime protocol does
 not require exact package-version equality. V2 creates no shared runtime
@@ -276,16 +280,23 @@ Every release must pass unit tests, real temporary-SQLite integration, HTTP and
 OpenAPI contract tests, Client-to-Server end to end, deterministic concurrency
 races, concurrent local-daemon startup/recovery, fresh schema plus every
 supported Alembic forward-upgrade fixture, the fake distributed launcher, and
-the real Linux single-node torchrun/Accelerate suite. After 2.0.0, it must also
-pass the previous released v2 Client core flow against the candidate Server. V2
+the real Linux single-node torchrun/Accelerate suite. The complete Client suite
+must also pass on every supported Python version, 3.10 through 3.14, with every
+direct runtime dependency at its declared minimum and, in a separate fresh
+Python 3.10 resolution, with the newest versions allowed by its metadata. The
+complete Server suite must likewise pass at its direct dependency minima on
+every supported Python version, 3.10 through 3.14. Built Client and Server
+wheels are installed independently, and all three distributions are installed
+together, on Python 3.10 through 3.14. After 2.0.0, each release must pass the previous
+released v2 Client core flow against the candidate Server. V2
 sets no arbitrary coverage percentage and does not block release on a large
 probabilistic stress suite or a complete macOS/Windows matrix.
 
 ### 0.5 Technology baseline
 
-The initial implementation targets Python 3.11 or newer and uses one monorepo
-workspace with the three distributions from section 0.3. The selected stack is
-deliberately conventional:
+The Client, Server, full metapackage, and development workspace target Python
+3.10 or newer. The three distributions live in the one monorepo workspace
+described in section 0.3. The selected stack is deliberately conventional:
 
 - the `labtasker-client` distribution's `labtasker` package uses Pydantic 2 for
   public boundary models and
@@ -298,9 +309,27 @@ deliberately conventional:
   boundaries where behavior depends on persistence or protocol semantics.
 
 This baseline does not add async HTTP/database variants, SQLModel, a shared core
-distribution, repository/plugin abstractions or multiple storage backends. Exact
-compatible dependency patch versions belong to package metadata and lock files;
-they are not a user-visible protocol negotiation mechanism.
+distribution, repository/plugin abstractions or multiple storage backends.
+Distribution metadata declares the oldest dependency versions exercised by the
+release gate and otherwise avoids upper bounds unless crossing the bound is
+expected to break the supported API. The workspace lock file tracks current
+compatible releases for the ordinary matrix. Automated dependency updates must
+update that lock file without raising published lower bounds. A lower bound is
+raised only for a concrete implementation need, an upstream support boundary, or
+a security requirement, and its minimum-version test is raised in the same
+change. When an older dependency release cannot run on a newer Python version,
+environment markers declare the smallest compatible floor for that interpreter
+without raising the floor for older environments. A separate Python 3.10 Client
+test resolves the newest versions allowed by package metadata rather than
+treating the workspace lock as a fresh upper-edge resolution. Minimum tests use
+the package metadata itself with `lowest-direct` resolution and verify the
+installed direct versions equal the active declared inclusive floors. They do
+not maintain a second minimum lock or force transitive packages to their oldest
+releases.
+The fresh highest resolution is an early-warning canary rather than the
+reproducible stability gate; the release workflow still requires it before
+publication. Dependency versions are not a user-visible protocol negotiation
+mechanism.
 
 ## 1. Explicit routing
 
@@ -3328,8 +3357,9 @@ queue = "default"
 token = "secret"
 ```
 
-TOML is used because Python 3.11 reads it through the standard-library `tomllib`;
-v2 does not add a YAML/config-framework dependency. Every key, including `url`
+TOML is read through standard-library `tomllib` on Python 3.11 and newer, with
+the small `tomli` backport used by the Python 3.10 Client; v2 does not add a
+YAML/config-framework dependency. Every key, including `url`
 and `token`, is optional. An absent effective URL selects the CWD-bound local mode;
 an effective URL selects explicitly managed HTTP mode. Omitting `token` means that
 the Client sends no Authorization header; this is ordinary for both local mode and
@@ -4298,6 +4328,7 @@ and change inspection noisy.
 
 | Date | Decision |
 |---|---|
+| 2026-09-12 | Support all three distributions on Python 3.10+; define runtime lower bounds as release-tested compatibility floors, keep automated Python updates lockfile-only, derive and verify exact direct minima without a second lock across Python 3.10 through 3.14, test the Python 3.10 Client against a fresh latest-allowed resolution, and smoke-test independent and full wheel installations across the same Python matrix. |
 | 2026-08-28 | Expose eager root `--version` options on both runtime executables, reporting the owning runtime distribution and package version on stdout without configuration, network or local-daemon side effects; list the option in root help without embedding the current version there. |
 | 2026-08-28 | Make stdout the single machine-readable response channel for finite Client commands: successful data or a handled `LabtaskerError` envelope is written there, diagnostics remain on stderr, and exit status distinguishes success from failure. Keep usage errors and continuing `loop` failures as natural-language stderr, with no output-mode flag or response wrapper. |
 | 2026-09-09 | Add supplementary loop-scoped Worker observations with independent best-effort reporting, 60-second renewal and 300-second expiry; preserve Task authority and the phase-specific network-resilience boundary in section 3.0. Extend existing Task counts and new Worker counts with restricted ordered grouping through HTTP, Python and CLI (section 8.6). This supersedes historical decisions excluding Worker observations and grouping; routes remain labels and no remote process control is added. |

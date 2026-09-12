@@ -37,6 +37,10 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy packages/labtasker-client/src packages/labtasker-server/src
       - run: uv run pytest
+      - name: Test the Client on Python 3.10 with latest allowed dependencies
+        run: >-
+          uv run python tests/compatibility/check_client_dependencies.py
+          --profile latest --python 3.10
       - name: Check previous released Client compatibility
         run: uv run python tests/compatibility/check_previous_client.py --client-version 2.1.0
       - run: uv run zensical build --clean
@@ -66,45 +70,78 @@ jobs:
                   f"release distributions differ: expected {sorted(expected)}, found {sorted(actual)}"
               )
           PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-distributions
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  package:
+    name: Package smoke test (Python ${{ matrix.python }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-distributions
+          path: dist/
       - name: Smoke-test release wheels
+        env:
+          EXPECTED_VERSION: ${{ github.event.release.tag_name }}
         run: |
           client_smoke_dir=$(mktemp -d)
           server_smoke_dir=$(mktemp -d)
           full_smoke_dir=$(mktemp -d)
-          client_wheel="dist/labtasker_client-${EXPECTED_VERSION}-py3-none-any.whl"
-          server_wheel="dist/labtasker_server-${EXPECTED_VERSION}-py3-none-any.whl"
-          metapackage_wheel="dist/labtasker-${EXPECTED_VERSION}-py3-none-any.whl"
-          uv venv "$client_smoke_dir"
-          uv venv "$server_smoke_dir"
-          uv venv "$full_smoke_dir"
+          expected_version="${EXPECTED_VERSION#v}"
+          client_wheel="dist/labtasker_client-${expected_version}-py3-none-any.whl"
+          server_wheel="dist/labtasker_server-${expected_version}-py3-none-any.whl"
+          metapackage_wheel="dist/labtasker-${expected_version}-py3-none-any.whl"
+          uv venv --no-project --python "${{ matrix.python }}" "$client_smoke_dir"
+          uv venv --no-project --python "${{ matrix.python }}" "$server_smoke_dir"
+          uv venv --no-project --python "${{ matrix.python }}" "$full_smoke_dir"
           uv pip install --python "$client_smoke_dir/bin/python" "$client_wheel"
           uv pip install --python "$server_smoke_dir/bin/python" "$server_wheel"
           uv pip install --python "$full_smoke_dir/bin/python" \
             "$metapackage_wheel" "$client_wheel" "$server_wheel"
-          "$client_smoke_dir/bin/python" - <<'PY'
+          EXPECTED_VERSION="$expected_version" "$client_smoke_dir/bin/python" - <<'PY'
           import importlib.metadata
           import importlib.util
           import os
           import labtasker
 
-          assert importlib.metadata.version("labtasker-client") == os.environ["EXPECTED_VERSION"]
-          assert labtasker.__version__ == os.environ["EXPECTED_VERSION"]
+          version = os.environ["EXPECTED_VERSION"]
+          assert importlib.metadata.version("labtasker-client") == version
+          assert labtasker.__version__ == version
           assert importlib.util.find_spec("labtasker_server") is None
           assert importlib.util.find_spec("fastapi") is None
           PY
-          "$server_smoke_dir/bin/python" - <<'PY'
+          EXPECTED_VERSION="$expected_version" "$server_smoke_dir/bin/python" - <<'PY'
           import importlib.metadata
           import importlib.util
           import os
           import labtasker_server
           from labtasker_server.app import create_app
 
-          assert importlib.metadata.version("labtasker-server") == os.environ["EXPECTED_VERSION"]
-          assert labtasker_server.__version__ == os.environ["EXPECTED_VERSION"]
+          version = os.environ["EXPECTED_VERSION"]
+          assert importlib.metadata.version("labtasker-server") == version
+          assert labtasker_server.__version__ == version
           assert callable(create_app)
           assert importlib.util.find_spec("labtasker") is None
           PY
-          "$full_smoke_dir/bin/python" - <<'PY'
+          EXPECTED_VERSION="$expected_version" "$full_smoke_dir/bin/python" - <<'PY'
           import importlib.metadata
           import os
           import labtasker
@@ -114,21 +151,54 @@ jobs:
           assert importlib.metadata.version("labtasker") == version
           assert importlib.metadata.version("labtasker-client") == version
           assert importlib.metadata.version("labtasker-server") == version
-          assert labtasker.__version__ == version
-          assert labtasker_server.__version__ == version
+          assert labtasker.__version__ == labtasker_server.__version__ == version
           PY
           "$client_smoke_dir/bin/labtasker" --help
           "$server_smoke_dir/bin/labtasker-server" --help
           "$full_smoke_dir/bin/labtasker" --help
           "$full_smoke_dir/bin/labtasker-server" --help
-      - uses: actions/upload-artifact@v7
+
+  client-minimum-dependencies:
+    name: Client minimum dependencies (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
         with:
-          name: release-distributions
-          path: |
-            dist/*.whl
-            dist/*.tar.gz
-          if-no-files-found: error
-          retention-days: 7
+          ref: ${{ github.event.release.tag_name }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Test the Client with minimum dependencies
+        run: >-
+          uv run --no-project --python 3.11 python
+          tests/compatibility/check_client_dependencies.py
+          --profile minimum --python "${{ matrix.python }}"
+
+  server-minimum-dependencies:
+    name: Server minimum dependencies (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Test the Server with minimum dependencies
+        run: >-
+          uv run --no-project --python 3.11 python
+          tests/compatibility/check_server_minimum.py
+          --python "${{ matrix.python }}"
 
   distributed:
     runs-on: ubuntu-latest
@@ -149,7 +219,10 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+      - client-minimum-dependencies
       - distributed
+      - package
+      - server-minimum-dependencies
     environment: pypi-client
     permissions:
       id-token: write

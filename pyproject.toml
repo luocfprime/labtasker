@@ -1,7 +1,7 @@
 [project]
 name = "labtasker-workspace"
 version = "2.2.0"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = []
 
 [tool.uv]
@@ -24,6 +24,7 @@ dev = [
   "pytest-cov>=6,<8",
   "pytest-timeout>=2.3,<3",
   "ruff>=0.16.6,<1",
+  "tomli>=2.0.1; python_version < '3.11'",
   "zensical==0.0.60",
 ]
 
@@ -49,7 +50,7 @@ exclude_also = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
@@ -67,7 +68,7 @@ extend-immutable-calls = ["labtasker.TaskArg", "labtasker.binding.TaskArg"]
 exclude = ["docs/**/*.md"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.10"
 strict = true
 mypy_path = [
   "packages/labtasker-client/src",

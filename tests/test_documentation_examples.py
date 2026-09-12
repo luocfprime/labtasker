@@ -5,14 +5,19 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import textwrap
-import tomllib
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 from labtasker.cli import app as client_app
 from labtasker_server.cli import app as server_app

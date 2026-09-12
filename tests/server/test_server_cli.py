@@ -243,7 +243,7 @@ def test_server_cli_has_explicit_serve_and_local_management_commands() -> None:
     assert "Initialize the database and run one Labtasker v2 Server process." in serve.stdout
     assert "LABTASKER_SERVER_TOKEN" in serve.stdout
     assert "Run only one Server process for each SQLite file." in serve.stdout
-    assert "non-loopback address requires a token" in serve.stdout
+    assert "non-loopback address requires a token" in " ".join(serve.stdout.split())
     assert "labtasker-server serve" in serve.stdout
     assert "╭" not in root.stdout + serve.stdout
     for removed in ("--token", "--workers", "--reload", "--log-level"):

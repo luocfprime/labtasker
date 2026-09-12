@@ -10,7 +10,7 @@
   <a href="https://github.com/luocfprime/labtasker/actions/workflows/ci.yml"><img src="https://github.com/luocfprime/labtasker/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/luocfprime/labtasker/actions/workflows/docs.yml"><img src="https://github.com/luocfprime/labtasker/actions/workflows/docs.yml/badge.svg" alt="Documentation"></a>
   <a href="https://pypi.org/project/labtasker/"><img src="https://img.shields.io/pypi/v/labtasker" alt="PyPI version"></a>
-  <img src="https://img.shields.io/badge/Python-%E2%89%A53.11-blue" alt="Python 3.11 or newer">
+  <img src="https://img.shields.io/badge/Python-%E2%89%A53.10-blue" alt="Python 3.10 or newer">
 </p>
 
 ---
@@ -61,8 +61,7 @@ operation.
 
 ## Installation
 
-Labtasker requires Python 3.11 or newer. Install the complete package for local
-use:
+Labtasker requires Python 3.10 or newer. Install the complete package for local use:
 
 ```bash
 python -m pip install labtasker
@@ -74,9 +73,16 @@ Or add it to a `uv` project:
 uv add labtasker
 ```
 
-The `labtasker` package installs matching Client and Server releases. You can
-also install `labtasker-client` and `labtasker-server` separately when they run
-in different environments.
+The `labtasker` package installs matching Client and Server releases. A remote
+Worker environment can install only the lightweight Client, avoiding the Server
+dependency tree:
+
+```bash
+python -m pip install labtasker-client
+```
+
+You can also install `labtasker-server` separately when the Server runs in its
+own environment.
 
 ## Example
 

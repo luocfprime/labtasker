@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 import threading
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, TypedDict, cast
 
@@ -17,6 +17,8 @@ from labtasker.validation import (
     validate_run_id,
     validate_task_id,
 )
+
+UTC = timezone.utc
 
 JournalPhase = Literal["running", "reporting", "acknowledged", "revoked"]
 TerminalAction = Literal["complete", "fail", "unclaim"]

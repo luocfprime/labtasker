@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -15,6 +15,7 @@ TASK_3 = "t_0123456789-_"
 RUN_1 = "r_ABCDEFGHIJKL"
 RUN_2 = "r_MNOPQRSTUVWX"
 RUN_3 = "r_0123456789-_"
+UTC = timezone.utc
 
 
 class Clock:
