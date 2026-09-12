@@ -85,11 +85,15 @@ and the comparison line is omitted only for the repository's first release:
 **Full Changelog**: [vPREVIOUS...vVERSION](https://github.com/luocfprime/labtasker/compare/vPREVIOUS...vVERSION)
 ```
 
-Put a GitHub `[!IMPORTANT]` admonition before `## Changes` when a release changes
-Client-Server interoperability, supported version combinations, API or persisted
-database compatibility, or requires an upgrade or migration action. State the
-exact consequence and action instead of writing only “compatibility changes.”
-Cover, when applicable:
+Use a GitHub `[!IMPORTANT]` admonition only when users need to take action or
+could otherwise encounter a material compatibility, migration, or safety risk.
+Release size is not the criterion. Do not add one merely because a compatible
+release changes Server code, adds a feature, or expands a supported range.
+Changes to Client-Server interoperability, supported version combinations, API
+or persisted database compatibility warrant an admonition only when their
+practical consequence deserves prominent attention. State the exact consequence
+and action instead of writing only “compatibility changes.” Cover, when
+applicable:
 
 - whether upgrading both Client and Server is required or only recommended;
 - which mixed-version combinations remain supported;
@@ -103,8 +107,9 @@ and use `recommended` for a same-version upgrade. Do not add an admonition when
 there is no compatibility or upgrade information worth calling out; repeated
 empty warnings make real warnings less visible.
 
-For a compatible release that merely benefits from matching versions, use this
-form rather than implying that a coordinated upgrade is mandatory:
+When a compatible release has a material mixed-version limitation worth
+highlighting, use this form rather than implying that a coordinated upgrade is
+mandatory:
 
 ```markdown
 > [!IMPORTANT]
