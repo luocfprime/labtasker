@@ -1252,6 +1252,19 @@ non-zero exit is logged locally but does not change the succeeded Task.</p>
 variables. <code>finish()</code> reports the result for the current run and writes a local
 journal update when possible. If the Server accepts the result but the journal
 write fails, the Task remains succeeded.</p>
+<p>The launched program can report a replace-only progress snapshot through Python:</p>
+<div class="highlight"><pre><span></span><code><span class="n">labtasker</span><span class="o">.</span><span class="n">report_progress</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"completed"</span><span class="p">:</span> <span class="mi">1200</span><span class="p">,</span> <span class="s2">"total"</span><span class="p">:</span> <span class="mi">5000</span><span class="p">,</span> <span class="s2">"metrics"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"val_loss"</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">}}</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Non-Python commands can use the inherited execution context through the CLI:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>progress<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--data<span class="w"> </span><span class="s1">'{"completed":1200,"total":5000,"metrics":{"val_loss":0.8}}'</span>
+</code></pre></div>
+<p>The CLI prints <code>{"reported": true}</code> when accepted and false for an isolated
+best-effort failure. Progress never completes the Task or renews its lease. The
+object is otherwise unrestricted; <code>completed</code> and <code>total</code> are the optional
+Labtasker WebUI convention for a determinate progress indicator.</p>
 <p>After <code>finish()</code>, the command may keep running for cleanup. When the Server
 cancels or recovers the run, the Worker sends termination to the child process
 group. By default it waits without a time limit. Set

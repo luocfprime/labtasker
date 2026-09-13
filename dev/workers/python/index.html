@@ -1276,6 +1276,23 @@ result before local cleanup continues:</p>
 </code></pre></div>
 <p>Calling <code>finish()</code> twice is an error. Outside Labtasker, it raises unless
 <code>skip_if_no_labtasker=True</code> is explicitly requested.</p>
+<p>Report a compact latest snapshot for dashboards or an external early-stop
+controller without completing the Task:</p>
+<div class="highlight"><pre><span></span><code><span class="n">labtasker</span><span class="o">.</span><span class="n">report_progress</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">"completed"</span><span class="p">:</span> <span class="n">completed_steps</span><span class="p">,</span>
+        <span class="s2">"total"</span><span class="p">:</span> <span class="n">total_steps</span><span class="p">,</span>
+        <span class="s2">"metrics"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"val_loss"</span><span class="p">:</span> <span class="n">val_loss</span><span class="p">,</span> <span class="s2">"best_val_loss"</span><span class="p">:</span> <span class="n">best_val_loss</span><span class="p">},</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Each call completely replaces the previous JSON object. It returns <code>True</code> when
+accepted and <code>False</code> when a transport or Server failure is isolated from the
+running workload. Progress does not renew the heartbeat lease. Report at useful
+evaluation/checkpoint boundaries rather than every inner-loop step. The object
+has no required business keys. <code>completed</code> and <code>total</code> are the optional
+Labtasker WebUI convention for displaying determinate progress; current metrics
+and early-stop diagnostics can use any other JSON keys.</p>
 <h2 id="cooperative-cancellation">Cooperative cancellation</h2>
 <p><code>cancellation_requested()</code> tells Python code that the Server cancelled or
 recovered its current run. By default, Labtasker waits for the function to

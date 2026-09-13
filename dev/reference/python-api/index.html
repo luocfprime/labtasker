@@ -1687,7 +1687,7 @@ Server.</p>
 <tbody>
 <tr>
 <td><code>Task</code></td>
-<td><code>id</code>, <code>queue</code>, <code>status</code>, <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, <code>result</code>, <code>last_error</code>, <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, <code>finished_at</code></td>
+<td><code>id</code>, <code>queue</code>, <code>status</code>, <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, <code>result</code>, nullable <code>progress</code>, <code>progress_updated_at</code>, <code>progress_attempt</code>, <code>last_error</code>, <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, <code>finished_at</code></td>
 </tr>
 <tr>
 <td><code>TaskPage</code></td>
@@ -1721,6 +1721,7 @@ def worker(...): ...
 TaskArg(default=..., path=None, resolver=None)
 task_info() -&gt; TaskInfo
 finish(result=None, *, skip_if_no_labtasker=False) -&gt; None
+report_progress(progress, *, skip_if_no_labtasker=False) -&gt; bool
 cancellation_requested() -&gt; bool
 set_force_stop_timeout(seconds: float | None) -&gt; None
 </code></pre></div>
@@ -1730,6 +1731,16 @@ one JSON object and completes the Task before local cleanup continues. It is
 stable once accepted and may be called only once. The context helpers require an
 active Worker execution; cancellation and force-stop helpers require a Python
 Worker execution.</p>
+<p><code>report_progress()</code> replaces the current run's latest strict JSON-object
+snapshot. It returns <code>True</code> when accepted. Transport failures and Server
+rejections are isolated from Task execution, log a warning and return <code>False</code>;
+confirmed run finalization also updates the existing local revocation state.
+Invalid JSON-compatible data or missing context raises. The Server supplies the
+public report timestamp and attempt, retains the last snapshot after the run
+ends, and clears it on the next claim. Reports do not renew heartbeat leases.
+The object has no required business keys. <code>completed</code> and <code>total</code> form an
+optional display convention used by Labtasker WebUI, not a validation rule for
+the Python or HTTP API.</p>
 <p>See <a href="../../workers/python/">Python Workers</a> for binding, cancellation, failure,
 and Worker-lifetime semantics.</p>
 <h2 id="errors-and-retries">Errors and retries</h2>

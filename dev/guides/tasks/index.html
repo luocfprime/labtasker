@@ -1298,6 +1298,28 @@ labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w
 <p>List output is one page. Pass the returned <code>next_cursor</code> to request the next
 page. Do not inspect or modify a cursor; it is tied to the original query and
 ordering.</p>
+<p>Running Workers may publish a latest progress snapshot for dashboards and
+external early-stop controllers:</p>
+<div class="highlight"><pre><span></span><code><span class="n">labtasker</span><span class="o">.</span><span class="n">report_progress</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">"completed"</span><span class="p">:</span> <span class="mi">1200</span><span class="p">,</span>
+        <span class="s2">"total"</span><span class="p">:</span> <span class="mi">5000</span><span class="p">,</span>
+        <span class="s2">"metrics"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"val_loss"</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">,</span> <span class="s2">"best_val_loss"</span><span class="p">:</span> <span class="mf">0.75</span><span class="p">},</span>
+        <span class="s2">"steps_without_improvement"</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The next report replaces this object. The object remains unrestricted.
+<code>completed</code> and <code>total</code> are an optional display convention: Labtasker WebUI
+shows a determinate indicator only when both are finite numbers and
+<code>0 &lt;= completed &lt;= total</code> with <code>total &gt; 0</code>. Other keys retain only the meaning
+assigned by the workload or controller.</p>
+<p>An external controller can inspect Tasks, compare progress within an experiment
+group, apply the experiment's explicit early-stop policy, and call
+<code>cancel_task(task.id)</code> only for the selected running Tasks.
+Cancellation uses the existing cooperative/forced-stop contract; Labtasker does
+not choose an early-stop policy. The last snapshot remains visible after cancel
+for diagnosis and is cleared if a later claim starts a new attempt.</p>
 <h2 id="update">Update</h2>
 <p>Update one non-running Task:</p>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>t_ABCDEFGHIJKL<span class="w"> </span><span class="se">\</span>

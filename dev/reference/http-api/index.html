@@ -1443,8 +1443,8 @@ curl<span class="w"> </span>http://127.0.0.1:8000/openapi.json<span class="w"> <
 <li>Request schemas reject unknown fields. Response schemas may gain optional
   fields within v2; existing fields, types, defaults, meanings, and Task states
   do not change without a new API prefix.</li>
-<li>Request bodies and complete stored Task data are each limited to 1 MiB. Large
-  artifacts do not belong in Task JSON.</li>
+<li>Request bodies and complete stored Task data, including progress, are each
+  limited to 1 MiB. Large artifacts do not belong in Task JSON.</li>
 <li>Public timestamps are UTC RFC 3339 strings. Task states are exactly <code>pending</code>,
   <code>running</code>, <code>succeeded</code>, <code>failed</code>, and <code>cancelled</code>.</li>
 <li>Successful <code>204</code> responses have no body. Clients must not invent receipt
@@ -1548,6 +1548,11 @@ establish protocol incompatibility.</p>
 <td><code>PATCH /api/v2/queues/{queue}/tasks</code></td>
 <td><code>{"filter":...,"changes":...}</code></td>
 <td><code>200</code> with <code>{"matched":N,"updated":M}</code>. The filter is required; the update is atomic across matching non-running Tasks.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/progress</code></td>
+<td><code>{"run_id":...,"progress":{...}}</code></td>
+<td><code>204</code>; the matching active run replaces its latest progress snapshot without renewing its lease or changing Task status.</td>
 </tr>
 <tr>
 <td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/cancel</code></td>
@@ -1720,6 +1725,11 @@ Python <code>Client</code>.</p>
 <td><code>200</code> with the renewed <code>lease_expires_at</code>.</td>
 </tr>
 <tr>
+<td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/progress</code></td>
+<td><code>{"run_id":...,"progress":{...}}</code></td>
+<td><code>204</code>; replaces the latest snapshot and does not renew the lease.</td>
+</tr>
+<tr>
 <td><code>POST /api/v2/queues/{queue}/tasks/{task_id}/complete</code></td>
 <td><code>{"run_id":...,"result":{...}}</code></td>
 <td><code>204</code>; completes the matching active run as succeeded.</td>
@@ -1749,9 +1759,15 @@ no <code>/runs</code> collection or execution-history API.</p>
 <h2 id="task-representation">Task representation</h2>
 <p>Ordinary get/list/action responses contain exactly these required v2 fields:</p>
 <div class="highlight"><pre><span></span><code>id, queue, status, name, args, metadata, priority, attempt, max_attempts,
-routes, result, last_error, last_route, created_at, updated_at, started_at,
-finished_at
+routes, result, progress, progress_updated_at, progress_attempt, last_error,
+last_route, created_at, updated_at, started_at, finished_at
 </code></pre></div>
+<p><code>progress</code> is null until the current attempt reports a strict JSON object.
+<code>progress_updated_at</code> and <code>progress_attempt</code> are Server-owned and are null at the
+same time. Reports completely replace the object; they do not merge it into the
+final <code>result</code>. Run completion, failure, expiry and cancellation retain the last
+snapshot, while the next successful claim clears it. Dynamic <code>progress.*</code> paths
+are available to Task filters.</p>
 <p>Active <code>run_id</code> and lease expiry appear only in Worker protocol responses, never
 in the ordinary Task resource.</p>
 <h2 id="errors">Errors</h2>

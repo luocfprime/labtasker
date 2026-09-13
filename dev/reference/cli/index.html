@@ -1307,6 +1307,7 @@ labtasker task delete TASK_ID
 labtasker worker list [OPTIONS]
 labtasker worker count [OPTIONS]
 
+labtasker progress --data JSON
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
 labtasker-server --version
 labtasker-server start
@@ -1400,6 +1401,11 @@ do not advertise a usable version do not trigger this warning.</p>
 <td><code>worker count</code></td>
 <td><code>{"count":N}</code> or a grouped page</td>
 <td>Counts unexpired observations; accepts <code>--filter</code>, <code>--group-by</code>, <code>--limit</code>, <code>--cursor</code>, and <code>--queue</code>.</td>
+</tr>
+<tr>
+<td><code>progress</code></td>
+<td><code>{"reported":true|false}</code></td>
+<td>Inside a Command Worker child, replaces the current run's latest strict JSON-object snapshot. A best-effort transport/revocation failure reports false without failing the command.</td>
 </tr>
 <tr>
 <td><code>queue create</code></td>

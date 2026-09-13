@@ -1278,7 +1278,9 @@ missing(result.score) or result.score &lt; 0.9
 dots, such as <code>metadata.benchmark</code> or <code>result.metrics.f1</code>.</p>
 <p>Supported top-level fields include <code>id</code>, <code>name</code>, <code>status</code>, <code>args</code>, <code>metadata</code>,
 <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, <code>result</code>, <code>last_error</code>,
-<code>last_route</code>, and Task timestamps.</p>
+nullable <code>progress</code>, <code>last_route</code>, and Task timestamps. Dynamic paths such as
+<code>progress.metrics.val_loss</code> select Tasks whose latest reported snapshot contains
+that path.</p>
 <h2 id="operators">Operators</h2>
 <div class="highlight"><pre><span></span><code>==  !=  &lt;  &lt;=  &gt;  &gt;=
 in  not in
