@@ -126,8 +126,18 @@ program:
 import labtasker
 
 # TODO: Replace this with metrics from your actual evaluator.
+# Replace the latest dashboard snapshot without completing the Task.
+labtasker.report_progress({"completed": completed_cases, "total": total_cases, "metrics": metrics})
+
 labtasker.finish(metrics, skip_if_no_labtasker=True)
 ```
+
+`progress` is a replace-only JSON object for current metrics and external
+early-stop decisions. It is retained when a run is cancelled, while `result`
+remains the final successful output. Full metric history and artifacts stay in
+the experiment's existing tracking or storage system. Labtasker does not
+restrict the object's keys. `completed` and `total` are the optional display
+convention used by Labtasker WebUI for a determinate progress indicator.
 
 Inspect progress and results at any time:
 

@@ -34,6 +34,7 @@ from labtasker.execution import (
     cancellation_requested,
     deactivate_context,
     finish,
+    report_progress,
     set_force_stop_timeout,
     task_info,
 )
@@ -45,6 +46,7 @@ from labtasker.worker import (
     _guard_worker_topology,
     loop,
     report_complete_until_resolved,
+    report_progress_once,
 )
 
 UTC = timezone.utc
@@ -785,6 +787,7 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
     )
     control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
     results: list[dict[str, Any]] = []
+    progress_reports: list[dict[str, Any]] = []
     info = TaskInfo(
         **claimed.task.model_dump(),
         run_id=claimed.run_id,
@@ -796,11 +799,14 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
         journal=journal,
         reporter=lambda result: not results.append(result),
         control=control,
+        progress_reporter=lambda progress: not progress_reports.append(progress),
     )
     activate_context(context)
     try:
         assert task_info() == info
         assert not cancellation_requested()
+        assert report_progress({"step": 4, "loss": 0.5})
+        assert progress_reports == [{"step": 4, "loss": 0.5}]
         set_force_stop_timeout(2)
         control.revoke("cancel")
         assert cancellation_requested()
@@ -813,6 +819,8 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
             set_force_stop_timeout(None)
         with pytest.raises(RuntimeError, match="already been called"):
             finish({})
+        with pytest.raises(RuntimeError, match="already completed"):
+            report_progress({})
     finally:
         context.control.executor_done()
         deactivate_context(context)
@@ -824,8 +832,43 @@ def test_context_functions_are_strict_outside_execution() -> None:
     with pytest.raises(RuntimeError, match="No active"):
         finish()
     finish(skip_if_no_labtasker=True)
+    assert not report_progress({}, skip_if_no_labtasker=True)
     with pytest.raises(RuntimeError, match="active Python"):
         cancellation_requested()
+
+
+def test_progress_transport_failure_is_best_effort_and_stale_run_revokes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class ProgressClient:
+        def __init__(self, error: Exception) -> None:
+            self.error = error
+
+        def _report_progress(self, **_: object) -> None:
+            raise self.error
+
+    control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
+    assert not report_progress_once(
+        ProgressClient(TransportError("offline")),  # type: ignore[arg-type]
+        queue="default",
+        task_id="t_ABCDEFGHIJKL",
+        run_id="r_ABCDEFGHIJKL",
+        progress={"step": 1},
+        control=control,
+    )
+    assert control.active
+    assert not report_progress_once(
+        ProgressClient(APIError(409, "run_finalized", "cancelled", {"action": "cancel"})),  # type: ignore[arg-type]
+        queue="default",
+        task_id="t_ABCDEFGHIJKL",
+        run_id="r_ABCDEFGHIJKL",
+        progress={"step": 2},
+        control=control,
+    )
+    assert control.revoked
+    assert control.revoked_action == "cancel"
+    assert "Progress report rejected; continuing Task: cancelled" in caplog.text
+    control.executor_done()
 
 
 @pytest.mark.parametrize("value", [True, -1, float("nan"), float("inf"), "1"])

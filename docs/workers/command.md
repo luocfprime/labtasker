@@ -76,6 +76,26 @@ variables. `finish()` reports the result for the current run and writes a local
 journal update when possible. If the Server accepts the result but the journal
 write fails, the Task remains succeeded.
 
+The launched program can report a replace-only progress snapshot through Python:
+
+```python
+labtasker.report_progress(
+    {"completed": 1200, "total": 5000, "metrics": {"val_loss": 0.8}}
+)
+```
+
+Non-Python commands can use the inherited execution context through the CLI:
+
+```bash
+labtasker progress \
+  --data '{"completed":1200,"total":5000,"metrics":{"val_loss":0.8}}'
+```
+
+The CLI prints `{"reported": true}` when accepted and false for an isolated
+best-effort failure. Progress never completes the Task or renews its lease. The
+object is otherwise unrestricted; `completed` and `total` are the optional
+Labtasker WebUI convention for a determinate progress indicator.
+
 After `finish()`, the command may keep running for cleanup. When the Server
 cancels or recovers the run, the Worker sends termination to the child process
 group. By default it waits without a time limit. Set

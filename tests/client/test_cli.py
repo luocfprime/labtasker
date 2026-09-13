@@ -16,6 +16,20 @@ from labtasker.models import Queue, Task
 runner = CliRunner()
 
 
+def test_progress_command_reports_strict_json_from_command_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reports: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "labtasker.cli.report_current_progress",
+        lambda progress: not reports.append(progress),
+    )
+    result = runner.invoke(app, ["progress", "--data", '{"step":7,"loss":0.5}'])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"reported": True}
+    assert reports == [{"step": 7, "loss": 0.5}]
+
+
 def test_version_reports_client_distribution_without_starting_server(tmp_path: Path) -> None:
     result = runner.invoke(app, ["--version"])
     help_result = runner.invoke(app, ["--help"])

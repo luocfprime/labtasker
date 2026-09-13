@@ -121,6 +121,55 @@ supported filter for subsequent changes.
 For online Worker queries and Server-side Task grouping by routes/status, read
 [observations-and-counts.md](observations-and-counts.md).
 
+## Apply an external early-stop policy from progress
+
+Labtasker stores the latest `progress` snapshot but does not choose an
+early-stop policy. A controller must use the experiment's explicit rule and
+scope, inspect current authoritative Task state, and cancel only the exact
+running Task IDs that meet that rule. Never infer a threshold, compare unrelated
+experiment groups, or cancel Tasks merely because progress is missing or stale.
+
+In Python, inspect every page of the intended running selection before mutating:
+
+```python
+import labtasker
+
+page = labtasker.list_tasks(
+    status="running",
+    filter='metadata.experiment == "sweep-7"',
+    limit=100,
+)
+tasks = list(page.items)
+while page.next_cursor is not None:
+    page = labtasker.list_tasks(
+        status="running",
+        filter='metadata.experiment == "sweep-7"',
+        limit=100,
+        cursor=page.next_cursor,
+    )
+    tasks.extend(page.items)
+
+# Apply the user-defined policy to task.progress, then review exact IDs.
+selected = [task for task in tasks if user_policy(task.progress)]
+for task in selected:
+    labtasker.cancel_task(task.id)
+```
+
+The same inspection is available through `labtasker task list` and
+`labtasker task get`; `labtasker task cancel TASK_ID` requests cancellation for
+one selected Task. Filters may address dynamic paths such as
+`progress.metrics.validation_loss`, but missing paths do not match comparisons.
+Use the Server-provided `progress_attempt` and `progress_updated_at` when the
+policy requires attempt or freshness checks. A retained terminal snapshot is
+diagnostic, not evidence that the Task is still running.
+
+Cancellation immediately changes the authoritative Task to `cancelled` and
+fences its `run_id`. Python Worker code should poll `cancellation_requested()`
+at safe boundaries, save any external checkpoint it needs, and return. Command
+Workers terminate the child process group under their configured force-stop
+contract. The last accepted progress snapshot remains available for diagnosis;
+it is not copied into `result`.
+
 ## Prioritize and update pending work
 
 Workers claim higher `priority` first. Equal-priority pending Tasks keep stable

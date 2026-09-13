@@ -48,6 +48,26 @@ def test_task_is_frozen_but_json_containers_remain_ordinary() -> None:
     assert task.args == {"seed": 2}
 
 
+def test_task_accepts_optional_progress_fields_from_newer_server() -> None:
+    payload = task_payload()
+    payload.update(
+        {
+            "progress": {"step": 12, "loss": 0.5},
+            "progress_updated_at": "2026-08-20T12:01:00Z",
+            "progress_attempt": 1,
+        }
+    )
+    task = parse(payload)
+    assert task.progress == {"step": 12, "loss": 0.5}
+    assert task.progress_attempt == 1
+    assert task.progress_updated_at is not None
+
+
+def test_task_defaults_missing_additive_progress_fields_to_none() -> None:
+    task = parse(task_payload())
+    assert (task.progress, task.progress_updated_at, task.progress_attempt) == (None, None, None)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

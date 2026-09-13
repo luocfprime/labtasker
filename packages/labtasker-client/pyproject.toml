@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "labtasker-client"
-version = "2.3.0"
+version = "2.4.0"
 description = "A small task queue for parallel model inference and evaluation"
 requires-python = ">=3.10"
 license = "Apache-2.0"

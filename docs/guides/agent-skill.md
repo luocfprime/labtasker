@@ -10,6 +10,9 @@ The skill covers v2 Task submission, Worker design, routing, inspection,
 updates, recovery, and adapting an existing experiment pipeline. It also explains
 how to compare pending Task demand with observed Worker activity through
 Python or CLI grouped counts, including pagination and delayed observations.
+It teaches Workers to publish replace-only progress snapshots, the optional
+`completed`/`total` display convention, and how an external controller can apply
+a user-defined early-stop rule before requesting cooperative cancellation.
 It covers fuzzy Task name search, advisory Server version warnings, and the
 Worker’s consecutive-failure limit without confusing it with Task retry budgets.
 During a migration it asks about the project's entry points, reusable setup,

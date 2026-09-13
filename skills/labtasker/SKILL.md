@@ -24,10 +24,11 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
   questions.
 - Read [workers-and-workloads.md](references/workers-and-workloads.md) when
   submitting Tasks, converting an experiment, choosing routes or Queues, binding Task args,
-  wrapping a command, reusing a loaded model, or using a distributed launcher.
+  wrapping a command, reusing a loaded model, reporting progress, or using a
+  distributed launcher.
 - Read [operations-and-recovery.md](references/operations-and-recovery.md) for
   idempotent submission, priority, filtering, fuzzy name search, pagination, updates, cancellation,
-  retries, interruption, and rerunning work.
+  external early-stop decisions, retries, interruption, and rerunning work.
 - Read [observations-and-counts.md](references/observations-and-counts.md) for
   online Workers, route presence, busy/idle activity, grouped counts, and
   paginated monitoring queries.
@@ -127,6 +128,13 @@ Put executable inputs in `args`, searchable grouping data in `metadata`, and
 compact JSON outputs in `result`. Save images, videos, checkpoints, trajectories,
 and detailed reports outside Labtasker and return their paths, URLs, checksums,
 or summaries.
+
+Use `progress` for one replace-only snapshot of provisional work position,
+metrics, or early-stop diagnostics. Keep `result` for the final successful
+output. Progress is not a history series and does not decide or complete the
+Task. When a determinate display is useful, use top-level finite numeric
+`completed` and `total` values with `0 <= completed <= total` and `total > 0`;
+all other keys remain workload-defined.
 
 Use a command Worker for an existing executable. Use a Python Worker when a
 model, dataset, simulator, or evaluator should be initialized once and reused.

@@ -19,6 +19,7 @@ from labtasker.errors import (
     APIError,
     ConfigError,
     FatalWorkerError,
+    LabtaskerError,
     TransientError,
     TransportError,
 )
@@ -260,6 +261,16 @@ def _run_python_claim(
             control.revoke("stale_run")
         return accepted
 
+    def progress_reporter(progress: dict[str, JSONValue]) -> bool:
+        return report_progress_once(
+            client,
+            queue=queue,
+            task_id=claim.task.id,
+            run_id=claim.run_id,
+            progress=progress,
+            control=control,
+        )
+
     info = TaskInfo(
         **claim.task.model_dump(),
         run_id=claim.run_id,
@@ -271,6 +282,7 @@ def _run_python_claim(
         journal=journal,
         reporter=report_complete,
         control=control,
+        progress_reporter=progress_reporter,
     )
     heartbeat = Heartbeat(
         client,
@@ -356,6 +368,39 @@ def report_complete_until_resolved(
         ),
         control=control,
     )
+
+
+def report_progress_once(
+    client: Client,
+    *,
+    queue: str,
+    task_id: str,
+    run_id: str,
+    progress: dict[str, JSONValue],
+    control: RunControl | None = None,
+) -> bool:
+    try:
+        client._report_progress(
+            task_id=task_id,
+            run_id=run_id,
+            progress=progress,
+            queue=queue,
+        )
+    except APIError as error:
+        if error.code == "run_finalized" and error.details.get("action") == "complete":
+            if control is not None:
+                control.complete()
+        elif error.code in {"run_finalized", "stale_run"} and control is not None:
+            control.revoke(str(error.details.get("action", error.code)))
+        logger.warning("Progress report rejected; continuing Task: %s", error.message)
+        return False
+    except TransportError as error:
+        logger.warning("Progress report transport error; continuing Task: %s", error.message)
+        return False
+    except LabtaskerError as error:
+        logger.warning("Progress report failed; continuing Task: %s", error.message)
+        return False
+    return True
 
 
 def _report_complete(

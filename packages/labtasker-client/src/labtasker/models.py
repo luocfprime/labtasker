@@ -68,6 +68,9 @@ class Task(ResponseModel):
     max_attempts: int
     routes: list[str]
     result: dict[str, JSONValue]
+    progress: dict[str, JSONValue] | None = None
+    progress_updated_at: datetime | None = None
+    progress_attempt: int | None = None
     last_error: LastError | None
     last_route: str | None
     created_at: datetime
@@ -90,15 +93,38 @@ class Task(ResponseModel):
     def validate_name(cls, value: str | None) -> str | None:
         return validate_task_name(value)
 
-    @field_validator("args", "metadata", "result")
+    @field_validator("args", "metadata", "result", "progress")
     @classmethod
-    def validate_objects(cls, value: dict[str, JSONValue], info: object) -> dict[str, JSONValue]:
+    def validate_objects(
+        cls,
+        value: dict[str, JSONValue] | None,
+        info: object,
+    ) -> dict[str, JSONValue] | None:
+        if value is None:
+            return None
         return validate_json_object(value, field=getattr(info, "field_name", "task"))
 
     @field_validator("priority", "attempt")
     @classmethod
     def validate_numbers(cls, value: int, info: object) -> int:
         return validate_int64(value, field=getattr(info, "field_name", "task"))
+
+    @field_validator("progress_attempt")
+    @classmethod
+    def validate_progress_attempt(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
+        value = validate_int64(value, field="progress_attempt")
+        if value < 0:
+            raise ValueError("progress_attempt must be non-negative")
+        return value
+
+    @model_validator(mode="after")
+    def validate_progress_fields(self) -> Task:
+        fields = (self.progress, self.progress_updated_at, self.progress_attempt)
+        if any(value is None for value in fields) and any(value is not None for value in fields):
+            raise ValueError("progress fields must be all null or all present")
+        return self
 
     @field_validator("max_attempts")
     @classmethod
@@ -118,7 +144,13 @@ class Task(ResponseModel):
     def validate_last_route(cls, value: str | None) -> str | None:
         return None if value is None else validate_identifier(value, field="last_route")
 
-    @field_validator("created_at", "updated_at", "started_at", "finished_at")
+    @field_validator(
+        "created_at",
+        "updated_at",
+        "started_at",
+        "finished_at",
+        "progress_updated_at",
+    )
     @classmethod
     def validate_times(cls, value: datetime | None) -> datetime | None:
         return None if value is None else _utc_datetime(value)

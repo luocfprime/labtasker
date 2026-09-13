@@ -50,6 +50,18 @@ class TaskRow(Base):
             name="ck_result_json",
         ),
         CheckConstraint(
+            "progress_json IS NULL OR "
+            "(json_valid(progress_json) AND json_type(progress_json) = 'object')",
+            name="ck_progress_json",
+        ),
+        CheckConstraint(
+            "(progress_json IS NULL AND progress_updated_at_us IS NULL "
+            "AND progress_attempt IS NULL) OR "
+            "(progress_json IS NOT NULL AND progress_updated_at_us IS NOT NULL "
+            "AND progress_attempt IS NOT NULL)",
+            name="ck_tasks_progress_state",
+        ),
+        CheckConstraint(
             "(status = 'pending' AND pending_at_us IS NOT NULL "
             "AND active_run_id IS NULL AND lease_expires_at_us IS NULL "
             "AND attempt < max_attempts) OR status != 'pending'",
@@ -98,6 +110,9 @@ class TaskRow(Base):
     args_json: Mapped[str] = mapped_column(Text, nullable=False)
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False)
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    progress_json: Mapped[str | None] = mapped_column(Text)
+    progress_updated_at_us: Mapped[int | None] = mapped_column(Integer)
+    progress_attempt: Mapped[int | None] = mapped_column(Integer)
     priority: Mapped[int] = mapped_column(Integer, nullable=False)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False)

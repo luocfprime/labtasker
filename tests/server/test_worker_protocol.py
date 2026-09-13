@@ -131,6 +131,108 @@ def test_heartbeat_renews_lease_without_changing_task_updated_at(database_path: 
         assert task_after["updated_at"] == task_before["updated_at"]
 
 
+def test_progress_replaces_latest_snapshot_without_renewing_lease_or_task_timestamp(
+    database_path: Path,
+) -> None:
+    clock = Clock()
+    with make_client(database_path, clock) as client:
+        submit(client, max_attempts=2)
+        claim(client)
+        running = client.get(f"/api/v2/queues/default/tasks/{TASK_1}").json()
+
+        clock.advance(10_000_000)
+        first = client.post(
+            action_url(TASK_1, "progress"),
+            json={"run_id": RUN_1, "progress": {"step": 10, "loss": 0.8}},
+        )
+        assert first.status_code == 204
+        observed = client.get(f"/api/v2/queues/default/tasks/{TASK_1}").json()
+        assert observed["progress"] == {"step": 10, "loss": 0.8}
+        assert observed["progress_attempt"] == 1
+        assert observed["progress_updated_at"].endswith("Z")
+        assert observed["updated_at"] == running["updated_at"]
+        selected = client.get(
+            "/api/v2/queues/default/tasks",
+            params={"filter": "progress.loss >= 0.8"},
+        ).json()
+        assert [item["id"] for item in selected["items"]] == [TASK_1]
+
+        # Progress is supplementary and does not renew the execution lease.
+        clock.advance(HEARTBEAT_TIMEOUT_US - 10_000_000)
+        expired = client.post(
+            action_url(TASK_1, "progress"),
+            json={"run_id": RUN_1, "progress": {"step": 11}},
+        )
+        assert expired.status_code == 409
+        assert expired.json()["error"]["details"] == {"action": "heartbeat_expired"}
+        after_expiry = client.get(f"/api/v2/queues/default/tasks/{TASK_1}").json()
+        assert after_expiry["status"] == "pending"
+        assert after_expiry["progress"] == {"step": 10, "loss": 0.8}
+        next_claim = claim(client, RUN_2)
+        assert next_claim["task"]["progress"] is None
+        assert next_claim["task"]["progress_updated_at"] is None
+        assert next_claim["task"]["progress_attempt"] is None
+
+
+def test_progress_is_run_fenced_replaced_and_retained_after_cancel(database_path: Path) -> None:
+    clock = Clock()
+    with make_client(database_path, clock) as client:
+        submit(client)
+        claim(client)
+        assert (
+            client.post(
+                action_url(TASK_1, "progress"),
+                json={"run_id": RUN_1, "progress": {"step": 1, "nested": {"old": True}}},
+            ).status_code
+            == 204
+        )
+        clock.advance()
+        assert (
+            client.post(
+                action_url(TASK_1, "progress"),
+                json={"run_id": RUN_1, "progress": {}},
+            ).status_code
+            == 204
+        )
+        replaced = client.get(f"/api/v2/queues/default/tasks/{TASK_1}").json()
+        assert replaced["progress"] == {}
+        assert replaced["progress_attempt"] == 1
+
+        cancelled = client.post(action_url(TASK_1, "cancel")).json()
+        assert cancelled["status"] == "cancelled"
+        assert cancelled["progress"] == {}
+        rejected = client.post(
+            action_url(TASK_1, "progress"),
+            json={"run_id": RUN_1, "progress": {"late": True}},
+        )
+        assert rejected.status_code == 409
+        assert rejected.json()["error"]["details"] == {"action": "cancel"}
+        assert client.get(f"/api/v2/queues/default/tasks/{TASK_1}").json()["progress"] == {}
+
+
+def test_oversized_progress_keeps_run_active_for_smaller_report(database_path: Path) -> None:
+    clock = Clock()
+    with make_client(database_path, clock) as client:
+        submit(client, args={"input": "x" * 600_000})
+        claim(client)
+        oversized = client.post(
+            action_url(TASK_1, "progress"),
+            json={"run_id": RUN_1, "progress": {"output": "y" * 600_000}},
+        )
+        assert oversized.status_code == 422
+        assert oversized.json()["error"]["code"] == "task_data_too_large"
+        assert (
+            client.post(
+                action_url(TASK_1, "progress"),
+                json={"run_id": RUN_1, "progress": {"output": "small"}},
+            ).status_code
+            == 204
+        )
+        assert (
+            client.post(action_url(TASK_1, "heartbeat"), json={"run_id": RUN_1}).status_code == 200
+        )
+
+
 def test_complete_is_idempotent_and_contradictory_actions_conflict(database_path: Path) -> None:
     clock = Clock()
     with make_client(database_path, clock) as client:
@@ -370,6 +472,8 @@ def test_worker_request_schemas_reject_unknown_or_missing_fields(database_path: 
         claim(client)
         cases = [
             ("heartbeat", {"run_id": RUN_1, "progress": 0.5}),
+            ("progress", {"run_id": RUN_1, "progress": 0.5}),
+            ("progress", {"run_id": RUN_1, "progress": {}, "extra": True}),
             ("complete", {"run_id": RUN_1}),
             ("unclaim", {"run_id": RUN_1, "reason": "no"}),
             (

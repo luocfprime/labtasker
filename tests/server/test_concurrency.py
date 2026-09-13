@@ -172,6 +172,39 @@ def test_complete_racing_cancel_has_one_lifecycle_winner(database_path: Path) ->
         second_db.dispose()
 
 
+def test_progress_racing_cancel_never_writes_after_revocation(database_path: Path) -> None:
+    clock = Clock()
+    first_db, second_db, first, second = services(database_path, clock)
+    first.claim("default", "default", RUN_1)
+    barrier = Barrier(2)
+
+    def progress() -> object:
+        barrier.wait()
+        return captured(lambda: first.report_progress("default", TASK_ID, RUN_1, {"metric": 0.5}))
+
+    def cancel() -> object:
+        barrier.wait()
+        return captured(lambda: second.cancel("default", TASK_ID))
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            progress_outcome, cancel_outcome = [
+                future.result() for future in (executor.submit(progress), executor.submit(cancel))
+            ]
+        assert not isinstance(cancel_outcome, DomainError)
+        task = first.get("default", TASK_ID)
+        assert task.status == "cancelled"
+        if isinstance(progress_outcome, DomainError):
+            assert progress_outcome.code == "run_finalized"
+            assert progress_outcome.details == {"action": "cancel"}
+            assert task.progress is None
+        else:
+            assert task.progress == {"metric": 0.5}
+    finally:
+        first_db.dispose()
+        second_db.dispose()
+
+
 def test_complete_racing_expiry_commits_expiry_once(database_path: Path) -> None:
     clock = Clock()
     first_db, second_db, first, second = services(database_path, clock)

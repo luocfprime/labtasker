@@ -40,6 +40,9 @@ def test_task_creation_expands_defaults_and_sorts_routes(client: TestClient) -> 
         "max_attempts",
         "routes",
         "result",
+        "progress",
+        "progress_updated_at",
+        "progress_attempt",
         "last_error",
         "last_route",
         "created_at",
@@ -50,6 +53,9 @@ def test_task_creation_expands_defaults_and_sorts_routes(client: TestClient) -> 
     assert task["status"] == "pending"
     assert task["attempt"] == 0
     assert task["result"] == {}
+    assert task["progress"] is None
+    assert task["progress_updated_at"] is None
+    assert task["progress_attempt"] is None
     assert task["routes"] == ["SDXL", "sdxl-v2"]
     assert task["started_at"] is None
     assert task["finished_at"] is None

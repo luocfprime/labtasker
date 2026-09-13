@@ -589,6 +589,24 @@ class Client:
             parser=lambda response: _parse_none(response, {204}),
         )
 
+    def _report_progress(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        progress: dict[str, JSONValue],
+        queue: str | None = None,
+    ) -> None:
+        normalized = validate_json_object(progress, field="progress")
+        self._run_action(
+            "progress",
+            task_id=task_id,
+            run_id=run_id,
+            queue=queue,
+            body={"progress": normalized},
+            parser=lambda response: _parse_none(response, {204}),
+        )
+
     def _fail(
         self,
         *,

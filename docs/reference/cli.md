@@ -26,6 +26,7 @@ labtasker task delete TASK_ID
 labtasker worker list [OPTIONS]
 labtasker worker count [OPTIONS]
 
+labtasker progress --data JSON
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
 labtasker-server --version
 labtasker-server start
@@ -71,6 +72,7 @@ do not advertise a usable version do not trigger this warning.
 | `task delete` | Nothing | Permanently deletes one non-running Task; absent is idempotent. |
 | `worker list` | `{"items":[...],"next_cursor":...}` | Lists unexpired observations by ID ascending; accepts `--filter`, `--limit`, `--cursor`, and `--queue`. |
 | `worker count` | `{"count":N}` or a grouped page | Counts unexpired observations; accepts `--filter`, `--group-by`, `--limit`, `--cursor`, and `--queue`. |
+| `progress` | `{"reported":true|false}` | Inside a Command Worker child, replaces the current run's latest strict JSON-object snapshot. A best-effort transport/revocation failure reports false without failing the command. |
 | `queue create` | One Queue object | Idempotent create-by-name. |
 | `queue list` | Complete Queue array | Not paginated. |
 | `queue delete` | Nothing | Non-empty requires `--cascade`; running Tasks still block deletion. |

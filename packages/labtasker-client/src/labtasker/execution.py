@@ -17,6 +17,7 @@ from labtasker.types import JSONValue
 from labtasker.validation import RequestValidationError, validate_json_object
 
 CompletionReporter = Callable[[dict[str, JSONValue]], bool]
+ProgressReporter = Callable[[dict[str, JSONValue]], bool]
 ContextKind = Literal["python", "command"]
 
 
@@ -128,12 +129,14 @@ class ExecutionContext:
         journal: LocalRunJournal,
         reporter: CompletionReporter,
         control: RunControl | None,
+        progress_reporter: ProgressReporter | None = None,
     ) -> None:
         self.info = info
         self.kind = kind
         self.journal = journal
         self.reporter = reporter
         self.control = control
+        self.progress_reporter = progress_reporter
         self._lock = threading.Lock()
         self._finish_started = False
         self._finished = False
@@ -160,6 +163,17 @@ class ExecutionContext:
         if self.control is not None:
             self.control.complete()
         _best_effort_journal(self.journal.acknowledged)
+
+    def report_progress(self, progress: dict[str, JSONValue]) -> bool:
+        with self._lock:
+            if self._finished:
+                raise RuntimeError("The current run has already completed.")
+            if self.control is not None and not self.control.active:
+                return False
+            reporter = self.progress_reporter
+        if reporter is None:
+            raise RuntimeError("Progress reporting is unavailable for this execution.")
+        return reporter(progress)
 
 
 _CONTEXT_LOCK = threading.RLock()
@@ -210,6 +224,20 @@ def finish(
         raise RuntimeError("No active Labtasker Task execution is available.")
     normalized = validate_json_object({} if result is None else result, field="result")
     context.finish(normalized)
+
+
+def report_progress(
+    progress: dict[str, JSONValue],
+    *,
+    skip_if_no_labtasker: bool = False,
+) -> bool:
+    context = _get_context()
+    if context is None:
+        if skip_if_no_labtasker:
+            return False
+        raise RuntimeError("No active Labtasker Task execution is available.")
+    normalized = validate_json_object(progress, field="progress")
+    return context.report_progress(normalized)
 
 
 def cancellation_requested() -> bool:
@@ -340,12 +368,24 @@ def _load_environment_context() -> ExecutionContext | None:
                 result=result,
             )
 
+        def progress_reporter(progress: dict[str, JSONValue]) -> bool:
+            from labtasker.worker import report_progress_once
+
+            return report_progress_once(
+                client,
+                queue=values["queue"] or "",
+                task_id=values["task_id"] or "",
+                run_id=run_id,
+                progress=progress,
+            )
+
         _ENV_CONTEXT = ExecutionContext(
             info=info,
             kind="command",
             journal=journal,
             reporter=report,
             control=None,
+            progress_reporter=progress_reporter,
         )
         return _ENV_CONTEXT
 

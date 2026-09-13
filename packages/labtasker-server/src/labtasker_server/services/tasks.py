@@ -144,6 +144,9 @@ class TaskService:
                 args_json=canonical_json(request.args),
                 metadata_json=canonical_json(request.metadata),
                 result_json="{}",
+                progress_json=None,
+                progress_updated_at_us=None,
+                progress_attempt=None,
                 priority=request.priority,
                 attempt=0,
                 max_attempts=request.max_attempts,
@@ -435,6 +438,9 @@ class TaskService:
                     active_run_id=run_id,
                     lease_expires_at_us=lease_expires_at_us,
                     pending_at_us=None,
+                    progress_json=None,
+                    progress_updated_at_us=None,
+                    progress_attempt=None,
                 )
                 .returning(TaskRow.task_id)
             )
@@ -492,6 +498,34 @@ class TaskService:
                 row.status = "succeeded"
                 row.result_json = canonical_json(result)
                 _finish_run(row, run_id, "complete", now)
+        if finalized_action is not None:
+            raise _run_finalized(finalized_action)
+
+    def report_progress(
+        self,
+        queue: str,
+        task_id: str,
+        run_id: str,
+        progress: dict[str, JSONValue],
+    ) -> None:
+        queue, task_id, run_id = _validated_execution_ids(queue, task_id, run_id)
+        finalized_action: str | None = None
+        with self.database.write_session() as session:
+            row = _require_task_row(session, queue, task_id)
+            now = self.now_us()
+            if row.status == "running" and row.active_run_id == run_id:
+                if row.lease_expires_at_us is None or row.lease_expires_at_us <= now:
+                    _expire_row(row, now)
+                    finalized_action = "heartbeat_expired"
+                else:
+                    _validate_row_stored_size(row, progress=progress)
+                    row.progress_json = canonical_json(progress)
+                    row.progress_updated_at_us = now
+                    row.progress_attempt = row.attempt
+            elif row.last_terminal_run_id == run_id:
+                finalized_action = row.last_terminal_action
+            else:
+                raise _stale_run(run_id)
         if finalized_action is not None:
             raise _run_finalized(finalized_action)
 
@@ -643,6 +677,9 @@ def task_from_row(row: TaskRow) -> Task:
         max_attempts=row.max_attempts,
         routes=sorted(route.route for route in row.routes),
         result=json.loads(row.result_json),
+        progress=(None if row.progress_json is None else json.loads(row.progress_json)),
+        progress_updated_at=datetime_from_us(row.progress_updated_at_us),
+        progress_attempt=row.progress_attempt,
         last_error=last_error,
         last_route=row.last_route,
         created_at=datetime_from_us(row.created_at_us),
@@ -876,7 +913,13 @@ def _stale_run(run_id: str) -> Exception:
     return conflict("stale_run", "This run is no longer active.", run_id=run_id)
 
 
-def _validate_row_stored_size(row: TaskRow, *, result: dict[str, JSONValue]) -> None:
+def _validate_row_stored_size(
+    row: TaskRow,
+    *,
+    result: dict[str, JSONValue] | None = None,
+    progress: dict[str, JSONValue] | None = None,
+) -> None:
+    stored_progress = None if row.progress_json is None else json.loads(row.progress_json)
     _validate_stored_size(
         {
             "name": row.name,
@@ -886,11 +929,14 @@ def _validate_row_stored_size(row: TaskRow, *, result: dict[str, JSONValue]) -> 
             "max_attempts": row.max_attempts,
             "routes": sorted(route.route for route in row.routes),
         },
-        result=result,
+        result=json.loads(row.result_json) if result is None else result,
+        progress=stored_progress if progress is None else progress,
     )
 
 
-def _validate_stored_size(normalized: dict[str, object], *, result: object) -> None:
+def _validate_stored_size(
+    normalized: dict[str, object], *, result: object, progress: object = None
+) -> None:
     stored = {
         "name": normalized["name"],
         "args": normalized["args"],
@@ -900,6 +946,8 @@ def _validate_stored_size(normalized: dict[str, object], *, result: object) -> N
         "routes": normalized["routes"],
         "result": result,
     }
+    if progress is not None:
+        stored["progress"] = progress
     if len(canonical_json(stored).encode("utf-8")) > MAX_TASK_DATA_BYTES:
         raise invalid(
             "task_data_too_large",

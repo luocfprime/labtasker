@@ -22,7 +22,9 @@ dots, such as `metadata.benchmark` or `result.metrics.f1`.
 
 Supported top-level fields include `id`, `name`, `status`, `args`, `metadata`,
 `priority`, `attempt`, `max_attempts`, `routes`, `result`, `last_error`,
-`last_route`, and Task timestamps.
+nullable `progress`, `last_route`, and Task timestamps. Dynamic paths such as
+`progress.metrics.val_loss` select Tasks whose latest reported snapshot contains
+that path.
 
 ## Operators
 

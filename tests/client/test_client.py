@@ -392,6 +392,11 @@ def test_worker_protocol_actions_are_one_shot_and_strict() -> None:
             run_id="r_ABCDEFGHIJKL",
             result={"score": 0.5},
         )
+        client._report_progress(
+            task_id="t_ABCDEFGHIJKL",
+            run_id="r_ABCDEFGHIJKL",
+            progress={"step": 3, "loss": 0.5},
+        )
         client._fail(
             task_id="t_ABCDEFGHIJKL",
             run_id="r_ABCDEFGHIJKL",
@@ -404,12 +409,14 @@ def test_worker_protocol_actions_are_one_shot_and_strict() -> None:
     assert [request.url.path.rsplit("/", 1)[-1] for request in requests] == [
         "heartbeat",
         "complete",
+        "progress",
         "fail",
         "unclaim",
     ]
     assert [json.loads(request.content) for request in requests] == [
         {"run_id": "r_ABCDEFGHIJKL"},
         {"run_id": "r_ABCDEFGHIJKL", "result": {"score": 0.5}},
+        {"run_id": "r_ABCDEFGHIJKL", "progress": {"step": 3, "loss": 0.5}},
         {
             "run_id": "r_ABCDEFGHIJKL",
             "error": {"type": "ValueError", "message": "bad value", "traceback": None},

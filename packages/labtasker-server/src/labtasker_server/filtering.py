@@ -293,7 +293,7 @@ def _parse_path(node: ast.expr, *, worker: bool = False) -> FilterPath:
         if segments:
             raise _filter_error(node, f"'{root}' does not have nested fields.")
         return FilterPath(root)
-    if root not in {"args", "metadata", "result", "last_error"} or not segments:
+    if root not in {"args", "metadata", "result", "progress", "last_error"} or not segments:
         raise _filter_error(node, f"Unsupported filter path '{_display_path(root, segments)}'.")
     for segment in segments:
         if not PATH_SEGMENT_RE.fullmatch(segment):
@@ -399,6 +399,7 @@ def _runtime_path(path: FilterPath, *, worker: bool = False) -> RuntimePath:
         "args": TaskRow.args_json,
         "metadata": TaskRow.metadata_json,
         "result": TaskRow.result_json,
+        "progress": TaskRow.progress_json,
         "last_error": TaskRow.last_error_json,
     }[path.root]
     segments = list(path.segments)

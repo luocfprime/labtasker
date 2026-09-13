@@ -37,6 +37,7 @@ from labtasker_server.schemas import (
     GroupCountPage,
     HealthyResponse,
     HeartbeatResponse,
+    ProgressRequest,
     Queue,
     RunRequest,
     Task,
@@ -413,6 +414,16 @@ def create_app(
     )
     def heartbeat(queue: str, task_id: str, request: RunRequest) -> HeartbeatResponse:
         return task_service.heartbeat(queue, task_id, request.run_id)
+
+    @app.post(
+        "/api/v2/queues/{queue}/tasks/{task_id}/progress",
+        status_code=204,
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
+    def report_progress(queue: str, task_id: str, request: ProgressRequest) -> Response:
+        task_service.report_progress(queue, task_id, request.run_id, request.progress)
+        return Response(status_code=204)
 
     @app.post(
         "/api/v2/queues/{queue}/tasks/{task_id}/complete",

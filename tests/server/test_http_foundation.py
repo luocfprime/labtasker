@@ -114,6 +114,7 @@ def test_openapi_describes_the_complete_v2_surface_and_real_response_statuses(
         "/api/v2/queues/{queue}/tasks/claim": {"post"},
         "/api/v2/queues/{queue}/tasks/{task_id}": {"put", "get", "patch", "delete"},
         "/api/v2/queues/{queue}/tasks/{task_id}/heartbeat": {"post"},
+        "/api/v2/queues/{queue}/tasks/{task_id}/progress": {"post"},
         "/api/v2/queues/{queue}/tasks/{task_id}/complete": {"post"},
         "/api/v2/queues/{queue}/tasks/{task_id}/fail": {"post"},
         "/api/v2/queues/{queue}/tasks/{task_id}/unclaim": {"post"},
@@ -125,9 +126,16 @@ def test_openapi_describes_the_complete_v2_surface_and_real_response_statuses(
     queue_create = schema["paths"]["/api/v2/queues/{queue}"]["put"]
     task_create = schema["paths"]["/api/v2/queues/{queue}/tasks/{task_id}"]["put"]
     claim = schema["paths"]["/api/v2/queues/{queue}/tasks/claim"]["post"]
+    progress = schema["paths"]["/api/v2/queues/{queue}/tasks/{task_id}/progress"]["post"]
     assert {"200", "201"} <= set(queue_create["responses"])
     assert {"200", "201"} <= set(task_create["responses"])
     assert {"200", "204"} <= set(claim["responses"])
+    assert "204" in progress["responses"]
+    assert progress["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ProgressRequest"
+    }
+    task_schema = schema["components"]["schemas"]["Task"]
+    assert {"progress", "progress_updated_at", "progress_attempt"} <= set(task_schema["properties"])
 
     for path, methods in schema["paths"].items():
         if not path.startswith("/api/v2"):

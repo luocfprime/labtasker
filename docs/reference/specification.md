@@ -493,8 +493,8 @@ HTTP boundary and recursively inside every JSON array/object:
 - Boolean is a distinct JSON type and is never accepted where integer/number is
   required.
 
-The same domain applies to Task args, metadata and result, ordinary update data,
-Worker result payloads, numeric Task fields such as priority/max attempts, and
+The same domain applies to Task args, metadata, result and progress, ordinary update data,
+Worker result/progress payloads, numeric Task fields such as priority/max attempts, and
 filter literals. Python validation walks the object rather than relying on
 `json.dumps` defaults; CLI/HTTP JSON decoding rejects nonstandard constants, and
 canonical serialization uses `allow_nan=False`. An out-of-domain Task/request
@@ -502,7 +502,7 @@ value is a normal `422` schema validation error; an out-of-domain filter literal
 is `422 invalid_filter`. Query equality continues to treat an in-range integer and
 an exactly equal finite float as the same JSON number, as defined in section 10.
 
-Every recursive JSON value stored in Task args, metadata or result has maximum
+Every recursive JSON value stored in Task args, metadata, result or progress has maximum
 container depth 64. A scalar has depth 0; an array or object has depth one plus
 the maximum depth of its values, with an empty container at depth 1. Object keys
 do not add depth. The rule is applied identically to submit, ordinary update and
@@ -988,14 +988,14 @@ V2 uses `succeeded`, replacing v1's `success` string.
 future claim. Cancelling a running Task atomically sets it to cancelled,
 invalidates its current `run_id` and records `finished_at`, so later heartbeat,
 success or failure reports from that execution are rejected. Cancellation does
-not change `attempt`, `last_error` or `result`; pending cancellation leaves the
+not change `attempt`, `last_error`, `result` or the last progress snapshot; pending cancellation leaves the
 latest-run summary unchanged. Repeating cancel on an already cancelled Task is
 an idempotent success. Succeeded and failed Tasks reject cancel.
 
 `requeue` accepts pending, failed and cancelled Tasks. It returns or keeps the
 Task pending, resets `attempt` to zero, clears `last_error`, and refreshes
 `pending_at_us`. It preserves `args`, `metadata`, `routes`, `priority`,
-`max_attempts`, `result` and the latest-run summary. Pending-to-pending requeue is
+`max_attempts`, `result`, progress and the latest-run summary. Pending-to-pending requeue is
 useful for explicitly forgiving already charged failures while a Task is waiting
 for another attempt; even an attempt-zero Task is deliberately moved to the end
 of its priority group. Running Tasks reject requeue. A succeeded experiment is
@@ -1005,7 +1005,7 @@ Invalid lifecycle actions return an explicit conflict rather than silently actin
 as no-ops or force-setting state.
 
 Execution actions obey one stable FSM guard: only a `running` Task with the
-matching `active_run_id` may accept `complete`, `fail` or `unclaim`. Once complete
+matching `active_run_id` may accept `progress`, `complete`, `fail` or `unclaim`. Once complete
 has changed it to `succeeded`, no later exception, heartbeat, exit status or
 client-side error classification can move that same Task to failed or pending.
 Repeating the same terminal action may be deduplicated, but never replays its
@@ -1129,7 +1129,43 @@ owned run rather than staging data until the function returns. `finish()` withou
 an argument stores `{}`. Completion atomically stores the final result and state.
 When no run is active, ordinary Task update may also replace the complete
 `result` object; this supports explicit correction of stored user data without
-changing status. The 2.0.0 initial release has no incremental result/metric merge API.
+changing status. Progress reporting never merges into `result`; the separate
+latest-snapshot contract below carries provisional values while the run remains active.
+
+### 4.5 Latest progress snapshot
+
+An active run may replace its Task's optional `progress` object without changing
+Task status, renewing its lease or changing `updated_at`. Progress is a strict,
+user-defined JSON object with no required business keys. It may contain work
+position, current metrics, best-so-far values or other compact provisional data
+needed by a dashboard or an external early-stop controller. It is not a final
+result, artifact store or metric-history series.
+
+The ecosystem display convention for determinate progress uses top-level
+`completed` and `total` values. A consumer may calculate a percentage only when
+both values are finite JSON numbers, `0 <= completed <= total`, and `total > 0`.
+This is a WebUI and integration convention, not a Server validation rule. The
+Server continues to accept any strict JSON object and assigns no special
+business meaning to other keys.
+
+The Server records `progress_updated_at` from its own UTC clock and
+`progress_attempt` from the current Task attempt. All three public fields are
+null before the run reports progress. Every accepted report is a complete
+replacement, including `{}`; there is no recursive merge. A new successful claim
+clears all three fields so values from an older run never appear as current.
+Completion, failure, unclaim, heartbeat expiry and cancellation retain the last
+accepted snapshot for diagnosis. Requeue likewise preserves it until the next
+claim clears it.
+
+Progress is supplementary and never affects scheduling, retry budgets or the
+Task outcome. Reporting is one-shot and best effort in the bundled Worker API:
+validation errors are raised locally, while transport failures and Server
+rejections are warned and return false without interrupting execution. A
+confirmed `run_finalized` or `stale_run` response still updates the existing
+local revocation state, so an external `cancel` can be observed sooner than the
+next heartbeat. Applications choose an appropriate reporting cadence; the first
+version does not add automatic throttling, coalescing, history retention or a
+Server-side early-stop policy.
 
 ## 5. Queue, project and authentication boundary
 
@@ -1607,8 +1643,9 @@ token is different: a global partial unique index on non-null `active_run_id`
 prevents one live run token from owning two Tasks at once. Terminal dedupe values
 are historical bounded slots and do not use that active uniqueness rule.
 
-`args`, `metadata` and `result` are stored as compact canonical UTF-8 JSON text,
-with sorted object keys and database checks for valid JSON objects. The Server
+`args`, `metadata` and `result` are stored as compact canonical UTF-8 JSON text;
+nullable `progress` uses the same representation when populated. Stored objects
+have sorted keys and database checks for valid JSON. The Server
 uses SQLite JSON1 `json_type`/`json_extract` semantics for filtering and does not
 adopt SQLite JSONB or expose storage serialization order through the API. Parsed
 responses remain ordinary JSON objects; their key order is not contractual.
@@ -1627,6 +1664,7 @@ The private `tasks` row contains these logical fields:
 queue_name, task_id
 status, name
 args_json, metadata_json, result_json
+progress_json, progress_updated_at_us, progress_attempt
 priority, attempt, max_attempts
 created_at_us, updated_at_us
 last_route, started_at_us, finished_at_us
@@ -1640,7 +1678,8 @@ pending_at_us
 The association table below is the sole storage for `routes`; the Task row does
 not also contain a route array. `last_error_json` is the latest structured error
 from section 4.3 or null. `creation_hash`, active lease fields, terminal-dedupe
-fields and `pending_at_us` are Server-private. The pending-position contract is
+fields and `pending_at_us` are Server-private. Progress columns are all null or
+all populated, and `progress_json` is checked as a valid JSON object. The pending-position contract is
 defined in section 3.9; it uses no Queue-level ticket counter and exposes no new
 Task field.
 
@@ -1843,19 +1882,20 @@ the body; otherwise it enforces the same cumulative limit while receiving it.
 The limit applies uniformly to Task submission, updates, results, failure
 tracebacks and internal Worker requests. Exceeding it returns `413` with
 `code="request_too_large"` and `details.max_bytes=1048576`. V2 adds no separate
-per-field size knobs. Task JSON and result summaries should be compact; artifacts,
-checkpoints and large logs do not belong in the Task database.
+per-field size knobs. Task JSON, progress snapshots and result summaries should
+be compact; artifacts, checkpoints and large logs do not belong in the Task
+database.
 
 The same 1 MiB constant also bounds the complete stored user-owned Task data.
 After applying creation defaults or any mutation that changes `name`, `args`,
-`metadata`, `priority`, `max_attempts`, `routes` or `result`, including
-`complete(result)`, the Server canonically serializes an object containing all
-seven resulting fields as compact UTF-8 JSON. If it exceeds 1,048,576 bytes, the
-mutation is rejected with `422`, `code="task_data_too_large"` and
-`details.max_bytes=1048576`. Batch update validates every resulting Task and rolls
-back the whole batch if one exceeds the bound. Thus several individually small
-PATCH requests cannot accumulate an artifact-sized Task. V2 has no blob, artifact
-or large-file storage API.
+`metadata`, `priority`, `max_attempts`, `routes`, `result` or `progress`, including
+`complete(result)` and a progress report, the Server canonically serializes an
+object containing all eight resulting fields as compact UTF-8 JSON. If it exceeds
+1,048,576 bytes, the mutation is rejected with `422`,
+`code="task_data_too_large"` and `details.max_bytes=1048576`. Batch update
+validates every resulting Task and rolls back the whole batch if one exceeds the
+bound. Thus several individually small mutations cannot accumulate an
+artifact-sized Task. V2 has no blob, artifact or large-file storage API.
 
 V2 performs no capability or version-range negotiation. Explicit HTTP Clients
 request `/api/v2` directly and add no `/health` process-management preflight; an
@@ -1993,7 +2033,7 @@ FastAPI/Pydantic's default response shape. V2 does not create separate
 
 Status: **Decided**
 
-The next endpoint decisions cover claim, heartbeat and the three server-facing
+The next endpoint decisions cover claim, heartbeat, progress and the three server-facing
 execution outcomes. They must preserve `run_id` fencing and safe network retries
 without introducing a persistent Run entity or history table.
 
@@ -2047,7 +2087,7 @@ unclaim   # undo this claim and return to pending without charge
 The Python client maps `TransientError` to `unclaim`, and maps both `TaskError`
 and `FatalWorkerError` to `fail` while the run remains active. After any terminal
 transition, these client exceptions have no further Server-facing mapping.
-Heartbeat carries no progress, ETA or Worker status.
+Heartbeat carries no progress, ETA or Worker status; progress has its own action.
 
 An active `run_id` is a per-claim lease handle, not merely a second descriptive
 ID. Only the claimant creates/sends it and receives it back; ordinary Task
@@ -2062,6 +2102,7 @@ request body; v2 does not introduce `/runs/{run_id}` paths:
 
 ```text
 POST /api/v2/queues/{queue}/tasks/{task_id}/heartbeat
+POST /api/v2/queues/{queue}/tasks/{task_id}/progress
 POST /api/v2/queues/{queue}/tasks/{task_id}/complete
 POST /api/v2/queues/{queue}/tasks/{task_id}/fail
 POST /api/v2/queues/{queue}/tasks/{task_id}/unclaim
@@ -2085,6 +2126,21 @@ fail: {
 
 unclaim: {"run_id":"r_..."}
 ```
+
+The non-terminal progress body is:
+
+```text
+progress: {"run_id":"r_...","progress":{}}
+```
+
+Only a running Task with the matching active `run_id` and an unexpired lease may
+accept it. It returns `204`, replaces the prior snapshot and records the current
+Server time and attempt. It does not renew the lease. A report at or beyond the
+lease deadline applies normal heartbeat expiry before returning
+`409 run_finalized`; a finalized matching run returns its recorded action and an
+unrelated run returns `409 stale_run`. A report rejected by size validation leaves
+the run active. The complete stored Task data, including progress, remains
+limited to 1 MiB.
 
 `result` is a strict JSON object. Client-supplied failure fields are exactly
 string `type`, string `message` and nullable string `traceback`; the Server adds
@@ -2110,7 +2166,7 @@ successful heartbeat returns `200 OK` with the renewed
 time and make recovery state observable.
 
 Lease expiry is a hard Server-time boundary, not merely a hint to the background
-scanner. Heartbeat, complete, fail and unclaim require
+scanner. Heartbeat, progress, complete, fail and unclaim require
 `lease_expires_at_us > now` in addition to the matching active run. If any such
 request arrives at or after the deadline before the scanner has run, that request
 atomically applies the ordinary heartbeat-expiry transition and is then rejected
@@ -2401,6 +2457,7 @@ def run(...):
 
 labtasker.cancellation_requested() -> bool
 labtasker.set_force_stop_timeout(seconds: float | None) -> None
+labtasker.report_progress(progress, *, skip_if_no_labtasker=False) -> bool
 ```
 
 `force_stop_timeout` accepts a finite non-negative number of seconds or null and
@@ -2415,6 +2472,14 @@ for the current run only and may be called before or after revocation; it never
 changes the Worker default used by the next Task. Null gives that Python run an
 unbounded natural wait. Both functions require an active Python Task execution
 context and otherwise raise `RuntimeError`.
+
+`report_progress()` accepts one strict JSON object and works in Python Workers
+and Python programs launched by Command Workers. It returns true when the Server
+accepts the replacement snapshot and false for an isolated transport/rejection
+failure or confirmed revocation. Invalid data and missing execution context are
+programming errors and raise. With `skip_if_no_labtasker=True`, missing context
+returns false. The helper performs one request per call; callers should report at
+meaningful evaluation/checkpoint boundaries rather than every inner-loop step.
 
 After a successful `finish()`, the local execution context remains available for
 cleanup but the Server run is already final. During that interval
@@ -2441,7 +2506,7 @@ trace hooks, leftover live threads or one subprocess per Python Task. Those
 approaches either corrupt ordinary Python expectations or defeat process-local
 model reuse.
 
-`task_info()`, `cancellation_requested()` and `set_force_stop_timeout()` require
+`task_info()`, `report_progress()`, `cancellation_requested()` and `set_force_stop_timeout()` require
 an active Python Task execution. Calling them during Worker startup, idle polling,
 ordinary submission code or after execution has ended raises `RuntimeError`.
 
@@ -3197,6 +3262,8 @@ silently aggregate a Task-list page or invent zero Worker counts on HTTP errors.
 Persist one mutable row per Queue/Worker ID, with Queue deletion cascading to
 observations and indexes for expiry cleanup and Queue/route/status queries.
 Migration `0002_worker_observations` adds this table without changing Task data.
+Migration `0003_task_progress` adds the nullable progress snapshot columns while
+preserving existing Tasks and routes.
 Count and grouped items share a read transaction within a response. Aggregate
 in SQL over the complete selection, then paginate groups; do not load Task JSON
 or all Task rows into the Client. Observation mutations remain separate from
@@ -3214,6 +3281,7 @@ The v2 client executable has this complete command tree:
 labtasker task submit|get|list|count|update|cancel|requeue|delete
 labtasker queue create|list|delete
 labtasker worker list|count
+labtasker progress --data JSON
 labtasker loop
 labtasker config show
 ```
@@ -3300,7 +3368,7 @@ its already-relayed output into a second diagnostic message.
 
 Authorization headers and token values must never appear in logs or errors.
 Other diagnostic data, including Queue, Task ID, route, run ID, status, action,
-attempt, timing, args, metadata, result and traceback, may be logged when useful;
+attempt, timing, args, metadata, progress, result and traceback, may be logged when useful;
 v2 imposes no field-by-field redaction system. Ordinary success logs should still
 avoid dumping large payloads without diagnostic value.
 
@@ -3506,7 +3574,7 @@ update_task  update_tasks  cancel_task  requeue_task  delete_task
 create_queue  list_queues  delete_queue
 list_workers  count_workers
 
-loop  TaskArg  TaskInfo  task_info  finish
+loop  TaskArg  TaskInfo  task_info  finish  report_progress
 cancellation_requested  set_force_stop_timeout
 
 Task  TaskPage  Queue  BulkUpdateResult  LastError
@@ -3518,7 +3586,7 @@ TransientError  TaskError  FatalWorkerError
 ```
 
 There are no undocumented compatibility aliases in `__all__`. The Worker wire operations
-`claim`, `heartbeat`, `complete`, `fail` and `unclaim` are implementation details
+`claim`, `heartbeat`, `progress`, `complete`, `fail` and `unclaim` are implementation details
 of `loop` rather than public Python convenience functions. Their HTTP contract
 remains documented for independent executor implementations; importing a private
 client module is not a supported compatibility surface.
@@ -3526,7 +3594,7 @@ client module is not a supported compatibility surface.
 `Task` and `TaskPage` are frozen Pydantic models owned by the client package.
 Task identity is consistently `task.id`, never `_id` or `task_id`. Top-level
 attribute assignment is rejected so local mutation is not mistaken for a server
-update; JSON objects in `args`, `metadata` and `result` remain ordinary mutable
+update; JSON objects in `args`, `metadata`, `result` and populated `progress` remain ordinary mutable
 dicts rather than introducing deep immutable wrappers. `model_dump(mode="json")`
 provides a JSON-ready representation. These response models use `extra="ignore"`
 for additive Server compatibility while continuing to require and strictly parse
@@ -3623,7 +3691,7 @@ never calls `eval`. The initial language contains only:
 
 - fields `id`, `status`, `name`, `priority`, `attempt`, `max_attempts`,
   `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at`, `routes`,
-  `args.*`, `metadata.*`, `result.*` and `last_error.*`;
+  `args.*`, `metadata.*`, `result.*`, `progress.*` and `last_error.*`;
 - JSON literals, including `None` for JSON null, and list literals used by
   membership tests;
 - comparisons `==`, `!=`, `<`, `<=`, `>` and `>=`;
@@ -4119,6 +4187,18 @@ additional fields. A later additive `/api/v2` Server release may append optional
 response fields under section 6.2; older clients ignore them, and they become
 public only when that later contract documents them.
 
+The documented additive progress fields are:
+
+```text
+progress
+progress_updated_at
+progress_attempt
+```
+
+They are all null before the active attempt reports progress. When populated,
+`progress` is a strict JSON object, `progress_updated_at` is Server UTC time and
+`progress_attempt` identifies the attempt that produced the retained snapshot.
+
 Including `queue` makes a returned Task self-locating for later resource API
 calls. Active `run_id`, lease expiry, terminal-deduplication state,
 `creation_hash`, `pending_at_us` and other database-only fields are never exposed in
@@ -4140,7 +4220,7 @@ TaskStatus = Literal[
 
 All public timestamps are timezone-aware Python `datetime` values and UTC RFC
 3339 strings on the wire. `last_error` uses the frozen client-owned `LastError`
-Pydantic model. `routes` remains `list[str]`; `args`, `metadata` and `result` remain ordinary
+Pydantic model. `routes` remains `list[str]`; `args`, `metadata`, `result` and populated `progress` remain ordinary
 dicts. `Task` itself is a frozen client-owned Pydantic model, but mutating one of
 its contained list/dict objects is only local and never updates the server.
 
@@ -4322,12 +4402,14 @@ belong to the Task's current `routes` set.
 unclaim, heartbeat-expiry recovery, cancel, requeue and any effective ordinary
 Task update. An ordinary heartbeat only renews the private lease and does not
 change `updated_at`; otherwise routine heartbeat traffic would make Task ordering
-and change inspection noisy.
+and change inspection noisy. Progress reports likewise update only
+`progress_updated_at`, not the lifecycle-oriented `updated_at`.
 
 ## Decision log
 
 | Date | Decision |
 |---|---|
+| 2026-09-13 | Add one run-fenced latest `progress` object for dashboard visibility and external early-stop decisions. Reports replace rather than merge, do not renew leases or change Task lifecycle/`updated_at`, retain the last accepted snapshot after run finalization, clear it on the next claim, and carry Server-owned report time and attempt. Expose best-effort Python/Command helpers and dynamic `progress.*` filtering without adding history, automatic throttling or a Server-side early-stop policy. |
 | 2026-09-12 | Support all three distributions on Python 3.10+; define runtime lower bounds as release-tested compatibility floors, keep automated Python updates lockfile-only, derive and verify exact direct minima without a second lock across Python 3.10 through 3.14, test the Python 3.10 Client against a fresh latest-allowed resolution, and smoke-test independent and full wheel installations across the same Python matrix. |
 | 2026-08-28 | Expose eager root `--version` options on both runtime executables, reporting the owning runtime distribution and package version on stdout without configuration, network or local-daemon side effects; list the option in root help without embedding the current version there. |
 | 2026-08-28 | Make stdout the single machine-readable response channel for finite Client commands: successful data or a handled `LabtaskerError` envelope is written there, diagnostics remain on stderr, and exit status distinguishes success from failure. Keep usage errors and continuing `loop` failures as natural-language stderr, with no output-mode flag or response wrapper. |

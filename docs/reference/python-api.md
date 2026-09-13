@@ -240,7 +240,7 @@ Server.
 
 | Model | Public fields |
 | --- | --- |
-| `Task` | `id`, `queue`, `status`, `name`, `args`, `metadata`, `priority`, `attempt`, `max_attempts`, `routes`, `result`, `last_error`, `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at` |
+| `Task` | `id`, `queue`, `status`, `name`, `args`, `metadata`, `priority`, `attempt`, `max_attempts`, `routes`, `result`, nullable `progress`, `progress_updated_at`, `progress_attempt`, `last_error`, `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at` |
 | `TaskPage` | `items: list[Task]`, `next_cursor: str | None` |
 | `BulkUpdateResult` | `matched: int`, `updated: int` |
 | `Queue` | `name: str` |
@@ -260,6 +260,7 @@ def worker(...): ...
 TaskArg(default=..., path=None, resolver=None)
 task_info() -> TaskInfo
 finish(result=None, *, skip_if_no_labtasker=False) -> None
+report_progress(progress, *, skip_if_no_labtasker=False) -> bool
 cancellation_requested() -> bool
 set_force_stop_timeout(seconds: float | None) -> None
 ```
@@ -270,6 +271,17 @@ one JSON object and completes the Task before local cleanup continues. It is
 stable once accepted and may be called only once. The context helpers require an
 active Worker execution; cancellation and force-stop helpers require a Python
 Worker execution.
+
+`report_progress()` replaces the current run's latest strict JSON-object
+snapshot. It returns `True` when accepted. Transport failures and Server
+rejections are isolated from Task execution, log a warning and return `False`;
+confirmed run finalization also updates the existing local revocation state.
+Invalid JSON-compatible data or missing context raises. The Server supplies the
+public report timestamp and attempt, retains the last snapshot after the run
+ends, and clears it on the next claim. Reports do not renew heartbeat leases.
+The object has no required business keys. `completed` and `total` form an
+optional display convention used by Labtasker WebUI, not a validation rule for
+the Python or HTTP API.
 
 See [Python Workers](../workers/python.md) for binding, cancellation, failure,
 and Worker-lifetime semantics.

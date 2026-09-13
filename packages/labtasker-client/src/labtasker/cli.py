@@ -15,6 +15,7 @@ from labtasker.command_template import TemplateSyntaxError
 from labtasker.command_worker import run_command_worker
 from labtasker.config import resolve_config
 from labtasker.errors import LabtaskerError
+from labtasker.execution import report_progress as report_current_progress
 from labtasker.types import TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.validation import RequestValidationError, validate_grouping, validate_json_object
 
@@ -167,6 +168,29 @@ def worker_loop(
     except Exception as error:
         logger.error("Worker stopped: %s", error)
         raise typer.Exit(1) from error
+
+
+@app.command("progress")
+def progress_report(
+    data: Annotated[
+        str,
+        typer.Option(help="Latest progress as one strict JSON object."),
+    ],
+) -> None:
+    """Replace the current Task run's progress snapshot.
+
+    This command is available inside a command launched by ``labtasker loop``.
+    It prints whether the best-effort report was accepted; transport failures
+    and confirmed revocation return ``reported: false`` without failing the
+    command workload.
+    """
+    try:
+        progress = _json_object(data, option="--data")
+        reported = _invoke(lambda: report_current_progress(progress))
+    except RuntimeError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(1) from error
+    _write_json({"reported": reported})
 
 
 @task_app.command("submit")

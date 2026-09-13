@@ -326,6 +326,49 @@ failure.
 Argument shape never affects Server eligibility; Queue, pending state, and route
 decide the claim. A normal return succeeds with `{}`.
 
+## Report current progress separately from the result
+
+An active Python program may publish one compact latest snapshot without
+completing its Task:
+
+```python
+labtasker.report_progress(
+    {
+        "completed": completed_cases,
+        "total": total_cases,
+        "metrics": {"validation_loss": validation_loss},
+    },
+    skip_if_no_labtasker=True,
+)
+```
+
+This works inside a Python Worker and inside Python launched by a Command
+Worker. A non-Python child can use the inherited execution context:
+
+```bash
+labtasker progress \
+  --data '{"completed":42,"total":100,"metrics":{"validation_loss":0.82}}'
+```
+
+Each report replaces the complete previous `progress` object. It does not merge,
+complete the Task, renew the lease, or create a history series. Keep the final
+successful summary in `finish(result)` and keep metric history, artifacts, and
+checkpoints in their existing external systems. Report at useful evaluation or
+checkpoint boundaries rather than every inner-loop step.
+
+The object has no required business keys. For a determinate Labtasker WebUI
+indicator, use top-level `completed` and `total` only when both are finite
+numbers, `0 <= completed <= total`, and `total > 0`. Metrics, best-so-far values,
+and early-stop diagnostics may use any other JSON keys. The Server records the
+report time and attempt. It retains the last snapshot after success, failure,
+unclaim, expiry, or cancellation for diagnosis, then clears it when a new claim
+starts.
+
+Reporting is supplementary and best effort. The Python helper returns `True`
+when accepted and `False` for an isolated transport or Server rejection; such a
+failure must not fail the workload. Invalid data or missing execution context is
+a programming error unless `skip_if_no_labtasker=True` handles the latter.
+
 ## Use single-node distributed launchers
 
 Keep one Labtasker Command Worker outside a single-node launcher:

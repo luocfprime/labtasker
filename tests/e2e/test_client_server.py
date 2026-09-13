@@ -7,7 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from labtasker import APIError, Client, TaskArg, TaskError, finish, loop, task_info
+from labtasker import (
+    APIError,
+    Client,
+    TaskArg,
+    TaskError,
+    finish,
+    loop,
+    report_progress,
+    task_info,
+)
 from labtasker.command_worker import run_command_worker
 
 
@@ -122,6 +131,7 @@ def test_real_python_and_command_workers(
     @loop(route="python", idle_timeout=0)
     def python_worker(value: int = TaskArg()) -> None:
         attempts.append(task_info().attempt)
+        assert report_progress({"step": task_info().attempt, "metrics": {"partial": value * 2}})
         if task_info().attempt == 1:
             raise TaskError("retry once")
         finish({"doubled": value * 2})
@@ -132,6 +142,7 @@ def test_real_python_and_command_workers(
     command_script = (
         "import labtasker,sys; "
         "assert labtasker.task_info().run_dir.is_absolute(); "
+        "assert labtasker.report_progress({'step':1,'metrics':{'length':len(sys.argv[1])}}); "
         "labtasker.finish({'echo':sys.argv[1]})"
     )
     run_command_worker(
@@ -152,10 +163,14 @@ def test_real_python_and_command_workers(
     assert python_task.status == "succeeded"
     assert python_task.attempt == 2
     assert python_task.result == {"doubled": 8}
+    assert python_task.progress == {"step": 2, "metrics": {"partial": 8}}
+    assert python_task.progress_attempt == 2
+    assert python_task.progress_updated_at is not None
     assert python_task.last_error is not None
     assert python_task.last_error.type == "TaskError"
     assert command_task.status == "succeeded"
     assert command_task.result == {"echo": "hello world"}
+    assert command_task.progress == {"step": 1, "metrics": {"length": 11}}
     assert failed_task.status == "failed"
     assert failed_task.attempt == 2
     assert failed_task.last_error is not None

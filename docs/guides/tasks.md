@@ -49,6 +49,33 @@ List output is one page. Pass the returned `next_cursor` to request the next
 page. Do not inspect or modify a cursor; it is tied to the original query and
 ordering.
 
+Running Workers may publish a latest progress snapshot for dashboards and
+external early-stop controllers:
+
+```python
+labtasker.report_progress(
+    {
+        "completed": 1200,
+        "total": 5000,
+        "metrics": {"val_loss": 0.8, "best_val_loss": 0.75},
+        "steps_without_improvement": 300,
+    }
+)
+```
+
+The next report replaces this object. The object remains unrestricted.
+`completed` and `total` are an optional display convention: Labtasker WebUI
+shows a determinate indicator only when both are finite numbers and
+`0 <= completed <= total` with `total > 0`. Other keys retain only the meaning
+assigned by the workload or controller.
+
+An external controller can inspect Tasks, compare progress within an experiment
+group, apply the experiment's explicit early-stop policy, and call
+`cancel_task(task.id)` only for the selected running Tasks.
+Cancellation uses the existing cooperative/forced-stop contract; Labtasker does
+not choose an early-stop policy. The last snapshot remains visible after cancel
+for diagnosis and is cleared if a later claim starts a new attempt.
+
 ## Update
 
 Update one non-running Task:

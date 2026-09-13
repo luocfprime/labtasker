@@ -19,8 +19,8 @@ FastAPI's interactive Swagger and ReDoc pages are intentionally disabled.
 - Request schemas reject unknown fields. Response schemas may gain optional
   fields within v2; existing fields, types, defaults, meanings, and Task states
   do not change without a new API prefix.
-- Request bodies and complete stored Task data are each limited to 1 MiB. Large
-  artifacts do not belong in Task JSON.
+- Request bodies and complete stored Task data, including progress, are each
+  limited to 1 MiB. Large artifacts do not belong in Task JSON.
 - Public timestamps are UTC RFC 3339 strings. Task states are exactly `pending`,
   `running`, `succeeded`, `failed`, and `cancelled`.
 - Successful `204` responses have no body. Clients must not invent receipt
@@ -70,6 +70,7 @@ Queue names are explicit path components and are not authentication identities.
 | `GET /api/v2/queues/{queue}/tasks/count` | Selection query parameters | `200` with `{"count":N}`, or a grouped page when `group_by` is supplied. |
 | `PATCH /api/v2/queues/{queue}/tasks/{task_id}` | Non-empty Task update object | `200` with the Task. Running Tasks reject updates. Object/list fields are complete replacements. |
 | `PATCH /api/v2/queues/{queue}/tasks` | `{"filter":...,"changes":...}` | `200` with `{"matched":N,"updated":M}`. The filter is required; the update is atomic across matching non-running Tasks. |
+| `POST /api/v2/queues/{queue}/tasks/{task_id}/progress` | `{"run_id":...,"progress":{...}}` | `204`; the matching active run replaces its latest progress snapshot without renewing its lease or changing Task status. |
 | `POST /api/v2/queues/{queue}/tasks/{task_id}/cancel` | No body | `200` with the cancelled Task. Accepts pending/running and is idempotent for cancelled. |
 | `POST /api/v2/queues/{queue}/tasks/{task_id}/requeue` | No body | `200` with the pending Task. Accepts pending/failed/cancelled, resets attempt and last error. |
 | `DELETE /api/v2/queues/{queue}/tasks/{task_id}` | None | `204`; idempotent when absent. Running Tasks reject deletion. |
@@ -219,6 +220,7 @@ Python `Client`.
 | --- | --- | --- |
 | `POST /api/v2/queues/{queue}/tasks/claim` | `{"route":...,"run_id":...}` | `200` with Task, `run_id`, and `lease_expires_at`; `204` when no compatible pending Task exists. |
 | `POST /api/v2/queues/{queue}/tasks/{task_id}/heartbeat` | `{"run_id":...}` | `200` with the renewed `lease_expires_at`. |
+| `POST /api/v2/queues/{queue}/tasks/{task_id}/progress` | `{"run_id":...,"progress":{...}}` | `204`; replaces the latest snapshot and does not renew the lease. |
 | `POST /api/v2/queues/{queue}/tasks/{task_id}/complete` | `{"run_id":...,"result":{...}}` | `204`; completes the matching active run as succeeded. |
 | `POST /api/v2/queues/{queue}/tasks/{task_id}/fail` | `{"run_id":...,"error":{"type":...,"message":...,"traceback":...}}` | `204`; charges the failure and retries or fails according to the Task budget. |
 | `POST /api/v2/queues/{queue}/tasks/{task_id}/unclaim` | `{"run_id":...}` | `204`; returns the matching run to pending without an error payload. |
@@ -242,9 +244,16 @@ Ordinary get/list/action responses contain exactly these required v2 fields:
 
 ```text
 id, queue, status, name, args, metadata, priority, attempt, max_attempts,
-routes, result, last_error, last_route, created_at, updated_at, started_at,
-finished_at
+routes, result, progress, progress_updated_at, progress_attempt, last_error,
+last_route, created_at, updated_at, started_at, finished_at
 ```
+
+`progress` is null until the current attempt reports a strict JSON object.
+`progress_updated_at` and `progress_attempt` are Server-owned and are null at the
+same time. Reports completely replace the object; they do not merge it into the
+final `result`. Run completion, failure, expiry and cancellation retain the last
+snapshot, while the next successful claim clears it. Dynamic `progress.*` paths
+are available to Task filters.
 
 Active `run_id` and lease expiry appear only in Worker protocol responses, never
 in the ordinary Task resource.

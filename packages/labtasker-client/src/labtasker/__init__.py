@@ -30,6 +30,7 @@ from labtasker.errors import (
 from labtasker.execution import (
     cancellation_requested,
     finish,
+    report_progress,
     set_force_stop_timeout,
     task_info,
 )
@@ -48,7 +49,7 @@ from labtasker.models import (
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.worker import loop
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 
 __all__ = [
     "APIError",
@@ -87,6 +88,7 @@ __all__ = [
     "list_tasks",
     "list_workers",
     "loop",
+    "report_progress",
     "requeue_task",
     "set_force_stop_timeout",
     "submit_task",

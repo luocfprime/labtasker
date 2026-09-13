@@ -29,7 +29,7 @@ from labtasker.command_worker import (
 )
 from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError
-from labtasker.execution import RunControl, finish, task_info
+from labtasker.execution import RunControl, finish, report_progress, task_info
 from labtasker.models import ClaimResponse, Queue, Task
 
 UTC = timezone.utc
@@ -807,12 +807,19 @@ def test_environment_context_loads_task_info_and_finish_without_import_side_effe
     for name, value in environment.items():
         monkeypatch.setenv(name, value)
     reported: list[dict[str, Any]] = []
+    progress_reports: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "labtasker.worker.report_complete_until_resolved",
         lambda _client, **kwargs: not reported.append(kwargs["result"]),
     )
+    monkeypatch.setattr(
+        "labtasker.worker.report_progress_once",
+        lambda _client, **kwargs: not progress_reports.append(kwargs["progress"]),
+    )
     assert task_info().run_dir == journal.run_dir
+    assert report_progress({"step": 7})
     finish({"metric": 3})
+    assert progress_reports == [{"step": 7}]
     assert reported == [{"metric": 3}]
     assert json.loads(journal.result_path.read_text()) == {"metric": 3}
     assert json.loads(journal.run_path.read_text())["phase"] == "acknowledged"

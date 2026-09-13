@@ -70,6 +70,9 @@ class Task(StrictModel):
     max_attempts: int
     routes: list[str]
     result: dict[str, JSONValue]
+    progress: dict[str, JSONValue] | None
+    progress_updated_at: datetime | None
+    progress_attempt: int | None
     last_error: LastError | None
     last_route: str | None
     created_at: datetime
@@ -208,6 +211,15 @@ class CompleteRequest(RunRequest):
     @classmethod
     def validate_result(cls, value: dict[str, JSONValue]) -> dict[str, JSONValue]:
         return _validated(lambda: validate_json_object(value, field="result"))
+
+
+class ProgressRequest(RunRequest):
+    progress: dict[str, JSONValue]
+
+    @field_validator("progress")
+    @classmethod
+    def validate_progress(cls, value: dict[str, JSONValue]) -> dict[str, JSONValue]:
+        return _validated(lambda: validate_json_object(value, field="progress"))
 
 
 class FailureReport(StrictModel):

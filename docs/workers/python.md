@@ -75,6 +75,27 @@ release_engine_resources()
 Calling `finish()` twice is an error. Outside Labtasker, it raises unless
 `skip_if_no_labtasker=True` is explicitly requested.
 
+Report a compact latest snapshot for dashboards or an external early-stop
+controller without completing the Task:
+
+```python
+labtasker.report_progress(
+    {
+        "completed": completed_steps,
+        "total": total_steps,
+        "metrics": {"val_loss": val_loss, "best_val_loss": best_val_loss},
+    }
+)
+```
+
+Each call completely replaces the previous JSON object. It returns `True` when
+accepted and `False` when a transport or Server failure is isolated from the
+running workload. Progress does not renew the heartbeat lease. Report at useful
+evaluation/checkpoint boundaries rather than every inner-loop step. The object
+has no required business keys. `completed` and `total` are the optional
+Labtasker WebUI convention for displaying determinate progress; current metrics
+and early-stop diagnostics can use any other JSON keys.
+
 ## Cooperative cancellation
 
 `cancellation_requested()` tells Python code that the Server cancelled or
