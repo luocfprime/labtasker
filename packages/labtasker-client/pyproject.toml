@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "labtasker-client"
-version = "2.4.0"
+version = "2.4.1"
 description = "A small task queue for parallel model inference and evaluation"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "lcf", email = "luocfprime@gmail.com" }]
 dependencies = [
-  "httpx[socks]>=0.25.2,<1",
+  "httpx>=0.25.2,<1",
   "packaging>=21.3",
   "pydantic>=2.5.3,<3; python_version < '3.13'",
   "pydantic>=2.9,<3; python_version >= '3.13' and python_version < '3.14'",
@@ -19,6 +19,9 @@ dependencies = [
   "tomli>=2.0.1; python_version < '3.11'",
   "typer>=0.19,<1",
 ]
+
+[project.optional-dependencies]
+socks = ["socksio==1.*"]
 
 [project.urls]
 Homepage = "https://github.com/luocfprime/labtasker"

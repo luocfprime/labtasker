@@ -477,11 +477,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad", size = 73517, upload-time = "2024-12-06T15:37:21.509Z" },
 ]
 
-[package.optional-dependencies]
-socks = [
-    { name = "socksio" },
-]
-
 [[package]]
 name = "hypothesis"
 version = "6.168.0"
@@ -615,45 +610,59 @@ wheels = [
 
 [[package]]
 name = "labtasker"
-version = "2.4.0"
+version = "2.4.1"
 source = { editable = "packages/labtasker" }
 dependencies = [
     { name = "labtasker-client" },
     { name = "labtasker-server" },
 ]
 
+[package.optional-dependencies]
+socks = [
+    { name = "socksio" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "labtasker-client", editable = "packages/labtasker-client" },
     { name = "labtasker-server", editable = "packages/labtasker-server" },
+    { name = "socksio", marker = "extra == 'socks'", specifier = "==1.*" },
 ]
+provides-extras = ["socks"]
 
 [[package]]
 name = "labtasker-client"
-version = "2.4.0"
+version = "2.4.1"
 source = { editable = "packages/labtasker-client" }
 dependencies = [
-    { name = "httpx", extra = ["socks"] },
+    { name = "httpx" },
     { name = "packaging" },
     { name = "pydantic" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer" },
 ]
 
+[package.optional-dependencies]
+socks = [
+    { name = "socksio" },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "httpx", extras = ["socks"], specifier = ">=0.25.2,<1" },
+    { name = "httpx", specifier = ">=0.25.2,<1" },
     { name = "packaging", specifier = ">=21.3" },
     { name = "pydantic", marker = "python_full_version < '3.13'", specifier = ">=2.5.3,<3" },
     { name = "pydantic", marker = "python_full_version == '3.13.*'", specifier = ">=2.9,<3" },
     { name = "pydantic", marker = "python_full_version >= '3.14'", specifier = ">=2.12,<3" },
+    { name = "socksio", marker = "extra == 'socks'", specifier = "==1.*" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
     { name = "typer", specifier = ">=0.19,<1" },
 ]
+provides-extras = ["socks"]
 
 [[package]]
 name = "labtasker-server"
-version = "2.4.0"
+version = "2.4.1"
 source = { editable = "packages/labtasker-server" }
 dependencies = [
     { name = "alembic" },
@@ -679,7 +688,7 @@ requires-dist = [
 
 [[package]]
 name = "labtasker-workspace"
-version = "2.4.0"
+version = "2.4.1"
 source = { virtual = "." }
 
 [package.dev-dependencies]
