@@ -31,7 +31,7 @@ def main() -> None:
         raise RuntimeError(f"{distribution} has no dependency metadata")
     for raw_requirement in direct_requirements:
         requirement = Requirement(raw_requirement)
-        if requirement.marker is not None and not requirement.marker.evaluate():
+        if requirement.marker is not None and not requirement.marker.evaluate({"extra": ""}):
             continue
         expected = declared_floor(requirement)
         actual = Version(version(requirement.name))
