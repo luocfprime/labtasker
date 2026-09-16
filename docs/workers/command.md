@@ -4,13 +4,18 @@ Use a command Worker to run an existing executable for each Task without
 changing its argument interface:
 
 ```bash
-labtasker loop --route text-eval -- \
+labtasker loop \
+  --route text-eval \
+  --metadata '{"hostname":"node-7","gpu_ids":["GPU-a"]}' \
+  -- \
   python evaluate.py --prediction '%{prediction}' --reference '%{reference}'
 ```
 
 The required `--` separates Labtasker options from the child argv. Each template
 element produces exactly one child argv element. Labtasker does not join, split,
-quote, or evaluate a shell command.
+quote, or evaluate a shell command. `--metadata` accepts one strict JSON object
+fixed for the Worker invocation. Labtasker does not populate hostname, scheduler,
+GPU, or other resource fields automatically.
 
 Command Workers require POSIX process-group support. Linux is release-gated and
 macOS is best effort; Windows raises `NotImplementedError` before connecting to
@@ -44,7 +49,8 @@ not claim or fail a Task.
 
 The child inherits the Worker's environment and receives Labtasker execution
 variables, including the Task ID, run ID, Queue, local run directory, and either
-the HTTP URL/token or the selected local socket/directory. Changing the child
+the HTTP URL/token or the selected local socket/directory. It also receives the
+loop-scoped Worker ID used by Worker telemetry. Changing the child
 process's current directory does not select a different Server.
 
 In an interactive POSIX terminal, Labtasker uses an internal PTY and relays
@@ -95,6 +101,27 @@ The CLI prints `{"reported": true}` when accepted and false for an isolated
 best-effort failure. Progress never completes the Task or renews its lease. The
 object is otherwise unrestricted; `completed` and `total` are the optional
 Labtasker WebUI convention for a determinate progress indicator.
+
+Report Worker-level resource measurements independently of Task progress:
+
+```python
+labtasker.report_worker_telemetry({"gpu": {"utilization": 0.82}})
+```
+
+Non-Python children use the parallel CLI command:
+
+```bash
+labtasker worker telemetry --data '{"gpu":{"utilization":0.82}}'
+```
+
+Each synchronous call performs one request and replaces the latest Worker
+telemetry object. A reporting failure returns or prints false without changing
+the command's Task outcome. Telemetry does not renew Worker presence, and
+Labtasker does not sample, retry, throttle, merge, or keep history. If periodic
+sampling is useful, the child owns its scheduling or background thread.
+All descendants and distributed ranks inherit the same loop-scoped Worker ID.
+Their reports replace the same snapshot, so the last report committed by the
+Server is visible; Labtasker does not merge fields or select one rank.
 
 After `finish()`, the command may keep running for cleanup. When the Server
 cancels or recovers the run, the Worker sends termination to the child process

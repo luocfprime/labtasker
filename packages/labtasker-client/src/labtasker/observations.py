@@ -7,6 +7,7 @@ import os
 import secrets
 import threading
 import time
+from copy import deepcopy
 from types import TracebackType
 
 import httpx
@@ -14,6 +15,8 @@ import httpx
 from labtasker.client import REQUEST_TIMEOUT_SECONDS
 from labtasker.config import ResolvedConfig
 from labtasker.local import socket_transport
+from labtasker.types import JSONValue
+from labtasker.validation import validate_json_object
 
 REPORT_INTERVAL_SECONDS = 60.0
 SHUTDOWN_WAIT_SECONDS = 1.0
@@ -39,10 +42,18 @@ def _make_http_client(configuration: ResolvedConfig) -> httpx.Client:
 
 
 class ObservationReporter:
-    def __init__(self, configuration: ResolvedConfig, route: str) -> None:
+    def __init__(
+        self,
+        configuration: ResolvedConfig,
+        route: str,
+        metadata: dict[str, JSONValue] | None = None,
+    ) -> None:
         self.id = f"w_{secrets.token_urlsafe(9)}"
         self._configuration = configuration
         self._route = route
+        self._metadata = deepcopy(
+            validate_json_object({} if metadata is None else metadata, field="metadata")
+        )
         self._pid = os.getpid()
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -139,6 +150,7 @@ class ObservationReporter:
                             "route": self._route,
                             "status": "idle" if task_id is None else "busy",
                             "task_id": task_id,
+                            "metadata": self._metadata,
                         },
                     )
                     if response.status_code != 204:

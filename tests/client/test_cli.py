@@ -30,6 +30,44 @@ def test_progress_command_reports_strict_json_from_command_context(
     assert reports == [{"step": 7, "loss": 0.5}]
 
 
+def test_worker_telemetry_command_reports_strict_json_from_command_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reports: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "labtasker.cli.report_current_worker_telemetry",
+        lambda telemetry: not reports.append(telemetry),
+    )
+    result = runner.invoke(app, ["worker", "telemetry", "--data", '{"gpu_utilization":0.75}'])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"reported": True}
+    assert reports == [{"gpu_utilization": 0.75}]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["worker", "telemetry", "--data", "[]"],
+        ["loop", "--metadata", "[]", "--", "echo"],
+    ],
+)
+def test_worker_observability_json_inputs_are_strict_usage_errors(argv: list[str]) -> None:
+    result = runner.invoke(app, argv)
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "must be one strict JSON object" in result.stderr
+
+
+@pytest.mark.parametrize("field", ["metadata.node", "telemetry.gpu"])
+def test_worker_dynamic_fields_are_not_cli_grouping_dimensions(
+    monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    monkeypatch.setattr("labtasker.cli.Client", lambda **_: pytest.fail("Client constructed"))
+    result = runner.invoke(app, ["worker", "count", "--group-by", field])
+    assert result.exit_code == 2
+    assert "group_by must contain distinct supported field names" in result.stderr
+
+
 def test_version_reports_client_distribution_without_starting_server(tmp_path: Path) -> None:
     result = runner.invoke(app, ["--version"])
     help_result = runner.invoke(app, ["--help"])
@@ -192,6 +230,7 @@ def test_invalid_json_is_a_usage_error_without_network(fake_client: None, value:
         ["task", "submit", "--args"],
         ["task", "submit", "--metadata"],
         ["task", "update", "t_ABCDEFGHIJKL", "--changes"],
+        ["worker", "telemetry", "--data"],
     ],
 )
 def test_deep_json_is_a_usage_error(fake_client: None, argv: list[str], depth: int) -> None:
@@ -324,6 +363,7 @@ def test_loop_requires_separator_command_and_preserves_every_argv_element(
                 "idle_timeout": 0.0,
                 "force_stop_timeout": 2.5,
                 "max_consecutive_failures": 5,
+                "metadata": {},
             },
         )
     ]

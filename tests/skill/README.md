@@ -15,6 +15,7 @@ from ordinary pytest discovery.
 | progress-summary | Summarize completion and remaining work | Complete, accurate summary; no unintended changes |
 | early-stop-from-progress | Apply a supplied early-stop rule to current progress | Latest snapshots inspected, exact running Tasks cancelled, retained diagnostics and unrelated work preserved |
 | waiting-diagnosis | Explain why evaluation is waiting and suggest the next action | Evidence supports the diagnosis; uncertainty is preserved; no unauthorized changes |
+| worker-resource-observation | Inspect Worker/node/GPU placement and latest load without mutation | Exact selected Workers and allocation; replace-only telemetry interpreted correctly; no invented dynamic grouping |
 | recover-selected-batch | Resume failed or cancelled work in one experiment batch | Correct selection and recovery; successful and unrelated work preserved |
 | connect-project | Repair the project's connection and run its existing evaluation | Intended endpoint/Queue used, working project configuration, actual result |
 | Holdouts | Three withheld user workflows that change the decision context | Independent outcome checks and interpretation review |

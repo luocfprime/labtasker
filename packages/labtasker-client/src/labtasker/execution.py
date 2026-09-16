@@ -18,6 +18,7 @@ from labtasker.validation import RequestValidationError, validate_json_object
 
 CompletionReporter = Callable[[dict[str, JSONValue]], bool]
 ProgressReporter = Callable[[dict[str, JSONValue]], bool]
+WorkerTelemetryReporter = Callable[[dict[str, JSONValue]], bool]
 ContextKind = Literal["python", "command"]
 
 
@@ -130,6 +131,7 @@ class ExecutionContext:
         reporter: CompletionReporter,
         control: RunControl | None,
         progress_reporter: ProgressReporter | None = None,
+        worker_telemetry_reporter: WorkerTelemetryReporter | None = None,
     ) -> None:
         self.info = info
         self.kind = kind
@@ -137,6 +139,7 @@ class ExecutionContext:
         self.reporter = reporter
         self.control = control
         self.progress_reporter = progress_reporter
+        self.worker_telemetry_reporter = worker_telemetry_reporter
         self._lock = threading.Lock()
         self._finish_started = False
         self._finished = False
@@ -174,6 +177,12 @@ class ExecutionContext:
         if reporter is None:
             raise RuntimeError("Progress reporting is unavailable for this execution.")
         return reporter(progress)
+
+    def report_worker_telemetry(self, telemetry: dict[str, JSONValue]) -> bool:
+        reporter = self.worker_telemetry_reporter
+        if reporter is None:
+            raise RuntimeError("Worker telemetry reporting is unavailable for this execution.")
+        return reporter(telemetry)
 
 
 _CONTEXT_LOCK = threading.RLock()
@@ -240,6 +249,20 @@ def report_progress(
     return context.report_progress(normalized)
 
 
+def report_worker_telemetry(
+    telemetry: dict[str, JSONValue],
+    *,
+    skip_if_no_labtasker: bool = False,
+) -> bool:
+    context = _get_context()
+    if context is None:
+        if skip_if_no_labtasker:
+            return False
+        raise RuntimeError("No active Labtasker Task execution is available.")
+    normalized = validate_json_object(telemetry, field="telemetry")
+    return context.report_worker_telemetry(normalized)
+
+
 def cancellation_requested() -> bool:
     context = _require_python_context()
     if context.finished or context.control is None:
@@ -281,6 +304,7 @@ def _load_environment_context() -> ExecutionContext | None:
             "run_dir": "LABTASKER_RUN_DIR",
         }
         values = {field: os.environ.get(name) for field, name in names.items()}
+        worker_id = os.environ.get("LABTASKER_WORKER_ID")
         execution_fields = {"task_id", "run_id", "route", "run_dir"}
         present = {field for field, value in values.items() if value is not None}
         if not (present & execution_fields):
@@ -379,6 +403,31 @@ def _load_environment_context() -> ExecutionContext | None:
                 progress=progress,
             )
 
+        worker_telemetry_reporter: WorkerTelemetryReporter | None = None
+        if worker_id is not None:
+            from labtasker.validation import validate_worker_id
+
+            try:
+                normalized_worker_id = validate_worker_id(worker_id)
+            except RequestValidationError as error:
+                raise ConfigError(
+                    "invalid_config",
+                    "Inherited Labtasker Worker context is invalid.",
+                    {"field": "LABTASKER_WORKER_ID"},
+                ) from error
+
+            def report_telemetry(telemetry: dict[str, JSONValue]) -> bool:
+                from labtasker.worker import report_worker_telemetry_once
+
+                return report_worker_telemetry_once(
+                    client,
+                    queue=values["queue"] or "",
+                    worker_id=normalized_worker_id,
+                    telemetry=telemetry,
+                )
+
+            worker_telemetry_reporter = report_telemetry
+
         _ENV_CONTEXT = ExecutionContext(
             info=info,
             kind="command",
@@ -386,6 +435,7 @@ def _load_environment_context() -> ExecutionContext | None:
             reporter=report,
             control=None,
             progress_reporter=progress_reporter,
+            worker_telemetry_reporter=worker_telemetry_reporter,
         )
         return _ENV_CONTEXT
 

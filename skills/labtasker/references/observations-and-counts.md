@@ -13,8 +13,10 @@ Observations renew every 60 seconds and expire 300 seconds after the last
 accepted report, with best-effort activity-change reports. These timings are
 independent of Task heartbeats and ownership leases. Only unexpired observations
 appear in Worker queries. Use the Server-provided `expires_at` for freshness.
-There is no offline history, Worker get, hostname/PID/name inventory, remote
-start/stop/restart command, or resource allocator.
+There is no offline history, Worker get, automatically discovered
+hostname/PID/GPU inventory, remote start/stop/restart command, or resource
+allocator. A Worker may instead report user-defined invocation metadata and one
+latest telemetry snapshot.
 
 - `idle`: waiting for work, including an unconfirmed claim response.
 - `busy`: a confirmed claim occupies the Worker through execution, terminal
@@ -22,8 +24,10 @@ start/stop/restart command, or resource allocator.
   its Worker stays busy until local execution and cleanup end.
 
 Public fields are `id`, `queue`, `route`, `status`, nullable advisory `task_id`,
-`last_seen_at`, and `expires_at`. Timestamps are Server-generated UTC. The Task
-reference may be terminal, stale, or deleted; it is not an ownership token.
+`metadata`, nullable `telemetry` and `telemetry_updated_at`, `last_seen_at`, and
+`expires_at`. Timestamps are Server-generated UTC. `metadata` is fixed for one
+Worker invocation; telemetry is the latest complete user-defined object. The
+Task reference may be terminal, stale, or deleted; it is not an ownership token.
 Route presence means any idle or busy observation for that exact route in that
 Queue. It does not prove spare capacity, compatibility of undocumented settings,
 or the absence of other execution processes when zero Workers are observed.
@@ -39,6 +43,8 @@ deletion; Task-based deletion rules still apply.
 
 ```bash
 labtasker worker list --queue experiments --filter 'status == "busy"' --limit 100
+labtasker worker list --queue experiments --filter 'metadata.node == "node-a"'
+labtasker worker list --queue experiments --filter 'telemetry.gpu_util_pct < 20'
 labtasker worker count --queue experiments --group-by route,status
 ```
 
@@ -58,11 +64,48 @@ and exact filter. Lists are ordered by ID lexicographically ascending, with no
 `order_by` option. Page sizes default to 100, maximum 1000. Reads are live, not
 a snapshot spanning pages.
 
-Worker filters use the existing expression language over the seven public
-Worker fields only. For example, `route == "judge" and status == "idle"` or
-`task_id == None`. Use `filter=...`, not a separate Worker `status=` selector;
-Task paths such as `args` or `metadata` are not Worker fields. An API/transport
-error means the query failed, never an empty Worker inventory.
+Worker filters use the existing expression language over fixed observation
+fields plus nested `metadata.*` and `telemetry.*` paths. For example,
+`route == "judge" and status == "idle"`, `metadata.node == "node-a"`, or
+`telemetry.gpu_util_pct < 20`. Use `filter=...`, not a separate Worker `status=`
+selector. Task paths such as `args`, `progress`, and `result` are not Worker
+fields. Telemetry keys are user-defined; enumerate the normally small Worker set
+and process it locally when a richer analysis is needed. An API/transport error
+means the query failed, never an empty Worker inventory.
+
+## Interpret and report Worker resource details
+
+Worker metadata and telemetry are abstractions, not a built-in NVIDIA, hostname,
+SLURM, or Kubernetes schema. Interpret only keys the workload defines. For
+example, metadata may record `node` and `gpu_ids`, while telemetry may report
+`gpu_util_pct` and `memory_used_gb`. A low latest value suggests underuse at that
+sample; it does not establish spare schedulable capacity.
+
+Telemetry reports synchronously replace the complete previous object. They do
+not merge fields, retain history, renew observation expiry, affect Task outcome,
+or influence scheduling. `telemetry_updated_at` is the Server acceptance time.
+Missing fields in the latest object are absent, not inherited from an earlier
+sample. Command descendants and distributed ranks share the outer Worker's ID;
+the last report committed by the Server is visible.
+
+Python code in an active Worker execution can call:
+
+```python
+labtasker.report_worker_telemetry({"gpu_util_pct": 92, "memory_used_gb": 38})
+```
+
+A non-Python Command Worker child can use:
+
+```bash
+labtasker worker telemetry \
+  --data '{"gpu_util_pct":92,"memory_used_gb":38}'
+```
+
+Both forms perform one best-effort synchronous report and return or print
+whether it was accepted. Labtasker does not sample, retry, throttle, merge, or
+store history; callers own periodic scheduling. Static placement belongs in
+Worker metadata, supplied through Python `loop(metadata={...})` or Command
+Worker `labtasker loop --metadata JSON -- COMMAND`.
 
 ## Count selected Tasks and Workers
 
@@ -90,8 +133,9 @@ shown. Worker presence and Task demand can change between these reads.
 
 Task `routes` means compatible route membership, including for running Tasks;
 it does not mean the route that actually executed the Task. There is no grouping
-by `last_route`, metadata, arbitrary expressions, or additional metrics. Filter
-on supported Task fields before aggregation instead. Without grouping, Python
+by `last_route`, metadata, telemetry, arbitrary expressions, or additional
+metrics. Dynamic Worker metadata/telemetry may be filtered but not grouped.
+Filter on supported fields before aggregation instead. Without grouping, Python
 returns an integer and HTTP/CLI return `{"count": n}`. Do not pass `limit` or
 `cursor` for an ungrouped count.
 

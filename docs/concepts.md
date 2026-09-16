@@ -73,10 +73,12 @@ Choose a Worker form based on how your experiment runs:
 - [Distributed launchers](workers/distributed.md) run one Task through a
   supported multi-process launcher.
 
-The Server keeps expiring Worker observations (`idle` or `busy`) for inspection,
-without managing processes or tracking hardware. These observations may lag
-behind execution and never decide Task ownership. You start, stop,
-and supervise the Workers.
+The Server keeps expiring Worker observations (`idle` or `busy`) for inspection.
+Each observation can include invocation metadata and the latest user-reported
+telemetry, but Labtasker does not discover hardware, retain metric history,
+allocate resources, or manage processes. These observations may lag behind
+execution and never decide Task ownership. You start, stop, and supervise the
+Workers.
 
 ## Routes match Tasks with Worker code
 

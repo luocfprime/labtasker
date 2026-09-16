@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from labtasker import (
     finish,
     loop,
     report_progress,
+    report_worker_telemetry,
     task_info,
 )
 from labtasker.command_worker import run_command_worker
@@ -127,28 +129,78 @@ def test_real_python_and_command_workers(
         )
 
     attempts: list[int] = []
+    observed_telemetry: list[dict[str, object]] = []
 
-    @loop(route="python", idle_timeout=0)
+    @loop(route="python", idle_timeout=0, metadata={"hostname": "node-e2e"})
     def python_worker(value: int = TaskArg()) -> None:
         attempts.append(task_info().attempt)
+        with Client(url=server_url, token="secret") as observation_client:
+            deadline = time.monotonic() + 2
+            while not observation_client.list_workers(
+                filter='metadata.hostname == "node-e2e"'
+            ).items:
+                if time.monotonic() >= deadline:
+                    pytest.fail("Worker observation was not registered")
+                time.sleep(0.01)
         assert report_progress({"step": task_info().attempt, "metrics": {"partial": value * 2}})
+        assert report_worker_telemetry({"gpu": {"utilization": task_info().attempt / 10}})
         if task_info().attempt == 1:
             raise TaskError("retry once")
         finish({"doubled": value * 2})
+        assert report_worker_telemetry({"gpu": {"utilization": 0.0}, "phase": "cleanup"})
+        with Client(url=server_url, token="secret") as observation_client:
+            observation = observation_client.list_workers(
+                filter='telemetry.phase == "cleanup"'
+            ).items[0]
+            observed_telemetry.append(
+                {"metadata": observation.metadata, "telemetry": observation.telemetry}
+            )
 
     python_worker()
     assert attempts == [1, 2]
+    assert observed_telemetry == [
+        {
+            "metadata": {"hostname": "node-e2e"},
+            "telemetry": {"gpu": {"utilization": 0.0}, "phase": "cleanup"},
+        }
+    ]
 
-    command_script = (
-        "import labtasker,sys; "
-        "assert labtasker.task_info().run_dir.is_absolute(); "
-        "assert labtasker.report_progress({'step':1,'metrics':{'length':len(sys.argv[1])}}); "
-        "labtasker.finish({'echo':sys.argv[1]})"
-    )
+    command_script = """
+import json
+import pathlib
+import subprocess
+import sys
+import time
+
+import labtasker
+
+assert labtasker.task_info().run_dir.is_absolute()
+deadline = time.monotonic() + 2
+with labtasker.Client() as client:
+    while not client.list_workers(filter='metadata.kind == "command-e2e"').items:
+        if time.monotonic() >= deadline:
+            raise AssertionError("Command Worker observation was not registered")
+        time.sleep(0.01)
+cli = pathlib.Path(sys.executable).with_name("labtasker")
+reported = subprocess.run(
+    [str(cli), "worker", "telemetry", "--data", '{"source":"cli"}'],
+    capture_output=True,
+    text=True,
+)
+assert reported.returncode == 0, reported.stderr
+assert json.loads(reported.stdout) == {"reported": True}
+with labtasker.Client() as client:
+    observation = client.list_workers(filter='telemetry.source == "cli"').items[0]
+assert labtasker.report_progress(
+    {"step": 1, "metrics": {"length": len(sys.argv[1])}}
+)
+labtasker.finish({"echo": sys.argv[1], "worker_telemetry": observation.telemetry})
+"""
     run_command_worker(
         [sys.executable, "-c", command_script, "%{value}"],
         route="command",
         idle_timeout=0,
+        metadata={"kind": "command-e2e"},
     )
     run_command_worker(
         [sys.executable, "-c", "raise SystemExit(7)"],
@@ -169,7 +221,10 @@ def test_real_python_and_command_workers(
     assert python_task.last_error is not None
     assert python_task.last_error.type == "TaskError"
     assert command_task.status == "succeeded"
-    assert command_task.result == {"echo": "hello world"}
+    assert command_task.result == {
+        "echo": "hello world",
+        "worker_telemetry": {"source": "cli"},
+    }
     assert command_task.progress == {"step": 1, "metrics": {"length": 11}}
     assert failed_task.status == "failed"
     assert failed_task.attempt == 2
@@ -180,7 +235,10 @@ def test_real_python_and_command_workers(
         (tmp_path / ".labtasker/runs/default/command-worker__t_COMMANDWORKR").glob("*")
     )
     assert len(command_runs) == 1
-    assert (command_runs[0] / "result.json").read_text().strip() == '{\n  "echo": "hello world"\n}'
+    assert json.loads((command_runs[0] / "result.json").read_text()) == {
+        "echo": "hello world",
+        "worker_telemetry": {"source": "cli"},
+    }
 
 
 def test_unicode_round_trip_through_client_server_worker_and_result(

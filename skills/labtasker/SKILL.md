@@ -30,8 +30,8 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
   idempotent submission, priority, filtering, fuzzy name search, pagination, updates, cancellation,
   external early-stop decisions, retries, interruption, and rerunning work.
 - Read [observations-and-counts.md](references/observations-and-counts.md) for
-  online Workers, route presence, busy/idle activity, grouped counts, and
-  paginated monitoring queries.
+  online Workers, route presence, busy/idle activity, Worker metadata/latest
+  telemetry, grouped counts, and paginated monitoring queries.
 
 Read every reference relevant to the request before proposing commands. If an
 installed version may differ, confirm exact options with `labtasker ... --help`.
@@ -118,7 +118,8 @@ contacting a Server.
   metadata, and small result.
 - A **Worker** is one user-started process that repeatedly executes compatible
   Tasks. The Server stores authoritative Tasks and supplementary expiring Worker
-  observations; it does not manage processes or GPU capacity.
+  observations with optional user-defined resource details; it does not discover,
+  allocate, or manage processes or GPU capacity.
 - A **route** is an exact, case-sensitive compatibility label shared by a Task
   and the implementation allowed to run it.
 - A **Queue** is an independently managed body of Tasks, not a Worker, GPU,

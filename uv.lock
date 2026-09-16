@@ -610,7 +610,7 @@ wheels = [
 
 [[package]]
 name = "labtasker"
-version = "2.4.1"
+version = "2.5.0"
 source = { editable = "packages/labtasker" }
 dependencies = [
     { name = "labtasker-client" },
@@ -632,7 +632,7 @@ provides-extras = ["socks"]
 
 [[package]]
 name = "labtasker-client"
-version = "2.4.1"
+version = "2.5.0"
 source = { editable = "packages/labtasker-client" }
 dependencies = [
     { name = "httpx" },
@@ -662,7 +662,7 @@ provides-extras = ["socks"]
 
 [[package]]
 name = "labtasker-server"
-version = "2.4.1"
+version = "2.5.0"
 source = { editable = "packages/labtasker-server" }
 dependencies = [
     { name = "alembic" },
@@ -688,7 +688,7 @@ requires-dist = [
 
 [[package]]
 name = "labtasker-workspace"
-version = "2.4.1"
+version = "2.5.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]

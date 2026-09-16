@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable
 from typing import Any, Literal, cast
@@ -17,8 +18,14 @@ from labtasker_server.grouping import (
     page_limit,
 )
 from labtasker_server.models import QueueRow, WorkerRow
-from labtasker_server.schemas import GroupCountPage, WorkerObservation, WorkerPage, WorkerReport
-from labtasker_server.services.tasks import datetime_from_us, system_now_us
+from labtasker_server.schemas import (
+    GroupCountPage,
+    WorkerObservation,
+    WorkerPage,
+    WorkerReport,
+    WorkerTelemetryReport,
+)
+from labtasker_server.services.tasks import canonical_json, datetime_from_us, system_now_us
 from labtasker_server.validation import validate_identifier
 
 WORKER_TTL_US = 300_000_000
@@ -46,6 +53,13 @@ def worker_from_row(row: WorkerRow) -> WorkerObservation:
         route=row.route,
         status=cast(Literal["idle", "busy"], row.status),
         task_id=row.task_id,
+        metadata=json.loads(row.metadata_json),
+        telemetry=None if row.telemetry_json is None else json.loads(row.telemetry_json),
+        telemetry_updated_at=(
+            None
+            if row.telemetry_updated_at_us is None
+            else datetime_from_us(row.telemetry_updated_at_us)
+        ),
         last_seen_at=datetime_from_us(row.last_seen_at_us),
         expires_at=datetime_from_us(row.expires_at_us),
     )
@@ -71,12 +85,35 @@ class WorkerService:
                 )
             now = self.now_us()
             if row is None:
-                row = WorkerRow(queue_name=queue, worker_id=worker_id, route=report.route)
+                row = WorkerRow(
+                    queue_name=queue,
+                    worker_id=worker_id,
+                    route=report.route,
+                    metadata_json=canonical_json(report.metadata),
+                )
                 session.add(row)
             row.status = report.status
             row.task_id = report.task_id
+            row.metadata_json = canonical_json(report.metadata)
             row.last_seen_at_us = now
             row.expires_at_us = now + WORKER_TTL_US
+
+    def report_telemetry(self, queue: str, worker_id: str, report: WorkerTelemetryReport) -> None:
+        queue = validate_identifier(queue, kind="Queue")
+        worker_id = validate_worker_id(worker_id)
+        with self.database.write_session() as session:
+            if session.get(QueueRow, queue) is None:
+                raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
+            row = session.get(WorkerRow, (queue, worker_id))
+            now = self.now_us()
+            if row is None or row.expires_at_us <= now:
+                raise not_found(
+                    "worker_not_found",
+                    "Online Worker observation does not exist.",
+                    worker_id=worker_id,
+                )
+            row.telemetry_json = canonical_json(report.telemetry)
+            row.telemetry_updated_at_us = now
 
     def withdraw(self, queue: str, worker_id: str) -> None:
         queue = validate_identifier(queue, kind="Queue")

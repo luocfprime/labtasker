@@ -6,7 +6,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from labtasker_server.app import create_app
 from labtasker_server.config import ServerSettings
@@ -112,10 +112,22 @@ def test_worker_filter_language_and_ordered_pages(client: TestClient) -> None:
         assert (
             client.put(
                 f"{BASE}/workers/{worker_id}",
-                json={"route": "a", "status": status, "task_id": task_id},
+                json={
+                    "route": "a",
+                    "status": status,
+                    "task_id": task_id,
+                    "metadata": {"node": "n1" if worker_id == W1 else "n2"},
+                },
             ).status_code
             == 204
         )
+    assert (
+        client.post(
+            f"{BASE}/workers/{W2}/telemetry",
+            json={"telemetry": {"gpu": {"utilization": 0.25}, "tags": ["slow"]}},
+        ).status_code
+        == 204
+    )
     first = client.get(f"{BASE}/workers", params={"limit": 1}).json()
     assert first["items"][0]["id"] == W1
     assert (
@@ -132,15 +144,24 @@ def test_worker_filter_language_and_ordered_pages(client: TestClient) -> None:
         'queue == "default" and expires_at > "2020-01-01T00:00:00Z"': 2,
         'last_seen_at >= "2020-01-01T00:00:00Z"': 2,
         f'id == "{W1}" or status == "busy"': 2,
+        'metadata.node == "n1"': 1,
+        "telemetry.gpu.utilization < 0.5": 1,
+        '"slow" in telemetry.tags': 1,
+        "missing(telemetry.gpu.utilization)": 1,
+        'telemetry_updated_at > "2020-01-01T00:00:00Z"': 1,
     }
     for expression, count in expressions.items():
         response = client.get(f"{BASE}/workers/count", params={"filter": expression})
         assert response.status_code == 200, response.text
         assert response.json() == {"count": count}
-    for expression in ['status == "pending"', "metadata.x == 1", "expires_at > 1", '"a" in route']:
+    for expression in ['status == "pending"', "metadata == 1", "expires_at > 1", '"a" in route']:
         response = client.get(f"{BASE}/workers/count", params={"filter": expression})
         assert response.status_code == 422
         assert response.json()["error"]["code"] == "invalid_filter"
+    for field in ["metadata.node", "telemetry.gpu"]:
+        response = client.get(f"{BASE}/workers/count", params={"group_by": field})
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "invalid_request"
     assert (
         client.get(
             f"{BASE}/workers", params={"cursor": first["next_cursor"], "filter": 'status == "idle"'}
@@ -161,8 +182,144 @@ def test_observation_validation_and_route_identity(client: TestClient) -> None:
         assert response.json()["error"]["code"] == "invalid_request"
     payload = {"route": "a", "status": "idle", "task_id": None}
     assert client.put(path, json=payload).status_code == 204
+    assert client.get(f"{BASE}/workers").json()["items"][0]["metadata"] == {}
     assert client.put(path, json={**payload, "route": "b"}).status_code == 409
     assert client.put(f"{BASE}/workers/not-an-id", json=payload).status_code == 422
+    for body in [
+        {**payload, "metadata": []},
+        {**payload, "metadata": {"invalid": 2**63}},
+        {**payload, "extra": True},
+    ]:
+        response = client.put(path, json=body)
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "invalid_request"
+
+    for body in [
+        {},
+        {"telemetry": []},
+        {"telemetry": {"invalid": 2**63}},
+        {"telemetry": {}, "extra": True},
+    ]:
+        response = client.post(f"{path}/telemetry", json=body)
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_worker_telemetry_is_a_separate_nonrenewing_snapshot(tmp_path: Path) -> None:
+    now = [1_700_000_000_000_000]
+    app = create_app(ServerSettings(database=tmp_path / "telemetry.db"), now_us=lambda: now[0])
+    with TestClient(app) as client:
+        report = {
+            "route": "train",
+            "status": "idle",
+            "task_id": None,
+            "metadata": {"hostname": "node-7", "gpu_ids": ["GPU-a"]},
+        }
+        assert client.put(f"{BASE}/workers/{W1}", json=report).status_code == 204
+        before = client.get(f"{BASE}/workers").json()["items"][0]
+        assert before["metadata"] == report["metadata"]
+        assert before["telemetry"] is None
+        assert before["telemetry_updated_at"] is None
+
+        now[0] += 10_000_000
+        assert (
+            client.post(
+                f"{BASE}/workers/{W1}/telemetry",
+                json={"telemetry": {"gpu_utilization": 0.75}},
+            ).status_code
+            == 204
+        )
+        after = client.get(f"{BASE}/workers").json()["items"][0]
+        assert after["telemetry"] == {"gpu_utilization": 0.75}
+        assert after["telemetry_updated_at"].endswith("Z")
+        assert after["last_seen_at"] == before["last_seen_at"]
+        assert after["expires_at"] == before["expires_at"]
+
+        now[0] += 10_000_000
+        refreshed_report = {**report, "status": "busy", "metadata": {"hostname": "node-8"}}
+        assert client.put(f"{BASE}/workers/{W1}", json=refreshed_report).status_code == 204
+        refreshed = client.get(f"{BASE}/workers").json()["items"][0]
+        assert refreshed["metadata"] == {"hostname": "node-8"}
+        assert refreshed["telemetry"] == after["telemetry"]
+        assert refreshed["telemetry_updated_at"] == after["telemetry_updated_at"]
+
+        now[0] += 10_000_000
+        assert (
+            client.post(f"{BASE}/workers/{W1}/telemetry", json={"telemetry": {}}).status_code == 204
+        )
+        replaced = client.get(f"{BASE}/workers").json()["items"][0]
+        assert replaced["telemetry"] == {}
+        assert replaced["telemetry_updated_at"] != after["telemetry_updated_at"]
+
+        now[0] += 300_000_000
+        response = client.post(f"{BASE}/workers/{W1}/telemetry", json={"telemetry": {}})
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "worker_not_found"
+
+        missing = client.post(f"{BASE}/workers/{W2}/telemetry", json={"telemetry": {}})
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "worker_not_found"
+
+        assert client.put("/api/v2/queues/temporary", json={}).status_code == 201
+        assert client.delete("/api/v2/queues/temporary").status_code == 204
+        absent_queue = client.post(
+            f"/api/v2/queues/temporary/workers/{W1}/telemetry", json={"telemetry": {}}
+        )
+        assert absent_queue.status_code == 404
+        assert absent_queue.json()["error"]["code"] == "queue_not_found"
+
+
+def test_worker_observability_migration_preserves_existing_worker_rows(tmp_path: Path) -> None:
+    path = tmp_path / "worker-upgrade.db"
+    database = Database(path)
+    database.initialize()
+    config = Config()
+    config.set_main_option(
+        "script_location",
+        str(
+            Path(__file__).parents[2] / "packages/labtasker-server/src/labtasker_server/migrations"
+        ),
+    )
+    try:
+        with database.engine.begin() as connection:
+            config.attributes["connection"] = connection
+            command.downgrade(config, "0003_task_progress")
+            connection.execute(
+                text(
+                    "INSERT INTO workers "
+                    "(queue_name, worker_id, route, status, task_id, "
+                    "last_seen_at_us, expires_at_us) "
+                    "VALUES ('default', :worker_id, 'train', 'busy', :task_id, 100, 500)"
+                ),
+                {"worker_id": W1, "task_id": "t_ABCDEFGHIJKL"},
+            )
+    finally:
+        database.dispose()
+
+    upgraded = Database(path)
+    try:
+        upgraded.initialize()
+        with upgraded.read_session() as session:
+            row = session.execute(
+                text(
+                    "SELECT route, status, task_id, metadata_json, telemetry_json, "
+                    "telemetry_updated_at_us, last_seen_at_us, expires_at_us "
+                    "FROM workers WHERE worker_id = :worker_id"
+                ),
+                {"worker_id": W1},
+            ).one()
+        assert tuple(row) == (
+            "train",
+            "busy",
+            "t_ABCDEFGHIJKL",
+            "{}",
+            None,
+            None,
+            100,
+            500,
+        )
+    finally:
+        upgraded.dispose()
 
 
 def test_worker_migration_preserves_existing_tasks_and_is_repeatable(tmp_path: Path) -> None:
@@ -195,7 +352,7 @@ def test_worker_migration_preserves_existing_tasks_and_is_repeatable(tmp_path: P
 def test_concurrent_observation_upserts_do_not_duplicate_or_mutate_tasks(tmp_path: Path) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
-    from labtasker_server.schemas import WorkerReport
+    from labtasker_server.schemas import WorkerReport, WorkerTelemetryReport
     from labtasker_server.services.workers import WorkerService
 
     database = Database(tmp_path / "concurrent.db")
@@ -210,6 +367,20 @@ def test_concurrent_observation_upserts_do_not_duplicate_or_mutate_tasks(tmp_pat
             for future in futures:
                 future.result(timeout=5)
         assert service.count("default") == 1
+        assert task_service.get("default", before.id) == before
+        telemetry_payloads = [
+            WorkerTelemetryReport(telemetry={"rank": rank, "values": [rank]}) for rank in range(8)
+        ]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = [
+                pool.submit(service.report_telemetry, "default", W1, telemetry)
+                for telemetry in telemetry_payloads
+            ]
+            for future in futures:
+                future.result(timeout=5)
+        observation = service.list("default").items[0]
+        assert observation.telemetry in [payload.telemetry for payload in telemetry_payloads]
+        assert observation.telemetry_updated_at is not None
         assert task_service.get("default", before.id) == before
         service.withdraw("default", W1)
         assert task_service.get("default", before.id) == before
@@ -229,9 +400,19 @@ def test_openapi_observation_schemas_and_count_union(client: TestClient) -> None
         "route",
         "status",
         "task_id",
+        "metadata",
+        "telemetry",
+        "telemetry_updated_at",
         "last_seen_at",
         "expires_at",
     }
+    assert set(models["WorkerTelemetryReport"]["required"]) == {"telemetry"}
+    assert (
+        schema["paths"]["/api/v2/queues/{queue}/workers/{id}/telemetry"]["post"]["responses"][
+            "204"
+        ]["description"]
+        == "Successful Response"
+    )
     for resource in ["tasks", "workers"]:
         operation = schema["paths"][f"/api/v2/queues/{{queue}}/{resource}/count"]["get"]
         result = operation["responses"]["200"]["content"]["application/json"]["schema"]

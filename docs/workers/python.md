@@ -8,7 +8,11 @@ many Tasks.
 import labtasker
 
 
-@labtasker.loop(route="embed", idle_timeout=300)
+@labtasker.loop(
+    route="embed",
+    idle_timeout=300,
+    metadata={"hostname": "node-7", "gpu_ids": ["GPU-a"]},
+)
 def embed(
     model,
     text: str = labtasker.TaskArg(),
@@ -23,7 +27,9 @@ embed(load_embedding_model_once())
 ```
 
 Pass `model` when calling the decorated function. Only parameters whose default
-is `TaskArg(...)` are read from each Task.
+is `TaskArg(...)` are read from each Task. Worker `metadata` is a strict JSON
+object fixed for this loop invocation. Labtasker does not discover hostname,
+scheduler, GPU, or other resource fields automatically.
 
 ## Binding rules
 
@@ -95,6 +101,23 @@ evaluation/checkpoint boundaries rather than every inner-loop step. The object
 has no required business keys. `completed` and `total` are the optional
 Labtasker WebUI convention for displaying determinate progress; current metrics
 and early-stop diagnostics can use any other JSON keys.
+
+Report a latest Worker-level resource snapshot separately from Task progress:
+
+```python
+labtasker.report_worker_telemetry(
+    {"gpu": {"utilization": 0.82, "memory_used_bytes": memory_used}}
+)
+```
+
+The synchronous call performs one request and completely replaces the previous
+Worker telemetry object. It returns `False` on an isolated reporting failure and
+never changes Task outcome or renews Worker presence. Labtasker does not sample,
+retry, throttle, merge, or retain telemetry history. Call it at useful boundaries
+or schedule it from your own thread if periodic sampling is needed. It remains
+available during cleanup after `finish()` while the Worker execution context is
+active. Use `skip_if_no_labtasker=True` only for code intentionally shared with
+standalone execution.
 
 ## Cooperative cancellation
 

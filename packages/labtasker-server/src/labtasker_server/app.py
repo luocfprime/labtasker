@@ -49,6 +49,7 @@ from labtasker_server.schemas import (
     UnhealthyResponse,
     WorkerPage,
     WorkerReport,
+    WorkerTelemetryReport,
 )
 from labtasker_server.services.queues import QueueService
 from labtasker_server.services.tasks import TaskService, system_now_us
@@ -353,6 +354,16 @@ def create_app(
     )
     def report_worker(queue: str, id: str, report: WorkerReport) -> Response:
         worker_service.report(queue, id, report)
+        return Response(status_code=204)
+
+    @app.post(
+        "/api/v2/queues/{queue}/workers/{id}/telemetry",
+        status_code=204,
+        dependencies=authenticated,
+        responses=API_ERROR_RESPONSES,
+    )
+    def report_worker_telemetry(queue: str, id: str, report: WorkerTelemetryReport) -> Response:
+        worker_service.report_telemetry(queue, id, report)
         return Response(status_code=204)
 
     @app.delete(

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from labtasker.types import JSONValue, TaskStatus
 from labtasker.validation import (
@@ -290,6 +290,9 @@ class WorkerObservation(ResponseModel):
     route: str
     status: Literal["idle", "busy"]
     task_id: str | None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+    telemetry: dict[str, JSONValue] | None = None
+    telemetry_updated_at: datetime | None = None
     last_seen_at: datetime
     expires_at: datetime
 
@@ -310,10 +313,25 @@ class WorkerObservation(ResponseModel):
     def validate_task(cls, value: str | None) -> str | None:
         return None if value is None else validate_task_id(value)
 
-    @field_validator("last_seen_at", "expires_at")
+    @field_validator("metadata", "telemetry")
     @classmethod
-    def validate_time(cls, value: datetime) -> datetime:
-        return _utc_datetime(value)
+    def validate_worker_objects(
+        cls, value: dict[str, JSONValue] | None, info: object
+    ) -> dict[str, JSONValue] | None:
+        if value is None:
+            return None
+        return validate_json_object(value, field=getattr(info, "field_name", "worker"))
+
+    @field_validator("telemetry_updated_at", "last_seen_at", "expires_at")
+    @classmethod
+    def validate_time(cls, value: datetime | None) -> datetime | None:
+        return None if value is None else _utc_datetime(value)
+
+    @model_validator(mode="after")
+    def validate_telemetry_fields(self) -> WorkerObservation:
+        if (self.telemetry is None) != (self.telemetry_updated_at is None):
+            raise ValueError("telemetry and telemetry_updated_at must be both null or both present")
+        return self
 
 
 class WorkerPage(ResponseModel):

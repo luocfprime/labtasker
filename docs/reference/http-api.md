@@ -180,21 +180,30 @@ All paths below require an existing Queue and the ordinary application token.
 | --- | --- | --- |
 | `GET /api/v2/queues/{queue}/workers` | `filter`, `limit`, `cursor` | `200` with `{"items":[...],"next_cursor":...}`, ID ascending, default 100/max 1000. |
 | `GET /api/v2/queues/{queue}/workers/count` | `filter`, optional `group_by`, grouped `limit`/`cursor` | `200` with scalar or grouped counts. Dimensions: `route`, `status`, or both in either order. |
-| `PUT /api/v2/queues/{queue}/workers/{id}` | Complete `{"route":"sdxl","status":"busy","task_id":"t_ABCDEFGHIJKL"}` | `204`; creates or renews the observation. |
+| `PUT /api/v2/queues/{queue}/workers/{id}` | Complete `{"route":"sdxl","status":"busy","task_id":"t_ABCDEFGHIJKL","metadata":{"hostname":"node-7"}}` | `204`; creates or renews the observation. |
+| `POST /api/v2/queues/{queue}/workers/{id}/telemetry` | `{"telemetry":{"gpu_utilization":0.75}}` | `204`; replaces telemetry without renewing the observation. |
 | `DELETE /api/v2/queues/{queue}/workers/{id}` | None | `204`, including an absent Worker in an existing Queue. |
 
 Each observation exposes `id`, `queue`, `route`, `status`, nullable `task_id`,
-`last_seen_at`, and `expires_at`. IDs match `w_[A-Za-z0-9_-]{12}` and identify one
-loop invocation across successive Tasks. All seven fields support the existing
-filter grammar with their own types; Task-only paths are rejected. Worker count
-pagination and filtering follow the grouped-count rules above. List cursors bind
-the Queue and exact filter.
+`metadata`, nullable `telemetry` and `telemetry_updated_at`, `last_seen_at`, and
+`expires_at`. IDs match `w_[A-Za-z0-9_-]{12}` and identify one loop invocation
+across successive Tasks. Fixed fields plus nested `metadata.*` and `telemetry.*`
+paths support the existing filter grammar; Task-only paths are rejected. Worker
+count pagination and filtering follow the grouped-count rules above. Grouping
+remains limited to `route` and `status`.
 
-A report requires all three fields; `task_id` accepts null or a valid Task ID
+A report requires the three original fields; `metadata` is a strict JSON object
+defaulting to `{}` for older reporters. `task_id` accepts null or a valid Task ID
 without a Task lookup. Updating an existing instance to another route returns
 `409 worker_route_conflict`. `idle` means waiting for work; `busy` begins at
 confirmed claim and covers execution, reporting and cleanup, even after Task
 completion. The bundled Worker reports null when idle and its Task ID when busy.
+
+Telemetry is a strict, user-defined JSON object with no built-in GPU or platform
+schema. Reporting is synchronous, one request per call, and complete replacement.
+The Server timestamps accepted telemetry but does not update `last_seen_at`, renew
+expiry, create an absent/expired Worker, retain history, or affect execution. An
+absent or expired Worker returns `404 worker_not_found`.
 
 The Server assigns both timestamps and expires each accepted observation after
 300 seconds. Bundled Workers report every 60 seconds and on activity changes

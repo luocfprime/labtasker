@@ -107,12 +107,19 @@ Group pending Tasks by compatible route, then inspect Worker activity:
 labtasker task count --status pending --group-by routes
 labtasker worker count --group-by route,status
 labtasker worker list --filter 'route == "sdxl" and status == "idle"'
+labtasker worker list --filter 'metadata.hostname == "node-7"'
+labtasker worker count --filter 'telemetry.gpu.utilization < 0.2'
 ```
 
 Task grouping supports `routes` and `status`; Worker grouping supports `route`
 and `status`. Python accepts a list such as `group_by=["route", "status"]`,
 while CLI accepts one comma-separated value. Filters select records before
-grouping. Worker filters use observation fields, not Task args or metadata.
+grouping. Worker filters use observation fields: fixed fields such as `route`,
+`status`, and `telemetry_updated_at`, plus dynamic `metadata.*` and
+`telemetry.*` paths. They do not expose Task args, progress, result, or Task
+metadata. Telemetry fields are user-defined, so filter or enumerate the small
+Worker set and perform richer processing locally. Dynamic telemetry and metadata
+paths deliberately cannot be grouping dimensions.
 
 Grouped responses contain `group_by`, `count`, `items`, and `next_cursor`.
 The top-level `count` is the complete selected total. A Task accepting two routes

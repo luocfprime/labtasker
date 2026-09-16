@@ -29,7 +29,13 @@ from labtasker.command_worker import (
 )
 from labtasker.config import ResolvedConfig
 from labtasker.errors import APIError
-from labtasker.execution import RunControl, finish, report_progress, task_info
+from labtasker.execution import (
+    RunControl,
+    finish,
+    report_progress,
+    report_worker_telemetry,
+    task_info,
+)
 from labtasker.models import ClaimResponse, Queue, Task
 
 UTC = timezone.utc
@@ -148,6 +154,16 @@ def test_command_template_is_validated_before_client_construction(
     with pytest.raises(TemplateSyntaxError, match="unterminated"):
         run_command_worker(["%{bad"], idle_timeout=0)
     assert not constructed
+
+
+def test_command_worker_metadata_is_validated_before_client_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "labtasker.command_worker.Client", lambda **_: pytest.fail("Client constructed")
+    )
+    with pytest.raises(ValueError, match="signed 64-bit"):
+        run_command_worker(["echo"], metadata={"invalid": 2**63})
 
 
 def test_command_worker_rejects_non_posix_before_client_construction(
@@ -803,11 +819,13 @@ def test_environment_context_loads_task_info_and_finish_without_import_side_effe
         "LABTASKER_RUN_ID": claim.run_id,
         "LABTASKER_ROUTE": "default",
         "LABTASKER_RUN_DIR": str(journal.run_dir),
+        "LABTASKER_WORKER_ID": "w_ABCDEFGHIJKL",
     }
     for name, value in environment.items():
         monkeypatch.setenv(name, value)
     reported: list[dict[str, Any]] = []
     progress_reports: list[dict[str, Any]] = []
+    telemetry_reports: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "labtasker.worker.report_complete_until_resolved",
         lambda _client, **kwargs: not reported.append(kwargs["result"]),
@@ -816,10 +834,16 @@ def test_environment_context_loads_task_info_and_finish_without_import_side_effe
         "labtasker.worker.report_progress_once",
         lambda _client, **kwargs: not progress_reports.append(kwargs["progress"]),
     )
+    monkeypatch.setattr(
+        "labtasker.worker.report_worker_telemetry_once",
+        lambda _client, **kwargs: not telemetry_reports.append(kwargs["telemetry"]),
+    )
     assert task_info().run_dir == journal.run_dir
     assert report_progress({"step": 7})
+    assert report_worker_telemetry({"gpu_utilization": 0.75})
     finish({"metric": 3})
     assert progress_reports == [{"step": 7}]
+    assert telemetry_reports == [{"gpu_utilization": 0.75}]
     assert reported == [{"metric": 3}]
     assert json.loads(journal.result_path.read_text()) == {"metric": 3}
     assert json.loads(journal.run_path.read_text())["phase"] == "acknowledged"

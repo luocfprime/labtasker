@@ -73,6 +73,15 @@ def test_invalid_grouping_fails_before_request(kwargs: dict[str, object]) -> Non
         client.count_tasks(**kwargs)
 
 
+@pytest.mark.parametrize("field", ["metadata.node", "telemetry.gpu"])
+def test_dynamic_worker_fields_cannot_be_grouped(field: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        pytest.fail("invalid input reached network")
+
+    with make_client(handler) as client, pytest.raises(RequestValidationError):
+        client.count_workers(group_by=[field])
+
+
 def test_old_server_scalar_does_not_masquerade_as_grouped_result() -> None:
     with (
         make_client(lambda request: httpx.Response(200, json={"count": 4})) as client,
@@ -205,6 +214,35 @@ def test_reporter_sends_latest_busy_then_idle_and_withdraws(
     assert ObservationReporter(config, "a").id != reporter.id
 
 
+def test_reporter_keeps_invocation_metadata_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reported = threading.Event()
+    payloads: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "PUT":
+            payloads.append(json.loads(request.content))
+            reported.set()
+        return httpx.Response(204)
+
+    monkeypatch.setattr(
+        "labtasker.observations._make_http_client",
+        lambda config: httpx.Client(
+            base_url="http://server/api/v2/", transport=httpx.MockTransport(handler)
+        ),
+    )
+    metadata = {"node": {"name": "node-7"}}
+    config = ResolvedConfig(url="http://server", queue="default", token=None, local=None)
+    with ObservationReporter(config, "a", metadata) as reporter:
+        assert reported.wait(2)
+        metadata["node"] = {"name": "changed"}
+        reported.clear()
+        reporter.activity("t_ABCDEFGHIJKL")
+        assert reported.wait(2)
+    assert payloads[-1]["metadata"] == {"node": {"name": "node-7"}}
+
+
 def test_periodic_report_repairs_failure_without_activity_change(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -231,7 +269,10 @@ def test_periodic_report_repairs_failure_without_activity_change(
     with ObservationReporter(config, "a"):
         assert repaired.wait(2)
     assert len(attempts) >= 2
-    assert all(item == {"route": "a", "status": "idle", "task_id": None} for item in attempts)
+    assert all(
+        item == {"route": "a", "status": "idle", "task_id": None, "metadata": {}}
+        for item in attempts
+    )
     assert "reporting recovered" in caplog.text
 
 
@@ -277,6 +318,7 @@ def test_slow_transport_initialization_respects_latest_activity_and_shutdown(
                 "route": "a",
                 "status": "busy",
                 "task_id": "t_ABCDEFGHIJKL",
+                "metadata": {},
             }
     finally:
         release.set()

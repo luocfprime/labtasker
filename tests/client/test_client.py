@@ -397,6 +397,10 @@ def test_worker_protocol_actions_are_one_shot_and_strict() -> None:
             run_id="r_ABCDEFGHIJKL",
             progress={"step": 3, "loss": 0.5},
         )
+        client._report_worker_telemetry(
+            worker_id="w_ABCDEFGHIJKL",
+            telemetry={"gpu_utilization": 0.5},
+        )
         client._fail(
             task_id="t_ABCDEFGHIJKL",
             run_id="r_ABCDEFGHIJKL",
@@ -410,6 +414,7 @@ def test_worker_protocol_actions_are_one_shot_and_strict() -> None:
         "heartbeat",
         "complete",
         "progress",
+        "telemetry",
         "fail",
         "unclaim",
     ]
@@ -417,6 +422,7 @@ def test_worker_protocol_actions_are_one_shot_and_strict() -> None:
         {"run_id": "r_ABCDEFGHIJKL"},
         {"run_id": "r_ABCDEFGHIJKL", "result": {"score": 0.5}},
         {"run_id": "r_ABCDEFGHIJKL", "progress": {"step": 3, "loss": 0.5}},
+        {"telemetry": {"gpu_utilization": 0.5}},
         {
             "run_id": "r_ABCDEFGHIJKL",
             "error": {"type": "ValueError", "message": "bad value", "traceback": None},
@@ -439,6 +445,27 @@ def test_worker_terminal_action_transport_failure_is_not_retried() -> None:
             run_id="r_ABCDEFGHIJKL",
             result={},
         )
+    assert calls == 1
+
+
+def test_worker_telemetry_is_one_shot_and_validated_before_transport() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        raise httpx.ConnectError("lost", request=request)
+
+    with mock_client(handler) as client:
+        with pytest.raises(RequestValidationError, match="signed 64-bit"):
+            client._report_worker_telemetry(
+                worker_id="w_ABCDEFGHIJKL", telemetry={"invalid": 2**63}
+            )
+        assert calls == 0
+        with pytest.raises(TransportError):
+            client._report_worker_telemetry(
+                worker_id="w_ABCDEFGHIJKL", telemetry={"gpu_utilization": 0.5}
+            )
     assert calls == 1
 
 

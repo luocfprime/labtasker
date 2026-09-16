@@ -165,7 +165,10 @@ Before submitting a batch:
 Use the required `--` separator followed by one argv template:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 labtasker loop --route robotwin -- \
+CUDA_VISIBLE_DEVICES=0 labtasker loop \
+  --route robotwin \
+  --metadata '{"node":"node-a","gpu_ids":["0"]}' \
+  -- \
   python evaluate.py \
     --task '%{task}' \
     --checkpoint '%{checkpoint}'
@@ -287,7 +290,10 @@ Use a Python Worker when setup should happen once:
 import labtasker
 
 
-@labtasker.loop(route="sdxl-diffusers")
+@labtasker.loop(
+    route="sdxl-diffusers",
+    metadata={"node": "node-a", "gpu_ids": ["0"]},
+)
 def generate(
     pipeline,
     prompt: str = labtasker.TaskArg(),
@@ -368,6 +374,23 @@ Reporting is supplementary and best effort. The Python helper returns `True`
 when accepted and `False` for an isolated transport or Server rejection; such a
 failure must not fail the workload. Invalid data or missing execution context is
 a programming error unless `skip_if_no_labtasker=True` handles the latter.
+
+Use Worker telemetry, not Task progress, for a latest resource/load snapshot
+shared across the Worker's successive Tasks:
+
+```python
+labtasker.report_worker_telemetry(
+    {"gpu_util_pct": gpu_utilization, "memory_used_gb": memory_used_gb}
+)
+```
+
+The synchronous call completely replaces the previous Worker telemetry object
+and returns whether the Server accepted it. It does not renew Worker presence or
+affect the Task. Labtasker does not detect resource fields, sample periodically,
+retry, merge, or keep history. If periodic sampling is needed, user code owns
+the thread or schedule. A Command child can run `labtasker worker telemetry
+--data JSON`; all distributed ranks inherit one Worker ID and replace the same
+snapshot.
 
 ## Use single-node distributed launchers
 

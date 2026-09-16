@@ -607,6 +607,27 @@ class Client:
             parser=lambda response: _parse_none(response, {204}),
         )
 
+    def _report_worker_telemetry(
+        self,
+        *,
+        worker_id: str,
+        telemetry: dict[str, JSONValue],
+        queue: str | None = None,
+    ) -> None:
+        self._ensure_open()
+        queue_name = self._queue(queue)
+        normalized_telemetry = validate_json_object(telemetry, field="telemetry")
+        from labtasker.validation import validate_worker_id
+
+        normalized_worker_id = validate_worker_id(worker_id)
+        self._call(
+            operation="report_worker_telemetry",
+            method="POST",
+            path=f"queues/{queue_name}/workers/{normalized_worker_id}/telemetry",
+            json={"telemetry": normalized_telemetry},
+            parser=lambda response: _parse_none(response, {204}),
+        )
+
     def _fail(
         self,
         *,

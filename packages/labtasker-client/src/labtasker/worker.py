@@ -36,7 +36,7 @@ from labtasker.models import ClaimResponse, TaskInfo
 from labtasker.observations import ObservationReporter
 from labtasker.tee import WorkerTee, configure_worker_logger
 from labtasker.types import JSONValue
-from labtasker.validation import RequestValidationError, validate_identifier
+from labtasker.validation import RequestValidationError, validate_identifier, validate_json_object
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -133,11 +133,15 @@ def loop(
     idle_timeout: float = 300.0,
     force_stop_timeout: float | None = None,
     max_consecutive_failures: int = 5,
+    metadata: dict[str, JSONValue] | None = None,
 ) -> Callable[[Callable[P, R]], Callable[P, None]]:
     _FailureGuard(max_consecutive_failures)
     normalized_route = validate_identifier(route, field="route")
     normalized_idle_timeout = _validate_idle_timeout(idle_timeout)
     normalized_force_stop_timeout = _validate_force_stop_timeout(force_stop_timeout)
+    normalized_metadata = validate_json_object(
+        {} if metadata is None else metadata, field="metadata"
+    )
 
     def decorate(function: Callable[P, R]) -> Callable[P, None]:
         binding = compile_binding(function)
@@ -157,6 +161,7 @@ def loop(
                 idle_timeout=normalized_idle_timeout,
                 force_stop_timeout=normalized_force_stop_timeout,
                 max_consecutive_failures=max_consecutive_failures,
+                metadata=normalized_metadata,
             )
 
         return run
@@ -174,6 +179,7 @@ def _run_python_worker(
     idle_timeout: float,
     force_stop_timeout: float | None,
     max_consecutive_failures: int = 5,
+    metadata: dict[str, JSONValue] | None = None,
 ) -> None:
     guard = _FailureGuard(max_consecutive_failures)
     _guard_worker_topology()
@@ -181,7 +187,7 @@ def _run_python_worker(
         configure_worker_logger()
         queue_name = client.configuration.queue
         _preflight(client, queue_name)
-        with ObservationReporter(client.configuration, route) as observer:
+        with ObservationReporter(client.configuration, route, metadata) as observer:
             idle_deadline: float | None = None
             while True:
                 claim = client._claim(route=route, run_id=_generate_run_id(), queue=queue_name)
@@ -213,6 +219,7 @@ def _run_python_worker(
                     queue=queue_name,
                     route=route,
                     force_stop_timeout=force_stop_timeout,
+                    worker_id=observer.id,
                 )
 
                 guard.observe(result, claim.task.id)
@@ -230,6 +237,7 @@ def _run_python_claim(
     queue: str,
     route: str,
     force_stop_timeout: float | None,
+    worker_id: str,
 ) -> _ExecutionResult:
     try:
         journal = LocalRunJournal.create(
@@ -271,6 +279,14 @@ def _run_python_claim(
             control=control,
         )
 
+    def worker_telemetry_reporter(telemetry: dict[str, JSONValue]) -> bool:
+        return report_worker_telemetry_once(
+            client,
+            queue=queue,
+            worker_id=worker_id,
+            telemetry=telemetry,
+        )
+
     info = TaskInfo(
         **claim.task.model_dump(),
         run_id=claim.run_id,
@@ -283,6 +299,7 @@ def _run_python_claim(
         reporter=report_complete,
         control=control,
         progress_reporter=progress_reporter,
+        worker_telemetry_reporter=worker_telemetry_reporter,
     )
     heartbeat = Heartbeat(
         client,
@@ -399,6 +416,28 @@ def report_progress_once(
         return False
     except LabtaskerError as error:
         logger.warning("Progress report failed; continuing Task: %s", error.message)
+        return False
+    return True
+
+
+def report_worker_telemetry_once(
+    client: Client,
+    *,
+    queue: str,
+    worker_id: str,
+    telemetry: dict[str, JSONValue],
+) -> bool:
+    try:
+        client._report_worker_telemetry(
+            worker_id=worker_id,
+            telemetry=telemetry,
+            queue=queue,
+        )
+    except TransportError as error:
+        logger.warning("Worker telemetry transport error; continuing Task: %s", error.message)
+        return False
+    except LabtaskerError as error:
+        logger.warning("Worker telemetry report failed; continuing Task: %s", error.message)
         return False
     return True
 

@@ -25,6 +25,7 @@ labtasker task delete TASK_ID
 
 labtasker worker list [OPTIONS]
 labtasker worker count [OPTIONS]
+labtasker worker telemetry --data JSON
 
 labtasker progress --data JSON
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
@@ -72,6 +73,7 @@ do not advertise a usable version do not trigger this warning.
 | `task delete` | Nothing | Permanently deletes one non-running Task; absent is idempotent. |
 | `worker list` | `{"items":[...],"next_cursor":...}` | Lists unexpired observations by ID ascending; accepts `--filter`, `--limit`, `--cursor`, and `--queue`. |
 | `worker count` | `{"count":N}` or a grouped page | Counts unexpired observations; accepts `--filter`, `--group-by`, `--limit`, `--cursor`, and `--queue`. |
+| `worker telemetry` | `{"reported":true|false}` | Inside a Command Worker child, synchronously replaces the current Worker invocation's latest strict JSON-object telemetry snapshot. |
 | `progress` | `{"reported":true|false}` | Inside a Command Worker child, replaces the current run's latest strict JSON-object snapshot. A best-effort transport/revocation failure reports false without failing the command. |
 | `queue create` | One Queue object | Idempotent create-by-name. |
 | `queue list` | Complete Queue array | Not paginated. |
@@ -87,6 +89,9 @@ It claims through one exact route and executes at most one child at a time. The
 required `--` separates Labtasker options from one direct argv template; see
 [Command Workers](../workers/command.md).
 `--max-consecutive-failures INTEGER` defaults to `5` and must be positive.
+`--metadata JSON` supplies one strict JSON object describing that Worker
+invocation. Labtasker does not automatically populate hostname, scheduler, GPU,
+or other resource fields.
 The Worker exits `1` after reporting that many consecutive execution failures;
 see [failure protection](../guides/failure-recovery.md#consecutive-failure-protection).
 
@@ -106,6 +111,8 @@ Server commands have a separate ownership boundary:
 labtasker task count --status pending --group-by routes,status
 labtasker worker count --group-by route,status
 labtasker worker list --filter 'route == "sdxl" and status == "busy"'
+labtasker worker list --filter 'metadata.hostname == "node-7"'
+labtasker worker count --filter 'telemetry.gpu_utilization < 0.1'
 ```
 
 `--group-by` is one comma-separated argument with no spaces. Task fields are

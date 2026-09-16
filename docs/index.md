@@ -38,6 +38,9 @@ The key features are:
   end-to-end tests.
 - **Structured task records:** Keep each Task's arguments, metadata, status,
   errors, and structured result in one place for inspection.
+- **Lightweight Worker observability:** Inspect where Workers run and their
+  latest user-reported resource telemetry without turning Labtasker into a
+  resource scheduler or metrics database.
 - **Easy to adopt and use:** Add Labtasker to existing Python code in fewer than
   10 lines, or wrap an existing command with no code changes. The API,
   non-interactive CLI, [Agent Skill](guides/agent-skill.md), and

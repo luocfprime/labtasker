@@ -259,6 +259,11 @@ def test_fresh_database_has_migrated_schema_default_queue_and_pragmas(
             "progress_attempt",
         } <= {column["name"] for column in inspect(database.engine).get_columns("tasks")}
         assert {
+            "metadata_json",
+            "telemetry_json",
+            "telemetry_updated_at_us",
+        } <= {column["name"] for column in inspect(database.engine).get_columns("workers")}
+        assert {
             constraint["name"]
             for constraint in inspect(database.engine).get_check_constraints("tasks")
         } >= {
@@ -268,7 +273,7 @@ def test_fresh_database_has_migrated_schema_default_queue_and_pragmas(
         with database.read_session() as session:
             assert (
                 session.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0003_task_progress"
+                == "0004_worker_observability"
             )
             assert session.scalars(text("SELECT name FROM queues")).all() == ["default"]
             assert session.scalar(text("PRAGMA foreign_keys")) == 1
@@ -431,7 +436,7 @@ def test_failed_forward_migration_preserves_revision_and_task_data(database_path
         assert TaskService(replacement).get("default", original.id) == original
         with replacement.read_session() as session:
             assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0003_task_progress"
+                "0004_worker_observability"
             )
     finally:
         replacement.dispose()

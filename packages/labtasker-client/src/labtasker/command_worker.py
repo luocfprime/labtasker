@@ -27,7 +27,7 @@ from labtasker.models import ClaimResponse
 from labtasker.observations import ObservationReporter
 from labtasker.tee import configure_worker_logger
 from labtasker.types import JSONValue
-from labtasker.validation import validate_identifier
+from labtasker.validation import validate_identifier, validate_json_object
 from labtasker.worker import (
     POLL_INTERVAL_SECONDS,
     Heartbeat,
@@ -57,19 +57,25 @@ def run_command_worker(
     idle_timeout: float = 300.0,
     force_stop_timeout: float | None = None,
     max_consecutive_failures: int = 5,
+    metadata: dict[str, JSONValue] | None = None,
 ) -> None:
     guard = _FailureGuard(max_consecutive_failures)
     templates = compile_argv(argv)
     normalized_route = validate_identifier(route, field="route")
     normalized_idle_timeout = _validate_idle_timeout(idle_timeout)
     normalized_force_stop_timeout = _validate_force_stop_timeout(force_stop_timeout)
+    normalized_metadata = validate_json_object(
+        {} if metadata is None else metadata, field="metadata"
+    )
     _guard_command_worker_platform()
     _guard_worker_topology()
     configure_worker_logger()
     with Client(queue=queue) as client:
         queue_name = client.configuration.queue
         _preflight(client, queue_name)
-        with ObservationReporter(client.configuration, normalized_route) as observer:
+        with ObservationReporter(
+            client.configuration, normalized_route, normalized_metadata
+        ) as observer:
             idle_deadline: float | None = None
             while True:
                 claim = client._claim(
@@ -102,6 +108,7 @@ def run_command_worker(
                     queue=queue_name,
                     route=normalized_route,
                     force_stop_timeout=normalized_force_stop_timeout,
+                    worker_id=observer.id,
                 )
 
                 guard.observe(result, claim.task.id)
@@ -124,6 +131,7 @@ def _run_command_claim(
     queue: str,
     route: str,
     force_stop_timeout: float | None,
+    worker_id: str,
 ) -> _ExecutionResult:
     try:
         journal = LocalRunJournal.create(
@@ -153,7 +161,7 @@ def _run_command_claim(
             return _report_command_failure(
                 client, journal, claim, queue, "TaskBindingError", str(error), control=control
             )
-        environment = _command_environment(client, claim, journal, queue, route)
+        environment = _command_environment(client, claim, journal, queue, route, worker_id)
         try:
             if _interactive_terminal():
                 process = _run_pty(
@@ -489,6 +497,7 @@ def _command_environment(
     journal: LocalRunJournal,
     queue: str,
     route: str,
+    worker_id: str,
 ) -> dict[str, str]:
     environment = dict(os.environ)
     environment.update(
@@ -498,6 +507,7 @@ def _command_environment(
             "LABTASKER_RUN_ID": claim.run_id,
             "LABTASKER_ROUTE": route,
             "LABTASKER_RUN_DIR": str(journal.run_dir),
+            "LABTASKER_WORKER_ID": worker_id,
         }
     )
     configuration = client.configuration

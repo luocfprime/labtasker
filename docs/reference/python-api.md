@@ -112,8 +112,10 @@ count_workers(*, filter=None, group_by=None, limit=None, cursor=None,
 These methods also have package-level forms. `WorkerPage` contains `items` and
 `next_cursor`, sorted by Worker ID ascending with the same 1–1000 page limit.
 Each `WorkerObservation` exposes `id`, `queue`, `route`, `status`, nullable
-`task_id`, `last_seen_at`, and `expires_at`. Timestamps are UTC. All seven fields
-support the [query language](../guides/query.md) operators for their types.
+`task_id`, `metadata`, nullable `telemetry` and `telemetry_updated_at`,
+`last_seen_at`, and `expires_at`. Timestamps are UTC. Fixed fields and nested
+`metadata.*` / `telemetry.*` paths support the
+[query language](../guides/query.md).
 
 ```python
 workers = client.list_workers(filter='route == "sdxl" and status == "idle"')
@@ -246,6 +248,7 @@ Server.
 | `Queue` | `name: str` |
 | `LastError` | `type`, `message`, `traceback`, `occurred_at`, `attempt`, `run_id` |
 | `TaskInfo` | Every `Task` field plus the active `run_id` and absolute local `run_dir` |
+| `WorkerObservation` | `id`, `queue`, `route`, `status`, nullable `task_id`, `metadata`, nullable `telemetry`, `telemetry_updated_at`, `last_seen_at`, `expires_at` |
 
 Task states are exactly `pending`, `running`, `succeeded`, `failed`, and
 `cancelled`. Timestamps are timezone-aware UTC `datetime` values.
@@ -254,13 +257,14 @@ Task states are exactly `pending`, `running`, `succeeded`, `failed`, and
 
 ```text
 @loop(route="default", queue=None, idle_timeout=300,
-      force_stop_timeout=None, max_consecutive_failures=5)
+      force_stop_timeout=None, max_consecutive_failures=5, metadata=None)
 def worker(...): ...
 
 TaskArg(default=..., path=None, resolver=None)
 task_info() -> TaskInfo
 finish(result=None, *, skip_if_no_labtasker=False) -> None
 report_progress(progress, *, skip_if_no_labtasker=False) -> bool
+report_worker_telemetry(telemetry, *, skip_if_no_labtasker=False) -> bool
 cancellation_requested() -> bool
 set_force_stop_timeout(seconds: float | None) -> None
 ```
@@ -282,6 +286,14 @@ ends, and clears it on the next claim. Reports do not renew heartbeat leases.
 The object has no required business keys. `completed` and `total` form an
 optional display convention used by Labtasker WebUI, not a validation rule for
 the Python or HTTP API.
+
+`metadata` is one strict JSON object fixed for the Worker invocation.
+`report_worker_telemetry()` synchronously replaces that Worker's latest strict
+JSON-object telemetry snapshot and returns whether the Server accepted it. It
+does not renew Worker presence or affect Task execution. Labtasker performs no
+automatic resource detection, sampling, retry, throttling, or history storage;
+callers own those choices. The helper also works inside a Python program launched
+by `labtasker loop`.
 
 See [Python Workers](../workers/python.md) for binding, cancellation, failure,
 and Worker-lifetime semantics.

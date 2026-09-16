@@ -6,7 +6,7 @@ from collections import UserDict
 import pytest
 from pydantic import ValidationError
 
-from labtasker.models import Task
+from labtasker.models import Task, WorkerObservation
 from labtasker.validation import RequestValidationError, validate_json_object
 
 
@@ -66,6 +66,33 @@ def test_task_accepts_optional_progress_fields_from_newer_server() -> None:
 def test_task_defaults_missing_additive_progress_fields_to_none() -> None:
     task = parse(task_payload())
     assert (task.progress, task.progress_updated_at, task.progress_attempt) == (None, None, None)
+
+
+def test_worker_observation_accepts_observability_fields_and_old_defaults() -> None:
+    payload = {
+        "id": "w_ABCDEFGHIJKL",
+        "queue": "default",
+        "route": "train",
+        "status": "busy",
+        "task_id": "t_ABCDEFGHIJKL",
+        "last_seen_at": "2026-08-20T12:00:00Z",
+        "expires_at": "2026-08-20T12:05:00Z",
+    }
+    old = WorkerObservation.model_validate_json(json.dumps(payload), strict=True)
+    assert (old.metadata, old.telemetry, old.telemetry_updated_at) == ({}, None, None)
+    current = WorkerObservation.model_validate_json(
+        json.dumps(
+            {
+                **payload,
+                "metadata": {"hostname": "node-7"},
+                "telemetry": {"gpu_utilization": 0.5},
+                "telemetry_updated_at": "2026-08-20T12:01:00Z",
+            }
+        ),
+        strict=True,
+    )
+    assert current.metadata == {"hostname": "node-7"}
+    assert current.telemetry == {"gpu_utilization": 0.5}
 
 
 @pytest.mark.parametrize(

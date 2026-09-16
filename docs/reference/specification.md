@@ -2285,13 +2285,15 @@ loop(
     idle_timeout: float = 300.0,
     force_stop_timeout: float | None = None,
     max_consecutive_failures: int = 5,
+    metadata: dict[str, JSONValue] | None = None,
 )
 ```
 
 V2 supports only the explicit `@loop(...)` spelling, not a second bare `@loop`
-form. Queue uses the ordinary Client resolution chain. The decorator has no
-Client, filter, heartbeat, required-fields, full-args-dict or execution-timeout
-parameter.
+form. Queue uses the ordinary Client resolution chain. `metadata` is one strict
+JSON object fixed for the Worker invocation and defaults to `{}` when omitted.
+The decorator has no Client, filter, heartbeat, required-fields, full-args-dict
+or execution-timeout parameter.
 
 Inside an active Python execution, `task_info()` returns a frozen, local-only
 `TaskInfo`. It preserves the flat v1 access style by containing the public Task
@@ -2458,6 +2460,7 @@ def run(...):
 labtasker.cancellation_requested() -> bool
 labtasker.set_force_stop_timeout(seconds: float | None) -> None
 labtasker.report_progress(progress, *, skip_if_no_labtasker=False) -> bool
+labtasker.report_worker_telemetry(telemetry, *, skip_if_no_labtasker=False) -> bool
 ```
 
 `force_stop_timeout` accepts a finite non-negative number of seconds or null and
@@ -2480,6 +2483,18 @@ failure or confirmed revocation. Invalid data and missing execution context are
 programming errors and raise. With `skip_if_no_labtasker=True`, missing context
 returns false. The helper performs one request per call; callers should report at
 meaningful evaluation/checkpoint boundaries rather than every inner-loop step.
+
+`report_worker_telemetry()` accepts one strict JSON object and works in Python
+Workers and Python programs launched by Command Workers. It synchronously
+replaces the current Worker invocation's latest snapshot, performs one request,
+and returns true only when the Server accepts it. Invalid data and missing
+execution context are programming errors and raise; with
+`skip_if_no_labtasker=True`, missing context returns false. Transport or Server
+failures are isolated, logged and return false. Unlike Task progress, Worker
+telemetry is not run-fenced and remains reportable during cleanup after a
+successful `finish()` while the Worker observation is still present. It does not
+renew observation expiry or affect Task execution. Labtasker adds no automatic
+sampling, retry, throttling, history or platform-specific fields.
 
 After a successful `finish()`, the local execution context remains available for
 cleanup but the Server run is already final. During that interval
@@ -2506,8 +2521,9 @@ trace hooks, leftover live threads or one subprocess per Python Task. Those
 approaches either corrupt ordinary Python expectations or defeat process-local
 model reuse.
 
-`task_info()`, `report_progress()`, `cancellation_requested()` and `set_force_stop_timeout()` require
-an active Python Task execution. Calling them during Worker startup, idle polling,
+`task_info()`, `report_progress()`, `report_worker_telemetry()`,
+`cancellation_requested()` and `set_force_stop_timeout()` require an active
+Python Task execution context. Calling them during Worker startup, idle polling,
 ordinary submission code or after execution has ended raises `RuntimeError`.
 
 `finish()` is strict by default but retains one explicit low-intrusion escape
@@ -3048,10 +3064,11 @@ The following constraints are agreed for this revision:
   retain `idle` while awaiting or retrying an unconfirmed claim response. Return
   to `idle` after execution/reporting/cleanup when ready to resume claiming.
 - Worker observations include the instance identifier, Queue, route, activity,
-  last-contact time and an advisory associated Task ID when applicable. The Task
-  reference can be stale, terminal or deleted; it imposes no cross-record
-  consistency or Task-mutation requirement. Hostname, PID and user-defined names
-  are outside the selected first-version field scope.
+  last-contact time, an advisory associated Task ID, user-defined metadata, and
+  an optional latest telemetry snapshot. The Task reference can be stale,
+  terminal or deleted; it imposes no cross-record consistency or Task-mutation
+  requirement. Labtasker does not automatically collect hostname, PID,
+  scheduler, GPU or other platform-specific fields.
 - The local consecutive-failure count and limit in section 8.2 are not included
   in the first-version Worker observation schema. Keep enforcement and its
   diagnostic logging local; do not add exit history for this feature.
@@ -3094,15 +3111,33 @@ create the row when absent, otherwise update the observation and renew its
 expiry. A still-running loop can recreate a cleaned-up observation using its
 unchanged instance ID after connectivity returns. Do not require a separate
 register-then-heartbeat handshake. Use
-`PUT /api/v2/queues/{queue}/workers/{id}` with complete `route`, `status` and
-nullable advisory `task_id` fields, returning `204` without a body on success.
+`PUT /api/v2/queues/{queue}/workers/{id}` with complete `route`, `status`,
+nullable advisory `task_id` and strict JSON-object `metadata` fields, returning
+`204` without a body on success. `metadata` defaults to `{}` when omitted for
+compatibility with older reporters.
 Use `DELETE` on the same path to withdraw, also returning `204`; withdrawing an
 absent Worker in an existing Queue is successful. Both operations require an
 existing Queue and never create one implicitly. A stored instance cannot change
-its route: a conflicting report returns `409 worker_route_conflict`. All three
-report fields are required. `task_id` accepts null or a syntactically valid Task
-ID. Bundled Workers report null when idle and the claimed ID when busy; the
+its route: a conflicting report returns `409 worker_route_conflict`. The three
+original report fields are required; metadata is optional with default `{}`.
+`task_id` accepts null or a syntactically valid Task ID. Bundled Workers report
+null when idle and the claimed ID when busy; the
 Server imposes no Task lookup, foreign key or cross-field consistency check.
+
+An active execution may synchronously replace its Worker's latest telemetry via
+`POST /api/v2/queues/{queue}/workers/{id}/telemetry` with
+`{"telemetry": {...}}`, returning `204`. Telemetry is a strict user-defined JSON
+object and `{}` is a valid replacement. The Server records
+`telemetry_updated_at` from its own clock. This action does not update
+`last_seen_at`, renew expiry, change route/status/task association, create an
+absent or expired observation, or affect Task execution; the latter returns
+`404 worker_not_found`. There is no telemetry merge, history, automatic sampler,
+retry loop, throttling, aggregation or platform-specific schema.
+The outer Command Worker injects its one loop-scoped Worker ID into the child
+environment. Descendants and distributed ranks therefore report to the same
+snapshot. Concurrent reports remain independent complete replacements; the last
+report committed by the Server is visible. There is no rank selection, per-rank
+Worker observation, field merge or conflict resolution.
 
 Online Worker observations do not prevent Queue deletion. Preserve the existing
 Task-based Queue deletion rules and remove its Worker observations when the
@@ -3141,15 +3176,16 @@ operations. Worker read operations are `GET /api/v2/queues/{queue}/workers` and
 Worker get operation, history query or user-facing remote-control command.
 Worker list and count accept the same `filter` expression form, reusing the
 existing filter language syntax with a Worker-specific field/type mapping.
-Do not create a second expression language. All seven public Worker fields are
-filterable, using the existing language's operators applicable to their types,
-including the nullable `task_id` and timestamp rules. Task-only paths do not
-become Worker fields merely because the parser is shared. A Worker query remains
+Do not create a second expression language. Fixed public Worker fields and
+nested `metadata.*` and `telemetry.*` paths are filterable using the existing
+operators and dynamic JSON typing rules. Task-only paths do not become Worker
+fields merely because the parser is shared. A Worker query remains
 scoped to its URL Queue and excludes expired observations before user filtering.
 
 Public Worker observations expose `id`, `queue`, `route`, `status`, nullable
-`task_id`, `last_seen_at`, and `expires_at`. Both timestamps are Server-generated
-UTC values. Expose the Server's expiry directly rather than requiring consumers
+`task_id`, `metadata`, nullable `telemetry` and `telemetry_updated_at`,
+`last_seen_at`, and `expires_at`. All timestamps are Server-generated UTC values.
+Expose the Server's expiry directly rather than requiring consumers
 to reconstruct it from a hard-coded timeout. Worker lists use fixed `id`
 lexicographic ascending order, `limit`/`cursor` pagination with default 100 and
 maximum 1000 records, and live per-page reads without a cross-page snapshot.
@@ -3264,6 +3300,8 @@ observations and indexes for expiry cleanup and Queue/route/status queries.
 Migration `0002_worker_observations` adds this table without changing Task data.
 Migration `0003_task_progress` adds the nullable progress snapshot columns while
 preserving existing Tasks and routes.
+Migration `0004_worker_observability` adds Worker metadata and nullable telemetry
+snapshot columns while preserving existing observations with metadata `{}`.
 Count and grouped items share a read transaction within a response. Aggregate
 in SQL over the complete selection, then paginate groups; do not load Task JSON
 or all Task rows into the Client. Observation mutations remain separate from
@@ -3280,7 +3318,7 @@ The v2 client executable has this complete command tree:
 ```text
 labtasker task submit|get|list|count|update|cancel|requeue|delete
 labtasker queue create|list|delete
-labtasker worker list|count
+labtasker worker list|count|telemetry
 labtasker progress --data JSON
 labtasker loop
 labtasker config show
@@ -3574,7 +3612,7 @@ update_task  update_tasks  cancel_task  requeue_task  delete_task
 create_queue  list_queues  delete_queue
 list_workers  count_workers
 
-loop  TaskArg  TaskInfo  task_info  finish  report_progress
+loop  TaskArg  TaskInfo  task_info  finish  report_progress  report_worker_telemetry
 cancellation_requested  set_force_stop_timeout
 
 Task  TaskPage  Queue  BulkUpdateResult  LastError
@@ -4409,6 +4447,7 @@ and change inspection noisy. Progress reports likewise update only
 
 | Date | Decision |
 |---|---|
+| 2026-09-16 | Add strict invocation-scoped Worker metadata and a synchronous replace-only latest telemetry snapshot for observing resource placement and load distribution. Support Worker filtering over fixed fields plus `metadata.*` and `telemetry.*`, while keeping grouping fixed to `route`/`status` and adding no automatic collection, merge, history, retry, throttling or scheduling effect. Command descendants and distributed ranks share one Worker ID and use last-committed replacement semantics. This supersedes the historical exclusion of Worker metadata and resource observations. |
 | 2026-09-13 | Add one run-fenced latest `progress` object for dashboard visibility and external early-stop decisions. Reports replace rather than merge, do not renew leases or change Task lifecycle/`updated_at`, retain the last accepted snapshot after run finalization, clear it on the next claim, and carry Server-owned report time and attempt. Expose best-effort Python/Command helpers and dynamic `progress.*` filtering without adding history, automatic throttling or a Server-side early-stop policy. |
 | 2026-09-12 | Support all three distributions on Python 3.10+; define runtime lower bounds as release-tested compatibility floors, keep automated Python updates lockfile-only, derive and verify exact direct minima without a second lock across Python 3.10 through 3.14, test the Python 3.10 Client against a fresh latest-allowed resolution, and smoke-test independent and full wheel installations across the same Python matrix. |
 | 2026-08-28 | Expose eager root `--version` options on both runtime executables, reporting the owning runtime distribution and package version on stdout without configuration, network or local-daemon side effects; list the option in root help without embedding the current version there. |

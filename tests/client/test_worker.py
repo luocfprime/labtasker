@@ -35,6 +35,7 @@ from labtasker.execution import (
     deactivate_context,
     finish,
     report_progress,
+    report_worker_telemetry,
     set_force_stop_timeout,
     task_info,
 )
@@ -47,6 +48,7 @@ from labtasker.worker import (
     loop,
     report_complete_until_resolved,
     report_progress_once,
+    report_worker_telemetry_once,
 )
 
 UTC = timezone.utc
@@ -288,10 +290,11 @@ def handler():
     if mode == 'finish-active':
         execution.finish({'score': 1})
 with WorkerTee() as tee:
-    worker._run_python_claim(
-        client, tee, compile_binding(handler), (), {}, claim=claim,
-        queue='default', route='default', force_stop_timeout=0.03,
-    )
+        worker._run_python_claim(
+            client, tee, compile_binding(handler), (), {}, claim=claim,
+            queue='default', route='default', force_stop_timeout=0.03,
+            worker_id='w_ABCDEFGHIJKL',
+        )
 print('worker-survived')
 """
     result = subprocess.run(
@@ -788,6 +791,7 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
     control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
     results: list[dict[str, Any]] = []
     progress_reports: list[dict[str, Any]] = []
+    telemetry_reports: list[dict[str, Any]] = []
     info = TaskInfo(
         **claimed.task.model_dump(),
         run_id=claimed.run_id,
@@ -800,6 +804,7 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
         reporter=lambda result: not results.append(result),
         control=control,
         progress_reporter=lambda progress: not progress_reports.append(progress),
+        worker_telemetry_reporter=lambda telemetry: not telemetry_reports.append(telemetry),
     )
     activate_context(context)
     try:
@@ -807,6 +812,8 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
         assert not cancellation_requested()
         assert report_progress({"step": 4, "loss": 0.5})
         assert progress_reports == [{"step": 4, "loss": 0.5}]
+        assert report_worker_telemetry({"gpu_utilization": 0.5})
+        assert telemetry_reports == [{"gpu_utilization": 0.5}]
         set_force_stop_timeout(2)
         control.revoke("cancel")
         assert cancellation_requested()
@@ -821,6 +828,8 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
             finish({})
         with pytest.raises(RuntimeError, match="already completed"):
             report_progress({})
+        assert report_worker_telemetry({"cleanup": True})
+        assert telemetry_reports == [{"gpu_utilization": 0.5}, {"cleanup": True}]
     finally:
         context.control.executor_done()
         deactivate_context(context)
@@ -833,6 +842,7 @@ def test_context_functions_are_strict_outside_execution() -> None:
         finish()
     finish(skip_if_no_labtasker=True)
     assert not report_progress({}, skip_if_no_labtasker=True)
+    assert not report_worker_telemetry({}, skip_if_no_labtasker=True)
     with pytest.raises(RuntimeError, match="active Python"):
         cancellation_requested()
 
@@ -869,6 +879,27 @@ def test_progress_transport_failure_is_best_effort_and_stale_run_revokes(
     assert control.revoked_action == "cancel"
     assert "Progress report rejected; continuing Task: cancelled" in caplog.text
     control.executor_done()
+
+
+def test_worker_telemetry_transport_failure_is_best_effort(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class TelemetryClient:
+        def _report_worker_telemetry(self, **_: object) -> None:
+            raise TransportError("offline")
+
+    assert not report_worker_telemetry_once(
+        TelemetryClient(),  # type: ignore[arg-type]
+        queue="default",
+        worker_id="w_ABCDEFGHIJKL",
+        telemetry={"gpu_utilization": 0.5},
+    )
+    assert "Worker telemetry transport error; continuing Task" in caplog.text
+
+
+def test_python_worker_metadata_is_validated_statically() -> None:
+    with pytest.raises(ValueError, match="signed 64-bit"):
+        loop(metadata={"invalid": 2**63})
 
 
 @pytest.mark.parametrize("value", [True, -1, float("nan"), float("inf"), "1"])

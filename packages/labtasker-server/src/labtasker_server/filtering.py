@@ -41,6 +41,7 @@ WORKER_TYPES: dict[str, tuple[str, bool]] = {
     "route": ("string", False),
     "status": ("worker_status", False),
     "task_id": ("string", True),
+    "telemetry_updated_at": ("timestamp", True),
     "last_seen_at": ("timestamp", False),
     "expires_at": ("timestamp", False),
 }
@@ -284,11 +285,21 @@ def _parse_path(node: ast.expr, *, worker: bool = False) -> FilterPath:
     segments.reverse()
 
     if worker:
-        if segments or root not in WORKER_TYPES:
+        if root in WORKER_TYPES:
+            if segments:
+                raise _filter_error(node, f"'{root}' does not have nested fields.")
+            return FilterPath(root)
+        if root not in {"metadata", "telemetry"} or not segments:
             raise _filter_error(
                 node, f"Unsupported Worker filter path '{_display_path(root, segments)}'."
             )
-        return FilterPath(root)
+        for segment in segments:
+            if not PATH_SEGMENT_RE.fullmatch(segment):
+                raise _filter_error(
+                    node,
+                    "Path segments must match [A-Za-z_][A-Za-z0-9_]*.",
+                )
+        return FilterPath(root, tuple(segments))
     if root in BUILTIN_TYPES or root == "routes":
         if segments:
             raise _filter_error(node, f"'{root}' does not have nested fields.")
@@ -365,6 +376,18 @@ def _reverse_operator(operator: CompareOperator) -> CompareOperator:
 
 def _runtime_path(path: FilterPath, *, worker: bool = False) -> RuntimePath:
     if worker:
+        if path.root in {"metadata", "telemetry"}:
+            json_column = (
+                WorkerRow.metadata_json if path.root == "metadata" else WorkerRow.telemetry_json
+            )
+            json_path = "$" + "".join(f'."{segment}"' for segment in path.segments)
+            return RuntimePath(
+                "dynamic",
+                func.json_extract(json_column, json_path),
+                func.json_type(json_column, json_path),
+                None,
+                True,
+            )
         declared_type, nullable = WORKER_TYPES[path.root]
         columns = {
             "id": WorkerRow.worker_id,
@@ -372,6 +395,7 @@ def _runtime_path(path: FilterPath, *, worker: bool = False) -> RuntimePath:
             "route": WorkerRow.route,
             "status": WorkerRow.status,
             "task_id": WorkerRow.task_id,
+            "telemetry_updated_at": WorkerRow.telemetry_updated_at_us,
             "last_seen_at": WorkerRow.last_seen_at_us,
             "expires_at": WorkerRow.expires_at_us,
         }

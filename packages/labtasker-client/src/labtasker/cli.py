@@ -16,6 +16,7 @@ from labtasker.command_worker import run_command_worker
 from labtasker.config import resolve_config
 from labtasker.errors import LabtaskerError
 from labtasker.execution import report_progress as report_current_progress
+from labtasker.execution import report_worker_telemetry as report_current_worker_telemetry
 from labtasker.types import TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.validation import RequestValidationError, validate_grouping, validate_json_object
 
@@ -126,6 +127,10 @@ def worker_loop(
             )
         ),
     ] = None,
+    metadata: Annotated[
+        str,
+        typer.Option(help="Static Worker metadata as one strict JSON object."),
+    ] = "{}",
 ) -> None:
     """Claim matching Tasks and execute one child command for each claim.
 
@@ -146,6 +151,7 @@ def worker_loop(
         argv.pop(0)
     if not argv:
         raise typer.BadParameter("COMMAND is required after --")
+    worker_metadata = _json_object(metadata, option="--metadata")
     try:
         run_command_worker(
             argv,
@@ -154,6 +160,7 @@ def worker_loop(
             idle_timeout=idle_timeout,
             max_consecutive_failures=max_consecutive_failures,
             force_stop_timeout=force_stop_timeout,
+            metadata=worker_metadata,
         )
     except (TemplateSyntaxError, RequestValidationError) as error:
         raise typer.BadParameter(str(error)) from error
@@ -463,6 +470,28 @@ def worker_count(
         )
     )
     _write_json({"count": result} if isinstance(result, int) else result)
+
+
+@worker_app.command("telemetry")
+def worker_telemetry_report(
+    data: Annotated[
+        str,
+        typer.Option(help="Latest Worker telemetry as one strict JSON object."),
+    ],
+) -> None:
+    """Replace telemetry for the current Worker invocation.
+
+    This command is available inside a command launched by ``labtasker loop``.
+    It performs one best-effort synchronous report and prints whether the Server
+    accepted it.
+    """
+    try:
+        telemetry = _json_object(data, option="--data")
+        reported = _invoke(lambda: report_current_worker_telemetry(telemetry))
+    except RuntimeError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(1) from error
+    _write_json({"reported": reported})
 
 
 def _count_options(

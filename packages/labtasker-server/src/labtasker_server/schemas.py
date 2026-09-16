@@ -296,6 +296,9 @@ class WorkerObservation(StrictModel):
     route: str
     status: Literal["idle", "busy"]
     task_id: str | None
+    metadata: dict[str, JSONValue]
+    telemetry: dict[str, JSONValue] | None
+    telemetry_updated_at: datetime | None
     last_seen_at: datetime
     expires_at: datetime
 
@@ -309,6 +312,7 @@ class WorkerReport(StrictModel):
     route: str
     status: Literal["idle", "busy"]
     task_id: str | None
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
 
     @field_validator("route")
     @classmethod
@@ -319,3 +323,17 @@ class WorkerReport(StrictModel):
     @classmethod
     def validate_task(cls, value: str | None) -> str | None:
         return None if value is None else _validated(lambda: validate_task_id(value))
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_metadata(cls, value: dict[str, JSONValue]) -> dict[str, JSONValue]:
+        return _validated(lambda: validate_json_object(value, field="metadata"))
+
+
+class WorkerTelemetryReport(StrictModel):
+    telemetry: dict[str, JSONValue]
+
+    @field_validator("telemetry")
+    @classmethod
+    def validate_telemetry(cls, value: dict[str, JSONValue]) -> dict[str, JSONValue]:
+        return _validated(lambda: validate_json_object(value, field="telemetry"))

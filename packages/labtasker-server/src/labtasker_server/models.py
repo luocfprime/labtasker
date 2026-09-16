@@ -161,6 +161,20 @@ class WorkerRow(Base):
     __table_args__ = (
         ForeignKeyConstraint(["queue_name"], ["queues.name"], ondelete="CASCADE"),
         CheckConstraint("status IN ('idle','busy')", name="ck_workers_status"),
+        CheckConstraint(
+            "json_valid(metadata_json) AND json_type(metadata_json) = 'object'",
+            name="ck_workers_metadata_json",
+        ),
+        CheckConstraint(
+            "telemetry_json IS NULL OR "
+            "(json_valid(telemetry_json) AND json_type(telemetry_json) = 'object')",
+            name="ck_workers_telemetry_json",
+        ),
+        CheckConstraint(
+            "(telemetry_json IS NULL AND telemetry_updated_at_us IS NULL) OR "
+            "(telemetry_json IS NOT NULL AND telemetry_updated_at_us IS NOT NULL)",
+            name="ck_workers_telemetry_state",
+        ),
         Index("ix_workers_expiry", "expires_at_us"),
         Index("ix_workers_route", "queue_name", "route", "status"),
     )
@@ -170,5 +184,8 @@ class WorkerRow(Base):
     route: Mapped[str] = mapped_column(String(128), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     task_id: Mapped[str | None] = mapped_column(String(14))
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False)
+    telemetry_json: Mapped[str | None] = mapped_column(Text)
+    telemetry_updated_at_us: Mapped[int | None] = mapped_column(Integer)
     last_seen_at_us: Mapped[int] = mapped_column(Integer, nullable=False)
     expires_at_us: Mapped[int] = mapped_column(Integer, nullable=False)
