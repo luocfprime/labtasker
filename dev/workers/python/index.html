@@ -1224,7 +1224,11 @@ many Tasks.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
 
 
-<span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">(</span><span class="n">route</span><span class="o">=</span><span class="s2">"embed"</span><span class="p">,</span> <span class="n">idle_timeout</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<span class="nd">@labtasker</span><span class="o">.</span><span class="n">loop</span><span class="p">(</span>
+    <span class="n">route</span><span class="o">=</span><span class="s2">"embed"</span><span class="p">,</span>
+    <span class="n">idle_timeout</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+    <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">"hostname"</span><span class="p">:</span> <span class="s2">"node-7"</span><span class="p">,</span> <span class="s2">"gpu_ids"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"GPU-a"</span><span class="p">]},</span>
+<span class="p">)</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">embed</span><span class="p">(</span>
     <span class="n">model</span><span class="p">,</span>
     <span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">TaskArg</span><span class="p">(),</span>
@@ -1238,7 +1242,9 @@ many Tasks.</p>
 <span class="n">embed</span><span class="p">(</span><span class="n">load_embedding_model_once</span><span class="p">())</span>
 </code></pre></div>
 <p>Pass <code>model</code> when calling the decorated function. Only parameters whose default
-is <code>TaskArg(...)</code> are read from each Task.</p>
+is <code>TaskArg(...)</code> are read from each Task. Worker <code>metadata</code> is a strict JSON
+object fixed for this loop invocation. Labtasker does not discover hostname,
+scheduler, GPU, or other resource fields automatically.</p>
 <h2 id="binding-rules">Binding rules</h2>
 <ul>
 <li>A required <code>TaskArg()</code> fails the claimed Task when its key is absent.</li>
@@ -1293,6 +1299,19 @@ evaluation/checkpoint boundaries rather than every inner-loop step. The object
 has no required business keys. <code>completed</code> and <code>total</code> are the optional
 Labtasker WebUI convention for displaying determinate progress; current metrics
 and early-stop diagnostics can use any other JSON keys.</p>
+<p>Report a latest Worker-level resource snapshot separately from Task progress:</p>
+<div class="highlight"><pre><span></span><code><span class="n">labtasker</span><span class="o">.</span><span class="n">report_worker_telemetry</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"gpu"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"utilization"</span><span class="p">:</span> <span class="mf">0.82</span><span class="p">,</span> <span class="s2">"memory_used_bytes"</span><span class="p">:</span> <span class="n">memory_used</span><span class="p">}}</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The synchronous call performs one request and completely replaces the previous
+Worker telemetry object. It returns <code>False</code> on an isolated reporting failure and
+never changes Task outcome or renews Worker presence. Labtasker does not sample,
+retry, throttle, merge, or retain telemetry history. Call it at useful boundaries
+or schedule it from your own thread if periodic sampling is needed. It remains
+available during cleanup after <code>finish()</code> while the Worker execution context is
+active. Use <code>skip_if_no_labtasker=True</code> only for code intentionally shared with
+standalone execution.</p>
 <h2 id="cooperative-cancellation">Cooperative cancellation</h2>
 <p><code>cancellation_requested()</code> tells Python code that the Server cancelled or
 recovered its current run. By default, Labtasker waits for the function to

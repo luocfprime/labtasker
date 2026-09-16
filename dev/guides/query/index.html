@@ -1336,11 +1336,18 @@ snapshot.</p>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--group-by<span class="w"> </span>routes
 labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--group-by<span class="w"> </span>route,status
 labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'route == "sdxl" and status == "idle"'</span>
+labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'metadata.hostname == "node-7"'</span>
+labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'telemetry.gpu.utilization &lt; 0.2'</span>
 </code></pre></div>
 <p>Task grouping supports <code>routes</code> and <code>status</code>; Worker grouping supports <code>route</code>
 and <code>status</code>. Python accepts a list such as <code>group_by=["route", "status"]</code>,
 while CLI accepts one comma-separated value. Filters select records before
-grouping. Worker filters use observation fields, not Task args or metadata.</p>
+grouping. Worker filters use observation fields: fixed fields such as <code>route</code>,
+<code>status</code>, and <code>telemetry_updated_at</code>, plus dynamic <code>metadata.*</code> and
+<code>telemetry.*</code> paths. They do not expose Task args, progress, result, or Task
+metadata. Telemetry fields are user-defined, so filter or enumerate the small
+Worker set and perform richer processing locally. Dynamic telemetry and metadata
+paths deliberately cannot be grouping dimensions.</p>
 <p>Grouped responses contain <code>group_by</code>, <code>count</code>, <code>items</code>, and <code>next_cursor</code>.
 The top-level <code>count</code> is the complete selected total. A Task accepting two routes
 appears in both route groups, so summing those groups double-counts it. <code>limit</code>

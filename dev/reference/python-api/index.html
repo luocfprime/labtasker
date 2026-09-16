@@ -1540,8 +1540,10 @@ count_workers(*, filter=None, group_by=None, limit=None, cursor=None,
 <p>These methods also have package-level forms. <code>WorkerPage</code> contains <code>items</code> and
 <code>next_cursor</code>, sorted by Worker ID ascending with the same 1–1000 page limit.
 Each <code>WorkerObservation</code> exposes <code>id</code>, <code>queue</code>, <code>route</code>, <code>status</code>, nullable
-<code>task_id</code>, <code>last_seen_at</code>, and <code>expires_at</code>. Timestamps are UTC. All seven fields
-support the <a href="../../guides/query/">query language</a> operators for their types.</p>
+<code>task_id</code>, <code>metadata</code>, nullable <code>telemetry</code> and <code>telemetry_updated_at</code>,
+<code>last_seen_at</code>, and <code>expires_at</code>. Timestamps are UTC. Fixed fields and nested
+<code>metadata.*</code> / <code>telemetry.*</code> paths support the
+<a href="../../guides/query/">query language</a>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">workers</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">list_workers</span><span class="p">(</span><span class="nb">filter</span><span class="o">=</span><span class="s1">'route == "sdxl" and status == "idle"'</span><span class="p">)</span>
 <span class="n">counts</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">count_workers</span><span class="p">(</span><span class="n">group_by</span><span class="o">=</span><span class="p">[</span><span class="s2">"route"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">])</span>
 </code></pre></div>
@@ -1709,19 +1711,24 @@ Server.</p>
 <td><code>TaskInfo</code></td>
 <td>Every <code>Task</code> field plus the active <code>run_id</code> and absolute local <code>run_dir</code></td>
 </tr>
+<tr>
+<td><code>WorkerObservation</code></td>
+<td><code>id</code>, <code>queue</code>, <code>route</code>, <code>status</code>, nullable <code>task_id</code>, <code>metadata</code>, nullable <code>telemetry</code>, <code>telemetry_updated_at</code>, <code>last_seen_at</code>, <code>expires_at</code></td>
+</tr>
 </tbody>
 </table>
 <p>Task states are exactly <code>pending</code>, <code>running</code>, <code>succeeded</code>, <code>failed</code>, and
 <code>cancelled</code>. Timestamps are timezone-aware UTC <code>datetime</code> values.</p>
 <h2 id="worker-api">Worker API</h2>
 <div class="highlight"><pre><span></span><code>@loop(route="default", queue=None, idle_timeout=300,
-      force_stop_timeout=None, max_consecutive_failures=5)
+      force_stop_timeout=None, max_consecutive_failures=5, metadata=None)
 def worker(...): ...
 
 TaskArg(default=..., path=None, resolver=None)
 task_info() -&gt; TaskInfo
 finish(result=None, *, skip_if_no_labtasker=False) -&gt; None
 report_progress(progress, *, skip_if_no_labtasker=False) -&gt; bool
+report_worker_telemetry(telemetry, *, skip_if_no_labtasker=False) -&gt; bool
 cancellation_requested() -&gt; bool
 set_force_stop_timeout(seconds: float | None) -&gt; None
 </code></pre></div>
@@ -1741,6 +1748,13 @@ ends, and clears it on the next claim. Reports do not renew heartbeat leases.
 The object has no required business keys. <code>completed</code> and <code>total</code> form an
 optional display convention used by Labtasker WebUI, not a validation rule for
 the Python or HTTP API.</p>
+<p><code>metadata</code> is one strict JSON object fixed for the Worker invocation.
+<code>report_worker_telemetry()</code> synchronously replaces that Worker's latest strict
+JSON-object telemetry snapshot and returns whether the Server accepted it. It
+does not renew Worker presence or affect Task execution. Labtasker performs no
+automatic resource detection, sampling, retry, throttling, or history storage;
+callers own those choices. The helper also works inside a Python program launched
+by <code>labtasker loop</code>.</p>
 <p>See <a href="../../workers/python/">Python Workers</a> for binding, cancellation, failure,
 and Worker-lifetime semantics.</p>
 <h2 id="errors-and-retries">Errors and retries</h2>

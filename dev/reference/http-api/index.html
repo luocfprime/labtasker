@@ -1668,8 +1668,13 @@ Task rolls back the complete batch.</p>
 </tr>
 <tr>
 <td><code>PUT /api/v2/queues/{queue}/workers/{id}</code></td>
-<td>Complete <code>{"route":"sdxl","status":"busy","task_id":"t_ABCDEFGHIJKL"}</code></td>
+<td>Complete <code>{"route":"sdxl","status":"busy","task_id":"t_ABCDEFGHIJKL","metadata":{"hostname":"node-7"}}</code></td>
 <td><code>204</code>; creates or renews the observation.</td>
+</tr>
+<tr>
+<td><code>POST /api/v2/queues/{queue}/workers/{id}/telemetry</code></td>
+<td><code>{"telemetry":{"gpu_utilization":0.75}}</code></td>
+<td><code>204</code>; replaces telemetry without renewing the observation.</td>
 </tr>
 <tr>
 <td><code>DELETE /api/v2/queues/{queue}/workers/{id}</code></td>
@@ -1679,16 +1684,23 @@ Task rolls back the complete batch.</p>
 </tbody>
 </table>
 <p>Each observation exposes <code>id</code>, <code>queue</code>, <code>route</code>, <code>status</code>, nullable <code>task_id</code>,
-<code>last_seen_at</code>, and <code>expires_at</code>. IDs match <code>w_[A-Za-z0-9_-]{12}</code> and identify one
-loop invocation across successive Tasks. All seven fields support the existing
-filter grammar with their own types; Task-only paths are rejected. Worker count
-pagination and filtering follow the grouped-count rules above. List cursors bind
-the Queue and exact filter.</p>
-<p>A report requires all three fields; <code>task_id</code> accepts null or a valid Task ID
+<code>metadata</code>, nullable <code>telemetry</code> and <code>telemetry_updated_at</code>, <code>last_seen_at</code>, and
+<code>expires_at</code>. IDs match <code>w_[A-Za-z0-9_-]{12}</code> and identify one loop invocation
+across successive Tasks. Fixed fields plus nested <code>metadata.*</code> and <code>telemetry.*</code>
+paths support the existing filter grammar; Task-only paths are rejected. Worker
+count pagination and filtering follow the grouped-count rules above. Grouping
+remains limited to <code>route</code> and <code>status</code>.</p>
+<p>A report requires the three original fields; <code>metadata</code> is a strict JSON object
+defaulting to <code>{}</code> for older reporters. <code>task_id</code> accepts null or a valid Task ID
 without a Task lookup. Updating an existing instance to another route returns
 <code>409 worker_route_conflict</code>. <code>idle</code> means waiting for work; <code>busy</code> begins at
 confirmed claim and covers execution, reporting and cleanup, even after Task
 completion. The bundled Worker reports null when idle and its Task ID when busy.</p>
+<p>Telemetry is a strict, user-defined JSON object with no built-in GPU or platform
+schema. Reporting is synchronous, one request per call, and complete replacement.
+The Server timestamps accepted telemetry but does not update <code>last_seen_at</code>, renew
+expiry, create an absent/expired Worker, retain history, or affect execution. An
+absent or expired Worker returns <code>404 worker_not_found</code>.</p>
 <p>The Server assigns both timestamps and expires each accepted observation after
 300 seconds. Bundled Workers report every 60 seconds and on activity changes
 through an independent reporter. Only unexpired rows appear in reads; expired

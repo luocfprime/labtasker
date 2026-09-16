@@ -1198,12 +1198,17 @@
 <h1 id="command-workers">Command Workers</h1>
 <p>Use a command Worker to run an existing executable for each Task without
 changing its argument interface:</p>
-<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>loop<span class="w"> </span>--route<span class="w"> </span>text-eval<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>loop<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--route<span class="w"> </span>text-eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--metadata<span class="w"> </span><span class="s1">'{"hostname":"node-7","gpu_ids":["GPU-a"]}'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>python<span class="w"> </span>evaluate.py<span class="w"> </span>--prediction<span class="w"> </span><span class="s1">'%{prediction}'</span><span class="w"> </span>--reference<span class="w"> </span><span class="s1">'%{reference}'</span>
 </code></pre></div>
 <p>The required <code>--</code> separates Labtasker options from the child argv. Each template
 element produces exactly one child argv element. Labtasker does not join, split,
-quote, or evaluate a shell command.</p>
+quote, or evaluate a shell command. <code>--metadata</code> accepts one strict JSON object
+fixed for the Worker invocation. Labtasker does not populate hostname, scheduler,
+GPU, or other resource fields automatically.</p>
 <p>Command Workers require POSIX process-group support. Linux is release-gated and
 macOS is best effort; Windows raises <code>NotImplementedError</code> before connecting to
 the Server or claiming a Task. Client operations, the Server, and Python Workers
@@ -1229,7 +1234,8 @@ not claim or fail a Task.</p>
 <h2 id="process-behavior">Process behavior</h2>
 <p>The child inherits the Worker's environment and receives Labtasker execution
 variables, including the Task ID, run ID, Queue, local run directory, and either
-the HTTP URL/token or the selected local socket/directory. Changing the child
+the HTTP URL/token or the selected local socket/directory. It also receives the
+loop-scoped Worker ID used by Worker telemetry. Changing the child
 process's current directory does not select a different Server.</p>
 <p>In an interactive POSIX terminal, Labtasker uses an internal PTY and relays
 input, output, and terminal size. In pipelines and schedulers it uses ordinary
@@ -1265,6 +1271,20 @@ write fails, the Task remains succeeded.</p>
 best-effort failure. Progress never completes the Task or renews its lease. The
 object is otherwise unrestricted; <code>completed</code> and <code>total</code> are the optional
 Labtasker WebUI convention for a determinate progress indicator.</p>
+<p>Report Worker-level resource measurements independently of Task progress:</p>
+<div class="highlight"><pre><span></span><code><span class="n">labtasker</span><span class="o">.</span><span class="n">report_worker_telemetry</span><span class="p">({</span><span class="s2">"gpu"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"utilization"</span><span class="p">:</span> <span class="mf">0.82</span><span class="p">}})</span>
+</code></pre></div>
+<p>Non-Python children use the parallel CLI command:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>worker<span class="w"> </span>telemetry<span class="w"> </span>--data<span class="w"> </span><span class="s1">'{"gpu":{"utilization":0.82}}'</span>
+</code></pre></div>
+<p>Each synchronous call performs one request and replaces the latest Worker
+telemetry object. A reporting failure returns or prints false without changing
+the command's Task outcome. Telemetry does not renew Worker presence, and
+Labtasker does not sample, retry, throttle, merge, or keep history. If periodic
+sampling is useful, the child owns its scheduling or background thread.
+All descendants and distributed ranks inherit the same loop-scoped Worker ID.
+Their reports replace the same snapshot, so the last report committed by the
+Server is visible; Labtasker does not merge fields or select one rank.</p>
 <p>After <code>finish()</code>, the command may keep running for cleanup. When the Server
 cancels or recovers the run, the Worker sends termination to the child process
 group. By default it waits without a time limit. Set

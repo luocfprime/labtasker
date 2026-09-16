@@ -1306,6 +1306,7 @@ labtasker task delete TASK_ID
 
 labtasker worker list [OPTIONS]
 labtasker worker count [OPTIONS]
+labtasker worker telemetry --data JSON
 
 labtasker progress --data JSON
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
@@ -1403,6 +1404,11 @@ do not advertise a usable version do not trigger this warning.</p>
 <td>Counts unexpired observations; accepts <code>--filter</code>, <code>--group-by</code>, <code>--limit</code>, <code>--cursor</code>, and <code>--queue</code>.</td>
 </tr>
 <tr>
+<td><code>worker telemetry</code></td>
+<td><code>{"reported":true|false}</code></td>
+<td>Inside a Command Worker child, synchronously replaces the current Worker invocation's latest strict JSON-object telemetry snapshot.</td>
+</tr>
+<tr>
 <td><code>progress</code></td>
 <td><code>{"reported":true|false}</code></td>
 <td>Inside a Command Worker child, replaces the current run's latest strict JSON-object snapshot. A best-effort transport/revocation failure reports false without failing the command.</td>
@@ -1433,6 +1439,9 @@ It claims through one exact route and executes at most one child at a time. The
 required <code>--</code> separates Labtasker options from one direct argv template; see
 <a href="../../workers/command/">Command Workers</a>.
 <code>--max-consecutive-failures INTEGER</code> defaults to <code>5</code> and must be positive.
+<code>--metadata JSON</code> supplies one strict JSON object describing that Worker
+invocation. Labtasker does not automatically populate hostname, scheduler, GPU,
+or other resource fields.
 The Worker exits <code>1</code> after reporting that many consecutive execution failures;
 see <a href="../../guides/failure-recovery/#consecutive-failure-protection">failure protection</a>.</p>
 <p>Server commands have a separate ownership boundary:</p>
@@ -1470,6 +1479,8 @@ see <a href="../../guides/failure-recovery/#consecutive-failure-protection">fail
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--group-by<span class="w"> </span>routes,status
 labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--group-by<span class="w"> </span>route,status
 labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'route == "sdxl" and status == "busy"'</span>
+labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'metadata.hostname == "node-7"'</span>
+labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'telemetry.gpu_utilization &lt; 0.1'</span>
 </code></pre></div>
 <p><code>--group-by</code> is one comma-separated argument with no spaces. Task fields are
 <code>routes</code> and <code>status</code>; Worker fields are <code>route</code> and <code>status</code>. Either order is
