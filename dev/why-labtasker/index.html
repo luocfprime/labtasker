@@ -1531,13 +1531,14 @@ execution remains deterministic after a Worker starts and does not require the
 agent to stay online.</p>
 <h3 id="python-native-and-ready-locally">Python-native and ready locally</h3>
 <p>V1 required MongoDB for its real Server and used Mongomock for local use. V2
-needs neither. The default installation includes
-the Python Client and Server, and on POSIX systems the first real operation
-automatically starts a project-local Server backed by SQLite. There is no
-database service, TCP port, or configuration to prepare for that local path.</p>
-<p>The automatic local Server is not available on Windows. Windows Clients connect
-to an explicitly operated HTTP Server instead; ordinary Client, Server, and
-Python Worker use remains best effort there.</p>
+needs neither. The default installation includes the Python Client and Server.
+On POSIX systems one explicit <code>--auto-start-local-server</code> flag or
+<code>Client(auto_start_local_server=True)</code> starts a project-local Server backed by
+SQLite; later calls simply connect. There is no database service, TCP port, or
+configuration file to prepare for that local path.</p>
+<p>The Server requires POSIX advisory file locking and is not available on Windows.
+Windows HTTP Clients and Python Workers remain best effort and connect to an
+explicitly operated Server on a POSIX host.</p>
 <p>An explicitly managed HTTP Server remains available when several machines need
 to share a Queue. This is a separate deployment choice, not setup that every new
 project must perform.</p>
@@ -1551,7 +1552,7 @@ project must perform.</p>
 <tbody>
 <tr>
 <td>MongoDB, or Mongomock as a local substitute</td>
-<td>Automatically managed local SQLite Server</td>
+<td>Explicitly authorized managed local SQLite Server</td>
 </tr>
 <tr>
 <td>Several conveniences with overlapping or implicit behavior</td>

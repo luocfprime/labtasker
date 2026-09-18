@@ -1213,10 +1213,11 @@ newer; the package includes the frontend, so Node.js is not needed.</p>
   Server. <code>.</code> means the directory where you launched the WebUI. This connection
   requires POSIX and the WebUI's default loopback bind.</li>
 </ul>
-<p>For local use, run <code>labtasker-server start</code> in your experiment directory first
-if its Server is not already running. The WebUI attaches to the existing
-instance; it does not start the Server. See <a href="../../reference/configuration/">Configuration</a>
-for Labtasker Server setup.</p>
+<p>For local use, start a matching socket daemon if one is not already running:</p>
+<div class="highlight"><pre><span></span><code>labtasker-server<span class="w"> </span>serve<span class="w"> </span>--connection<span class="w"> </span>socket<span class="w"> </span>--daemon<span class="w"> </span>--labtasker-root<span class="w"> </span>.labtasker
+</code></pre></div>
+<p>The WebUI attaches to the existing instance; it does not start the Server. See
+<a href="../../reference/configuration/">Configuration</a> for Labtasker Server setup.</p>
 <h2 id="explore-an-experiment">Explore an experiment</h2>
 <p>Open a Queue to see its Task list and status counts. The Task name input uses case-insensitive fuzzy
 subsequence search: <code>tr ev</code> and <code>ev tr</code> both find <code>train_model_eval</code>. Every

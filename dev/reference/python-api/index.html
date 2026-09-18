@@ -960,6 +960,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#public-package-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Public package imports
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#task-operations" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1267,6 +1278,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#public-package-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Public package imports
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#task-operations" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1422,6 +1444,9 @@
 operation is available both as a package-level function and as a method with the
 same name on <code>Client</code>. Methods return Labtasker domain models, not HTTP response
 wrappers.</p>
+<p>The <code>labtasker-server</code> distribution has no supported embedding API. Operate it
+through <code>labtasker-server</code> or the documented HTTP API; importing
+<code>labtasker_server.app.create_app</code> or other Server modules is internal use.</p>
 <h2 id="choose-the-client-form">Choose the Client form</h2>
 <p>Package-level functions share one lazily created process-wide Client:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">labtasker</span>
@@ -1436,11 +1461,22 @@ isolation, or more than one Server:</p>
 <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"https://labtasker.example"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="s2">"paper"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
     <span class="n">task</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">submit_task</span><span class="p">({</span><span class="s2">"seed"</span><span class="p">:</span> <span class="mi">7</span><span class="p">},</span> <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="s2">"sdxl"</span><span class="p">])</span>
 </code></pre></div>
-<p><code>Client(url=None, token=None, queue=None)</code> resolves each omitted field through
-environment, the current directory's <code>.labtasker/config.toml</code>, then defaults.
-Resolution happens once when the Client is constructed. Later <code>chdir()</code>, config,
-or environment changes do not retarget it. A non-null <code>queue=</code> on a Task method
-overrides only that operation's Queue; changing Servers requires a new Client.</p>
+<p><code>Client(url: str | None = None, socket: str | Path | None = None,
+labtasker_root: str | Path | None = None,
+auto_start_local_server: bool = False, token: str | None = None,
+queue: str | None = None)</code> resolves the root from
+its explicit argument, <code>LABTASKER_ROOT</code>, then exact <code>CWD/.labtasker</code>. It resolves
+one endpoint from the first explicit, environment, or root-config URL/socket
+layer and otherwise selects managed local. Labtasker does not search parents or
+VCS roots.</p>
+<p>The default managed-local Client only connects to its derived Unix socket. Set
+<code>auto_start_local_server=True</code> to authorize that Client to create or recover the
+standard local daemon when the first connection fails. This option is invalid
+with an HTTP URL or explicit socket. Repeated and concurrent authorized calls
+reuse one matching daemon. Resolution happens once when the Client is
+constructed; later <code>chdir()</code>, config, or environment changes do not retarget it.
+A non-null <code>queue=</code> on a Task method overrides only that operation's Queue;
+changing Servers requires a new Client.</p>
 <p><code>close()</code> is idempotent and never stops a local Server. Operations on a closed
 Client raise <code>RuntimeError("Client is closed.")</code>. The package-level default
 Client has no close/reset API. There is no asynchronous Client.</p>
@@ -1448,6 +1484,10 @@ Client has no close/reset API. There is no asynchronous Client.</p>
 package version from the latest business response. It is <code>None</code> before a
 response or when that response has no usable version header. Reading it never
 makes a request. Older Servers may not advertise their version.</p>
+<p>Resolved endpoint, credential, Queue, root, and auto-start configuration is
+private implementation state, not a supported <code>Client</code> property. Pass those
+values explicitly when constructing a Client; use <code>labtasker config show</code> for a
+non-secret diagnostic view of current CLI resolution.</p>
 <p>When a response reports a Server older than the Client, the Client writes an
 advisory <code>warning</code> to stderr recommending an upgrade. Each Client instance warns
 once per distinct older Server version, including patch and prerelease
@@ -1455,6 +1495,27 @@ differences. Results, exceptions, and retries are unchanged; the warning does
 not mean the current operation is incompatible. There is no version preflight or
 automatic fallback. Applications needing feature-specific compatibility checks
 must account for <code>server_version</code> being unknown and still handle operation errors.</p>
+<h2 id="public-package-imports">Public package imports</h2>
+<p>The supported package-root import surface is <code>labtasker.__all__</code>:</p>
+<div class="highlight"><pre><span></span><code>Client
+
+submit_task  get_task  list_tasks  count_tasks
+update_task  update_tasks  cancel_task  requeue_task  delete_task
+create_queue  list_queues  delete_queue
+list_workers  count_workers
+
+loop  TaskArg  TaskInfo  task_info  finish  report_progress
+report_worker_telemetry  cancellation_requested  set_force_stop_timeout
+
+Task  TaskPage  Queue  BulkUpdateResult  LastError
+WorkerObservation  WorkerPage  CountGroup  GroupCountPage
+JSONValue  TaskStatus  TaskOrderField  TaskUpdate
+
+LabtaskerError  ConfigError  TransportError  APIError
+TransientError  TaskError  FatalWorkerError
+</code></pre></div>
+<p>Imports from private modules and Worker wire operations such as claim,
+heartbeat, complete, fail, and unclaim are not supported Python interfaces.</p>
 <h2 id="task-operations">Task operations</h2>
 <div class="highlight"><pre><span></span><code>submit_task(args=None, *, name=None, metadata=None, priority=0,
             max_attempts=3, routes=None, task_id=None, queue=None) -&gt; Task
@@ -1462,7 +1523,7 @@ get_task(task_id, *, queue=None) -&gt; Task
 list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -&gt; TaskPage
 count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None,
-            group_by=None, limit=None, cursor=None, queue=None) -&gt; int | GroupCountPage
+            queue=None, group_by=None, limit=None, cursor=None) -&gt; int | GroupCountPage
 update_task(task_id, changes, *, queue=None) -&gt; Task
 update_tasks(*, filter, changes, queue=None) -&gt; BulkUpdateResult
 cancel_task(task_id, *, queue=None) -&gt; Task
@@ -1715,10 +1776,29 @@ Server.</p>
 <td><code>WorkerObservation</code></td>
 <td><code>id</code>, <code>queue</code>, <code>route</code>, <code>status</code>, nullable <code>task_id</code>, <code>metadata</code>, nullable <code>telemetry</code>, <code>telemetry_updated_at</code>, <code>last_seen_at</code>, <code>expires_at</code></td>
 </tr>
+<tr>
+<td><code>WorkerPage</code></td>
+<td><code>items: list[WorkerObservation]</code>, <code>next_cursor: str | None</code></td>
+</tr>
+<tr>
+<td><code>CountGroup</code></td>
+<td><code>key: dict[str, str]</code>, <code>count: int</code></td>
+</tr>
+<tr>
+<td><code>GroupCountPage</code></td>
+<td>ordered <code>group_by: list[str]</code>, complete <code>count: int</code>, paginated <code>items: list[CountGroup]</code>, <code>next_cursor: str | None</code></td>
+</tr>
 </tbody>
 </table>
 <p>Task states are exactly <code>pending</code>, <code>running</code>, <code>succeeded</code>, <code>failed</code>, and
 <code>cancelled</code>. Timestamps are timezone-aware UTC <code>datetime</code> values.</p>
+<p><code>TaskStatus</code> is the exact Task-state literal union. <code>TaskOrderField</code> is the
+literal union of <code>id</code>, <code>name</code>, <code>status</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>,
+<code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, and <code>finished_at</code>.
+<code>TaskUpdate</code> is a <code>total=False</code> <code>TypedDict</code> with optional <code>name</code>, <code>args</code>,
+<code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, and <code>result</code> keys; runtime
+validation still requires at least one supplied field. <code>JSONValue</code> is the
+recursive strict JSON-compatible value type.</p>
 <h2 id="worker-api">Worker API</h2>
 <div class="highlight"><pre><span></span><code>@loop(route="default", queue=None, idle_timeout=300,
       force_stop_timeout=None, max_consecutive_failures=5, metadata=None)
@@ -1784,7 +1864,8 @@ helper outside its valid context raises <code>RuntimeError</code>. Operational f
 </table>
 <p>Reads, list/count, and idempotent Task creation use bounded transport retries.
 Ordinary lifecycle, update, and deletion mutations are not automatically retried
-after an uncertain response; inspect current state and decide explicitly.</p>
+after an uncertain response; inspect current state and decide explicitly.
+Every ordinary Client request has a 15-second timeout.</p>
 <p><code>TransientError</code>, <code>TaskError</code>, and <code>FatalWorkerError</code> are Worker outcome signals,
 not Client-operation errors and not subclasses of <code>LabtaskerError</code>.</p>
 

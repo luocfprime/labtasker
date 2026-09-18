@@ -1197,13 +1197,14 @@ of them for the same Python implementation:</p>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">for</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="ow">in</span> <span class="n">CASES</span><span class="p">:</span>
-        <span class="n">task</span> <span class="o">=</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">submit_task</span><span class="p">(</span>
-            <span class="p">{</span><span class="s2">"left"</span><span class="p">:</span> <span class="n">left</span><span class="p">,</span> <span class="s2">"right"</span><span class="p">:</span> <span class="n">right</span><span class="p">},</span>
-            <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"add-</span><span class="si">{</span><span class="n">left</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">right</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-            <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="n">ROUTE</span><span class="p">],</span>
-        <span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"submitted task_id=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2"> expression=</span><span class="si">{</span><span class="n">left</span><span class="si">}</span><span class="s2">+</span><span class="si">{</span><span class="n">right</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span><span class="n">auto_start_local_server</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="ow">in</span> <span class="n">CASES</span><span class="p">:</span>
+            <span class="n">task</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">submit_task</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">"left"</span><span class="p">:</span> <span class="n">left</span><span class="p">,</span> <span class="s2">"right"</span><span class="p">:</span> <span class="n">right</span><span class="p">},</span>
+                <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"add-</span><span class="si">{</span><span class="n">left</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">right</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="n">ROUTE</span><span class="p">],</span>
+            <span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"submitted task_id=</span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2"> expression=</span><span class="si">{</span><span class="n">left</span><span class="si">}</span><span class="s2">+</span><span class="si">{</span><span class="n">right</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
@@ -1240,8 +1241,9 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 uv<span class="w"> </span>run<span class="w"> </span>labtasker<span class="w"> </span>task<span class="w"> </span>list<span class="w"> </span>--status<span class="w"> </span>succeeded
 uv<span class="w"> </span>run<span class="w"> </span>labtasker-server<span class="w"> </span>stop
 </code></pre></div>
-<p>On POSIX systems this needs no configuration: the first submission starts the
-local Server for <code>demo/basic</code>. To use several Workers, run <code>worker.py</code> in several
+<p>On POSIX systems this needs no configuration file: <code>submit.py</code> constructs
+<code>Client(auto_start_local_server=True)</code>, which explicitly authorizes the local
+daemon for <code>demo/basic</code>. To use several Workers, run <code>worker.py</code> in several
 terminals after submission. Each process claims the next available Task instead
 of requiring you to split the six cases manually.</p>
 <p>The

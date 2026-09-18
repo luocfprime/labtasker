@@ -933,10 +933,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#server-configuration" class="md-nav__link">
+  <a href="#managed-local-startup" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Server configuration
+        Managed local startup
       </span>
     </span>
   </a>
@@ -944,10 +944,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sqlite-ownership" class="md-nav__link">
+  <a href="#server-operation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        SQLite ownership
+        Server operation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sqlite-filesystem-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        SQLite filesystem strategies
       </span>
     </span>
   </a>
@@ -1156,10 +1167,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#server-configuration" class="md-nav__link">
+  <a href="#managed-local-startup" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Server configuration
+        Managed local startup
       </span>
     </span>
   </a>
@@ -1167,10 +1178,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sqlite-ownership" class="md-nav__link">
+  <a href="#server-operation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        SQLite ownership
+        Server operation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sqlite-filesystem-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        SQLite filesystem strategies
       </span>
     </span>
   </a>
@@ -1196,103 +1218,266 @@
 
 
 <h1 id="configuration">Configuration</h1>
-<p>On POSIX systems, most local users need no configuration: Labtasker selects the
-current project, starts its local Server when first needed, and uses Queue
-<code>default</code>. Configure a Client to select another Queue, connect to an explicitly
-managed HTTP Server, or control multiple targets from one process. Windows does
-not provide automatic local mode and therefore requires an explicit HTTP URL.</p>
+<p>Labtasker separates Client endpoint selection from Server operation. A default
+Client selects one exact managed-local root and tries its Unix socket, but it
+does not create files or start a process unless that invocation explicitly has
+auto-start authority.</p>
 <h2 id="client-resolution">Client resolution</h2>
-<p>Client settings use this precedence, independently for each field:</p>
+<p>The Labtasker root is resolved first:</p>
 <ol>
-<li>explicit <code>Client(...)</code> or function argument;</li>
-<li>environment variable;</li>
-<li><code>.labtasker/config.toml</code> in the current working directory;</li>
-<li>built-in default.</li>
+<li><code>Client(labtasker_root=...)</code> or global CLI <code>--labtasker-root</code>;</li>
+<li><code>LABTASKER_ROOT</code>;</li>
+<li>the exact canonical <code>&lt;current-directory&gt;/.labtasker</code>.</li>
 </ol>
-<div class="highlight"><pre><span></span><code><span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"https://labtasker.example.com"</span>
-<span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"experiments"</span>
-<span class="n">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"secret"</span>
-</code></pre></div>
+<p>Labtasker never searches a parent directory, repository root, or another config
+location. The root selects the one optional <code>config.toml</code> and the Worker journal
+directory. It is still resolved when the selected endpoint is HTTP or an
+external socket.</p>
+<p>The endpoint is then selected as one atomic URL-or-socket layer:</p>
+<ol>
+<li>explicit <code>Client(url=...)</code> or <code>Client(socket=...)</code>;</li>
+<li><code>LABTASKER_URL</code> or <code>LABTASKER_SOCKET</code>;</li>
+<li><code>url</code> or <code>socket</code> in <code>&lt;labtasker-root&gt;/config.toml</code>;</li>
+<li>the managed-local socket derived from the root.</li>
+</ol>
+<p>Supplying both alternatives in the same layer is an error. A winning higher
+layer shadows both alternatives below it, so a one-off explicit URL does not
+conflict with a stored socket. An unavailable explicit endpoint never falls
+back to managed local.</p>
+<p>Queue and token values use explicit, environment, config, then default
+precedence independently:</p>
 <table>
 <thead>
 <tr>
 <th>Setting</th>
 <th>Environment</th>
+<th>Config key</th>
 <th>Default</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>url</code></td>
-<td><code>LABTASKER_URL</code></td>
-<td>local mode in the resolved current directory</td>
+<td>endpoint</td>
+<td><code>LABTASKER_URL</code> / <code>LABTASKER_SOCKET</code></td>
+<td><code>url</code> / <code>socket</code></td>
+<td>managed local</td>
 </tr>
 <tr>
-<td><code>queue</code></td>
+<td>root</td>
+<td><code>LABTASKER_ROOT</code></td>
+<td>—</td>
+<td>exact <code>&lt;CWD&gt;/.labtasker</code></td>
+</tr>
+<tr>
+<td>Queue</td>
 <td><code>LABTASKER_QUEUE</code></td>
+<td><code>queue</code></td>
 <td><code>default</code></td>
 </tr>
 <tr>
-<td><code>token</code></td>
+<td>HTTP token</td>
 <td><code>LABTASKER_TOKEN</code></td>
+<td><code>token</code></td>
 <td>unset</td>
 </tr>
 </tbody>
 </table>
-<p>The file is strict: unknown keys, empty values, malformed TOML, and v1
-<code>.labtasker/client.toml</code> are errors. A token without an explicit URL is invalid;
-local mode has no authentication. Tokens contain visible ASCII characters only
-so they can be carried in an HTTP Bearer header. <code>labtasker config show</code> prints the
-selected local or HTTP endpoint and reports only whether a token is configured.
-It performs no network request and creates no files.</p>
-<p>With no URL, the Client records the absolute current directory when it is
-created. The first real request starts or connects to that directory's Server
-through <code>/tmp/labtasker-UID/{sha256-of-directory}.sock</code>. Durable state remains in
-<code>CWD/.labtasker/server.db</code>. The <code>[labtasker] connected</code> diagnostic on stderr
-explicitly states <code>server=local</code>, <code>transport=unix</code>, the selected directory,
-database and socket; daemon transitions are also visible. Labtasker never
-searches a parent directory or VCS root, and a later <code>chdir()</code> does not retarget
-an existing Client.</p>
-<p>A URL from the constructor, environment, or config file selects HTTP mode and
-disables local Server startup, recovery, and stop behavior. The user or process
-supervisor then operates that Server.</p>
-<p>Configuration is loaded when a <code>Client</code> is first instantiated. Top-level helper
-functions lazily share one default Client; use an explicit Client when different
-targets are needed in one process:</p>
+<p>A config file is flat and strict:</p>
+<div class="highlight"><pre><span></span><code><span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"https://labtasker.example.com"</span>
+<span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"experiments"</span>
+<span class="n">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"secret"</span>
+</code></pre></div>
+<p>Use <code>socket = "/absolute/path/to/server.sock"</code> instead of <code>url</code> for an
+external Unix socket. Unknown keys, duplicate endpoint selectors, empty values,
+malformed TOML, and v1 <code>.labtasker/client.toml</code> are errors. Tokens contain only
+visible ASCII and are sent only to HTTP endpoints; socket connections have no
+application-level token.</p>
+<p><code>labtasker config show</code> resolves these sources without contacting a Server,
+creating the root, or starting a process. It prints whether a token would be
+used, never the token value.</p>
+<h2 id="managed-local-startup">Managed local startup</h2>
+<p>With no configured URL or socket, the Client uses the root-derived owner-only
+Unix socket. A request normally only tries that socket. Authorize startup for a
+single CLI invocation or Python Client when needed:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>--auto-start-local-server<span class="w"> </span>task<span class="w"> </span>list
+</code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">labtasker</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
 
-<span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"https://example.com"</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="s2">"paper"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+<span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="n">auto_start_local_server</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+    <span class="n">queues</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">list_queues</span><span class="p">()</span>
+</code></pre></div>
+<p>Repeated and concurrent authorized calls are idempotent: one matching daemon is
+started or reused. Auto-start creates operational state under the root but no
+<code>config.toml</code>. It is valid only for the managed-local endpoint and only when the
+Server classifies the database filesystem as known local storage. Shared or
+unknown storage requires an explicitly operated Server.</p>
+<p>Without startup authority, a missing daemon produces a <code>TransportError</code> that
+names the resolved root and socket and suggests the startup flag, an explicit
+<code>serve</code>, or a configured endpoint. Importing <code>labtasker</code>, constructing a Client,
+displaying help, and running <code>config show</code> remain side-effect free.</p>
+<p>Configuration is fixed when a Client is constructed. A later <code>chdir()</code>, config
+edit, or environment change does not retarget it. Top-level functions lazily
+share one default Client; use explicit Clients for several targets:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">labtasker</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
+
+<span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"https://example.com"</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="s2">"paper"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
     <span class="n">client</span><span class="o">.</span><span class="n">submit_task</span><span class="p">({</span><span class="s2">"prompt"</span><span class="p">:</span> <span class="s2">"a ceramic fox"</span><span class="p">},</span> <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="s2">"sdxl"</span><span class="p">])</span>
 </code></pre></div>
-<h2 id="server-configuration">Server configuration</h2>
-<p>The current directory's default local daemon can be inspected and managed with:</p>
-<div class="highlight"><pre><span></span><code>labtasker-server<span class="w"> </span>start
-labtasker-server<span class="w"> </span>status
-labtasker-server<span class="w"> </span>logs
-labtasker-server<span class="w"> </span>stop<span class="w"> </span><span class="o">[</span>--force<span class="o">]</span>
+<h2 id="server-operation">Server operation</h2>
+<p>The Server requires a POSIX platform with advisory file locking. All Server
+transports and lifecycle modes, including foreground HTTP, are unsupported on
+Windows. <code>labtasker-server --help</code>, command help, and <code>--version</code> remain
+available there, but operational commands fail before creating a root, opening
+SQLite, binding a listener, or starting a process. Windows Clients and Python
+Workers connect to an HTTP Server running on a POSIX host.</p>
+<p>Every public Server launch explicitly selects its transport:</p>
+<div class="highlight"><pre><span></span><code>labtasker-server<span class="w"> </span>serve<span class="w"> </span>--connection<span class="w"> </span>socket<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+labtasker-server<span class="w"> </span>serve<span class="w"> </span>--connection<span class="w"> </span>http<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
 </code></pre></div>
-<p>It has no idle shutdown. <code>status</code> is read-only JSON; <code>logs</code> prints the complete
-current log without following it. A normal <code>stop</code> waits up to 30 seconds and
-never sends SIGKILL. After that deadline, <code>--force</code> checks the process identity
-again before sending a force signal.</p>
-<p>For an explicitly operated foreground HTTP Server:</p>
+<p><code>--connection</code> has no default. Common defaults are exact
+<code>CWD/.labtasker</code> for <code>--labtasker-root</code>, <code>&lt;root&gt;/server.db</code> for <code>--database</code>,
+<code>auto</code> for <code>--database-filesystem</code>, and foreground operation. <code>--daemon</code> changes
+only foreground versus detached lifecycle; it does not change the transport.</p>
+<p>Socket mode derives an owner-only runtime socket from the canonical root unless
+<code>--socket</code> is supplied. HTTP mode defaults to <code>127.0.0.1:8000</code>. <code>--host</code> and
+<code>--port</code> are HTTP-only; <code>--socket</code> is socket-only.</p>
+<p>Start or reuse a detached local daemon explicitly:</p>
 <div class="highlight"><pre><span></span><code>labtasker-server<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--connection<span class="w"> </span>socket<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--daemon<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--labtasker-root<span class="w"> </span>.labtasker
+</code></pre></div>
+<p>Manage only that exact root:</p>
+<div class="highlight"><pre><span></span><code>labtasker-server<span class="w"> </span>status<span class="w"> </span>--labtasker-root<span class="w"> </span>.labtasker
+labtasker-server<span class="w"> </span>logs<span class="w"> </span>--labtasker-root<span class="w"> </span>.labtasker
+labtasker-server<span class="w"> </span>stop<span class="w"> </span>--labtasker-root<span class="w"> </span>.labtasker<span class="w"> </span><span class="o">[</span>--force<span class="o">]</span>
+</code></pre></div>
+<p>There is no public <code>start</code> command. Detached <code>serve</code> is idempotent only when the
+effective non-secret configuration matches the running daemon. A conflict asks
+the operator to stop the existing daemon before relaunching it. <code>status</code> is
+read-only JSON; <code>logs</code> prints the complete current log without following it. A
+normal <code>stop</code> waits up to 30 seconds and never sends SIGKILL; <code>--force</code> may do so
+only after rechecking process identity.</p>
+<p>For an HTTP Server:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">LABTASKER_SERVER_TOKEN</span><span class="o">=</span>secret<span class="w"> </span><span class="se">\</span>
+labtasker-server<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--connection<span class="w"> </span>http<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--port<span class="w"> </span><span class="m">8000</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--database<span class="w"> </span>.labtasker/server.db
+<span class="w">  </span>--database<span class="w"> </span>/data/labtasker.db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--database-filesystem<span class="w"> </span>auto
 </code></pre></div>
 <p>The authentication token is read only from <code>LABTASKER_SERVER_TOKEN</code>; there is no
 token CLI flag. Loopback and <code>localhost</code> binds may omit it. A non-loopback bind
-requires it. A configured token must be non-empty and contain only visible ASCII
-characters.</p>
-<p>All application API calls then require the same bearer token. <code>/health</code> and
-<code>/openapi.json</code> remain unauthenticated for discovery. Labtasker provides one
-server-wide shared token, not users, roles, per-Queue ACLs, or Worker identity.</p>
-<h2 id="sqlite-ownership">SQLite ownership</h2>
-<p>Run one Server process per database file. Labtasker initializes a fresh database
-and performs known v2 migrations at startup. Unknown or newer schema versions
-fail clearly instead of being guessed. Large artifacts do not belong in this
-database; store their paths or external URLs in Task data.</p>
+requires it. <code>/health</code> and <code>/openapi.json</code> stay unauthenticated; application API
+calls use the one Server-wide bearer token. Labtasker does not provide users,
+roles, per-Queue ACLs, or authenticated Worker identities.</p>
+<h2 id="sqlite-filesystem-strategies">SQLite filesystem strategies</h2>
+<p>Run exactly one Server process per database file. The filesystem strategy
+controls SQLite safety settings, not the Client transport:</p>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>Journal</th>
+<th>Sync</th>
+<th>Connections and transactions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>local</code></td>
+<td>WAL</td>
+<td>FULL</td>
+<td>ordinary local pool; SQLite serializes writes</td>
+</tr>
+<tr>
+<td><code>shared</code></td>
+<td>DELETE</td>
+<td>EXTRA</td>
+<td>one connection; every read and write transaction serialized</td>
+</tr>
+<tr>
+<td><code>auto</code></td>
+<td>detected</td>
+<td>detected</td>
+<td>known local uses <code>local</code>; known shared and unknown use <code>shared</code></td>
+</tr>
+</tbody>
+</table>
+<p>For <code>auto</code>, the Server inspects the database path or its nearest existing parent.
+Linux reads the longest matching mount from <code>/proc/self/mountinfo</code>; macOS reads
+the longest matching entry from <code>mount</code> output. The current conservative type
+sets are:</p>
+<table>
+<thead>
+<tr>
+<th>Classification</th>
+<th>Recognized filesystem types</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>known local</td>
+<td><code>apfs</code>, <code>btrfs</code>, <code>ext2</code>, <code>ext3</code>, <code>ext4</code>, <code>f2fs</code>, <code>hfs</code>, <code>hfsplus</code>, <code>jfs</code>, <code>overlay</code>, <code>tmpfs</code>, <code>ufs</code>, <code>xfs</code>, <code>zfs</code></td>
+</tr>
+<tr>
+<td>known shared</td>
+<td><code>beegfs</code>, <code>ceph</code>, <code>cifs</code>, <code>fuse.sshfs</code>, <code>gpfs</code>, <code>lustre</code>, <code>nfs</code>, <code>nfs4</code>, <code>smbfs</code>, <code>wekafs</code></td>
+</tr>
+</tbody>
+</table>
+<p>An unavailable or unlisted type is unknown. Unknown auto-detection emits a
+warning and selects <code>shared</code>; it never guesses local. Explicit <code>local</code> or
+<code>shared</code> bypasses detection and is the operator override. Detection is only a
+guard: mount aliases, vendor-specific clients, containers, and filesystem
+configuration can hide the real durability or locking behavior.</p>
+<p><code>local</code> uses WAL for ordinary local concurrency and <code>synchronous=FULL</code>.
+<code>shared</code> uses the rollback journal in <code>DELETE</code> mode, avoiding WAL's long-lived
+shared-memory coordination files, and <code>synchronous=EXTRA</code>, which adds the
+directory durability step associated with deleting the rollback journal. These
+settings reduce assumptions about shared storage; they cannot repair broken
+remote locking, <code>fsync</code>, network partitions, or split brain.</p>
+<p>The shared SQLAlchemy pool is exactly <code>pool_size=1</code>, <code>max_overflow=0</code>, and
+<code>pool_timeout=5</code>. Checkout of that single connection serializes read, write,
+health, startup-recovery, and expiry transactions. A request that cannot check
+out the connection within five seconds receives retryable <code>503 database_busy</code>;
+after checkout, SQLite has a separate 5000 ms lock wait. This protects
+correctness but does not increase SQLite write throughput. FastAPI endpoints and
+SQLAlchemy remain synchronous; async HTTP is a later profiling decision, not a
+shared-storage safety requirement.</p>
+<p>Every connection enables foreign keys and a 5000 ms SQLite busy timeout. One
+host-local sidecar lock owns the canonical database path for the Server process;
+detached daemons additionally own their exact root, and Unix Servers own their
+socket path. These locks prevent ordinary same-user duplicates on one host, not
+cross-host split brain.</p>
+<p>Sidecar locks live in the owner-only per-user runtime directory under <code>/tmp</code>, are
+keyed by hashes of canonical paths, have no TTL, and are never stolen or deleted
+as part of normal cleanup. The kernel releases the advisory lock when the owning
+process exits. During the bounded v2.5 transition, effective <code>local</code> mode also
+retains the legacy database-inode lock; shared mode deliberately does not depend
+on that remote-file lock. Stop an old Server cleanly before upgrading a shared
+database.</p>
+<p>Root and database symlink aliases resolve to their canonical targets before
+locking. For a Unix socket, only the parent is canonicalized; the final entry is
+kept for validation and a symlink there is rejected. The per-user runtime
+directory itself must also be an owner-only real directory, not a symlink.</p>
+<p>For one cluster node using a shared database and same-host Clients, the root and
+database remain independent and a detached socket Server is valid:</p>
+<div class="highlight"><pre><span></span><code>labtasker-server<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--connection<span class="w"> </span>socket<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--daemon<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--labtasker-root<span class="w"> </span>/var/tmp/my-run/labtasker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--database<span class="w"> </span>/shared/project/server.db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--database-filesystem<span class="w"> </span>shared
+</code></pre></div>
+<p>For Clients on other nodes, run the same single owner with <code>--connection http</code>
+instead. In both cases an external supervisor or operational policy must ensure
+that no other node starts a Server for the same database. Labtasker provides no
+distributed owner lease or split-brain recovery.</p>
+<p>Labtasker initializes a fresh database and applies known v2 migrations before
+listening. Unknown or newer schemas fail clearly. Store large artifacts outside
+SQLite and record paths or URLs in Task data.</p>
 
 
 

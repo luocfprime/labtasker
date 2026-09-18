@@ -1333,9 +1333,9 @@ and reads their recorded results. The evaluator has no ML dependencies, so you
 can complete the workflow before adapting it to your own model or benchmark.</p>
 <h2 id="requirements">Requirements</h2>
 <p>This local tutorial needs Python 3.10 or newer and a POSIX system such as Linux
-or macOS. The automatic local Server and command Worker used in this tutorial
-are not supported on Windows. Windows Clients must connect to an HTTP Server and
-use a Python Worker. See
+or macOS. The managed local Server and command Worker used in this tutorial are
+not supported on Windows. Windows Clients must connect to an HTTP Server and use
+a Python Worker; that Server must run on a POSIX host. See
 <a href="../reference/configuration/">Configuration</a> for details.</p>
 <p>To use checked-in source files instead, follow the <a href="../demo/">tested demo</a>. Its
 submission and Worker files run in the end-to-end test suite.</p>
@@ -1360,11 +1360,11 @@ readability.</p>
 <div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span>my-evaluation
 <span class="nb">cd</span><span class="w"> </span>my-evaluation
 </code></pre></div>
-<p>Labtasker uses the current directory to select its local Server and Task
-database. Run the remaining commands from <code>my-evaluation</code> so they use the same
-data.</p>
+<p>With no configured URL or socket, Labtasker uses exactly
+<code>my-evaluation/.labtasker</code> as its local root. It does not search parent or VCS
+directories. Run the remaining commands here so they select the same root.</p>
 <h2 id="3-submit-three-evaluation-cases">3. Submit three evaluation cases</h2>
-<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>submit<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>--auto-start-local-server<span class="w"> </span>task<span class="w"> </span>submit<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--name<span class="w"> </span>sample-1<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--args<span class="w"> </span><span class="s1">'{"prediction":"red panda","reference":"red panda"}'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--route<span class="w"> </span>text-eval
@@ -1388,9 +1388,10 @@ labtasker<span class="w"> </span>task<span class="w"> </span>submit<span class="
 </ul>
 <p>CLI values use strict JSON, so numbers, Booleans, arrays, objects, and <code>null</code>
 keep their JSON types.</p>
-<p>On POSIX systems, the first Task operation starts a local Server when needed.
-All three Tasks enter Queue <code>default</code>, so the tutorial needs no Server command
-or configuration file.</p>
+<p>The first command explicitly authorizes creation of this local Server. The two
+later commands connect to the daemon it started. Repeating the flag is safe and
+idempotent, but it is not required while that daemon remains healthy. All three
+Tasks enter Queue <code>default</code>, so the tutorial needs no configuration file.</p>
 <h2 id="4-create-the-evaluator">4. Create the evaluator</h2>
 <p>Create <code>evaluate.py</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
@@ -1486,9 +1487,9 @@ terminal or lose the SSH connection. It stores local state under <code>.labtaske
 <p>See which Server and Queue the Client will use, or manage the current
 directory's Server directly:</p>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>config<span class="w"> </span>show
-labtasker-server<span class="w"> </span>status
-labtasker-server<span class="w"> </span>logs
-labtasker-server<span class="w"> </span>stop
+labtasker-server<span class="w"> </span>status<span class="w"> </span>--labtasker-root<span class="w"> </span>.labtasker
+labtasker-server<span class="w"> </span>logs<span class="w"> </span>--labtasker-root<span class="w"> </span>.labtasker
+labtasker-server<span class="w"> </span>stop<span class="w"> </span>--labtasker-root<span class="w"> </span>.labtasker
 </code></pre></div>
 <h2 id="next-steps">Next steps</h2>
 <ul>

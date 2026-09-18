@@ -1079,6 +1079,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Agent workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#public-interface-approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Public interface approval
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1171,6 +1188,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Agent workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#public-interface-approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Public interface approval
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1233,6 +1267,9 @@ Pushes that change documentation on <code>main</code> publish the <code>dev</cod
 GitHub Pages. A <code>vVERSION</code> tag publishes <code>VERSION</code>, moves the <code>latest</code> alias, and
 updates the site's default redirect. Versioning uses Zensical's temporary Mike
 integration until native Zensical versioning is available.</p>
+<p>Use Conventional Commits for repository history: <code>type: summary</code> or
+<code>type(scope): summary</code>. Choose the narrowest semantic type, such as <code>feat</code>,
+<code>fix</code>, <code>refactor</code>, <code>test</code>, <code>docs</code>, <code>chore</code>, <code>build</code>, <code>ci</code>, or <code>perf</code>.</p>
 <p>Configure GitHub Pages to deploy from the root of the <code>gh-pages</code> branch. The
 documentation workflow retains older versions on that branch, so it deliberately
 does not use the single-artifact Pages deployment flow.</p>
@@ -1279,6 +1316,18 @@ skill, its bundled references, and task-facing public interfaces. The examiner
 provisions temporary Servers and databases, checks observable results, and keeps
 holdout questions and rubrics hidden from the reviser. Revisions are bounded;
 failed or unexecuted cases remain visible in the report.</p>
+<h3 id="public-interface-approval">Public interface approval</h3>
+<p>Before implementing any addition, removal, or observable change to a public
+Python API, HTTP endpoint, CLI command or option, configuration field, or
+persisted contract, present the exact proposed interface separately for the
+maintainer to review. Include its name or signature, inputs, defaults, outputs,
+errors, and compatibility effect as applicable. Obtain explicit approval for
+that interface before implementing it.</p>
+<p>Do not treat approval of a long specification, implementation plan, or broader
+feature as approval for public interfaces embedded inside it. The review must
+make the changed public surface easy to identify without rediscovering it in a
+large document. After approval, update the specification, implementation,
+tests, and user documentation together.</p>
 <p>The <a href="https://github.com/luocfprime/labtasker/tree/main/tests/skill">agent regression suite</a>
 lives in <code>tests/skill/</code>, outside the installed skill and ordinary pytest discovery.
 Each case contains <code>candidate.md</code>, private <code>examiner.md</code>, and executable setup or

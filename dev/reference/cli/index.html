@@ -984,6 +984,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Client options
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1197,6 +1214,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Client options
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1289,6 +1323,7 @@ formatted JSON for resource operations, and ordinary readable logging for a
 long-running Worker.</p>
 <h2 id="commands">Commands</h2>
 <div class="highlight"><pre><span></span><code>labtasker --version
+labtasker [--labtasker-root PATH] [--auto-start-local-server] COMMAND
 labtasker config show
 
 labtasker queue create NAME
@@ -1299,31 +1334,140 @@ labtasker task submit [OPTIONS]
 labtasker task get TASK_ID
 labtasker task list [OPTIONS]
 labtasker task count [OPTIONS]
-labtasker task update [TASK_ID] (--filter FILTER) --changes JSON
+labtasker task update [TASK_ID | --filter FILTER] --changes JSON
 labtasker task cancel TASK_ID
 labtasker task requeue TASK_ID
 labtasker task delete TASK_ID
 
 labtasker worker list [OPTIONS]
 labtasker worker count [OPTIONS]
-labtasker worker telemetry --data JSON
 
-labtasker progress --data JSON
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
 labtasker-server --version
-labtasker-server start
-labtasker-server status
-labtasker-server stop [--force]
-labtasker-server logs
-labtasker-server serve [OPTIONS]
+labtasker-server serve --connection http [OPTIONS]
+labtasker-server serve --connection socket [OPTIONS]
+labtasker-server status [--labtasker-root PATH]
+labtasker-server stop [--labtasker-root PATH] [--force]
+labtasker-server logs [--labtasker-root PATH]
 </code></pre></div>
 <p>Run <code>--help</code> on any command for its exact options and accepted values.</p>
+<p><code>--labtasker-root</code> and <code>--auto-start-local-server</code> are global Client options and
+must appear before the subcommand. The root defaults to exact
+<code>CWD/.labtasker</code>; it selects config, journals, and the managed-local endpoint
+without searching parents. Auto-start authority is false by default and applies
+only when no URL or external socket is configured.</p>
 <p>Both executables expose their runtime distribution version without reading
 configuration, contacting a Server, or starting the local daemon. <code>labtasker
 --version</code> prints <code>labtasker-client VERSION</code>, because the Client distribution
 owns that executable. <code>labtasker-server --version</code> prints
 <code>labtasker-server VERSION</code>. Each result is one line on stdout with exit status
 0. Root <code>--help</code> lists the option but does not print the current version.</p>
+<h3 id="client-options">Client options</h3>
+<p>The root options apply before the selected subcommand:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--version</code></td>
+<td>false</td>
+<td>Print <code>labtasker-client VERSION</code> and exit without resolving configuration.</td>
+</tr>
+<tr>
+<td><code>--labtasker-root PATH</code></td>
+<td>exact <code>CWD/.labtasker</code></td>
+<td>Select the exact config, journal, and managed-local root. No parent or VCS search occurs.</td>
+</tr>
+<tr>
+<td><code>--auto-start-local-server</code></td>
+<td>false</td>
+<td>Give only this invocation authority to start or recover the standard managed-local daemon. Invalid for an HTTP or explicit-socket endpoint.</td>
+</tr>
+</tbody>
+</table>
+<p>Task command arguments and options are:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Arguments and options</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task submit</code></td>
+<td><code>--args JSON</code> <code>{}</code>, <code>--name TEXT</code> null, <code>--metadata JSON</code> <code>{}</code>, <code>--priority INT</code> <code>0</code>, <code>--max-attempts INT</code> <code>3</code>, repeatable <code>--route TEXT</code> (omission means <code>default</code>), optional <code>--id TASK_ID</code>, optional <code>--queue QUEUE</code></td>
+</tr>
+<tr>
+<td><code>task get</code></td>
+<td>required <code>TASK_ID</code>, optional <code>--queue QUEUE</code></td>
+</tr>
+<tr>
+<td><code>task list</code></td>
+<td>optional <code>--status</code>, <code>--name</code>, <code>--name-fuzzy</code>, <code>--filter</code>, <code>--order-by</code> (<code>created_at</code>), <code>--descending</code> / <code>--ascending</code> (descending), <code>--limit</code> (<code>100</code>, range 1–1000), <code>--cursor</code>, and <code>--queue</code></td>
+</tr>
+<tr>
+<td><code>task count</code></td>
+<td>optional <code>--status</code>, <code>--name</code>, <code>--name-fuzzy</code>, <code>--filter</code>, one comma-separated <code>--group-by</code>, <code>--limit</code>, <code>--cursor</code>, and <code>--queue</code>; limit/cursor require grouping</td>
+</tr>
+<tr>
+<td><code>task update</code></td>
+<td>exactly one of positional <code>TASK_ID</code> or <code>--filter FILTER</code>, required <code>--changes JSON</code>, optional <code>--queue QUEUE</code></td>
+</tr>
+<tr>
+<td><code>task cancel</code>, <code>task requeue</code>, <code>task delete</code></td>
+<td>required <code>TASK_ID</code>, optional <code>--queue QUEUE</code></td>
+</tr>
+</tbody>
+</table>
+<p>Queue, Worker, and execution options are:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Arguments and options</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>queue create</code></td>
+<td>required <code>NAME</code></td>
+</tr>
+<tr>
+<td><code>queue list</code></td>
+<td>no command options</td>
+</tr>
+<tr>
+<td><code>queue delete</code></td>
+<td>required <code>NAME</code>; <code>--cascade</code> defaults to false</td>
+</tr>
+<tr>
+<td><code>worker list</code></td>
+<td>optional <code>--filter</code>, <code>--limit</code> (<code>100</code>, range 1–1000), <code>--cursor</code>, and <code>--queue</code></td>
+</tr>
+<tr>
+<td><code>worker count</code></td>
+<td>optional <code>--filter</code>, one comma-separated <code>--group-by</code>, <code>--limit</code>, <code>--cursor</code>, and <code>--queue</code>; limit/cursor require grouping</td>
+</tr>
+<tr>
+<td><code>loop</code></td>
+<td><code>--route</code> (<code>default</code>), <code>--queue</code>, <code>--max-consecutive-failures</code> (<code>5</code>), <code>--idle-timeout</code> (<code>300</code> seconds), nullable <code>--force-stop-timeout</code>, <code>--metadata JSON</code> (<code>{}</code>), then required direct child argv after <code>--</code></td>
+</tr>
+</tbody>
+</table>
+<p>Task progress, Worker telemetry, and early completion are Python execution-context
+helpers. The CLI does not expose <code>progress</code>, <code>worker telemetry</code>, or <code>finish</code>
+commands.</p>
+<p><code>--status</code> accepts exactly <code>pending</code>, <code>running</code>, <code>succeeded</code>, <code>failed</code>, or
+<code>cancelled</code>. <code>--order-by</code> accepts <code>id</code>, <code>name</code>, <code>status</code>, <code>priority</code>, <code>attempt</code>,
+<code>max_attempts</code>, <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, or
+<code>finished_at</code>. Page limits accept 1–1000. Positive counters reject zero;
+<code>--force-stop-timeout</code> accepts a finite non-negative number.</p>
 <h2 id="command-contracts">Command contracts</h2>
 <p>Finite resource commands are CLI forms of the same Python and HTTP operations.
 They do not add hidden prompts, implicit pagination, or alternate lifecycle
@@ -1404,16 +1548,6 @@ do not advertise a usable version do not trigger this warning.</p>
 <td>Counts unexpired observations; accepts <code>--filter</code>, <code>--group-by</code>, <code>--limit</code>, <code>--cursor</code>, and <code>--queue</code>.</td>
 </tr>
 <tr>
-<td><code>worker telemetry</code></td>
-<td><code>{"reported":true|false}</code></td>
-<td>Inside a Command Worker child, synchronously replaces the current Worker invocation's latest strict JSON-object telemetry snapshot.</td>
-</tr>
-<tr>
-<td><code>progress</code></td>
-<td><code>{"reported":true|false}</code></td>
-<td>Inside a Command Worker child, replaces the current run's latest strict JSON-object snapshot. A best-effort transport/revocation failure reports false without failing the command.</td>
-</tr>
-<tr>
 <td><code>queue create</code></td>
 <td>One Queue object</td>
 <td>Idempotent create-by-name.</td>
@@ -1445,6 +1579,10 @@ or other resource fields.
 The Worker exits <code>1</code> after reporting that many consecutive execution failures;
 see <a href="../../guides/failure-recovery/#consecutive-failure-protection">failure protection</a>.</p>
 <p>Server commands have a separate ownership boundary:</p>
+<p>The Server requires POSIX advisory file locking in every transport and lifecycle
+mode. On Windows, help and version inspection remain available, while every
+operational Server command exits 1 before creating state, opening SQLite,
+binding a listener, or starting a process.</p>
 <table>
 <thead>
 <tr>
@@ -1454,27 +1592,99 @@ see <a href="../../guides/failure-recovery/#consecutive-failure-protection">fail
 </thead>
 <tbody>
 <tr>
-<td><code>labtasker-server start</code></td>
-<td>Starts or confirms the automatic Server for the exact current directory. Ordinary local Client use starts it automatically.</td>
+<td><code>serve --connection http\|socket</code></td>
+<td>Runs one foreground Server, or a detached one with <code>--daemon</code>. Transport selection is required. <code>--database-filesystem</code> defaults to <code>auto</code>; one process owns one SQLite file.</td>
 </tr>
 <tr>
-<td><code>status</code></td>
-<td>Read-only JSON describing the current directory's local daemon state.</td>
+<td><code>status [--labtasker-root PATH]</code></td>
+<td>Read-only JSON describing the daemon selected by exact root; it creates and cleans nothing.</td>
 </tr>
 <tr>
-<td><code>stop [--force]</code></td>
-<td>Stops only the reverified local daemon; normal stop never sends SIGKILL.</td>
+<td><code>stop [--labtasker-root PATH] [--force]</code></td>
+<td>Stops only the reverified daemon for that root; normal stop never sends SIGKILL.</td>
 </tr>
 <tr>
-<td><code>logs</code></td>
-<td>Prints the complete current local Server log; it does not follow.</td>
-</tr>
-<tr>
-<td><code>serve</code></td>
-<td>Runs one foreground HTTP Server. One process owns one SQLite file; non-loopback binds require <code>LABTASKER_SERVER_TOKEN</code>.</td>
+<td><code>logs [--labtasker-root PATH]</code></td>
+<td>Prints that daemon's complete log; it does not follow.</td>
 </tr>
 </tbody>
 </table>
+<p><code>serve</code> has this exact public option surface:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Requirement or default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--connection http\|socket</code></td>
+<td>Required; there is no transport default.</td>
+</tr>
+<tr>
+<td><code>--labtasker-root PATH</code></td>
+<td>Exact <code>CWD/.labtasker</code>.</td>
+</tr>
+<tr>
+<td><code>--database PATH</code></td>
+<td><code>&lt;labtasker-root&gt;/server.db</code>; it may be elsewhere.</td>
+</tr>
+<tr>
+<td><code>--database-filesystem auto\|local\|shared</code></td>
+<td><code>auto</code>.</td>
+</tr>
+<tr>
+<td><code>--host HOST</code></td>
+<td>HTTP-only; <code>127.0.0.1</code>.</td>
+</tr>
+<tr>
+<td><code>--port PORT</code></td>
+<td>HTTP-only; <code>8000</code>, range 1–65535.</td>
+</tr>
+<tr>
+<td><code>--socket PATH</code></td>
+<td>Socket-only; otherwise derive the owner-only runtime socket from the canonical root.</td>
+</tr>
+<tr>
+<td><code>--daemon</code></td>
+<td>false; lifecycle only.</td>
+</tr>
+</tbody>
+</table>
+<p><code>status</code>, <code>stop</code>, and <code>logs</code> each accept only <code>--labtasker-root</code>, defaulting to
+exact <code>CWD/.labtasker</code>; <code>stop</code> additionally accepts <code>--force</code>,
+default false.
+Private <code>_ensure-daemon</code> and <code>_daemon</code> coordinator commands are hidden
+implementation details, not public CLI contracts.</p>
+<p><code>serve</code> defaults the root to exact <code>CWD/.labtasker</code>, its database to
+<code>&lt;root&gt;/server.db</code>, and detached mode to false. HTTP defaults to
+<code>127.0.0.1:8000</code>; socket mode derives an owner-only socket from the root.
+<code>--host</code>/<code>--port</code> and <code>--socket</code> are mutually transport-specific. <code>--daemon</code>
+changes lifecycle only. A matching detached launch is idempotent; a conflicting
+launch fails and asks the operator to stop the existing daemon first. There is
+no public <code>start</code> command.</p>
+<p><code>status</code> writes this stable shape; fields that require verified live metadata
+are null when it is unavailable:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"state"</span><span class="p">:</span><span class="w"> </span><span class="s2">"running"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"labtasker_root"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/absolute/root"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"database"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/absolute/server.db"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"database_filesystem"</span><span class="p">:</span><span class="w"> </span><span class="s2">"shared"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"connection"</span><span class="p">:</span><span class="w"> </span><span class="s2">"socket"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"host"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"socket"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/absolute/server.sock"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"log"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/absolute/root/server.log"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"pid"</span><span class="p">:</span><span class="w"> </span><span class="mi">1234</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2.5.0"</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>state</code> is exactly <code>running</code>, <code>starting</code>, <code>unhealthy</code>, or <code>stopped</code>.
+<code>database</code>, <code>database_filesystem</code>, <code>connection</code>, <code>host</code>, <code>port</code>, <code>socket</code>,
+<code>pid</code>, and <code>version</code> are null when not applicable or when live metadata cannot
+be verified. Runtime metadata is diagnostic state, not configuration or
+authority.</p>
 <h2 id="inspect-route-demand-and-worker-activity">Inspect route demand and Worker activity</h2>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--group-by<span class="w"> </span>routes,status
 labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--group-by<span class="w"> </span>route,status
@@ -1513,16 +1723,16 @@ machine-readable response channel for finite commands: callers distinguish a
 successful value from an error envelope with the exit status and the top-level
 <code>error</code> key. CLI argument or usage errors remain natural-language stderr and
 exit <code>2</code>; an interrupted Worker retains exit <code>130</code>.</p>
-<p>Every finite Client operation identifies its selected local or HTTP Server on
-stderr after connecting. The single <code>[labtasker] connected</code> line explicitly
-names a local or remote Server and its Unix, HTTP, or HTTPS transport; local
-connections also identify the project directory, database and socket. Starting,
-waiting for, or reconnecting to a local daemon is likewise visible. Requested
+<p>Every finite Client operation identifies its selected managed-local, external
+socket, or HTTP Server on stderr after connecting. The single <code>[labtasker]
+connected</code> line explicitly names the endpoint and its Unix, HTTP, or HTTPS
+transport; managed-local connections also identify the root, database and
+socket. Authorized startup transitions are likewise visible. Requested
 data or a handled error envelope remains alone on stdout. Finite Client
 diagnostics use <code>[labtasker]</code>, while
-Server CLI diagnostics use <code>[labtasker-server]</code>. <code>labtasker-server start</code> and
-<code>stop</code> report actions on stderr, <code>status</code> prints stable JSON on stdout, and
-<code>logs</code> writes log content to stdout.</p>
+Server CLI diagnostics use <code>[labtasker-server]</code>. Detached <code>serve</code> and <code>stop</code>
+report actions on stderr, <code>status</code> prints stable JSON on stdout, and <code>logs</code>
+writes log content to stdout.</p>
 <p><code>labtasker loop</code> is different: it is a supervised long-running process, so it
 uses ordinary logs whose default format includes a millisecond UTC timestamp,
 level and <code>[labtasker]</code> prefix, and tees child output in real time. It does not
