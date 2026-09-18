@@ -260,10 +260,15 @@ Use a Python Worker when the workload must deliberately choose
 ## Choose Worker lifetime deliberately
 
 Both Worker styles wait for newly eligible Tasks after an empty claim. The
-public `idle_timeout` defaults to 300 seconds, resets after each successful
+public `idle_timeout` defaults to 300 seconds, resets after each executable
 claim, and then ends the Worker normally if no work appears. Set
 `idle_timeout=0` or CLI `--idle-timeout 0` to exit on the first empty claim; this
 does not mean “run exactly one Task” when the Queue remains non-empty.
+
+Empty polling backs off with jitter to an actual maximum of about 8 through 12
+seconds, so a newly submitted Task may not be claimed immediately by an already
+idle Worker. Temporary claim communication failures do not consume
+`idle_timeout`; they use an independent fixed five-minute recovery window.
 
 There is no infinite-wait value, daemon mode, `once`, `max_tasks`, or automatic
 Worker restart. Use an external process supervisor when a Worker must be kept

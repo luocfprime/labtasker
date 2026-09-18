@@ -353,6 +353,13 @@ automatic resource detection, sampling, retry, throttling, or history storage;
 callers own those choices. The helper also works inside a Python program launched
 by `labtasker loop`.
 
+`idle_timeout` measures only confirmed empty-Queue time. Temporary claim
+transport failures, `database_busy`, and Server 5xx responses pause it and share
+an independent fixed 300-second recovery budget. Worker claim polling uses an
+internal jittered backoff capped at an actual 8 through 12 seconds; neither policy
+has a public tuning parameter. A claim recovered after an uncertain response is
+heartbeat-confirmed before the decorated function begins.
+
 See [Python Workers](../workers/python.md) for binding, cancellation, failure,
 and Worker-lifetime semantics.
 

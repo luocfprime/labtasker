@@ -28,7 +28,7 @@ from labtasker.command_worker import (
     run_command_worker,
 )
 from labtasker.config import ResolvedConfig
-from labtasker.errors import APIError
+from labtasker.errors import APIError, TransportError
 from labtasker.execution import (
     RunControl,
     finish,
@@ -79,7 +79,7 @@ def make_claim(
 class FakeClient:
     def __init__(
         self,
-        claims: list[ClaimResponse | None],
+        claims: list[ClaimResponse | Exception | None],
         *,
         token: str | None = None,
         heartbeat_error: APIError | None = None,
@@ -111,7 +111,13 @@ class FakeClient:
         return SimpleNamespace(status="ok", api_version="2", database="ok")
 
     def _claim(self, **_: object) -> ClaimResponse | None:
-        return self.claims.popleft() if self.claims else None
+        outcome = self.claims.popleft() if self.claims else None
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    def _repair_local_connection(self, _: TransportError) -> None:
+        pass
 
     def _heartbeat(self, **_: object) -> object:
         if self.heartbeat_error is not None:
@@ -222,6 +228,72 @@ def test_pipe_worker_preserves_argv_environment_streams_and_null_stdin(
     log = next(tmp_path.glob(".labtasker/runs/default/**/run.log")).read_bytes()
     assert b"hello world" in log
     assert b"stderr-line" in log
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
+def test_command_worker_confirms_recovered_claim_before_child_start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "child-started"
+    client = FakeClient([TransportError("response lost"), make_claim(), None])
+    install(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker._claim_backoff_delay", lambda _: 0.0)
+    confirmations = 0
+
+    def heartbeat(**_: object) -> object:
+        nonlocal confirmations
+        assert not marker.exists()
+        confirmations += 1
+        return SimpleNamespace(lease_expires_at=datetime.now(UTC))
+
+    monkeypatch.setattr(client, "_heartbeat", heartbeat)
+    run_command_worker(
+        [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; Path(__import__('sys').argv[1]).touch()",
+            str(marker),
+        ],
+        idle_timeout=0,
+    )
+
+    assert confirmations == 1
+    assert marker.exists()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")
+def test_command_worker_does_not_prepare_or_start_unconfirmed_claim(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "child-started"
+    client = FakeClient([TransportError("response lost"), make_claim()])
+    install(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker._claim_backoff_delay", lambda _: 0.0)
+
+    def reject_confirmation(**_: object) -> None:
+        raise APIError(401, "unauthorized", "bad token", {})
+
+    monkeypatch.setattr(client, "_heartbeat", reject_confirmation)
+    monkeypatch.setattr(
+        "labtasker.command_worker.LocalRunJournal.create",
+        lambda **_: pytest.fail("journal must not be created before claim confirmation"),
+    )
+
+    with pytest.raises(APIError, match="bad token"):
+        run_command_worker(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(__import__('sys').argv[1]).touch()",
+                str(marker),
+            ],
+            idle_timeout=0,
+        )
+
+    assert not marker.exists()
+    assert client.actions == []
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Command Workers require POSIX process groups")

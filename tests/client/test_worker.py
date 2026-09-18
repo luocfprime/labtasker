@@ -91,7 +91,7 @@ def make_claim(
 
 
 class FakeClient:
-    def __init__(self, claims: list[ClaimResponse | None]) -> None:
+    def __init__(self, claims: list[ClaimResponse | Exception | None]) -> None:
         self._configuration = ResolvedConfig(
             url="http://server",
             socket=None,
@@ -120,7 +120,13 @@ class FakeClient:
 
     def _claim(self, *, route: str, run_id: str, queue: str) -> ClaimResponse | None:
         self.claim_run_ids.append(run_id)
-        return self.claims.popleft() if self.claims else None
+        outcome = self.claims.popleft() if self.claims else None
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    def _repair_local_connection(self, _: TransportError) -> None:
+        pass
 
     def _heartbeat(self, **_: object) -> object:
         raise AssertionError("short unit executions must stop before the first heartbeat")
@@ -193,6 +199,57 @@ def test_python_loop_processes_multiple_tasks_and_journals_output(
     logs = list(tmp_path.glob(".labtasker/runs/default/**/run.log"))
     assert len(logs) == 2
     assert {path.read_text().strip() for path in logs} == {"running cat", "running dog"}
+
+
+def test_python_loop_confirms_recovered_claim_before_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim = make_claim()
+    client = FakeClient([TransportError("response lost"), claim, None])
+    install_fake_client(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker._claim_backoff_delay", lambda _: 0.0)
+    events: list[str] = []
+
+    def heartbeat(**_: object) -> object:
+        events.append("heartbeat")
+        return SimpleNamespace(lease_expires_at=datetime.now(UTC))
+
+    monkeypatch.setattr(client, "_heartbeat", heartbeat)
+
+    @loop(idle_timeout=0)
+    def handler() -> None:
+        events.append("handler")
+
+    handler()
+
+    assert events == ["heartbeat", "handler"]
+    assert client.claim_run_ids[:2] == [client.claim_run_ids[0]] * 2
+
+
+def test_python_loop_does_not_prepare_or_execute_unconfirmed_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeClient([TransportError("response lost"), make_claim()])
+    install_fake_client(monkeypatch, client)
+    monkeypatch.setattr("labtasker.worker._claim_backoff_delay", lambda _: 0.0)
+
+    def reject_confirmation(**_: object) -> None:
+        raise APIError(401, "unauthorized", "bad token", {})
+
+    monkeypatch.setattr(client, "_heartbeat", reject_confirmation)
+    monkeypatch.setattr(
+        "labtasker.worker.LocalRunJournal.create",
+        lambda **_: pytest.fail("journal must not be created before claim confirmation"),
+    )
+
+    @loop(idle_timeout=0)
+    def handler() -> None:
+        pytest.fail("handler must not run before claim confirmation")
+
+    with pytest.raises(APIError, match="bad token"):
+        handler()
+
+    assert client.actions == []
 
 
 def test_journal_creation_failure_unclaims_before_worker_exits(

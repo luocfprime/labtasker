@@ -6,6 +6,7 @@ import sys
 import time
 from pathlib import Path
 
+import httpx
 import pytest
 
 from labtasker import (
@@ -20,6 +21,7 @@ from labtasker import (
     task_info,
 )
 from labtasker.command_worker import run_command_worker
+from labtasker.worker import _next_claim
 
 
 def test_real_server_version_warning_in_python_and_cli(
@@ -88,6 +90,67 @@ def test_real_client_server_resource_workflow(server_url: str) -> None:
         assert client.count_tasks(queue="experiments") == 0
         client.delete_queue("experiments")
         assert [queue.name for queue in client.list_queues()] == ["default"]
+
+
+def test_real_server_replays_lost_claim_and_confirms_before_execution(
+    server_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = "t_REALREPLAY01"
+    run_id = "r_REALREPLAY01"
+    with Client(url=server_url, token="secret") as setup:
+        setup.submit_task({}, task_id=task_id, routes=["replay"])
+
+    class DropFirstClaimResponse(httpx.BaseTransport):
+        def __init__(self) -> None:
+            self._inner = httpx.HTTPTransport()
+            self.dropped = False
+            self.requests: list[httpx.Request] = []
+
+        def handle_request(self, request: httpx.Request) -> httpx.Response:
+            self.requests.append(request)
+            response = self._inner.handle_request(request)
+            if request.url.path.endswith("/tasks/claim") and not self.dropped:
+                response.read()
+                response.close()
+                self.dropped = True
+                raise httpx.ConnectError("claim response lost", request=request)
+            return response
+
+        def close(self) -> None:
+            self._inner.close()
+
+    transport = DropFirstClaimResponse()
+    client = Client(url=server_url, token="secret")
+    client._http.close()
+    client._http = httpx.Client(
+        base_url=f"{server_url}/api/v2/",
+        headers={"Authorization": "Bearer secret"},
+        transport=transport,
+    )
+    monkeypatch.setattr("labtasker.worker._generate_run_id", lambda: run_id)
+    monkeypatch.setattr("labtasker.worker._claim_backoff_delay", lambda _: 0.0)
+    try:
+        claim = _next_claim(
+            client,
+            route="replay",
+            queue="default",
+            idle_timeout=0,
+        )
+        assert claim is not None
+        stored = client.get_task(task_id)
+    finally:
+        client.close()
+
+    assert claim.task.id == task_id
+    assert claim.run_id == run_id
+    assert claim.task.attempt == stored.attempt == 1
+    assert stored.status == "running"
+    assert [request.url.path.rsplit("/", 1)[-1] for request in transport.requests[:3]] == [
+        "claim",
+        "claim",
+        "heartbeat",
+    ]
 
 
 def test_real_server_authentication_error_is_preserved(server_url: str) -> None:

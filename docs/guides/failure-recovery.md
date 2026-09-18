@@ -90,10 +90,25 @@ another failure. A brief Server outage can therefore be transparent if ownership
 is retained. Confirmed cancellation or ownership loss still requires the old
 execution to stop or cooperate with cancellation.
 
-Startup checks and claims have bounded retries. If those retries are exhausted,
-the Worker exits; an unavailable Server is not an empty Queue. Supplementary
-Worker observation errors are isolated from startup, claiming, execution, and
-Task reporting. A workload's own network calls remain its responsibility.
+Startup checks use short bounded retries so a new Worker exposes invalid
+configuration promptly. After startup succeeds, claim has a separate five-minute
+recovery window. A Worker retains the same private run ID across transport errors,
+`database_busy`, and Server 5xx responses. These failures pause `idle_timeout`;
+only an explicit empty response counts as an empty Queue.
+
+Empty claims and temporary claim failures use a jittered polling delay that grows
+from about one second to a maximum of 8 through 12 seconds. This reduces repeated
+empty write transactions when many Workers share one Server. A successful claim
+resets the delay. If a claim succeeds after communication was uncertain, the
+Worker confirms and renews its lease before starting Python code or a command
+child. A claim that expired or was finalized during recovery is discarded, and
+the Worker continues claiming without charging a workload failure.
+
+If claim remains unavailable for five minutes, the Worker exits nonzero so an
+external supervisor can apply its restart policy. This recovery window is fixed
+and independent of the configurable `idle_timeout`. Supplementary Worker
+observation errors remain isolated from startup, claiming, execution, and Task
+reporting. A workload's own network calls remain its responsibility.
 
 ## Cancellation
 

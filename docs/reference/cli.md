@@ -140,6 +140,12 @@ or other resource fields.
 The Worker exits `1` after reporting that many consecutive execution failures;
 see [failure protection](../guides/failure-recovery.md#consecutive-failure-protection).
 
+`--idle-timeout` measures confirmed empty-Queue time. Claim communication
+failures pause it and use an independent fixed five-minute recovery window.
+Empty and temporarily unavailable claim paths share internal jittered backoff,
+with no CLI tuning option. A recovered claim is lease-confirmed before the child
+process starts.
+
 Server commands have a separate ownership boundary:
 
 The Server requires POSIX advisory file locking in every transport and lifecycle

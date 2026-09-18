@@ -29,15 +29,14 @@ from labtasker.tee import configure_worker_logger
 from labtasker.types import JSONValue
 from labtasker.validation import validate_identifier, validate_json_object
 from labtasker.worker import (
-    POLL_INTERVAL_SECONDS,
     Heartbeat,
     _best_effort_unclaim,
     _ExecutionResult,
     _FailureGuard,
     _finish_journal,
-    _generate_run_id,
     _guard_worker_topology,
     _journal_best_effort,
+    _next_claim,
     _preflight,
     _report_until_resolved,
     _safe_diagnostic_text,
@@ -82,23 +81,16 @@ def run_command_worker(
         with ObservationReporter(
             client._configuration, normalized_route, normalized_metadata
         ) as observer:
-            idle_deadline: float | None = None
             while True:
-                claim = client._claim(
+                claim = _next_claim(
+                    client,
                     route=normalized_route,
-                    run_id=_generate_run_id(),
                     queue=queue_name,
+                    idle_timeout=normalized_idle_timeout,
                 )
                 if claim is None:
-                    now = time.monotonic()
-                    if idle_deadline is None:
-                        idle_deadline = now + normalized_idle_timeout
-                    if now >= idle_deadline:
-                        logger.info("Worker idle timeout reached; stopping normally.")
-                        return
-                    time.sleep(min(POLL_INTERVAL_SECONDS, idle_deadline - now))
-                    continue
-                idle_deadline = None
+                    logger.info("Worker idle timeout reached; stopping normally.")
+                    return
                 observer.activity(claim.task.id)
                 logger.info(
                     "Claimed Task %s as run %s (attempt %d, route %s).",

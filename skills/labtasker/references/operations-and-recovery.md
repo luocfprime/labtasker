@@ -287,12 +287,21 @@ remaining lease can therefore be transparent. Before a restarted Server begins
 serving, it applies the ordinary expiry transition to leases already past their
 deadline; heartbeat loss is a charged failure, not a special restart state.
 
-Startup checks and claims retain bounded retries: an exhausted claim transport
-failure exits instead of starting unconfirmed work or pretending the Queue is
-empty. This differs from heartbeat and unresolved terminal-report transport
-retries during an already-started execution. Observation errors are isolated
-from all phases and cannot stop startup, claiming, execution, or alter outcomes.
-Confirmed cancellation or ownership loss still requires stopping/cooperatively
+Startup checks retain short bounded retries so bad configuration fails promptly.
+After startup succeeds, claim has a separate fixed five-minute recovery window.
+Transport failures, `database_busy`, and Server 5xx responses preserve the same
+private `run_id`, pause `idle_timeout`, and use bounded jittered backoff. Never
+interpret them as an empty Queue. Only an explicit empty claim advances healthy
+idle time and causes the next poll to use a fresh token.
+
+If a claim succeeds after an uncertain response, the Worker renews that run
+before starting user code or a command child. A claim confirmed stale or finalized
+is discarded, and the Worker continues claiming without charging a workload
+failure. Five minutes of continuous claim unavailability exits the Worker for an
+external supervisor to handle; a long `idle_timeout` does not extend that fault
+window. Observation errors remain isolated from all phases and cannot stop
+startup, claiming, execution, or alter outcomes. Confirmed cancellation or
+ownership loss during execution still requires stopping or cooperatively
 cancelling the old execution. Network errors inside user code remain the
 workload's responsibility.
 

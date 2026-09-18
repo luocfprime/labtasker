@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import random
 import secrets
 import threading
 import time
@@ -41,7 +42,9 @@ from labtasker.validation import RequestValidationError, validate_identifier, va
 P = ParamSpec("P")
 R = TypeVar("R")
 HEARTBEAT_INTERVAL_SECONDS = 60.0
-POLL_INTERVAL_SECONDS = 1.0
+CLAIM_RECOVERY_TIMEOUT_SECONDS = 300.0
+CLAIM_BACKOFF_SECONDS = (1.0, 2.0, 4.0, 8.0, 10.0)
+CLAIM_BACKOFF_JITTER = 0.2
 TERMINAL_BACKOFF_SECONDS = (0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0)
 MAX_REQUEST_BYTES = 1024 * 1024
 logger = logging.getLogger("labtasker.worker")
@@ -188,19 +191,16 @@ def _run_python_worker(
         queue_name = client._configuration.queue
         _preflight(client, queue_name)
         with ObservationReporter(client._configuration, route, metadata) as observer:
-            idle_deadline: float | None = None
             while True:
-                claim = client._claim(route=route, run_id=_generate_run_id(), queue=queue_name)
+                claim = _next_claim(
+                    client,
+                    route=route,
+                    queue=queue_name,
+                    idle_timeout=idle_timeout,
+                )
                 if claim is None:
-                    now = time.monotonic()
-                    if idle_deadline is None:
-                        idle_deadline = now + idle_timeout
-                    if now >= idle_deadline:
-                        logger.info("Worker idle timeout reached; stopping normally.")
-                        return
-                    time.sleep(min(POLL_INTERVAL_SECONDS, idle_deadline - now))
-                    continue
-                idle_deadline = None
+                    logger.info("Worker idle timeout reached; stopping normally.")
+                    return
                 observer.activity(claim.task.id)
                 logger.info(
                     "Claimed Task %s as run %s (attempt %d, route %s).",
@@ -602,6 +602,135 @@ def _preflight(client: Client, queue: str) -> None:
         )
 
 
+def _next_claim(
+    client: Client,
+    *,
+    route: str,
+    queue: str,
+    idle_timeout: float,
+) -> ClaimResponse | None:
+    """Wait for one executable claim or a confirmed idle timeout."""
+    run_id = _generate_run_id()
+    idle_deadline: float | None = None
+    recovery_started: float | None = None
+    recovery_deadline: float | None = None
+    last_recovery_error: APIError | TransportError | None = None
+    backoff_index = 0
+
+    def begin_recovery(request_started: float) -> None:
+        nonlocal recovery_started, recovery_deadline
+        if recovery_deadline is None:
+            recovery_started = request_started
+            recovery_deadline = request_started + CLAIM_RECOVERY_TIMEOUT_SECONDS
+
+    def finish_recovery() -> None:
+        nonlocal idle_deadline, recovery_started, recovery_deadline
+        now = time.monotonic()
+        if idle_deadline is not None and recovery_started is not None:
+            idle_deadline += now - recovery_started
+        recovery_started = None
+        recovery_deadline = None
+
+    def wait_to_retry(error: APIError | TransportError) -> None:
+        nonlocal backoff_index
+        assert recovery_deadline is not None
+        now = time.monotonic()
+        if now >= recovery_deadline:
+            raise error
+        delay = _claim_backoff_delay(backoff_index)
+        backoff_index = min(backoff_index + 1, len(CLAIM_BACKOFF_SECONDS) - 1)
+        time.sleep(min(delay, recovery_deadline - now))
+        if time.monotonic() >= recovery_deadline:
+            raise error
+
+    def recover_transport(error: TransportError, request_started: float) -> None:
+        nonlocal last_recovery_error
+        begin_recovery(request_started)
+        assert recovery_deadline is not None
+        if time.monotonic() >= recovery_deadline:
+            raise error
+        retry_error = error
+        try:
+            client._repair_local_connection(error)
+        except TransportError as repair_error:
+            retry_error = repair_error
+        last_recovery_error = retry_error
+        logger.warning("Claim transport error; retrying: %s", retry_error.message)
+        wait_to_retry(retry_error)
+
+    while True:
+        if recovery_deadline is not None and time.monotonic() >= recovery_deadline:
+            assert last_recovery_error is not None
+            raise last_recovery_error
+        request_started = time.monotonic()
+        try:
+            claim = client._claim(route=route, run_id=run_id, queue=queue)
+        except TransportError as error:
+            recover_transport(error, request_started)
+            continue
+        except APIError as error:
+            if error.code in {"stale_run", "run_finalized"}:
+                finish_recovery()
+                run_id = _generate_run_id()
+                continue
+            if not _retryable_api_error(error):
+                raise
+            begin_recovery(request_started)
+            last_recovery_error = error
+            logger.warning("Claim Server error; retrying: %s", error.message)
+            wait_to_retry(error)
+            continue
+
+        if claim is None:
+            finish_recovery()
+            now = time.monotonic()
+            if idle_deadline is None:
+                idle_deadline = now + idle_timeout
+            if now >= idle_deadline:
+                return None
+            run_id = _generate_run_id()
+            delay = _claim_backoff_delay(backoff_index)
+            backoff_index = min(backoff_index + 1, len(CLAIM_BACKOFF_SECONDS) - 1)
+            time.sleep(min(delay, idle_deadline - now))
+            continue
+
+        if recovery_deadline is None:
+            return claim
+        if time.monotonic() >= recovery_deadline:
+            raise TransportError(
+                "The Worker could not confirm a claim within the recovery window.",
+                {"queue": queue, "route": route},
+            )
+
+        while True:
+            if time.monotonic() >= recovery_deadline:
+                assert last_recovery_error is not None
+                raise last_recovery_error
+            request_started = time.monotonic()
+            try:
+                client._heartbeat(
+                    task_id=claim.task.id,
+                    run_id=claim.run_id,
+                    queue=queue,
+                    recover_local_connect=False,
+                )
+            except TransportError as error:
+                recover_transport(error, request_started)
+                continue
+            except APIError as error:
+                if error.code in {"stale_run", "run_finalized"}:
+                    finish_recovery()
+                    run_id = _generate_run_id()
+                    break
+                if not _retryable_api_error(error):
+                    raise
+                last_recovery_error = error
+                logger.warning("Claim confirmation Server error; retrying: %s", error.message)
+                wait_to_retry(error)
+                continue
+            return claim
+
+
 def _guard_worker_topology() -> None:
     if active_context_present() or os.environ.get("LABTASKER_RUN_ID") is not None:
         raise ConfigError(
@@ -634,6 +763,11 @@ def _validate_idle_timeout(value: float) -> float:
 
 def _retryable_api_error(error: APIError) -> bool:
     return error.status_code >= 500 or error.code == "database_busy"
+
+
+def _claim_backoff_delay(index: int) -> float:
+    base = CLAIM_BACKOFF_SECONDS[min(index, len(CLAIM_BACKOFF_SECONDS) - 1)]
+    return base * random.uniform(1.0 - CLAIM_BACKOFF_JITTER, 1.0 + CLAIM_BACKOFF_JITTER)
 
 
 def _generate_run_id() -> str:

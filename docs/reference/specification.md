@@ -740,20 +740,36 @@ Status: **Decided**
 
 ### 3.0 Network resilience: high-priority boundary
 
-Status: **Decided** — scope clarified on 2026-09-09.
+Status: **Decided** — scope clarified on 2026-09-18.
 
 **A Labtasker transport failure must not directly interrupt an already-started
 Task execution or be classified as a workload failure. Supplementary Worker
 observation failures must not affect the Worker's normal operation.** This is
 not a blanket requirement that every network failure keep the loop alive:
-startup and claim retain their existing bounded retry and failure-exit behavior.
+startup retains its short bounded request retry, while claim has a separate
+bounded recovery window before failure exits the Worker.
 
-- Startup checks may fail and exit before Task execution starts. Claim retries
-  retain the same logical request and `run_id` for at most three transport
-  attempts. If none obtains a usable response, propagate the transport failure
-  and exit the Worker; do not start unconfirmed work or issue a new logical claim
-  to hide the uncertain outcome. Any unacknowledged Server claim is recovered
-  through the existing lease mechanism. A transport error is not an empty Queue.
+- Startup checks may fail and exit before Task execution starts. A logical claim
+  retries retryable transport or Server failures for at most 300 seconds, retaining
+  the exact Queue, route and `run_id`. The fixed recovery budget begins at the
+  start of the first failed request, does not slide, and includes local-daemon
+  recovery, backoff and any pre-execution lease confirmation. The Worker starts
+  no new recovery operation after the deadline; an already in-flight request may
+  finish under its ordinary timeout. Exhaustion propagates the last applicable
+  operational failure and exits the Worker. A transport error is not an empty
+  Queue and does not advance `idle_timeout`.
+- Claim transport errors, `database_busy` and valid Server 5xx responses are
+  retryable. Authentication, validation, missing-Queue, `run_id_conflict` and
+  other valid API errors propagate immediately. An explicit empty response ends
+  the logical claim and the next poll uses a fresh private `run_id`. Retryable
+  failures preserve the current token. Claim responses remain subject to the
+  bounded replay recognition in section 7.4; the 300-second Client policy is not
+  a Server-side token-retention guarantee.
+- If a logical claim encountered a retryable failure before returning a Task, the
+  Worker confirms and renews that run with the existing heartbeat action before
+  starting user code or a command child. Claim and confirmation share one recovery
+  budget. Confirmed `stale_run` or `run_finalized` discards that candidate and
+  resumes claiming with a fresh token without charging the workload failure guard.
 - During Task execution, heartbeat transport errors trigger continued heartbeat
   attempts, not cancellation, termination of a command child or an exception
   injected into user code. A timeout or lost response is not proof of revocation.
@@ -780,10 +796,11 @@ Network I/O inside user workload code remains subject to workload-owned retry
 and the existing exception classification; Labtasker does not transparently
 resume an arbitrary failed user call or replay its side effects.
 
-Validation must distinguish the phases: startup/claim transport exhaustion may
-exit; heartbeat and terminal-report transport failures must not synthesize
-workload failure; observation errors must not affect any Task/loop operation;
-confirmed ownership loss must retain fencing and cancellation semantics.
+Validation must distinguish the phases: startup retry or claim recovery
+exhaustion may exit; heartbeat and terminal-report transport failures must not
+synthesize workload failure; observation errors must not affect any Task/loop
+operation; confirmed ownership loss must retain fencing and cancellation
+semantics.
 
 ### 3.1 v1 behavior being reconsidered
 
@@ -972,9 +989,20 @@ retried or newly submitted Task to use the already-started process.
 
 This remains client-side polling with no Server long-poll/SSE behavior.
 Independent Worker observations in section 8.6 also cover idle periods. The grace timer
-starts with the first empty claim response, resets after any successful claim, and
-ends in a normal process exit if no Task appears before the deadline. Poll cadence
-is an internal constant rather than another public tuning option.
+starts with the first empty claim response, resets after any executable claim, and
+ends in a normal process exit if no Task appears before the deadline. Time from
+the start of a failed claim request until a usable response does not consume this
+timer. In particular, `idle_timeout=0` exits only after an explicit empty response,
+never because communication failed.
+
+Empty responses and retryable claim failures share one internal polling cadence.
+The nominal delays increase through `1, 2, 4, 8, 10` seconds and remain capped at
+10 seconds; each wait independently applies a uniformly selected multiplier from
+`0.8` through `1.2`. Thus the capped actual wait is 8 through 12 seconds. An
+executable claim resets the cadence. An empty response ends its logical claim and
+uses a fresh `run_id` next time; a retryable failure keeps the same token. Poll
+cadence and the 300-second recovery budget are internal constants rather than
+public tuning options.
 
 The public `idle_timeout` is a non-negative duration in seconds and defaults to
 `300` (five minutes). `idle_timeout=0` preserves immediate exit. There is no
@@ -2313,11 +2341,13 @@ than taking another Task. Reusing an active `run_id` with a different Queue or
 route returns `409 run_id_conflict`; an idempotency token never silently changes
 the logical claim request it identifies. This makes a lost claim response safely
 retryable without adding `claim_id` or an Idempotency-Key subsystem. The Client
-makes at most three transport attempts, always replaying the exact same request.
-If none obtains a usable response, the transport error propagates and the Worker
-exits under section 3.0; any unacknowledged claim relies on lease recovery.
-An explicit empty `204` ends that logical claim and normal idle polling uses a
-new `run_id`.
+replays the exact same request after retryable failures within the fixed
+300-second recovery budget in section 3.0. An explicit empty `204` ends that
+logical claim and normal idle polling uses a new `run_id`. A recovered successful
+claim is heartbeat-confirmed before execution because replay returns the original
+lease rather than renewing it. If that confirmation reports `stale_run` or
+`run_finalized`, the Worker does not execute the candidate and resumes claim with
+a fresh token.
 
 A successful claim returns the complete public Task plus execution ownership:
 
@@ -2822,17 +2852,19 @@ authentication and Queue existence, and validates a Python handler's static
 signature and `TaskArg` definitions. A platform-capability failure occurs before
 Client construction or network access. Failure at this stage raises the
 corresponding Python exception or writes a CLI log diagnostic and exits nonzero,
-including transport failure after the applicable request retry budget. It cannot
-create a Task execution failure because local execution has not started.
-Exhausting the three transport attempts for a logical claim also exits the
-Worker. These startup/claim exits are explicitly permitted by section 3.0.
+including transport failure after the applicable short request retry budget. It
+cannot create a Task execution failure because local execution has not started.
+After successful preflight, exhausting the separate 300-second claim recovery
+budget also exits the Worker. These startup/claim exits are explicitly permitted
+by section 3.0.
 
-The word “retry” refers to three deliberately separate mechanisms:
+The word “retry” refers to deliberately separate mechanisms:
 
 | Mechanism | Owner | Effect when exhausted |
 |---|---|---|
 | Task `attempt / max_attempts` | Server Task state | The Task becomes `failed`; the Worker continues claiming other Tasks. |
-| Bounded HTTP transport attempts | Client request logic | The request fails; startup/claim transport exhaustion exits the Worker. Task heartbeat and terminal reporting have separate recovery policies. |
+| Bounded ordinary HTTP attempts | Client request logic | A startup or ordinary Client request fails under its operation-specific contract. |
+| Worker claim recovery | Client Worker loop | Continuous claim unavailability exhausts its fixed 300-second budget and exits the Worker without treating the Queue as empty. |
 | Worker process restart | External supervisor or Agent | Labtasker itself has no restart counter or policy. |
 
 Reaching a Task's `max_attempts` does not itself terminate its Worker.
@@ -2846,7 +2878,9 @@ register a Worker. Run heartbeat describes one claimed execution, independently
 of Worker observation renewal.
 
 
-An explicit empty claim starts the `idle_timeout`; a successful claim resets it.
+An explicit empty claim starts the `idle_timeout`; an executable claim resets it.
+Claim unavailability pauses this timer, and confirmed loss of a recovered claim
+continues the loop without executing or charging a workload failure.
 When the timeout expires without work, a decorated Python Worker returns `None`
 and a command Worker exits zero. Task success, ordinary charged failure and
 transient unclaim resolve the current run before the local failure guard decides
@@ -4036,8 +4070,12 @@ operation IDs or tombstones would add more machinery than this small-scale tool
 needs. An uncertain response therefore raises `TransportError`; callers inspect
 the current resource state and explicitly decide what to do. Backoff details for
 the permitted read/create retries are implementation constants, not a public
-retry-policy object. Worker heartbeat and terminal reporting use a separate
-internal reliability policy.
+retry-policy object. Worker claim, heartbeat and terminal reporting use their
+separate internal reliability policies. A Worker claim transport call itself
+performs one HTTP attempt; its enclosing Worker loop owns token replay, adaptive
+polling, managed-local recovery and the total claim recovery budget. Managed-local
+recovery may ensure the opted-in daemon is running, but it does not hide a second
+claim request inside that single attempt.
 
 Client-side operational failures use one small hierarchy:
 
@@ -4814,6 +4852,7 @@ and change inspection noisy. Progress reports likewise update only
 
 | Date | Decision |
 |---|---|
+| 2026-09-18 | Give an already-started Worker one fixed 300-second claim recovery budget distinct from `idle_timeout`. Retry transport failures, `database_busy` and Server 5xx with the same Queue, route and `run_id`; pause healthy-idle accounting; and confirm a recovered claim with heartbeat before execution. Use one jittered `1, 2, 4, 8, 10` second cadence for empty and unavailable claim paths, reset only after an executable claim, and expose no tuning option. Confirmed stale/finalized candidates are discarded without charging workload failure. Keep startup retries short, ordinary Client retries unchanged and Server replay recognition bounded. This supersedes the three-attempt Worker claim policy. |
 | 2026-09-18 | Require POSIX advisory file locking for every Server transport and lifecycle mode, including foreground HTTP. Reject all operational `labtasker-server` commands on Windows before root, database, listener or process side effects while keeping help and version inspection available. Keep the ordinary HTTP Client and Python Worker best effort on Windows; they connect to a Server running on a POSIX host. This supersedes the earlier Windows best-effort Server classification. |
 | 2026-09-18 | Keep ordinary Client request timeout at 15 seconds, including response margin beyond the shared strategy's separate five-second pool and busy waits. Keep resolved Client configuration private, with `server_version` as the only public non-resource property. For false-default authority, destructive and lifecycle booleans, expose only positive `--auto-start-local-server`, `--cascade`, `--daemon` and `--force` flags; retain the meaningful `--descending` / `--ascending` ordering pair. |
 | 2026-09-18 | Keep `finish()`, `report_progress()` and `report_worker_telemetry()` as Python execution-context helpers without parallel CLI commands. Remove `labtasker progress` and `labtasker worker telemetry`; Command Workers continue to use process exit status for ordinary completion, while Python launched by a Command Worker may import the helpers when runtime reporting is needed. |

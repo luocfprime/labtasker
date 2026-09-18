@@ -349,39 +349,123 @@ def test_ordinary_request_timeout_is_fifteen_seconds() -> None:
         assert client._http.timeout.pool == 15.0
 
 
-def test_claim_replays_same_run_id_and_parses_empty_claim(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr("labtasker.client._backoff", lambda _: None)
+def test_claim_uses_one_transport_attempt_and_parses_empty_claim() -> None:
     requests: list[httpx.Request] = []
 
     def claimed_handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        if len(requests) == 1:
-            raise httpx.ConnectError("response lost", request=request)
-        payload = task_payload()
-        payload.update({"status": "running", "attempt": 1, "last_route": "gpu"})
-        return httpx.Response(
-            200,
-            json={
-                "task": payload,
-                "run_id": "r_ABCDEFGHIJKL",
-                "lease_expires_at": "2026-08-20T12:05:00Z",
-            },
-        )
+        raise httpx.ConnectError("response lost", request=request)
 
-    with mock_client(claimed_handler) as client:
-        claim = client._claim(route="gpu", run_id="r_ABCDEFGHIJKL")
-    assert claim is not None
-    assert claim.task.status == "running"
-    assert claim.task.attempt == 1
+    with mock_client(claimed_handler) as client, pytest.raises(TransportError):
+        client._claim(route="gpu", run_id="r_ABCDEFGHIJKL")
     assert [json.loads(request.content) for request in requests] == [
-        {"route": "gpu", "run_id": "r_ABCDEFGHIJKL"},
-        {"route": "gpu", "run_id": "r_ABCDEFGHIJKL"},
+        {"route": "gpu", "run_id": "r_ABCDEFGHIJKL"}
     ]
 
     with mock_client(lambda _: httpx.Response(204)) as client:
         assert client._claim(route="gpu", run_id="r_MNOPQRSTUVWX") is None
+
+
+def test_worker_claim_exposes_managed_local_repair_to_outer_loop(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requests = 0
+
+    def unavailable(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        raise httpx.ConnectError("offline", request=request)
+
+    client = Client(labtasker_root=tmp_path, auto_start_local_server=True)
+    client._http.close()
+    client._http = httpx.Client(
+        base_url="http://labtasker/api/v2/",
+        transport=httpx.MockTransport(unavailable),
+    )
+    repaired = 0
+
+    def repair() -> None:
+        nonlocal repaired
+        repaired += 1
+
+    monkeypatch.setattr(client, "_ensure_local_available", repair)
+    try:
+        with pytest.raises(TransportError) as raised:
+            client._claim(route="default", run_id="r_ABCDEFGHIJKL")
+        assert requests == 1
+        assert repaired == 0
+
+        client._repair_local_connection(raised.value)
+        assert repaired == 1
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("endpoint", ["managed-no-auto", "external-http", "external-socket"])
+@pytest.mark.parametrize("error_type", [httpx.ReadTimeout, httpx.ConnectError])
+def test_local_repair_requires_opt_in_managed_connect_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    endpoint: str,
+    error_type: type[httpx.RequestError],
+) -> None:
+    if endpoint == "managed-no-auto":
+        client = Client(labtasker_root=tmp_path)
+    elif endpoint == "external-http":
+        client = Client(url="http://server.test")
+    else:
+        client = Client._from_socket(tmp_path / "external.sock", queue="default")
+
+    def unavailable(request: httpx.Request) -> httpx.Response:
+        raise error_type("offline", request=request)
+
+    client._http.close()
+    client._http = httpx.Client(
+        base_url="http://labtasker/api/v2/",
+        transport=httpx.MockTransport(unavailable),
+    )
+    repaired = 0
+
+    def repair() -> None:
+        nonlocal repaired
+        repaired += 1
+
+    monkeypatch.setattr(client, "_ensure_local_available", repair)
+    try:
+        with pytest.raises(TransportError) as raised:
+            client._claim(route="default", run_id="r_ABCDEFGHIJKL")
+        client._repair_local_connection(raised.value)
+    finally:
+        client.close()
+
+    assert repaired == 0
+
+
+def test_opted_in_managed_local_does_not_repair_read_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def unavailable(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("offline", request=request)
+
+    client = Client(labtasker_root=tmp_path, auto_start_local_server=True)
+    client._http.close()
+    client._http = httpx.Client(
+        base_url="http://labtasker/api/v2/",
+        transport=httpx.MockTransport(unavailable),
+    )
+    monkeypatch.setattr(
+        client,
+        "_ensure_local_available",
+        lambda: pytest.fail("read timeout must not start the local daemon coordinator"),
+    )
+    try:
+        with pytest.raises(TransportError) as raised:
+            client._claim(route="default", run_id="r_ABCDEFGHIJKL")
+        client._repair_local_connection(raised.value)
+    finally:
+        client.close()
 
 
 def test_worker_protocol_actions_are_one_shot_and_strict() -> None:

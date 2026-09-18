@@ -251,9 +251,7 @@ def test_partitioned_command_worker_is_stopped_after_another_run_takes_over(
     monkeypatch.setenv("LABTASKER_URL", url)
     monkeypatch.setenv("LABTASKER_TOKEN", TOKEN)
     monkeypatch.setattr("labtasker.worker.HEARTBEAT_INTERVAL_SECONDS", 0.02)
-    monkeypatch.setattr(
-        "labtasker.command_worker._generate_run_id", lambda: next(generated_run_ids)
-    )
+    monkeypatch.setattr("labtasker.worker._generate_run_id", lambda: next(generated_run_ids))
     monkeypatch.setattr(Client, "_heartbeat", gated_heartbeat)
 
     worker_errors: list[BaseException] = []

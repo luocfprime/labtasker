@@ -548,7 +548,7 @@ class Client:
             path=f"queues/{queue_name}/tasks/claim",
             json={"route": normalized_route, "run_id": normalized_run_id},
             parser=_parse_claim,
-            retry=True,
+            recover_local_connect=False,
         )
 
     def _health(self) -> HealthResponse:
@@ -571,6 +571,7 @@ class Client:
         task_id: str,
         run_id: str,
         queue: str | None = None,
+        recover_local_connect: bool = True,
     ) -> HeartbeatResponse:
         return self._run_action(
             "heartbeat",
@@ -579,6 +580,7 @@ class Client:
             queue=queue,
             body={},
             parser=lambda response: _parse_model(response, HeartbeatResponse, {200}),
+            recover_local_connect=recover_local_connect,
         )
 
     def _complete(
@@ -717,6 +719,7 @@ class Client:
         queue: str | None,
         body: dict[str, object],
         parser: Callable[[httpx.Response], T],
+        recover_local_connect: bool = True,
     ) -> T:
         self._ensure_open()
         queue_name = self._queue(queue)
@@ -728,6 +731,7 @@ class Client:
             path=f"queues/{queue_name}/tasks/{normalized_task_id}/{action}",
             json={"run_id": normalized_run_id, **body},
             parser=parser,
+            recover_local_connect=recover_local_connect,
         )
 
     def _queue(self, queue: str | None) -> str:
@@ -743,6 +747,7 @@ class Client:
         json: object | None = None,
         params: dict[str, str | int] | None = None,
         retry: bool = False,
+        recover_local_connect: bool = True,
     ) -> T:
         self._ensure_open()
         attempts = MAX_RETRY_ATTEMPTS if retry else 1
@@ -755,7 +760,8 @@ class Client:
             except httpx.RequestError as error:
                 last_transport_error = self._connection_error(operation)
                 can_recover_local_connect = (
-                    self._config.managed_local
+                    recover_local_connect
+                    and self._config.managed_local
                     and self._config.auto_start_local_server
                     and isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout))
                     and not local_connect_recovery_used
@@ -802,6 +808,16 @@ class Client:
         if last_transport_error is None:
             raise AssertionError("Request loop ended without a result or error.")
         raise last_transport_error
+
+    def _repair_local_connection(self, error: TransportError) -> None:
+        """Repair an opted-in managed-local connection without replaying a request."""
+        cause = error.__cause__
+        if (
+            self._config.managed_local
+            and self._config.auto_start_local_server
+            and isinstance(cause, (httpx.ConnectError, httpx.ConnectTimeout))
+        ):
+            self._ensure_local_available()
 
     def _ensure_open(self) -> None:
         if self._closed:
