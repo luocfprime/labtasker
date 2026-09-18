@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -112,7 +113,7 @@ def _running_http_server(
     directory: Path,
     database: Path,
     *,
-    filesystem: str = "auto",
+    filesystem: str = "shared",
 ) -> Iterator[RunningServer]:
     port = _free_port()
     log_path = directory / f"http-server-{port}.log"
@@ -167,6 +168,12 @@ def _stress_task_count() -> int:
     if not 1 <= count <= 1000:
         pytest.fail("LABTASKER_SHARED_STORAGE_STRESS_TASKS must be between 1 and 1000")
     return count
+
+
+def _assert_database_integrity(database: Path) -> None:
+    uri = f"{database.resolve().as_uri()}?mode=ro"
+    with sqlite3.connect(uri, uri=True, timeout=5.0) as connection:
+        assert connection.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
 
 
 def test_auto_profile_pragmas_transactions_and_reopen(shared_storage_case: Path) -> None:
@@ -325,6 +332,7 @@ def test_http_task_worker_lifecycle_survives_restart(shared_storage_case: Path) 
         assert failed.last_error is not None
         assert failed.last_error.type == "SharedStorageProbe"
         assert client.count_workers(queue="lifecycle") == 0
+    _assert_database_integrity(database)
 
 
 def test_concurrent_http_writers_and_workers_are_stable(shared_storage_case: Path) -> None:
@@ -404,6 +412,7 @@ def test_concurrent_http_writers_and_workers_are_stable(shared_storage_case: Pat
                 limit=1000,
             )
             assert sorted(task.id for task in page.items) == task_ids
+    _assert_database_integrity(database)
 
 
 def test_same_host_owner_exclusion_and_managed_auto_start_guard(
@@ -448,7 +457,7 @@ def test_shared_socket_daemon_is_idempotent_and_manageable(shared_storage_case: 
         "--database",
         str(database),
         "--database-filesystem",
-        "auto",
+        "shared",
     )
     try:
         started = _run_server_cli(shared_storage_case, *command)
@@ -491,3 +500,4 @@ def test_shared_socket_daemon_is_idempotent_and_manageable(shared_storage_case: 
             "--force",
         )
         assert stopped.returncode == 0, stopped.stderr
+    _assert_database_integrity(database)

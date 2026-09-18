@@ -33,6 +33,8 @@ Coverage includes:
 - authenticated HTTP Queue, Task, claim, heartbeat, progress, completion,
   failure, Worker observation and restart persistence;
 - concurrent HTTP submissions, updates, reads, claims and completions;
+- clean-shutdown SQLite integrity checks after lifecycle, concurrency and daemon
+  scenarios;
 - same-host database-owner exclusion;
 - refusal to auto-start a managed-local daemon on shared or unknown storage;
 - explicit shared-storage socket daemon startup, idempotent reuse, status and
