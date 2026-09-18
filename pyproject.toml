@@ -34,6 +34,7 @@ testpaths = ["tests"]
 timeout = 30
 markers = [
   "distributed_integration: real torchrun and Accelerate launcher integration",
+  "shared_storage_integration: opt-in integration tests against a real NFS, WekaFS, Lustre, or comparable shared filesystem",
 ]
 
 [tool.coverage.run]
