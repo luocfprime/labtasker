@@ -245,6 +245,7 @@ def _run_python_claim(
             endpoint=client.configuration.endpoint_dict(),
             queue=queue,
             route=route,
+            labtasker_root=client.configuration.labtasker_root,
         )
     except Exception:
         try:

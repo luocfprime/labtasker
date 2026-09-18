@@ -14,13 +14,14 @@ ROUTE = "addition-python"
 
 
 def main() -> None:
-    for left, right in CASES:
-        task = labtasker.submit_task(
-            {"left": left, "right": right},
-            name=f"add-{left}-{right}",
-            routes=[ROUTE],
-        )
-        print(f"submitted task_id={task.id} expression={left}+{right}")
+    with labtasker.Client(auto_start_local_server=True) as client:
+        for left, right in CASES:
+            task = client.submit_task(
+                {"left": left, "right": right},
+                name=f"add-{left}-{right}",
+                routes=[ROUTE],
+            )
+            print(f"submitted task_id={task.id} expression={left}+{right}")
 
 
 if __name__ == "__main__":

@@ -7,36 +7,41 @@ possible with custom code does not make it a Labtasker interface.
 
 | Situation | Canonical path |
 | --- | --- |
-| One POSIX project on one machine | Install `labtasker` and use automatic local mode from the project directory. |
+| One POSIX project on one machine | Install `labtasker`; explicitly authorize the managed-local daemon once, then use its root-derived socket. |
 | Several machines or users share work | Run one explicit HTTP Server and point every Client and Worker at it. |
-| Windows Client or Python Worker | Use an explicit HTTP Server; automatic local mode is unsupported. |
+| SQLite database on NFS, WekaFS, Lustre, or uncertain storage | Run one explicit Server with `--database-filesystem shared`; externally guarantee one owner across nodes. |
+| Windows Client or Python Worker | Use an explicit HTTP Server; managed local mode is unsupported. |
 | Client-only environment | Install `labtasker-client`. |
 | Dedicated Server environment | Install `labtasker-server`. |
-| User wants to operate a Unix socket directly | Do not. The local socket is private automatic-local transport, not a configurable public Server interface; use HTTP for a self-managed Server. |
+| One same-user host needs an explicitly operated Unix endpoint | Run `serve --connection socket`; use its root-derived default or an explicit `--socket`. |
 
 The `labtasker` convenience package installs matching Client and Server
 distributions and is the default for local use. All packages require Python 3.10
 or newer.
 
-Automatic local mode is selected only when no URL is configured. It is bound to
-the exact canonical current working directory when the Client is constructed;
-it does not search parent directories or a repository root. Importing
+Managed local mode is selected only when no URL or socket is configured. It is
+bound to the exact canonical Labtasker root when the Client is constructed. The
+root resolves from explicit input, `LABTASKER_ROOT`, then exact
+`CWD/.labtasker`; it does not search parent directories or a repository root.
+Importing
 `labtasker`, constructing a Client, displaying help, and running
-`labtasker config show` do not start or contact a Server. The first real Task or
-Queue request does.
+`labtasker config show` do not create state, start a process, or contact a
+Server. Ordinary operations only connect. `--auto-start-local-server` or
+`Client(auto_start_local_server=True)` explicitly authorizes one managed-local
+Client invocation to start or recover the standard daemon.
 
-Local management commands address the current directory's automatic daemon:
+Local management commands address one exact root:
 
 ```bash
-labtasker-server status
-labtasker-server logs
-labtasker-server start
-labtasker-server stop
+labtasker-server status --labtasker-root .labtasker
+labtasker-server logs --labtasker-root .labtasker
+labtasker-server stop --labtasker-root .labtasker
 ```
 
-Ordinary local use should rely on automatic startup. `start` is for explicit
-diagnosis or management, not required setup. A later local operation may restart
-an intentionally stopped daemon.
+There is no public `start`. To launch directly, use
+`labtasker-server serve --connection socket --daemon --labtasker-root
+.labtasker`. Repeating an identical detached launch is idempotent. A conflicting
+launch fails and requires an explicit stop first.
 
 ## Run a shared HTTP Server
 
@@ -45,9 +50,11 @@ Run the Server in the foreground under a process supervisor owned by the user:
 ```bash
 # Configure LABTASKER_SERVER_TOKEN through the supervisor's secret mechanism.
 labtasker-server serve \
+  --connection http \
   --host 0.0.0.0 \
   --port 8000 \
-  --database /data/labtasker.db
+  --database /data/labtasker.db \
+  --database-filesystem shared
 ```
 
 A non-loopback bind requires `LABTASKER_SERVER_TOKEN`; there is no token CLI
@@ -79,20 +86,29 @@ A Queue is a scheduling namespace, not a security boundary. Use
 separate Server trust domains or external network/authentication controls when
 different groups require isolation.
 
-Explicit constructor arguments override environment variables, which override
-the config file, which overrides defaults. A token without an explicit URL is
-invalid because local mode has no authentication. Do not commit tokens or put
-them in commands, Task data, or logs.
+Endpoint selection is atomic: explicit URL/socket overrides the environment
+URL/socket layer, which overrides the root config URL/socket layer, then managed
+local. Queue and token follow ordinary explicit, environment, config, default
+precedence. Tokens are sent only for HTTP. Do not commit tokens or put them in
+commands, Task data, or logs.
 
 Top-level Python functions share one lazily created default Client. When one
 process must operate against several endpoints or Queues, construct explicit
 `Client(url=..., queue=..., token=...)` instances instead of changing global
 environment variables between calls.
 
-An explicit HTTP Client never starts, stops, restarts, or otherwise supervises
-the Server. Run exactly one Server process for each SQLite database file; do not
-use multiple Uvicorn workers or multiple hosts against the same file. Store the
-database on storage whose local file locking has the required semantics.
+An explicit HTTP or socket Client never starts, stops, restarts, or otherwise
+supervises the Server. Every public `serve` requires `--connection http|socket`;
+`--daemon` changes only lifecycle. Run exactly one Server process for each
+SQLite database file and do not use multiple Uvicorn workers.
+
+`--database-filesystem auto|local|shared` selects the SQLite strategy. Local
+uses WAL/FULL. Shared uses DELETE/EXTRA, one pooled connection, and serializes
+all read and write transactions. Auto maps recognized local filesystems to
+local, recognized NFS/WekaFS/Lustre-style storage to shared, and unknown storage
+to shared with a warning. Detection is not a correctness proof: the operator
+must still prevent cross-node duplicate Servers and validate storage locking and
+durability behavior.
 
 ## Diagnose version differences
 
@@ -112,7 +128,8 @@ not evidence of incompatibility.
 - Linux is the fully supported and release-gated platform.
 - Ordinary HTTP Client, foreground Server, and Python Worker behavior is best
   effort on macOS and Windows.
-- Automatic local mode requires POSIX and is unsupported on Windows.
+- Managed local mode and Unix-socket Servers require POSIX and are unsupported
+  on Windows.
 - Command Workers are unsupported on Windows because Labtasker cannot guarantee
   whole-process-tree cancellation there. They fail before Server access, Task
   claim, journal creation, or child startup.

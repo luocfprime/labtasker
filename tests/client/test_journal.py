@@ -12,10 +12,11 @@ from labtasker.models import ClaimResponse, Task
 UTC = timezone.utc
 
 HTTP_ENDPOINT = {
-    "mode": "http",
+    "connection": "http",
+    "managed_local": False,
     "url": "http://server",
     "socket": None,
-    "directory": None,
+    "labtasker_root": None,
     "database": None,
 }
 
@@ -56,7 +57,7 @@ def test_create_semantic_layout_and_initial_snapshot(tmp_path: Path) -> None:
         endpoint={**HTTP_ENDPOINT, "url": "http://127.0.0.1:8000/prefix"},
         queue="default",
         route="gpu",
-        cwd=tmp_path,
+        labtasker_root=tmp_path / ".labtasker",
     )
     assert journal.run_dir == (
         tmp_path
@@ -69,12 +70,13 @@ def test_create_semantic_layout_and_initial_snapshot(tmp_path: Path) -> None:
     assert json.loads(journal.task_path.read_text()) == claim().task.model_dump(mode="json")
     run = json.loads(journal.run_path.read_text())
     assert run == {
-        "schema_version": 1,
+        "schema_version": 2,
         "endpoint": {
-            "mode": "http",
+            "connection": "http",
+            "managed_local": False,
             "url": "http://127.0.0.1:8000/prefix",
             "socket": None,
-            "directory": None,
+            "labtasker_root": None,
             "database": None,
         },
         "queue": "default",
@@ -101,7 +103,7 @@ def test_create_preserves_existing_local_gitignore(tmp_path: Path) -> None:
         endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
-        cwd=tmp_path,
+        labtasker_root=tmp_path / ".labtasker",
     )
 
     assert gitignore.read_text() == "runs/\n"
@@ -113,7 +115,7 @@ def test_terminal_updates_are_atomic_and_payload_specific(tmp_path: Path) -> Non
         endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
-        cwd=tmp_path,
+        labtasker_root=tmp_path / ".labtasker",
     )
     journal.reporting("complete", {"score": 0.9})
     assert json.loads(journal.result_path.read_text()) == {"score": 0.9}
@@ -143,7 +145,7 @@ def test_fail_and_unclaim_payload_rules(tmp_path: Path) -> None:
         endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
-        cwd=tmp_path,
+        labtasker_root=tmp_path / ".labtasker",
     )
     failed.reporting("fail", {"type": "ValueError", "message": "bad", "traceback": None})
     assert json.loads(failed.error_path.read_text())["type"] == "ValueError"
@@ -154,7 +156,7 @@ def test_fail_and_unclaim_payload_rules(tmp_path: Path) -> None:
         endpoint=HTTP_ENDPOINT,
         queue="default",
         route="gpu",
-        cwd=tmp_path,
+        labtasker_root=tmp_path / ".labtasker",
     )
     unclaimed.reporting("unclaim")
     assert not unclaimed.result_path.exists()
@@ -179,7 +181,7 @@ def test_create_collision_and_required_file_failure_are_visible(
         "endpoint": HTTP_ENDPOINT,
         "queue": "default",
         "route": "gpu",
-        "cwd": tmp_path,
+        "labtasker_root": tmp_path / ".labtasker",
     }
     LocalRunJournal.create(**kwargs)  # type: ignore[arg-type]
     with pytest.raises(FileExistsError):

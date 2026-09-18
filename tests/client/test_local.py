@@ -52,10 +52,10 @@ def test_client_delegates_startup_to_server_coordinator(
     assert result.server_version == "2.0.0"
     assert observed["arguments"][-3:] == [
         "_ensure-daemon",
-        "--directory",
-        str(tmp_path),
+        "--labtasker-root",
+        str(tmp_path.resolve()),
     ]
-    assert observed["cwd"] == tmp_path
+    assert "cwd" not in observed
     assert messages == [
-        f"requesting local daemon ensure directory={tmp_path} socket={paths.socket}"
+        f"requesting local daemon ensure labtasker_root={tmp_path} socket={paths.socket}"
     ]

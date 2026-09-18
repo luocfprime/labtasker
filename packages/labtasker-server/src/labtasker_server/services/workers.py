@@ -7,7 +7,7 @@ from typing import Any, Literal, cast
 
 from sqlalchemy import delete, func, select
 
-from labtasker_server.database import Database
+from labtasker_server.database import Database, OperationKind
 from labtasker_server.errors import conflict, invalid, not_found
 from labtasker_server.filtering import compile_filter
 from labtasker_server.grouping import (
@@ -198,6 +198,6 @@ class WorkerService:
                 cursor,
             )
 
-    def expire(self) -> None:
-        with self.database.write_session() as session:
+    def expire(self, *, operation: OperationKind = "write") -> None:
+        with self.database.write_session(operation=operation) as session:
             session.execute(delete(WorkerRow).where(WorkerRow.expires_at_us <= self.now_us()))

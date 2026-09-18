@@ -23,10 +23,14 @@ Open <http://127.0.0.1:8080> and choose a connection:
   Server. `.` means the directory where you launched the WebUI. This connection
   requires POSIX and the WebUI's default loopback bind.
 
-For local use, run `labtasker-server start` in your experiment directory first
-if its Server is not already running. The WebUI attaches to the existing
-instance; it does not start the Server. See [Configuration](../reference/configuration.md)
-for Labtasker Server setup.
+For local use, start a matching socket daemon if one is not already running:
+
+```bash
+labtasker-server serve --connection socket --daemon --labtasker-root .labtasker
+```
+
+The WebUI attaches to the existing instance; it does not start the Server. See
+[Configuration](../reference/configuration.md) for Labtasker Server setup.
 
 ## Explore an experiment
 

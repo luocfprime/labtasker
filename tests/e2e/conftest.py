@@ -13,6 +13,21 @@ from labtasker_server.app import create_app
 from labtasker_server.config import ServerSettings
 
 
+@pytest.fixture(autouse=True)
+def isolated_proxy_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These integration tests exercise loopback transports, not the developer's
+    # optional system proxy configuration.
+    for name in (
+        "ALL_PROXY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "all_proxy",
+        "http_proxy",
+        "https_proxy",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def server_url(tmp_path: Path) -> Iterator[str]:
     with socket.socket() as probe:

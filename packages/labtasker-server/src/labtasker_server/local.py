@@ -5,6 +5,7 @@ import json
 import math
 import os
 import secrets
+import select
 import socket
 import stat
 import subprocess
@@ -15,26 +16,29 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
-from labtasker_server.ownership import lock_database
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - local mode is rejected off POSIX
-    fcntl = None  # type: ignore[assignment]
+from labtasker_server.filesystem import EffectiveDatabaseFilesystem
+from labtasker_server.ownership import (
+    OwnershipLock,
+    acquire_sidecar_lock,
+    canonical_path,
+    ensure_runtime_directory,
+    require_socket_capability,
+    runtime_directory,
+    sidecar_is_locked,
+)
 
 LOCAL_GITIGNORE = "*\n!.gitignore\n"
-LAUNCH_THROTTLE_SECONDS = 10.0
 STARTUP_WAIT_SECONDS = 30.0
-STARTUP_PUBLICATION_SECONDS = 1.0
 HEALTH_POLL_SECONDS = 0.05
-METADATA_VERSION = 1
+METADATA_VERSION = 2
+Connection = Literal["http", "socket"]
 
 
 @dataclass(frozen=True, slots=True)
 class LocalPaths:
-    directory: Path
+    labtasker_root: Path
     database: Path
     log: Path
     runtime_directory: Path
@@ -43,97 +47,89 @@ class LocalPaths:
 
 
 @dataclass(frozen=True, slots=True)
+class DaemonConfig:
+    labtasker_root: Path
+    database: Path
+    database_filesystem: EffectiveDatabaseFilesystem
+    connection: Connection
+    host: str | None
+    port: int | None
+    socket: Path | None
+    authentication_enabled: bool
+    server_version: str
+
+    def comparable(self) -> dict[str, object]:
+        return {
+            "labtasker_root": str(self.labtasker_root),
+            "database": str(self.database),
+            "database_filesystem": self.database_filesystem,
+            "connection": self.connection,
+            "host": self.host,
+            "port": self.port,
+            "socket": str(self.socket) if self.socket is not None else None,
+            "authentication_enabled": self.authentication_enabled,
+            "server_version": self.server_version,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeMetadata:
     metadata_version: int
     generation: str
     role: Literal["coordinator", "daemon"]
+    listener_bound: bool
     pid: int
     process_start_marker: str
-    directory: str
+    started_at: float
+    labtasker_root: str
     database: str
-    database_device: int
-    database_inode: int
-    automatic_attempt_at: float
-    server_version: str | None
+    database_filesystem: EffectiveDatabaseFilesystem
+    connection: Connection
+    host: str | None
+    port: int | None
+    socket: str | None
+    log: str
+    authentication_enabled: bool
+    server_version: str
+
+    def comparable(self) -> dict[str, object]:
+        return {
+            "labtasker_root": self.labtasker_root,
+            "database": self.database,
+            "database_filesystem": self.database_filesystem,
+            "connection": self.connection,
+            "host": self.host,
+            "port": self.port,
+            "socket": self.socket,
+            "authentication_enabled": self.authentication_enabled,
+            "server_version": self.server_version,
+        }
 
 
-def require_local_capabilities() -> None:
-    if os.name != "posix" or fcntl is None or not hasattr(socket, "AF_UNIX"):
-        raise RuntimeError("Local mode requires POSIX flock and Unix-domain sockets.")
-
-
-def local_paths(directory: Path | None = None) -> LocalPaths:
-    require_local_capabilities()
-    canonical = (Path.cwd() if directory is None else directory).resolve()
-    digest = hashlib.sha256(os.fsencode(canonical)).hexdigest()
-    runtime_directory = Path("/tmp") / f"labtasker-{os.geteuid()}"
-    local_directory = canonical / ".labtasker"
+def local_paths(labtasker_root: Path | None = None) -> LocalPaths:
+    require_socket_capability()
+    root = canonical_path(Path.cwd() / ".labtasker" if labtasker_root is None else labtasker_root)
+    digest = hashlib.sha256(os.fsencode(root)).hexdigest()
+    runtime = runtime_directory()
     return LocalPaths(
-        directory=canonical,
-        database=local_directory / "server.db",
-        log=local_directory / "server.log",
-        runtime_directory=runtime_directory,
-        socket=runtime_directory / f"{digest}.sock",
-        metadata=runtime_directory / f"{digest}.json",
+        labtasker_root=root,
+        database=root / "server.db",
+        log=root / "server.log",
+        runtime_directory=runtime,
+        socket=runtime / f"root-{digest}.sock",
+        metadata=runtime / f"root-{digest}.json",
     )
 
 
-def ensure_local_storage(paths: LocalPaths) -> None:
-    paths.database.parent.mkdir(parents=True, exist_ok=True)
+def ensure_labtasker_root(paths: LocalPaths) -> None:
+    paths.labtasker_root.mkdir(parents=True, exist_ok=True)
     try:
-        with (paths.database.parent / ".gitignore").open(
+        with (paths.labtasker_root / ".gitignore").open(
             "x", encoding="utf-8", newline="\n"
         ) as stream:
             stream.write(LOCAL_GITIGNORE)
     except FileExistsError:
         pass
-
-
-def ensure_runtime_directory(paths: LocalPaths) -> None:
-    with suppress(FileExistsError):
-        paths.runtime_directory.mkdir(mode=0o700)
-    info = paths.runtime_directory.lstat()
-    if (
-        not stat.S_ISDIR(info.st_mode)
-        or stat.S_ISLNK(info.st_mode)
-        or info.st_uid != os.geteuid()
-        or stat.S_IMODE(info.st_mode) & 0o077
-    ):
-        raise RuntimeError(
-            f"Runtime directory must be an owner-only real directory: {paths.runtime_directory}"
-        )
-
-
-def try_acquire_database(paths: LocalPaths, *, create: bool = True) -> int | None:
-    require_local_capabilities()
-    if create:
-        ensure_local_storage(paths)
-    elif not paths.database.exists():
-        return os.open(os.devnull, os.O_RDONLY)
-    flags = os.O_RDWR | (os.O_CREAT if create else 0)
-    fd = os.open(paths.database, flags, 0o600)
-    try:
-        lock_database(fd)
-    except BlockingIOError:
-        os.close(fd)
-        return None
-    except BaseException:
-        os.close(fd)
-        raise
-    return fd
-
-
-def database_is_free(paths: LocalPaths) -> bool:
-    fd = try_acquire_database(paths, create=False)
-    if fd is None:
-        return False
-    os.close(fd)
-    return True
-
-
-def database_identity(fd: int) -> tuple[int, int]:
-    info = os.fstat(fd)
-    return info.st_dev, info.st_ino
 
 
 def process_start_marker(pid: int) -> str | None:
@@ -158,36 +154,41 @@ def process_start_marker(pid: int) -> str | None:
 
 
 def make_metadata(
-    paths: LocalPaths,
+    config: DaemonConfig,
     *,
     generation: str,
     role: Literal["coordinator", "daemon"],
+    listener_bound: bool = False,
     pid: int,
-    automatic_attempt_at: float,
-    database_fd: int,
-    server_version: str | None,
+    started_at: float,
 ) -> RuntimeMetadata:
     marker = process_start_marker(pid)
     if marker is None:
         raise RuntimeError(f"Could not determine process identity for PID {pid}.")
-    device, inode = database_identity(database_fd)
+    paths = local_paths(config.labtasker_root)
     return RuntimeMetadata(
         metadata_version=METADATA_VERSION,
         generation=generation,
         role=role,
+        listener_bound=listener_bound,
         pid=pid,
         process_start_marker=marker,
-        directory=str(paths.directory),
-        database=str(paths.database),
-        database_device=device,
-        database_inode=inode,
-        automatic_attempt_at=automatic_attempt_at,
-        server_version=server_version,
+        started_at=started_at,
+        labtasker_root=str(config.labtasker_root),
+        database=str(config.database),
+        database_filesystem=config.database_filesystem,
+        connection=config.connection,
+        host=config.host,
+        port=config.port,
+        socket=str(config.socket) if config.socket is not None else None,
+        log=str(paths.log),
+        authentication_enabled=config.authentication_enabled,
+        server_version=config.server_version,
     )
 
 
 def write_metadata(paths: LocalPaths, metadata: RuntimeMetadata) -> None:
-    ensure_runtime_directory(paths)
+    ensure_runtime_directory()
     fd, temporary = tempfile.mkstemp(prefix=f".{paths.metadata.name}.", dir=paths.runtime_directory)
     try:
         os.fchmod(fd, 0o600)
@@ -208,276 +209,392 @@ def write_metadata(paths: LocalPaths, metadata: RuntimeMetadata) -> None:
 def read_metadata(paths: LocalPaths) -> RuntimeMetadata | None:
     try:
         info = paths.metadata.lstat()
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
+        effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != effective_uid:
             return None
         raw = json.loads(paths.metadata.read_text(encoding="utf-8"))
         metadata = RuntimeMetadata(**raw)
-        finite_attempt = isinstance(metadata.automatic_attempt_at, (int, float)) and math.isfinite(
-            metadata.automatic_attempt_at
-        )
     except (OSError, ValueError, TypeError, RecursionError, OverflowError):
         return None
-    if (
-        not isinstance(metadata.metadata_version, int)
-        or isinstance(metadata.metadata_version, bool)
-        or metadata.metadata_version != METADATA_VERSION
-        or not isinstance(metadata.generation, str)
-        or not metadata.generation
-        or not isinstance(metadata.role, str)
-        or metadata.role not in {"coordinator", "daemon"}
-        or not isinstance(metadata.pid, int)
-        or isinstance(metadata.pid, bool)
-        or metadata.pid <= 0
-        or not isinstance(metadata.process_start_marker, str)
-        or not metadata.process_start_marker
-        or not isinstance(metadata.directory, str)
-        or metadata.directory != str(paths.directory)
-        or not isinstance(metadata.database, str)
-        or metadata.database != str(paths.database)
-        or not isinstance(metadata.database_device, int)
-        or isinstance(metadata.database_device, bool)
-        or not isinstance(metadata.database_inode, int)
-        or isinstance(metadata.database_inode, bool)
-        or not isinstance(metadata.automatic_attempt_at, (int, float))
-        or isinstance(metadata.automatic_attempt_at, bool)
-        or not finite_attempt
-        or not (metadata.server_version is None or isinstance(metadata.server_version, str))
-    ):
+    if not _valid_metadata(paths, metadata):
         return None
     return metadata
 
 
-def metadata_matches_database(paths: LocalPaths, metadata: RuntimeMetadata) -> bool:
-    try:
-        info = paths.database.stat()
-    except OSError:
-        return False
-    return (metadata.database_device, metadata.database_inode) == (info.st_dev, info.st_ino)
+def metadata_owner_is_verified(metadata: RuntimeMetadata) -> bool:
+    return process_start_marker(metadata.pid) == metadata.process_start_marker
 
 
-def metadata_owner_is_verified(paths: LocalPaths, metadata: RuntimeMetadata) -> bool:
-    return (
-        metadata_matches_database(paths, metadata)
-        and process_start_marker(metadata.pid) == metadata.process_start_marker
-    )
+def metadata_matches(config: DaemonConfig, metadata: RuntimeMetadata) -> bool:
+    return metadata.comparable() == config.comparable()
 
 
-def throttle_remaining(metadata: RuntimeMetadata | None, *, now: float | None = None) -> float:
-    if metadata is None:
-        return 0.0
-    current = time.time() if now is None else now
-    age = current - metadata.automatic_attempt_at
-    if age < 0 or age >= LAUNCH_THROTTLE_SECONDS:
-        return 0.0
-    return LAUNCH_THROTTLE_SECONDS - age
+def metadata_differences(
+    config: DaemonConfig, metadata: RuntimeMetadata
+) -> dict[str, tuple[object, object]]:
+    desired = config.comparable()
+    observed = metadata.comparable()
+    return {
+        key: (observed[key], desired[key]) for key in desired if observed.get(key) != desired[key]
+    }
 
 
-def startup_age(metadata: RuntimeMetadata | None, *, now: float | None = None) -> float | None:
-    if metadata is None:
-        return None
-    current = time.time() if now is None else now
-    age = current - metadata.automatic_attempt_at
-    return age if 0 <= age < STARTUP_WAIT_SECONDS else None
+def daemon_state(paths: LocalPaths) -> Literal["running", "starting", "unhealthy", "stopped"]:
+    if not sidecar_is_locked("root", paths.labtasker_root):
+        return "stopped"
+    metadata = read_metadata(paths)
+    if metadata is None or not metadata_owner_is_verified(metadata):
+        return "unhealthy"
+    if metadata.role == "daemon" and metadata.listener_bound and metadata_health(metadata):
+        return "running"
+    age = time.time() - metadata.started_at
+    if 0 <= age < STARTUP_WAIT_SECONDS:
+        return "starting"
+    return "unhealthy"
 
 
-def socket_health(paths: LocalPaths, *, timeout: float = 0.2) -> bool:
+def metadata_health(metadata: RuntimeMetadata) -> bool:
+    if metadata.connection == "socket" and metadata.socket is not None:
+        return socket_health(Path(metadata.socket))
+    if metadata.connection == "http" and metadata.host is not None and metadata.port is not None:
+        return http_health(metadata.host, metadata.port)
+    return False
+
+
+def socket_health(path: Path, *, timeout: float = 0.2) -> bool:
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
             connection.settimeout(timeout)
-            connection.connect(str(paths.socket))
-            connection.sendall(
-                b"GET /health HTTP/1.1\r\nHost: labtasker\r\nConnection: close\r\n\r\n"
-            )
-            response = bytearray()
-            while len(response) <= 65536:
-                chunk = connection.recv(8192)
-                if not chunk:
-                    break
-                response.extend(chunk)
+            connection.connect(str(path))
+            return _send_health_request(connection)
     except OSError:
         return False
+
+
+def http_health(host: str, port: int, *, timeout: float = 0.2) -> bool:
+    health_host = _health_host(host)
+    try:
+        with socket.create_connection((health_host, port), timeout=timeout) as connection:
+            return _send_health_request(connection)
+    except OSError:
+        return False
+
+
+def wait_for_health(config: DaemonConfig, *, deadline: float) -> bool:
+    while time.monotonic() < deadline:
+        if config_health(config):
+            return True
+        time.sleep(HEALTH_POLL_SECONDS)
+    return config_health(config)
+
+
+def config_health(config: DaemonConfig) -> bool:
+    if config.connection == "socket":
+        assert config.socket is not None
+        return socket_health(config.socket)
+    assert config.host is not None and config.port is not None
+    return http_health(config.host, config.port)
+
+
+def ensure_daemon(
+    config: DaemonConfig,
+    *,
+    emit: Callable[[str], None],
+) -> tuple[bool, RuntimeMetadata]:
+    paths = local_paths(config.labtasker_root)
+    deadline = time.monotonic() + STARTUP_WAIT_SECONDS
+    try:
+        root_lock = acquire_sidecar_lock("root", paths.labtasker_root)
+    except BlockingIOError:
+        return _observe_existing_daemon(config, paths, deadline=deadline, emit=emit)
+
+    try:
+        ensure_labtasker_root(paths)
+        _cleanup_stale_runtime(paths)
+        generation = secrets.token_urlsafe(18)
+        started_at = time.time()
+        write_metadata(
+            paths,
+            make_metadata(
+                config,
+                generation=generation,
+                role="coordinator",
+                pid=os.getpid(),
+                started_at=started_at,
+            ),
+        )
+        process, readiness_fd = _spawn_daemon(
+            config,
+            paths,
+            root_lock=root_lock,
+            generation=generation,
+            started_at=started_at,
+        )
+    except BaseException:
+        root_lock.close()
+        raise
+    root_lock.close()
+    emit(f"started daemon pid={process.pid}")
+    try:
+        _wait_for_bind_confirmation(readiness_fd, generation, deadline=deadline)
+    finally:
+        os.close(readiness_fd)
+    if not wait_for_health(config, deadline=deadline):
+        raise RuntimeError(f"Daemon did not become healthy within 30 seconds; log={paths.log}")
+    metadata = read_metadata(paths)
+    if metadata is None or metadata.generation != generation:
+        raise RuntimeError("Daemon became healthy without matching runtime metadata.")
+    return True, metadata
+
+
+def remove_stopped_artifacts(paths: LocalPaths, *, generation: str | None = None) -> None:
+    metadata = read_metadata(paths)
+    if generation is not None and (metadata is None or metadata.generation != generation):
+        return
+    socket_path = Path(metadata.socket) if metadata is not None and metadata.socket else None
+    socket_lock: OwnershipLock | None = None
+    try:
+        if socket_path is not None:
+            try:
+                socket_lock = acquire_sidecar_lock("socket", socket_path)
+            except BlockingIOError:
+                return
+            _remove_verified_stale_socket(socket_path)
+        _remove_owned_regular_file(paths.metadata)
+    finally:
+        if socket_lock is not None:
+            socket_lock.close()
+
+
+def acquire_socket_lock(path: Path) -> OwnershipLock:
+    require_socket_capability()
+    lock = acquire_sidecar_lock("socket", path)
+    try:
+        _validate_socket_parent(path)
+        _remove_verified_stale_socket(path)
+    except BaseException:
+        lock.close()
+        raise
+    return lock
+
+
+def _observe_existing_daemon(
+    config: DaemonConfig,
+    paths: LocalPaths,
+    *,
+    deadline: float,
+    emit: Callable[[str], None],
+) -> tuple[bool, RuntimeMetadata]:
+    while time.monotonic() < deadline:
+        metadata = read_metadata(paths)
+        if metadata is not None and metadata_owner_is_verified(metadata):
+            if not metadata_matches(config, metadata):
+                differences = metadata_differences(config, metadata)
+                raise RuntimeError(
+                    "Daemon configuration conflicts: "
+                    f"{differences!r}. Stop it with 'labtasker-server stop "
+                    f"--labtasker-root {paths.labtasker_root}' before retrying."
+                )
+            if metadata.role == "daemon" and metadata.listener_bound and config_health(config):
+                return False, metadata
+            emit(f"waiting for daemon pid={metadata.pid}")
+        time.sleep(HEALTH_POLL_SECONDS)
+    raise RuntimeError(
+        f"Labtasker root is owned but its daemon is unhealthy: {paths.labtasker_root}"
+    )
+
+
+def _spawn_daemon(
+    config: DaemonConfig,
+    paths: LocalPaths,
+    *,
+    root_lock: OwnershipLock,
+    generation: str,
+    started_at: float,
+) -> tuple[subprocess.Popen[bytes], int]:
+    read_fd, write_fd = os.pipe()
+    os.set_inheritable(root_lock.fd, True)
+    os.set_inheritable(write_fd, True)
+    command = [
+        sys.executable,
+        "-m",
+        "labtasker_server",
+        "_daemon",
+        "--labtasker-root",
+        str(config.labtasker_root),
+        "--database",
+        str(config.database),
+        "--database-filesystem",
+        config.database_filesystem,
+        "--connection",
+        config.connection,
+        "--root-lock-fd",
+        str(root_lock.fd),
+        "--readiness-fd",
+        str(write_fd),
+        "--generation",
+        generation,
+        "--started-at",
+        str(started_at),
+    ]
+    if config.connection == "http":
+        assert config.host is not None and config.port is not None
+        command.extend(["--host", config.host, "--port", str(config.port)])
+    else:
+        assert config.socket is not None
+        command.extend(["--socket", str(config.socket)])
+    paths.log.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with paths.log.open("ab", buffering=0) as log:
+            process = subprocess.Popen(
+                command,
+                cwd=config.labtasker_root,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                pass_fds=(root_lock.fd, write_fd),
+            )
+    except BaseException:
+        os.close(read_fd)
+        os.close(write_fd)
+        raise
+    finally:
+        os.set_inheritable(root_lock.fd, False)
+    os.close(write_fd)
+    return process, read_fd
+
+
+def _wait_for_bind_confirmation(fd: int, generation: str, *, deadline: float) -> None:
+    remaining = max(0.0, deadline - time.monotonic())
+    readable, _, _ = select.select([fd], [], [], remaining)
+    if not readable:
+        raise RuntimeError("Daemon did not confirm listener binding within 30 seconds.")
+    payload = os.read(fd, 4096).decode("utf-8", errors="replace").strip()
+    if payload != generation:
+        raise RuntimeError("Daemon listener confirmation was missing or invalid.")
+
+
+def _send_health_request(connection: socket.socket) -> bool:
+    connection.sendall(b"GET /health HTTP/1.1\r\nHost: labtasker\r\nConnection: close\r\n\r\n")
+    response = bytearray()
+    while len(response) <= 65536:
+        chunk = connection.recv(8192)
+        if not chunk:
+            break
+        response.extend(chunk)
     head, separator, body = bytes(response).partition(b"\r\n\r\n")
     if not separator or not head.startswith(b"HTTP/1.1 200"):
         return False
     try:
-        payload = json.loads(body)
+        payload: object = json.loads(body)
     except (UnicodeDecodeError, json.JSONDecodeError):
         return False
-    if not isinstance(payload, dict):
-        return False
-    normalized = cast(dict[str, object], payload)
-    return normalized == {"status": "ok", "api_version": "2", "database": "ok"}
+    return payload == {"status": "ok", "api_version": "2", "database": "ok"}
 
 
-def wait_for_health(paths: LocalPaths, *, deadline: float) -> bool:
-    while time.monotonic() < deadline:
-        if socket_health(paths):
-            return True
-        time.sleep(HEALTH_POLL_SECONDS)
-    return socket_health(paths)
+def _health_host(host: str) -> str:
+    if host == "0.0.0.0":
+        return "127.0.0.1"
+    if host == "::":
+        return "::1"
+    return host
 
 
-def ensure_local_daemon(
-    directory: Path,
-    *,
-    bypass_throttle: bool,
-    server_version: str,
-    emit: Callable[[str], None],
-) -> tuple[bool, RuntimeMetadata | None]:
-    """Ensure one healthy local daemon and return whether this call started it."""
-    require_local_capabilities()
-    paths = local_paths(directory)
-    ensure_runtime_directory(paths)
-    if socket_health(paths):
-        return False, read_metadata(paths)
+def _cleanup_stale_runtime(paths: LocalPaths) -> None:
+    metadata = read_metadata(paths)
+    if metadata is not None and metadata.socket is not None:
+        socket_path = Path(metadata.socket)
+        socket_lock = acquire_socket_lock(socket_path)
+        socket_lock.close()
+    _remove_owned_regular_file(paths.metadata)
 
-    database_fd = try_acquire_database(paths)
-    if database_fd is None:
-        publication_deadline = time.monotonic() + STARTUP_PUBLICATION_SECONDS
-        while True:
-            metadata = read_metadata(paths)
-            age = startup_age(metadata)
-            if (
-                metadata is not None
-                and metadata_owner_is_verified(paths, metadata)
-                and age is not None
-            ):
-                emit(f"waiting for local daemon pid={metadata.pid} socket={paths.socket}")
-                deadline = time.monotonic() + max(0.0, STARTUP_WAIT_SECONDS - age)
-                if wait_for_health(paths, deadline=deadline):
-                    return False, read_metadata(paths) or metadata
-                break
-            if socket_health(paths):
-                return False, read_metadata(paths)
-            if time.monotonic() >= publication_deadline:
-                break
-            time.sleep(HEALTH_POLL_SECONDS)
-        raise RuntimeError(f"Database is owned but local socket is unavailable: {paths.database}")
 
+def _remove_owned_regular_file(path: Path) -> None:
     try:
-        if socket_health(paths):
-            return False, read_metadata(paths)
-        previous = read_metadata(paths)
-        if previous is not None and not metadata_matches_database(paths, previous):
-            emit("ignoring launch throttle from metadata for a different database inode")
-            previous = None
-        remaining = 0.0 if bypass_throttle else throttle_remaining(previous)
-        if remaining > 0:
-            raise RuntimeError(
-                f"Automatic launch is throttled for {remaining:.1f}s; log={paths.log}"
-            )
-        remove_stale_artifacts(paths)
-        process = _spawn_local_daemon(
-            paths,
-            database_fd=database_fd,
-            server_version=server_version,
-        )
-    finally:
-        os.close(database_fd)
-
-    emit(f"created local daemon pid={process.pid} database={paths.database} socket={paths.socket}")
-    if not wait_for_health(paths, deadline=time.monotonic() + STARTUP_WAIT_SECONDS):
-        raise RuntimeError(f"Daemon did not become healthy within 30 seconds; log={paths.log}")
-    return True, read_metadata(paths)
-
-
-def _spawn_local_daemon(
-    paths: LocalPaths,
-    *,
-    database_fd: int,
-    server_version: str,
-) -> subprocess.Popen[bytes]:
-    generation = secrets.token_urlsafe(18)
-    attempt_at = time.time()
-    write_metadata(
-        paths,
-        make_metadata(
-            paths,
-            generation=generation,
-            role="coordinator",
-            pid=os.getpid(),
-            automatic_attempt_at=attempt_at,
-            database_fd=database_fd,
-            server_version=server_version,
-        ),
-    )
-    paths.log.parent.mkdir(parents=True, exist_ok=True)
-    with paths.log.open("ab", buffering=0) as log:
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "labtasker_server",
-                "_daemon",
-                "--directory",
-                str(paths.directory),
-                "--database-fd",
-                str(database_fd),
-                "--generation",
-                generation,
-                "--automatic-attempt-at",
-                str(attempt_at),
-            ],
-            cwd=paths.directory,
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-            pass_fds=(database_fd,),
-        )
-    write_metadata(
-        paths,
-        make_metadata(
-            paths,
-            generation=generation,
-            role="daemon",
-            pid=process.pid,
-            automatic_attempt_at=attempt_at,
-            database_fd=database_fd,
-            server_version=server_version,
-        ),
-    )
-    return process
-
-
-def remove_stale_artifacts(paths: LocalPaths) -> None:
-    for path, expected in ((paths.socket, stat.S_ISSOCK), (paths.metadata, stat.S_ISREG)):
-        try:
-            info = path.lstat()
-        except FileNotFoundError:
-            continue
-        if info.st_uid != os.geteuid() or not expected(info.st_mode):
-            raise RuntimeError(f"Refusing to remove unverified runtime artifact: {path}")
-        path.unlink()
-
-
-def remove_stopped_artifacts(
-    paths: LocalPaths, *, generation: str | None = None, preserve_metadata: bool = False
-) -> None:
-    fd = try_acquire_database(paths, create=False)
-    if fd is None:
+        info = path.lstat()
+    except FileNotFoundError:
         return
+    effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != effective_uid:
+        raise RuntimeError(f"Refusing to remove unverified runtime artifact: {path}")
+    path.unlink()
+
+
+def _remove_verified_stale_socket(path: Path) -> None:
     try:
-        # A missing database returns a /dev/null sentinel, not an ownership
-        # lock. Leave artifacts for the next coordinator rather than racing it.
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            return
-        if generation is not None:
-            metadata = read_metadata(paths)
-            if metadata is None or metadata.generation != generation:
-                return
-        if preserve_metadata:
-            try:
-                info = paths.socket.lstat()
-            except FileNotFoundError:
-                return
-            if info.st_uid == os.geteuid() and stat.S_ISSOCK(info.st_mode):
-                paths.socket.unlink()
-        else:
-            remove_stale_artifacts(paths)
-    finally:
-        os.close(fd)
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+    if not stat.S_ISSOCK(info.st_mode) or info.st_uid != effective_uid:
+        raise RuntimeError(f"Refusing to replace unverified socket path: {path}")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(0.2)
+            connection.connect(str(path))
+    except ConnectionRefusedError:
+        pass
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise RuntimeError(
+            f"Could not verify that socket is stale; refusing to replace it: {path}"
+        ) from error
+    else:
+        raise RuntimeError(f"Socket already has a live listener: {path}")
+    path.unlink()
 
 
-def has_runtime_artifacts(paths: LocalPaths) -> bool:
-    return paths.socket.exists() or paths.metadata.exists()
+def _validate_socket_parent(path: Path) -> None:
+    parent = path.parent
+    try:
+        info = parent.lstat()
+    except FileNotFoundError:
+        parent.mkdir(parents=True, mode=0o700)
+        info = parent.lstat()
+    writable = stat.S_IMODE(info.st_mode) & 0o022
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or stat.S_ISLNK(info.st_mode)
+        or (writable and not stat.S_IMODE(info.st_mode) & stat.S_ISVTX)
+    ):
+        raise RuntimeError(f"Unix socket parent is unsafe: {parent}")
+
+
+def _valid_metadata(paths: LocalPaths, metadata: RuntimeMetadata) -> bool:
+    return bool(
+        isinstance(metadata.metadata_version, int)
+        and not isinstance(metadata.metadata_version, bool)
+        and metadata.metadata_version == METADATA_VERSION
+        and isinstance(metadata.generation, str)
+        and metadata.generation
+        and metadata.role in {"coordinator", "daemon"}
+        and isinstance(metadata.listener_bound, bool)
+        and isinstance(metadata.pid, int)
+        and not isinstance(metadata.pid, bool)
+        and metadata.pid > 0
+        and isinstance(metadata.process_start_marker, str)
+        and metadata.process_start_marker
+        and isinstance(metadata.started_at, (int, float))
+        and not isinstance(metadata.started_at, bool)
+        and math.isfinite(metadata.started_at)
+        and metadata.labtasker_root == str(paths.labtasker_root)
+        and isinstance(metadata.database, str)
+        and metadata.database_filesystem in {"local", "shared"}
+        and metadata.connection in {"http", "socket"}
+        and (metadata.host is None or isinstance(metadata.host, str))
+        and (
+            metadata.port is None
+            or (
+                isinstance(metadata.port, int)
+                and not isinstance(metadata.port, bool)
+                and 1 <= metadata.port <= 65535
+            )
+        )
+        and (metadata.socket is None or isinstance(metadata.socket, str))
+        and metadata.log == str(paths.log)
+        and isinstance(metadata.authentication_enabled, bool)
+        and isinstance(metadata.server_version, str)
+        and metadata.server_version
+    )

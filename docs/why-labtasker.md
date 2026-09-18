@@ -164,12 +164,13 @@ agent to stay online.
 ### Python-native and ready locally
 
 V1 required MongoDB for its real Server and used Mongomock for local use. V2
-needs neither. The default installation includes
-the Python Client and Server, and on POSIX systems the first real operation
-automatically starts a project-local Server backed by SQLite. There is no
-database service, TCP port, or configuration to prepare for that local path.
+needs neither. The default installation includes the Python Client and Server.
+On POSIX systems one explicit `--auto-start-local-server` flag or
+`Client(auto_start_local_server=True)` starts a project-local Server backed by
+SQLite; later calls simply connect. There is no database service, TCP port, or
+configuration file to prepare for that local path.
 
-The automatic local Server is not available on Windows. Windows Clients connect
+The managed local Server is not available on Windows. Windows Clients connect
 to an explicitly operated HTTP Server instead; ordinary Client, Server, and
 Python Worker use remains best effort there.
 
@@ -179,7 +180,7 @@ project must perform.
 
 | v1 | v2 |
 | --- | --- |
-| MongoDB, or Mongomock as a local substitute | Automatically managed local SQLite Server |
+| MongoDB, or Mongomock as a local substitute | Explicitly authorized managed local SQLite Server |
 | Several conveniences with overlapping or implicit behavior | A small set of explicit, composable operations |
 | Worker eligibility inferred from Task arguments | Compatibility declared with exact routes |
 | Human-oriented interactions | Deterministic interfaces for humans and agents |

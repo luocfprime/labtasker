@@ -85,7 +85,14 @@ class FakeClient:
         heartbeat_error: APIError | None = None,
     ) -> None:
         self.configuration = ResolvedConfig(
-            url="http://server", queue="default", token=token, local=None
+            url="http://server",
+            socket=None,
+            managed_local=False,
+            labtasker_root=Path.cwd() / ".labtasker",
+            queue="default",
+            token=token,
+            auto_start_local_server=False,
+            local=None,
         )
         self.claims = deque(claims)
         self.heartbeat_error = heartbeat_error
@@ -802,15 +809,16 @@ def test_environment_context_loads_task_info_and_finish_without_import_side_effe
     journal = LocalRunJournal.create(
         claim=claim,
         endpoint={
-            "mode": "http",
+            "connection": "http",
+            "managed_local": False,
             "url": "http://server",
             "socket": None,
-            "directory": None,
+            "labtasker_root": None,
             "database": None,
         },
         queue="default",
         route="default",
-        cwd=tmp_path,
+        labtasker_root=tmp_path / ".labtasker",
     )
     environment = {
         "LABTASKER_URL": "http://server",

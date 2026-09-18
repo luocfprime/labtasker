@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from pathlib import Path
 
 import httpx
 import pytest
@@ -14,6 +15,19 @@ from labtasker.config import ResolvedConfig
 from labtasker.errors import TransportError
 from labtasker.observations import ObservationReporter
 from labtasker.validation import RequestValidationError
+
+
+def resolved_http_config() -> ResolvedConfig:
+    return ResolvedConfig(
+        url="http://server",
+        socket=None,
+        managed_local=False,
+        labtasker_root=Path("/.labtasker"),
+        queue="default",
+        token=None,
+        auto_start_local_server=False,
+        local=None,
+    )
 
 
 def make_client(handler: object) -> Client:
@@ -120,6 +134,9 @@ def test_cli_grouped_json_and_help(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
         def __enter__(self):
             return self
 
@@ -162,7 +179,7 @@ def test_reporter_coalesces_and_shutdown_never_waits_for_blocked_io(
         ),
     )
     monkeypatch.setattr("labtasker.observations.SHUTDOWN_WAIT_SECONDS", 0.05)
-    config = ResolvedConfig(url="http://server", queue="default", token=None, local=None)
+    config = resolved_http_config()
     reporter = ObservationReporter(config, "a")
     reporter.__enter__()
     try:
@@ -201,7 +218,7 @@ def test_reporter_sends_latest_busy_then_idle_and_withdraws(
             base_url="http://server/api/v2/", transport=httpx.MockTransport(handler)
         ),
     )
-    config = ResolvedConfig(url="http://server", queue="default", token=None, local=None)
+    config = resolved_http_config()
     with ObservationReporter(config, "a") as reporter:
         assert idle.wait(2)
         reporter.activity("t_ABCDEFGHIJKL")
@@ -233,7 +250,7 @@ def test_reporter_keeps_invocation_metadata_snapshot(
         ),
     )
     metadata = {"node": {"name": "node-7"}}
-    config = ResolvedConfig(url="http://server", queue="default", token=None, local=None)
+    config = resolved_http_config()
     with ObservationReporter(config, "a", metadata) as reporter:
         assert reported.wait(2)
         metadata["node"] = {"name": "changed"}
@@ -265,7 +282,7 @@ def test_periodic_report_repairs_failure_without_activity_change(
         ),
     )
     caplog.set_level("INFO", logger="labtasker.worker")
-    config = ResolvedConfig(url="http://server", queue="default", token=None, local=None)
+    config = resolved_http_config()
     with ObservationReporter(config, "a"):
         assert repaired.wait(2)
     assert len(attempts) >= 2
@@ -299,7 +316,7 @@ def test_slow_transport_initialization_respects_latest_activity_and_shutdown(
 
     monkeypatch.setattr("labtasker.observations._make_http_client", make_transport)
     monkeypatch.setattr("labtasker.observations.SHUTDOWN_WAIT_SECONDS", 0.02)
-    config = ResolvedConfig(url="http://server", queue="default", token=None, local=None)
+    config = resolved_http_config()
     reporter = ObservationReporter(config, "a")
     reporter.__enter__()
     try:
@@ -350,7 +367,7 @@ def test_blocked_withdrawal_does_not_delay_exit_or_replace_original_error(
         ),
     )
     monkeypatch.setattr("labtasker.observations.SHUTDOWN_WAIT_SECONDS", 0.05)
-    config = ResolvedConfig(url="http://server", queue="default", token=None, local=None)
+    config = resolved_http_config()
     reporter = ObservationReporter(config, "a")
     try:
         with pytest.raises(RuntimeError, match="original exit"), reporter:

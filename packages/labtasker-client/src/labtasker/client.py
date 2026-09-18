@@ -13,12 +13,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from labtasker.config import ResolvedConfig, resolve_config
 from labtasker.errors import APIError, TransportError
-from labtasker.local import (
-    ensure_local_server,
-    local_paths,
-    require_local_capabilities,
-    socket_transport,
-)
+from labtasker.local import ensure_local_server, socket_transport
 from labtasker.models import (
     BulkUpdateResult,
     ClaimResponse,
@@ -63,21 +58,36 @@ class Client:
     def __init__(
         self,
         url: str | None = None,
+        socket: str | Path | None = None,
+        labtasker_root: str | Path | None = None,
+        auto_start_local_server: bool = False,
         token: str | None = None,
         queue: str | None = None,
     ) -> None:
-        self._initialize(resolve_config(url=url, token=token, queue=queue))
+        self._initialize(
+            resolve_config(
+                url=url,
+                socket=socket,
+                labtasker_root=labtasker_root,
+                auto_start_local_server=auto_start_local_server,
+                token=token,
+                queue=queue,
+            )
+        )
 
     @classmethod
-    def _from_local_directory(cls, directory: Path, *, queue: str) -> Client:
-        require_local_capabilities()
+    def _from_socket(cls, socket: Path, *, queue: str) -> Client:
         client = cls.__new__(cls)
         client._initialize(
             ResolvedConfig(
                 url=None,
+                socket=socket,
+                managed_local=False,
+                labtasker_root=Path("/"),
                 queue=validate_identifier(queue, field="queue"),
                 token=None,
-                local=local_paths(directory),
+                auto_start_local_server=False,
+                local=None,
             )
         )
         return client
@@ -87,22 +97,22 @@ class Client:
         headers = {}
         if self._config.token is not None:
             headers["Authorization"] = f"Bearer {self._config.token}"
-        if self._config.local is None:
-            assert self._config.url is not None
+        if self._config.url is not None:
             self._http = httpx.Client(
                 base_url=f"{self._config.url}/api/v2/",
                 headers=headers,
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
         else:
+            assert self._config.socket is not None
             self._http = httpx.Client(
                 base_url="http://labtasker/api/v2/",
-                transport=socket_transport(self._config.local),
+                transport=socket_transport(self._config.socket),
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
         self._closed = False
         self._endpoint_announced = False
-        self._local_ready = False
+        self._local_ensure_result: tuple[int | None, str | None] | None = None
         self._server_version: str | None = None
         self._warned_server_versions: set[Version] = set()
 
@@ -735,7 +745,6 @@ class Client:
         retry: bool = False,
     ) -> T:
         self._ensure_open()
-        self._prepare_endpoint()
         attempts = MAX_RETRY_ATTEMPTS if retry else 1
         last_transport_error: TransportError | None = None
         local_connect_recovery_used = False
@@ -746,13 +755,13 @@ class Client:
             except httpx.RequestError as error:
                 last_transport_error = self._connection_error(operation)
                 can_recover_local_connect = (
-                    self._config.local is not None
+                    self._config.managed_local
+                    and self._config.auto_start_local_server
                     and isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout))
                     and not local_connect_recovery_used
                 )
                 if can_recover_local_connect:
                     local_connect_recovery_used = True
-                    self._local_ready = False
                     self._ensure_local_available()
                     if attempt + 1 == attempts:
                         attempts += 1
@@ -760,7 +769,7 @@ class Client:
                     raise last_transport_error from error
             else:
                 self._observe_server_version(response)
-                self._announce_http_endpoint()
+                self._announce_endpoint()
                 if response.is_error:
                     try:
                         api_error = _parse_api_error(response)
@@ -800,26 +809,39 @@ class Client:
 
     @property
     def _operation_endpoint_details(self) -> dict[str, object]:
-        if self._config.local is None:
+        if self._config.url is not None:
             return {"url": self._config.url}
         return {
-            "directory": str(self._config.local.directory),
-            "socket": str(self._config.local.socket),
+            "labtasker_root": str(self._config.labtasker_root),
+            "socket": str(self._config.socket),
         }
 
-    def _prepare_endpoint(self) -> None:
-        if self._config.local is not None and not self._local_ready:
-            self._ensure_local_available()
-
-    def _announce_http_endpoint(self) -> None:
-        if self._endpoint_announced or self._config.local is not None:
+    def _announce_endpoint(self) -> None:
+        if self._endpoint_announced:
             return
-        assert self._config.url is not None
-        transport = self._config.url.partition(":")[0]
-        print(
-            f"[labtasker] connected server=remote transport={transport} url={self._config.url}",
-            file=sys.stderr,
-        )
+        if self._config.url is not None:
+            transport = self._config.url.partition(":")[0]
+            message = (
+                f"[labtasker] connected server=remote transport={transport} url={self._config.url}"
+            )
+        elif self._config.managed_local:
+            assert self._config.local is not None and self._config.socket is not None
+            pid, version = self._local_ensure_result or (None, None)
+            message = (
+                "[labtasker] connected server=local transport=unix "
+                f"labtasker_root={self._config.labtasker_root} "
+                f"database={self._config.local.database} socket={self._config.socket}"
+            )
+            if pid is not None:
+                message += f" pid={pid}"
+            if version is not None:
+                message += f" version={version}"
+        else:
+            assert self._config.socket is not None
+            message = (
+                f"[labtasker] connected server=external transport=unix socket={self._config.socket}"
+            )
+        print(message, file=sys.stderr)
         self._endpoint_announced = True
 
     def _ensure_local_available(self) -> None:
@@ -827,16 +849,7 @@ class Client:
         if paths is None:
             return
         result = ensure_local_server(paths, emit=self._emit_local_transition)
-        pid = result.pid if result.pid is not None else "unknown"
-        version = result.server_version if result.server_version is not None else "unknown"
-        print(
-            "[labtasker] connected server=local transport=unix "
-            f"directory={paths.directory} database={paths.database} socket={paths.socket} "
-            f"pid={pid} version={version}",
-            file=sys.stderr,
-        )
-        self._endpoint_announced = True
-        self._local_ready = True
+        self._local_ensure_result = (result.pid, result.server_version)
 
     @staticmethod
     def _emit_local_transition(message: str) -> None:
@@ -844,16 +857,25 @@ class Client:
 
     def _connection_error(self, operation: str) -> TransportError:
         details: dict[str, object] = {"operation": operation}
-        if self._config.local is None:
+        if self._config.url is not None:
             details["url"] = self._config.url
+        elif not self._config.managed_local:
+            details["socket"] = str(self._config.socket)
         else:
+            assert self._config.local is not None
             details.update(
                 {
                     "state": "unhealthy",
-                    "directory": str(self._config.local.directory),
+                    "labtasker_root": str(self._config.labtasker_root),
                     "database": str(self._config.local.database),
-                    "socket": str(self._config.local.socket),
+                    "socket": str(self._config.socket),
                     "log": str(self._config.local.log),
+                    "remedies": [
+                        "rerun with --auto-start-local-server",
+                        "launch labtasker-server serve --connection socket --daemon "
+                        f"--labtasker-root {self._config.labtasker_root}",
+                        "configure LABTASKER_URL or LABTASKER_SOCKET",
+                    ],
                 }
             )
         return TransportError("The Labtasker Server could not be reached.", details)

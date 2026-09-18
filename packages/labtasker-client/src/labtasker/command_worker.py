@@ -58,6 +58,8 @@ def run_command_worker(
     force_stop_timeout: float | None = None,
     max_consecutive_failures: int = 5,
     metadata: dict[str, JSONValue] | None = None,
+    labtasker_root: Path | None = None,
+    auto_start_local_server: bool = False,
 ) -> None:
     guard = _FailureGuard(max_consecutive_failures)
     templates = compile_argv(argv)
@@ -70,7 +72,11 @@ def run_command_worker(
     _guard_command_worker_platform()
     _guard_worker_topology()
     configure_worker_logger()
-    with Client(queue=queue) as client:
+    with Client(
+        queue=queue,
+        labtasker_root=labtasker_root,
+        auto_start_local_server=auto_start_local_server,
+    ) as client:
         queue_name = client.configuration.queue
         _preflight(client, queue_name)
         with ObservationReporter(
@@ -139,6 +145,7 @@ def _run_command_claim(
             endpoint=client.configuration.endpoint_dict(),
             queue=queue,
             route=route,
+            labtasker_root=client.configuration.labtasker_root,
         )
     except Exception:
         _best_effort_unclaim(client, claim, queue)
@@ -511,17 +518,18 @@ def _command_environment(
         }
     )
     configuration = client.configuration
-    if configuration.local is None:
+    if configuration.url is not None:
         assert configuration.url is not None
         environment["LABTASKER_URL"] = configuration.url
         environment.pop("LABTASKER_SOCKET", None)
-        environment.pop("LABTASKER_LOCAL_DIRECTORY", None)
     else:
-        environment["LABTASKER_SOCKET"] = str(configuration.local.socket)
-        environment["LABTASKER_LOCAL_DIRECTORY"] = str(configuration.local.directory)
+        assert configuration.socket is not None
+        environment["LABTASKER_SOCKET"] = str(configuration.socket)
         environment.pop("LABTASKER_URL", None)
+    environment.pop("LABTASKER_ROOT", None)
+    environment.pop("LABTASKER_LOCAL_DIRECTORY", None)
     token = configuration.token
-    if token is None or configuration.local is not None:
+    if token is None or configuration.url is None:
         environment.pop("LABTASKER_TOKEN", None)
     else:
         environment["LABTASKER_TOKEN"] = token

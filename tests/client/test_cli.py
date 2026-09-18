@@ -110,6 +110,9 @@ def task() -> Task:
 class FakeClient:
     last_submit: dict[str, Any] | None = None
 
+    def __init__(self, **_: object) -> None:
+        pass
+
     def __enter__(self) -> FakeClient:
         return self
 
@@ -148,15 +151,17 @@ def test_config_show_is_read_only_formatted_json(tmp_path: Path) -> None:
     assert result.stderr == ""
     parsed = json.loads(result.stdout)
     assert parsed == {
-        "mode": "local",
-        "directory": str(tmp_path),
+        "connection": "socket",
+        "managed_local": True,
+        "labtasker_root": str(tmp_path / ".labtasker"),
         "database": str(tmp_path / ".labtasker/server.db"),
         "socket": parsed["socket"],
         "url": None,
         "queue": "default",
         "token_configured": False,
+        "auto_start_local_server": False,
     }
-    assert parsed["socket"].startswith(f"/tmp/labtasker-{os.geteuid()}/")
+    assert f"labtasker-{os.geteuid()}" in parsed["socket"]
     assert not (tmp_path / ".labtasker").exists()
 
 
@@ -364,6 +369,8 @@ def test_loop_requires_separator_command_and_preserves_every_argv_element(
                 "force_stop_timeout": 2.5,
                 "max_consecutive_failures": 5,
                 "metadata": {},
+                "labtasker_root": None,
+                "auto_start_local_server": False,
             },
         )
     ]

@@ -26,7 +26,7 @@ def test_shutdown_keeps_ownership_until_background_database_command_finishes(
     application = create_app(ServerSettings(database=path))
     started, release = Event(), Event()
 
-    def blocked_scan(*_: object) -> int:
+    def blocked_scan(*_: object, **__: object) -> int:
         started.set()
         assert release.wait(timeout=5)
         return 0

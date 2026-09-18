@@ -5,14 +5,16 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from labtasker_server.filesystem import DatabaseFilesystem
+
 
 @dataclass(frozen=True, slots=True)
 class ServerSettings:
     host: str = "127.0.0.1"
     port: int = 8000
     database: Path = Path(".labtasker/server.db")
+    database_filesystem: DatabaseFilesystem = "auto"
     token: str | None = None
-    database_fd: int | None = None
 
     def __post_init__(self) -> None:
         _validate_token(self.token)
@@ -24,6 +26,7 @@ class ServerSettings:
         host: str = "127.0.0.1",
         port: int = 8000,
         database: str | Path = ".labtasker/server.db",
+        database_filesystem: DatabaseFilesystem = "auto",
         token: str | None = None,
     ) -> ServerSettings:
         effective_token = os.environ.get("LABTASKER_SERVER_TOKEN") if token is None else token
@@ -31,7 +34,13 @@ class ServerSettings:
             raise ValueError("port must be between 1 and 65535.")
         if effective_token is None and not _is_tokenless_host_allowed(host):
             raise ValueError("A token is required when binding to a non-loopback host.")
-        return cls(host=host, port=port, database=Path(database), token=effective_token)
+        return cls(
+            host=host,
+            port=port,
+            database=Path(database),
+            database_filesystem=database_filesystem,
+            token=effective_token,
+        )
 
 
 def _validate_token(token: str | None) -> None:

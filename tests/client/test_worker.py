@@ -93,7 +93,14 @@ def make_claim(
 class FakeClient:
     def __init__(self, claims: list[ClaimResponse | None]) -> None:
         self.configuration = ResolvedConfig(
-            url="http://server", queue="default", token=None, local=None
+            url="http://server",
+            socket=None,
+            managed_local=False,
+            labtasker_root=Path.cwd() / ".labtasker",
+            queue="default",
+            token=None,
+            auto_start_local_server=False,
+            local=None,
         )
         self.claims = deque(claims)
         self.actions: list[tuple[str, str, object]] = []
@@ -263,6 +270,7 @@ def test_force_stop_only_applies_while_user_function_is_active(
     # or while inline code/finish() still occupies the executor.
     script = """
 import sys, time
+from pathlib import Path
 from types import SimpleNamespace
 import labtasker.execution as execution
 import labtasker.worker as worker
@@ -278,7 +286,16 @@ def report(**kwargs):
     execution._ACTIVE_CONTEXT.control.revoke('cancel')
     raise TransportError('terminal response lost')
 client = SimpleNamespace(
-    configuration=ResolvedConfig(url='http://server', queue='default', token=None, local=None),
+    configuration=ResolvedConfig(
+        url='http://server',
+        socket=None,
+        managed_local=False,
+        labtasker_root=Path.cwd() / '.labtasker',
+        queue='default',
+        token=None,
+        auto_start_local_server=False,
+        local=None,
+    ),
     _complete=report, _fail=report, _heartbeat=lambda **kwargs: None,
 )
 def handler():
@@ -778,15 +795,16 @@ def test_cooperative_api_and_finish_context(tmp_path: Path) -> None:
     journal = LocalRunJournal.create(
         claim=claimed,
         endpoint={
-            "mode": "http",
+            "connection": "http",
+            "managed_local": False,
             "url": "http://server",
             "socket": None,
-            "directory": None,
+            "labtasker_root": None,
             "database": None,
         },
         queue="default",
         route="default",
-        cwd=tmp_path,
+        labtasker_root=tmp_path / ".labtasker",
     )
     control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
     results: list[dict[str, Any]] = []

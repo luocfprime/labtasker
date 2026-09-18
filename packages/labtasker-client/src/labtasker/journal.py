@@ -23,6 +23,7 @@ UTC = timezone.utc
 JournalPhase = Literal["running", "reporting", "acknowledged", "revoked"]
 TerminalAction = Literal["complete", "fail", "unclaim"]
 LOCAL_GITIGNORE = "*\n!.gitignore\n"
+JOURNAL_SCHEMA_VERSION = 2
 
 
 class RunRecord(TypedDict):
@@ -54,24 +55,24 @@ class LocalRunJournal:
         endpoint: EndpointRecord,
         queue: str,
         route: str,
-        cwd: Path | None = None,
+        labtasker_root: Path | None = None,
     ) -> LocalRunJournal:
         started_at = claim.task.started_at
         if started_at is None:
             raise ValueError("claimed Task is missing started_at")
-        root = (Path.cwd() if cwd is None else cwd).resolve()
+        root = (Path.cwd() / ".labtasker" if labtasker_root is None else labtasker_root).resolve()
         task_group = f"{_task_slug(claim.task.name)}__{claim.task.id}"
         run_name = (
             f"{started_at.astimezone(UTC):%Y%m%dT%H%M%SZ}"
             f"__attempt-{claim.task.attempt}__{claim.run_id}"
         )
-        labtasker_dir = root / ".labtasker"
+        labtasker_dir = root
         labtasker_dir.mkdir(parents=True, exist_ok=True)
         _ensure_local_gitignore(labtasker_dir)
         run_dir = labtasker_dir / "runs" / queue / task_group / run_name
         run_dir.mkdir(parents=True, exist_ok=False)
         record: RunRecord = {
-            "schema_version": 1,
+            "schema_version": JOURNAL_SCHEMA_VERSION,
             "endpoint": endpoint,
             "queue": queue,
             "task_id": claim.task.id,
@@ -274,8 +275,8 @@ def _validate_record(value: object) -> RunRecord:
         "acknowledged_at",
     }
     if not isinstance(value, dict) or set(value) != fields:
-        raise ValueError("run.json does not match journal schema version 1")
-    if value["schema_version"] != 1:
+        raise ValueError(f"run.json does not match journal schema version {JOURNAL_SCHEMA_VERSION}")
+    if value["schema_version"] != JOURNAL_SCHEMA_VERSION:
         raise ValueError("run.json uses an unsupported journal schema")
     _validate_endpoint(value["endpoint"])
     validate_identifier(value["queue"], field="queue")
@@ -294,23 +295,37 @@ def _validate_record(value: object) -> RunRecord:
 
 
 def _validate_endpoint(value: object) -> EndpointRecord:
-    fields = {"mode", "url", "socket", "directory", "database"}
+    fields = {
+        "connection",
+        "managed_local",
+        "url",
+        "socket",
+        "labtasker_root",
+        "database",
+    }
     if not isinstance(value, dict) or set(value) != fields:
         raise ValueError("run.json endpoint is invalid")
-    mode = value["mode"]
-    if mode == "http":
+    connection = value["connection"]
+    managed_local = value["managed_local"]
+    if not isinstance(managed_local, bool):
+        raise ValueError("run.json endpoint managed_local is invalid")
+    if connection == "http":
+        if managed_local:
+            raise ValueError("run.json HTTP endpoint cannot be managed local")
         if not isinstance(value["url"], str) or not value["url"]:
             raise ValueError("run.json HTTP endpoint URL is invalid")
-        if any(value[field] is not None for field in ("socket", "directory", "database")):
+        if any(value[field] is not None for field in ("socket", "labtasker_root", "database")):
             raise ValueError("run.json HTTP endpoint contains local paths")
-    elif mode == "local":
-        if value["url"] is not None:
-            raise ValueError("run.json local endpoint contains a URL")
-        if any(
-            not isinstance(value[field], str) or not value[field]
-            for field in ("socket", "directory", "database")
+    elif connection == "socket":
+        if value["url"] is not None or not isinstance(value["socket"], str):
+            raise ValueError("run.json socket endpoint is invalid")
+        managed_paths = ("labtasker_root", "database")
+        if managed_local and any(
+            not isinstance(value[field], str) or not value[field] for field in managed_paths
         ):
-            raise ValueError("run.json local endpoint paths are invalid")
+            raise ValueError("run.json managed-local endpoint paths are invalid")
+        if not managed_local and any(value[field] is not None for field in managed_paths):
+            raise ValueError("run.json external socket contains managed-local paths")
     else:
-        raise ValueError("run.json endpoint mode is invalid")
+        raise ValueError("run.json endpoint connection is invalid")
     return cast(EndpointRecord, value)

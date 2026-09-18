@@ -7,9 +7,9 @@ can complete the workflow before adapting it to your own model or benchmark.
 ## Requirements
 
 This local tutorial needs Python 3.10 or newer and a POSIX system such as Linux
-or macOS. The automatic local Server and command Worker used in this tutorial
-are not supported on Windows. Windows Clients must connect to an HTTP Server and
-use a Python Worker. See
+or macOS. The managed local Server and command Worker used in this tutorial are
+not supported on Windows. Windows Clients must connect to an HTTP Server and use
+a Python Worker. See
 [Configuration](reference/configuration.md) for details.
 
 To use checked-in source files instead, follow the [tested demo](demo.md). Its
@@ -42,14 +42,14 @@ mkdir my-evaluation
 cd my-evaluation
 ```
 
-Labtasker uses the current directory to select its local Server and Task
-database. Run the remaining commands from `my-evaluation` so they use the same
-data.
+With no configured URL or socket, Labtasker uses exactly
+`my-evaluation/.labtasker` as its local root. It does not search parent or VCS
+directories. Run the remaining commands here so they select the same root.
 
 ## 3. Submit three evaluation cases
 
 ```bash
-labtasker task submit \
+labtasker --auto-start-local-server task submit \
   --name sample-1 \
   --args '{"prediction":"red panda","reference":"red panda"}' \
   --route text-eval
@@ -75,9 +75,10 @@ Each command prints the created Task as JSON. Confirm that:
 CLI values use strict JSON, so numbers, Booleans, arrays, objects, and `null`
 keep their JSON types.
 
-On POSIX systems, the first Task operation starts a local Server when needed.
-All three Tasks enter Queue `default`, so the tutorial needs no Server command
-or configuration file.
+The first command explicitly authorizes creation of this local Server. The two
+later commands connect to the daemon it started. Repeating the flag is safe and
+idempotent, but it is not required while that daemon remains healthy. All three
+Tasks enter Queue `default`, so the tutorial needs no configuration file.
 
 ## 4. Create the evaluator
 
@@ -167,9 +168,9 @@ directory's Server directly:
 
 ```bash
 labtasker config show
-labtasker-server status
-labtasker-server logs
-labtasker-server stop
+labtasker-server status --labtasker-root .labtasker
+labtasker-server logs --labtasker-root .labtasker
+labtasker-server stop --labtasker-root .labtasker
 ```
 
 ## Next steps

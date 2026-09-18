@@ -29,13 +29,15 @@ def _make_http_client(configuration: ResolvedConfig) -> httpx.Client:
     headers = (
         {} if configuration.token is None else {"Authorization": f"Bearer {configuration.token}"}
     )
-    if configuration.local is not None:
+    if configuration.url is None:
+        assert configuration.socket is not None
         return httpx.Client(
             base_url="http://labtasker/api/v2/",
             headers=headers,
-            transport=socket_transport(configuration.local),
+            transport=socket_transport(configuration.socket),
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
+    assert configuration.url is not None
     return httpx.Client(
         base_url=f"{configuration.url}/api/v2/", headers=headers, timeout=REQUEST_TIMEOUT_SECONDS
     )

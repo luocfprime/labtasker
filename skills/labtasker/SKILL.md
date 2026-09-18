@@ -64,7 +64,7 @@ unchanged, what Labtasker coordinates, and what remains externally owned. Read
 [workers-and-workloads.md](references/workers-and-workloads.md) for the detailed
 migration interview and mapping rules.
 
-## Use the default local path first
+## Use the managed-local path first
 
 Labtasker requires Python 3.10 or newer. In an ordinary POSIX experiment
 project, install the complete package:
@@ -75,9 +75,13 @@ python -m pip install labtasker
 uv add labtasker
 ```
 
-No MongoDB, configuration file, port, or manual Server start is needed. The
-first real Task or Queue operation starts the current directory's local Server
-when needed and uses Queue `default`.
+No MongoDB, configuration file, or TCP port is needed. A default Client selects
+exact `CWD/.labtasker` and connects to its derived Unix socket, but it does not
+start a process. Explicitly authorize startup on the first operation:
+
+```bash
+labtasker --auto-start-local-server queue list
+```
 
 Submit one Task:
 
@@ -87,6 +91,11 @@ labtasker task submit \
   --args '{"prediction":"cat","reference":"cat"}' \
   --route text-eval
 ```
+
+The flag is invocation-scoped and idempotent. Later commands connect without
+it while the daemon remains healthy. Use global `--labtasker-root PATH` or
+`LABTASKER_ROOT` to select another exact root; never search parent or VCS
+directories.
 
 Run an existing program once for every compatible Task:
 
@@ -146,10 +155,12 @@ model, dataset, simulator, or evaluator should be initialized once and reused.
 - Do not invent v1 aliases or implicit coercion. CLI objects are strict JSON.
 - Inspect before mutating. Use `cancel`, `requeue`, and `delete` rather than
   patching status.
-- Do not silently start, stop, or reconfigure a shared HTTP Server. Confirm its
+- Do not silently start, stop, or reconfigure an externally managed Server.
+  Confirm its
   ownership and deployment scope first.
-- Do not treat the internal Unix socket as a configurable public endpoint. Use
-  automatic local mode or an explicit HTTP Server. Prefer direct argv; add a
+- Unix sockets and HTTP are both public Server transports. Require an explicit
+  `labtasker-server serve --connection socket|http` choice; do not infer one.
+  Prefer direct argv; add a
   wrapper only when the workload itself needs shell or multi-step logic.
 - Treat the Server as authoritative. Local run journals are diagnostic records,
   not a second source of Task state.

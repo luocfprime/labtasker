@@ -249,14 +249,14 @@ CLI catches that exception, writes its message to stderr and exits 1. Windows
 ConPTY and Windows distributed-launcher support are outside the v2 contract
 because both depend on this unsupported executor.
 
-The automatic local Server is likewise a POSIX feature in the initial release.
-It requires an owner-only Unix-domain socket, advisory file locking and a daemon
+The managed local Server is likewise a POSIX feature in the initial release. It
+requires an owner-only Unix-domain socket, advisory file locking and a daemon
 process detached from its launching terminal. A platform without those required
-capabilities rejects implicit local mode before creating `.labtasker`, starting a
-process or opening a database, and tells the user to configure an explicit HTTP
-URL. Ordinary HTTP Client and foreground HTTP Server operation remain best effort
-on Windows as stated above; v2 does not silently substitute a loopback TCP daemon
-for the Unix-socket local contract.
+capabilities rejects managed-local operation before creating `.labtasker`,
+starting a process or opening a database, and tells the user to configure an
+explicit HTTP URL. Ordinary HTTP Client and foreground HTTP Server operation
+remain best effort on Windows as stated above; v2 does not silently substitute a
+loopback TCP daemon for the Unix-socket contract.
 
 “Best effort” and “unsupported” are distinct platform classifications. Best
 effort permits an ordinary documented path to run even though that platform is
@@ -1255,8 +1255,8 @@ start on any non-loopback bind without a configured token. The token comes only
 from the Server environment variable defined below. Rotation means changing that
 value and restarting the Server; v2 has no token CRUD or live-rotation protocol.
 
-The automatic local Server instead accepts HTTP over one owner-only Unix-domain
-socket and always runs without application-level authentication. Its socket
+Any Unix-socket Server accepts the same HTTP API over one owner-only socket and
+runs without application-level authentication. Its socket
 directory and socket permissions supply the local same-user boundary; it does not
 listen on a TCP port or inherit `LABTASKER_SERVER_TOKEN`. This is not a multi-user
 sharing mechanism. Users who need another Unix user or host to connect run an
@@ -1279,285 +1279,443 @@ the configured value. A missing, malformed or wrong credential returns the same
 authentication failed or echoes credential data. `/health` and `/openapi.json`
 remain unauthenticated as already specified.
 
-### 5.5 Server transports and process ownership
+### 5.5 Server storage, transports and process ownership
 
-#### 5.5.1 Explicit HTTP Server
+#### 5.5.1 One `serve` command
 
-The complete foreground HTTP Server command is:
-
-```text
-labtasker-server serve \
-  --host 127.0.0.1 \
-  --port 8000 \
-  --database .labtasker/server.db
-```
-
-Those displayed values are the defaults. This command always means an explicitly
-operated TCP Server: it runs in the foreground, never daemonizes and never writes
-local-daemon PID or socket metadata. A Client with an explicit constructor,
-environment or config-file URL uses it as ordinary HTTP and does not start,
-restart, stop or otherwise supervise it. The user or an external supervisor owns
-that process for its complete lifetime.
-
-`--database` accepts a filesystem path, not a general database URL; a relative
-path is resolved against the Server's startup working directory, and the parent
-directory is created when absent. When the resolved database path is inside a
-directory named exactly `.labtasker`, the Server ensures that directory contains
-`.gitignore` with `*` and `!.gitignore` rules. It uses exclusive creation and
-leaves any existing `.gitignore` unchanged; custom database parents outside
-`.labtasker` receive no version-control files. V2 does not expose `--workers`,
-`--reload` or log-level configuration.
-
-The optional credential is read only from `LABTASKER_SERVER_TOKEN`. There is no
-`--token` flag or Server config file, avoiding routine disclosure through process
-arguments. An unset variable means authentication is disabled; a present empty
-value is invalid rather than a second spelling for unset. The existing security
-rule remains authoritative: every address represented by a tokenless bind must be
-loopback, otherwise startup fails before listening.
-
-#### 5.5.2 Default local endpoint
-
-When no Client URL is configured, v2 uses local mode. Local mode is bound exactly
-to the Client's current working directory when that Client is constructed. It
-does not search parents, inspect a VCS root, reuse another directory's
-`.labtasker`, or introduce a Server-side Project resource. The Client converts
-the current directory to its canonical absolute real path once and snapshots it
-with the rest of the Client configuration. A later `chdir()` does not retarget an
-existing Client.
-
-For local directory `/absolute/work`, the durable state is:
+The complete Server launch surface has two equal, explicit transport forms:
 
 ```text
-/absolute/work/.labtasker/
-  .gitignore
-  server.db
-  server.log
-  runs/...
+labtasker-server serve --connection http
+  [--labtasker-root PATH]
+  [--database PATH]
+  [--database-filesystem auto|local|shared]
+  [--host HOST]
+  [--port PORT]
+  [--daemon]
+
+labtasker-server serve --connection socket
+  [--labtasker-root PATH]
+  [--database PATH]
+  [--database-filesystem auto|local|shared]
+  [--socket PATH]
+  [--daemon]
 ```
 
-The database and log remain after a daemon restart or SSH disconnection. Every Server
-process, including explicit HTTP `serve`, holds an exclusive non-blocking
-advisory ownership lock on an open file descriptor for the actual database file,
-not on an adjacent sidecar path. This one ownership lock is also local startup
-election: v2 has no separate startup lock. The ownership primitive must be
-independent of SQLite's own byte-range transaction locks and preserve the lock on
-an explicitly inherited descriptor across the POSIX child launch.
+`--connection` is the only unconditionally required option. It has no default;
+omitting it is a command-line usage error with exit status 2, before root,
+database, lock, socket, listener or process creation. The remaining requirements
+and defaults are:
 
-For an automatic local start, the startup coordinator opens or creates `server.db`,
-locks that descriptor before launching the daemon and passes the already locked
-descriptor to it. The daemon verifies that the descriptor and canonical database
-path identify the same device and inode, then retains the descriptor for its
-entire lifetime while SQLite opens the database normally by path. An explicit
-HTTP `serve` process performs the same open, identity check and lock itself.
-Failure to obtain the lock aborts before SQLite schema inspection or migration;
-normal process exit and abnormal process death both release it through the
-kernel. Labtasker never unlinks or atomically replaces a database file while it
-is owned. External removal or replacement of a live database is unsupported.
-This turns the rule “one Server process owns one SQLite file” into an enforced
-cooperating-process invariant by tying ownership to the actual database inode
-rather than a separate pathname. A SQLite database on a filesystem whose
-advisory locking semantics cannot uphold that invariant is unsupported.
+| Setting | Requirement or default |
+| --- | --- |
+| `--labtasker-root` | `.labtasker` relative to the Server startup directory |
+| `--database` | `<labtasker-root>/server.db` |
+| `--database-filesystem` | `auto` |
+| `--connection` | required; exactly `http` or `socket`; no default |
+| HTTP `--host` | `127.0.0.1`, only with `--connection http` |
+| HTTP `--port` | `8000`, only with `--connection http` |
+| Unix `--socket` | the owner-only runtime socket derived from the canonical Labtasker root, only with `--connection socket` |
+| `--daemon` | false; the Server remains in the foreground |
+| daemon log | `<labtasker-root>/server.log`, only when `--daemon` is present |
 
-Local discovery uses a short tmux-style per-user runtime directory rather than a
-socket below an arbitrarily deep working directory:
+A relative root, database or explicit socket path is resolved against the
+startup working directory and then canonicalized. The database need not be
+inside the Labtasker root. The root identifies one managed daemon instance and
+its durable log; the database path identifies the SQLite file being owned.
+Management commands therefore select a daemon by root, while database ownership
+is enforced independently by database path.
+
+`--connection http` accepts `--host` and `--port`, fills their HTTP-specific
+defaults only after selecting that transport, and rejects an explicitly supplied
+`--socket`. `--connection socket` accepts `--socket`, derives its default only
+after selecting that transport, and rejects explicitly supplied `--host` or
+`--port`. Implementations must preserve whether those conditional options were
+supplied rather than mistaking the HTTP defaults for an invalid socket request.
+A Unix socket is a supported public
+transport for a manually operated Server, including a Server whose database is
+on shared storage. It uses the same HTTP API over the socket and has no
+application-level token. An explicit Client socket is externally managed; the
+Client never starts, restarts, stops or reconfigures it.
+
+Every Server-created socket is owner-only. Its parent must be a directory; a
+group/world-writable parent is accepted only when it has the sticky bit, as with
+ordinary `/tmp`. Startup rejects a symlink, an entry not owned by the effective
+user or a non-socket target. It acquires the canonical socket-path lock before
+inspecting or removing an owned stale socket and proves that no listener remains;
+it never replaces a live or unverified endpoint.
+
+`--daemon` changes only process lifecycle. Without it, `serve` stays attached,
+uses standard input/output/error normally and reports an existing database owner
+as an error. With it, the launcher detaches the Server from the terminal and
+session, redirects stdin from the null device, appends logs to the default log
+path, publishes runtime metadata and waits for readiness. It does not change the
+connection, database, filesystem strategy, API or authentication. In particular,
+`serve --daemon` without an explicit `--connection` is invalid; daemonization
+never selects a transport.
+
+V2 exposes no separate public `start` command, `--workers`, `--reload`,
+`--log-file` or log-level option. Uvicorn always runs one Server worker. The
+optional HTTP credential comes only from `LABTASKER_SERVER_TOKEN`. The loopback
+and non-loopback authentication rules in section 5.4 remain unchanged.
+
+The Labtasker root is created when an explicit `serve` invocation needs it. A
+new root receives the ordinary owner-protecting `.gitignore`. Server launch does
+not create or rewrite `config.toml`, and v2 provides no persistent Server
+configuration file. Operators preserve a manual launch declaration in their
+service manager, shell command or deployment configuration.
+
+#### 5.5.2 Runtime identity and host-local locks
+
+On POSIX, per-user runtime artifacts live below an owner-only host-local
+directory:
 
 ```text
-/tmp/labtasker-{effective-uid}/
-  {sha256-of-canonical-directory}.sock
-  {sha256-of-canonical-directory}.json
+/tmp/labtasker-<effective-uid>/
+  root-<sha256-of-canonical-labtasker-root>.lock
+  root-<sha256-of-canonical-labtasker-root>.json
+  root-<sha256-of-canonical-labtasker-root>.sock
+  socket-<sha256-of-canonical-socket-path>.lock
+  db-<sha256-of-canonical-database-path>.lock
 ```
 
-The directory is created with mode `0700`, must be owned by the effective user and
-must not be a symlink. The socket is created owner-only. An ownership, type or
-permission mismatch is a startup error rather than something the Client repairs.
-The full lowercase hexadecimal SHA-256 digest keeps independent CWDs separate
-while keeping the Unix socket path below ordinary platform limits. Runtime files
-may disappear at reboot and are not durable state; the database never resides in
-`/tmp`.
+The directory is mode `0700`, owned by the effective user and not a symlink.
+Every lock file is an ordinary permanent sidecar path in this runtime directory.
+Labtasker never unlinks it, gives it a TTL or steals it. The kernel releases an
+advisory `flock` when every process holding its open descriptor exits.
 
-The JSON entry is best-effort runtime metadata, not a lock, durable database or
-public resource. It records a random generation, owner role, PID, operating-system
-process start marker, database device/inode, automatic-attempt time and Server
-version. A short-lived Server-package coordinator writes its identity before launch and
-atomically replaces that entry with the spawned daemon's identity immediately
-after process creation. Writers use a same-directory temporary file and atomic
-replace. Missing, malformed or mismatched metadata never permits breaking a held
-database lock or signalling a process; it only reduces diagnosis to an unknown
-owner. Because the metadata is ephemeral, reboot naturally clears any old
-automatic-start throttle. The local endpoint is single-host; concurrent local
-mode against one shared CWD from multiple hosts is unsupported.
+Managed daemons and Unix sockets remain unsupported on Windows. Best-effort
+foreground HTTP Server operation may use an equivalent owner-scoped platform
+temporary directory and advisory-lock primitive; it must preserve the same
+single-host exclusion or fail before opening SQLite rather than silently run
+without an ownership lock.
 
-The local Client speaks the same HTTP `/api/v2` protocol through an httpx
-Unix-domain-socket transport. The nominal HTTP authority used internally has no
-discovery, authentication or TCP meaning. OpenAPI, request bodies, response
-models, errors and `run_id` fencing are identical across Unix-socket and explicit
-HTTP transports.
+Every Server, foreground or daemon, holds the database-path lock for its complete
+lifetime. Every Unix-socket Server also holds the socket-path lock, preventing a
+foreground or detached process with a different database from racing for the
+same default or explicit socket. A detached daemon additionally holds the root
+lock for its complete lifetime so only one managed daemon can own that root's
+runtime metadata. A daemon launcher acquires and passes only the root-lock
+descriptor across exec. The daemon process itself acquires its socket lock, when
+applicable, and then its database lock before removing a stale socket, opening
+SQLite or listening. A failed child startup releases those locks and exits;
+temporary creation of two children from different roots is harmless because
+only one can acquire the database lock. Foreground HTTP Servers acquire only the
+database lock; foreground socket Servers acquire socket then database. They are
+not managed by `status`, `stop` or `logs`.
 
-#### 5.5.3 Local daemon startup and recovery
+The first release that changes from the v2.5 database-inode ownership lock to
+these sidecars has one bounded compatibility rule. For an effective `local`
+strategy it additionally acquires and retains the legacy inode lock, after the
+database-path sidecar and before opening SQLite, so a still-running v2.5 Server
+cannot become a second owner during an ordinary upgrade. Failure to acquire that
+lock aborts startup and emits one deterministic deprecation diagnostic explaining
+that a legacy Server must be stopped before retrying. The legacy lock is
+transitional internal compatibility, not a second public ownership mode; its
+eventual removal must be announced by the release that removes it.
+
+The compatibility lock is deliberately not used by the `shared` strategy, whose
+filesystem locking behavior is the reason for using host-local sidecars. An
+upgrade of a shared database from v2.5 therefore requires a clean stop of the old
+Server before installing or launching the new version. Labtasker does not migrate
+or take over a running legacy Server. A manually operated legacy Server whose
+custom runtime identity cannot be discovered is likewise the operator's
+stop-before-upgrade responsibility.
+
+Canonicalization collapses normal symlink aliases. Hard links, bind mounts or
+inconsistent path spellings that intentionally make one database appear as
+several canonical paths are unsupported operator misuse.
+
+These per-user locks exclude cooperating Server processes with the same effective
+user on one host. Different Unix users have different runtime namespaces.
+Opening one database from multiple effective users is unsupported unless the
+operator provides external single ownership, regardless of whether the
+filesystem is classified local or shared. On `shared` storage the locks are
+defense in depth, not a cross-user or cross-node ownership protocol. The
+deployment must externally guarantee exactly one Server. Labtasker adds no
+distributed lease, TTL file lock, leader election or split-brain recovery.
+Network partitions, incorrect shared-filesystem locking, external processes that
+open the database, and broken remote `fsync` semantics remain outside the
+guarantee.
+
+The runtime JSON is generated metadata, not configuration or authority. It
+contains a random generation, PID and process-start marker, Server version, the
+canonical root and database, resolved filesystem strategy, connection/address,
+log path, whether HTTP authentication is enabled, and an internal listener-bound
+marker. It contains no token or reusable token digest. Writers use a
+same-directory temporary file and atomic replace. Missing or malformed metadata
+never permits breaking a held lock or signalling an unverified PID.
+
+#### 5.5.3 Filesystem strategy
+
+`--database-filesystem` selects the SQLite safety strategy:
+
+| Requested value | Detection result | Effective strategy | Diagnostic |
+| --- | --- | --- | --- |
+| `local` | not consulted | `local` | none |
+| `shared` | not consulted | `shared` | none |
+| `auto` | known local filesystem | `local` | none |
+| `auto` | known NFS, WekaFS, Lustre or other shared filesystem | `shared` | none |
+| `auto` | unknown filesystem | `shared` | deterministic warning on stderr |
+
+Detection is a guard, not a correctness proof. The implementation uses native
+filesystem-type information for the database path or its nearest existing
+parent, including Linux mount information and macOS mount data. It
+maintains explicit known-local and known-shared type sets. A type not in either
+set is unknown; v2 never guesses that an unknown filesystem is local. Explicit
+`local` or `shared` is the operator's override and bypasses classification.
+
+The strategies fix and verify these settings:
+
+| Setting | `local` | `shared` |
+| --- | --- | --- |
+| `journal_mode` | `WAL` | `DELETE` |
+| `synchronous` | `FULL` | `EXTRA` |
+| `foreign_keys` | `ON` | `ON` |
+| `busy_timeout` | `5000` ms | `5000` ms |
+| SQLAlchemy pool | SQLAlchemy's ordinary file-SQLite pool; not forced to one connection | `QueuePool(pool_size=1, max_overflow=0, pool_timeout=5)` |
+| transactions | concurrent reads, SQLite-serialized writes | every read and write serialized by checkout of the one connection |
+
+Before listening, the Server obtains its host-local database ownership lock,
+changes WAL/rollback-journal mode when necessary, installs connection-local
+settings and reads every required value back. Failure, including an inability to
+leave WAL cleanly or establish DELETE mode, aborts startup. This conversion is
+not attempted while another cooperating Server under the same effective user
+owns the path.
+
+In `shared` mode checkout of the one pooled connection is the serialization
+boundary. Every read and write service command, `/health` database query,
+startup recovery and background expiry scan uses that same engine and holds the
+connection until its transaction closes. Pool checkout waits at most five
+seconds and never interrupts the transaction holding the connection. Timeout on
+an application endpoint returns the existing retryable `503 database_busy`
+envelope; `/health` retains its dedicated `503` health body from section 6.1.
+After checkout, SQLite's separate five-second busy timeout still protects
+against an external database lock.
+
+Internal work never converts either timeout into an HTTP result. A pool-checkout
+or SQLite-busy timeout during mandatory startup recovery aborts startup before
+the Server listens. The same timeout during a background expiry scan rolls back
+with no Task mutation, increments the applicable metric, emits one warning and
+skips that scan; the background task remains alive and retries on its next
+ordinary 60-second interval. It neither spins nor extends the expired leases.
+
+The Server records low-cardinality in-process measurements:
+`db_connection_wait_seconds`, `db_transaction_seconds`, pool timeouts and SQLite
+busy failures, classified only by coarse operation kind. It emits structured
+slow-operation records and periodic summaries. V2 adds no metrics HTTP endpoint,
+waiter/peak counters or high-cardinality Task/Queue labels.
+
+Synchronous SQLAlchemy and synchronous FastAPI endpoints remain the first
+implementation. FastAPI runs endpoint functions in its worker-thread pool.
+Moving HTTP handlers to async plus one bounded database executor is permitted
+only after profiling shows thread-pool saturation or responsiveness problems; it
+is not part of the shared-storage correctness contract.
+
+#### 5.5.4 Daemon launch and state
+
+`serve --daemon` is an idempotent ensure-running operation for its canonical
+Labtasker root. The launcher compares effective configuration, so `auto` resolved
+to `local` matches an explicit `local` request with otherwise identical values.
+
+| Observed state | `serve --daemon` action |
+| --- | --- |
+| healthy daemon, matching effective configuration | succeed without starting another process |
+| matching startup in progress | wait within the existing 30-second readiness deadline |
+| no root owner | acquire the root lock, publish starting metadata and launch one child; the child acquires its socket/database locks |
+| root lock held but health unavailable | fail; never steal the lock or kill the owner |
+| healthy daemon with a different Server version, database, filesystem strategy, connection, address or authentication mode | fail with a configuration-conflict diagnostic |
+| database owned through another root | child startup fails before schema work, SQLite access or listening |
+
+A configuration conflict prints the non-secret differing fields and instructs
+the operator to run `labtasker-server stop --labtasker-root PATH` before rerunning
+the requested `serve --daemon` command. It never stops or reconfigures the
+existing daemon automatically.
+
+Server package version is part of matching so rerunning `serve --daemon` after a
+package upgrade cannot silently retain the old binary/schema. The conflict uses
+the same explicit stop-then-rerun remedy.
+
+HTTP matching includes only whether authentication is enabled, not token
+contents. Labtasker never persists a token or reusable digest and does not issue
+an authenticated management probe. Changing `LABTASKER_SERVER_TOKEN` while a
+daemon is running is not a supported hot reconfiguration: the operator stops the
+daemon and runs the desired `serve --daemon` command again.
+
+A successful launcher records its generation and effective configuration, starts
+the installed Server from the same environment, and passes the root-lock
+descriptor plus a private one-shot readiness channel. The daemon verifies the
+inherited root identity, publishes its PID/start marker with its internal
+listener-bound marker false, then acquires any socket lock and its database lock
+before schema work. Only after Uvicorn has successfully established the configured
+listener does that child atomically set the marker true and publish its generation
+on the private channel. Other launchers require that marker before reusing the
+daemon. The original launcher first verifies this bind confirmation came from its
+child and generation, then requires `/health` through the selected connection,
+all within the same 30-second deadline. A health response observed before the
+matching bind confirmation cannot satisfy readiness; in particular, another
+Labtasker Server already occupying the requested HTTP address cannot make a child
+whose bind failed appear ready. This handshake is private process coordination,
+not a public health field, endpoint or daemon state.
+
+For a wildcard HTTP bind, the health phase uses the corresponding loopback
+address without changing the configured bind identity. Readiness failure reports
+the state and log path but does not automatically kill a process that may still
+own a lock.
+
+The daemon has no idle shutdown. It outlives the launching command, Client,
+terminal and SSH session until explicit stop, process failure or machine
+shutdown.
+
+The managed-daemon state model is:
+
+| State | Evidence |
+| --- | --- |
+| `running` | the listener-bound marker is true, health succeeds and runtime identity matches the root owner |
+| `starting` | health fails, the root lock is held and matching launch metadata is younger than 30 seconds |
+| `unhealthy` | the root lock is held without a matching healthy daemon or fresh starting record |
+| `stopped` | the root lock is free |
+
+Old metadata or socket files do not create additional public states. With no root
+owner the daemon is `stopped`; a later launch validates and cleans its own stale
+artifacts only after acquiring the applicable locks. A foreground Server is not
+a managed daemon even if a Client can reach it at the root-derived socket.
+`status` and `stop` intentionally ignore that process.
+
+Each explicitly authorized Client auto-start invocation makes at most one launch
+attempt. There is no persistent throttle, retry timestamp or backoff state.
+Concurrent attempts are coordinated by the root lock: one launches, and the
+others wait within the same 30-second readiness deadline without starting or
+killing another process.
+
+#### 5.5.5 Client-managed local Server
+
+When no explicit, environment or root-config URL/socket wins, the Client falls
+back to the managed local endpoint for its resolved Labtasker root. That endpoint
+always uses:
+
+```text
+connection = socket
+database = <labtasker_root>/server.db
+database_filesystem = auto, but automatic startup requires known local
+socket = runtime socket derived from canonical labtasker_root
+```
+
+The Client may connect to a healthy daemon at that socket without permission to
+manage its process. It does not create the root, database, log, config or runtime
+metadata merely by resolving configuration or attempting that connection.
+
+A manually launched socket daemon is discoverable through its root only when it
+uses the root-derived default socket. A custom `serve --socket PATH` must be
+selected by `Client(socket=...)`, `LABTASKER_SOCKET` or config `socket`; that
+explicit socket is externally managed even if the same process was launched with
+`--daemon`.
+
+Automatic creation or recovery requires the explicit, invocation-scoped
+`--auto-start-local-server` CLI flag or
+`Client(auto_start_local_server=True)`. The default is false, and the authority
+is never read from or written to environment variables or `config.toml`. When
+authorized, the hidden Server-package coordinator performs the same root-lock,
+launch and readiness protocol as `serve --connection socket --daemon`. The child
+then acquires its socket/database locks and cleans verified stale artifacts before
+opening SQLite or listening.
+
+The Client distribution does not import or depend on the Server distribution.
+If the coordinator executable/module is unavailable, auto-start fails before
+local state creation and instructs the user to install the complete `labtasker`
+package or configure an existing URL/socket.
+
+After an authorized operation fails to connect to managed local, the Client may
+start the short-lived hidden Server coordinator. That coordinator, not the Client
+distribution, owns filesystem classification so the platform-specific detector
+is not duplicated across packages. It inspects the default database location or
+nearest existing parent without first creating the root or database. Automatic
+startup proceeds only when `auto` positively identifies known local storage.
+Known shared storage and unknown filesystem types are rejected before root,
+database, runtime metadata or daemon-child creation; starting the coordinator
+process itself is permitted and is not the managed Server creation this boundary
+forbids. Those deployments use an explicitly operated `serve` command with the
+desired `--database-filesystem` value. Once a manually launched daemon is
+healthy, an ordinary Client whose configuration resolves to managed local can use
+its standard socket; absence never causes a shared or unknown replacement to be
+started.
 
 Importing `labtasker`, constructing `Client`, displaying help and running
-`labtasker config show` do not start or connect to a Server. The first real local
-Task or Queue request, including a Worker's startup claim path, ensures that the
-local Server is available. Later local requests perform the same ensure step when
-opening the Unix socket reports that no listener exists. This automatic behavior
-applies only to local Unix-socket mode. An explicitly configured HTTP URL is
-never health-preflighted for process management and a connection failure never
-starts, restarts or stops any Server.
+`labtasker config show` perform no network or process action. A managed-local
+operation without auto-start authority attempts only its resolved socket. If no
+Server is available, it raises `TransportError` with the resolved root and
+socket plus concise remedies: rerun the CLI operation with
+`--auto-start-local-server`, explicitly launch
+`labtasker-server serve --connection socket --daemon --labtasker-root PATH`, or
+configure a URL/socket. The diagnostic substitutes the resolved root for `PATH`.
+It does not mention rejected parent-search behavior.
 
-After a local health failure, the Client runs the installed Server module from
-the same Python environment through the hidden internal `_ensure-daemon` entry,
-passing the canonical directory without a shell. That short-lived process owns
-the complete startup decision; the Client package never opens or locks the
-database, reads or writes daemon metadata, launches the daemon, or handles the
-ownership descriptor. Absence of `labtasker-server` fails visibly before local
-state is created and tells the user to install the complete `labtasker` package
-or configure an explicit URL.
+Repeated and concurrent authorized auto-start calls are idempotent. One launcher
+wins the root lock; others observe the matching startup and wait for readiness.
+A healthy matching daemon is reused. A held but unhealthy owner is reported and
+never killed. After winning the root lock, the daemon child removes only verified
+stale metadata and removes a stale socket only while holding its canonical
+socket-path lock.
 
-Each concurrent Server-package coordinator non-blockingly attempts the database
-ownership lock. Exactly one succeeds. The winner rechecks `/health`, validates
-the existing runtime metadata for throttling, and may remove only stale runtime
-artifacts of the expected type and owner. Every loser knows that some live
-process still owns the database and never starts or kills a second one merely
-because health is unavailable. `labtasker-server start` calls this same internal
-coordinator function with only the automatic throttle bypassed; it does not
-implement a second launch path.
+Automatic recovery preserves every operation's existing retry and
+uncertain-outcome rules. A pre-send connect failure may ensure the daemon and
+send once. A request that may have reached the Server is not replayed merely
+because the daemon restarts. Existing idempotent submit, claim, heartbeat and
+terminal-report rules remain authoritative.
 
-There is one bounded publication allowance, not another lifecycle state: after
-losing the database lock, a coordinator may spend at most one second re-reading health
-and runtime metadata so it does not misclassify the ordinary window between the
-winner acquiring the lock and publishing coordinator metadata. Once matching
-fresh metadata appears, the normal 30-second startup deadline applies. If the
-allowance expires without that evidence, the owner is `unhealthy`; the coordinator
-does not keep waiting, retry the lock or infer permission to recover it.
+The Client auto-start contract always assumes the standard database and local
+strategy. Combining prior manual custom-Server operation for a root with later
+Client default auto-start assumptions is unsupported operator misuse; v2 adds no
+persistent managed-instance marker or launch-configuration inference.
 
-While valid runtime metadata remains, automatic launch is limited to one attempt
-per canonical CWD in any 10-second interval. The coordinator derives that fixed
-throttle from the metadata's automatic-attempt time. If time remains, it closes
-its database descriptor, visibly reports the remaining seconds and log path, and
-returns a failed machine result with `state="backoff"` and
-`retry_after_seconds`; it does not sleep or create a process. The Client maps
-that result to `TransportError`. `labtasker-server start` bypasses only this time
-gate.
-Missing, malformed, future-skewed or mismatched metadata is visibly ignored for
-throttling, so it cannot permanently disable startup. There is no failure count,
-exponential sequence, probation/stability state or delayed reset task. This
-throttle never changes ordinary HTTP-request retry eligibility or makes an
-uncertain mutation replayable.
+#### 5.5.6 Daemon management commands
 
-To launch, the coordinator creates a random generation and atomically records its
-identity, the database identity and attempt time in runtime metadata, then starts
-the installed Server from the same environment as a detached POSIX daemon. The
-daemon has no controlling terminal, reads stdin from the null device and appends
-stdout/stderr to the absolute `server.log` path. The already locked database
-descriptor is explicitly inherited across process creation and exec. Immediately
-after a successful spawn, the coordinator atomically replaces the metadata with
-the daemon PID, process start marker and same generation, closes its own database
-descriptor copy and no longer owns any coordination primitive. As its first
-bootstrap action, the daemon independently validates the inherited descriptor and
-atomically publishes the same-generation daemon identity; this completes runtime
-metadata even if the launching coordinator exits immediately after process creation.
-The daemon retains its inherited descriptor until process exit and confirms that
-it still denotes the configured database device/inode before SQLite schema work.
-Process creation failure leaves only stale metadata and closes the coordinator's
-descriptor, so the kernel makes the next post-throttle attempt possible.
-
-The coordinator waits for readiness only by polling `/health` through the
-expected Unix socket; v2 adds no private readiness pipe. It waits at most 30
-seconds from the recorded attempt time and never holds a separately acquired
-coordination lock while waiting; database ownership has already transferred to
-the daemon descriptor. It writes one internal JSON result to captured stdout and
-keeps launch/wait diagnostics visible on inherited stderr. Success means health
-has passed. The Client parses that result, performs one final socket-health
-verification, and continues the original request; it does not duplicate the
-readiness loop or interpret runtime metadata. A failed or timed-out result maps
-to `TransportError` with the observed state and log path and does not terminate a
-process or migration. If the daemon really exits, its database descriptor closes
-and a later coordinator may win ownership after the fixed throttle. If it
-remains alive but hung, the database stays locked, preventing a duplicate Server,
-and recovery requires verified explicit stop or external process administration.
-
-The local state detector has these meanings:
-
-| State | Evidence | Automatic action |
-|---|---|---|
-| `running` | `/health` succeeds through the expected socket | Use it. |
-| `starting` | Health fails, the database lock is held and matching verified local metadata is less than 30 seconds old | Poll health only until the 30-second deadline. |
-| `unhealthy` | Health fails while the database lock is held without matching fresh local startup metadata | Report; never start or automatically kill the owner. |
-| `backoff` | Health fails, the database lock is free and a valid automatic attempt occurred less than 10 seconds ago | Report the remaining delay; do not wait or start. |
-| `stale` | Health fails, the database lock is free and owned socket/metadata remains | Safely remove those artifacts and start when the fixed throttle permits. |
-| `stopped` | Health fails, the database lock is free and no socket/metadata remains | Start a daemon when the fixed throttle permits. |
-
-The Client ensures availability before initially sending an operation. A later
-connect failure that proves no HTTP bytes reached a local Server may start a new
-daemon and send that operation once. Once a request may have reached the Server,
-any failure retains the operation's existing retry and uncertain-outcome rules:
-automatic daemon recovery does not make an update retryable or replay a mutation
-whose commit is unknown. Existing idempotent submit, claim, heartbeat and terminal
-report logic may reuse the recovered transport under their already specified
-rules. In particular, a Worker's heartbeat/report loop can recover from a local
-daemon crash without weakening `run_id` fencing.
-
-The daemon has no idle shutdown. It remains alive across terminal detach and SSH
-disconnect until explicit stop, process failure or machine shutdown. Host service
-or cgroup policy may still kill it; this is ordinary process failure, and the next
-local operation starts a replacement when the fixed launch throttle permits.
-Worker observations are approximate; their absence cannot define a safe
-`exit-empty` condition for the Server.
-
-Because database ownership is the only lock and every acquisition attempt is
-non-blocking, the local protocol has no two-lock ordering or circular wait. A
-coordinator frozen after obtaining the database lock remains an unavailable live
-owner; v2 reports it and does not invent a lease, break the lock or automatically
-kill an identity it cannot verify. This rare case may require the user to
-terminate the recorded coordinator through ordinary operating-system tools.
-
-#### 5.5.4 Local daemon commands
-
-The Server executable exposes CWD-addressed local management alongside foreground
-`serve`:
+The public management surface is:
 
 ```text
-labtasker-server start
-labtasker-server status
-labtasker-server stop [--force]
-labtasker-server logs
-labtasker-server serve [--host HOST] [--port PORT] [--database PATH]
+labtasker-server status [--labtasker-root PATH]
+labtasker-server stop [--labtasker-root PATH] [--force]
+labtasker-server logs [--labtasker-root PATH]
 ```
 
-`start` runs the same idempotent startup coordinator as an automatic Client start;
-an already running daemon is a visible successful no-op, and explicit `start`
-bypasses only the fixed launch throttle rather than database ownership or identity
-checks. `stop` acts only on the current CWD's verified local daemon, sends
-graceful termination and waits up to 30 seconds for its socket and database lock
-to be released. Without `--force` it never sends SIGKILL; an unresponsive
-verified daemon is a visible failure. With `--force`, failure to stop during that
-grace period causes the command to reverify the same PID, process start marker,
-generation and database identity immediately before sending SIGKILL, then wait up
-to 5 more seconds for kernel cleanup. Failure to reverify or observe cleanup is
-reported and never redirects the signal to another process.
+The root defaults and canonicalization match `serve`. These commands never infer
+a database path, search parent directories or select a daemon by CWD ancestry.
 
-An already stopped daemon is a visible successful no-op, and verified stale
-socket/metadata may be removed. `stop` is a one-shot action, not a persistent
-disable switch: it writes no `disabled` marker, and a later local operation may
-automatically start a new daemon. After observing the verified generation exit,
-it removes that generation's socket and runtime metadata, so an intentional stop
-does not leave the fixed automatic-launch throttle active. `stop` never targets a
-configured URL, an explicit foreground HTTP Server or an unverified database
-owner. PID metadata is diagnostic rather than authoritative: before signalling,
-the command verifies the recorded process identity, start marker, generation,
-socket and database identity so a reused PID cannot target an unrelated process.
-Successful `start` and `stop` write no stdout and always describe what they did on
-stderr.
+`status` is read-only. It performs no cleanup, launch, stop, database access or
+lock-file creation; an absent root lock path is treated as unlocked.
+It writes one two-space-indented JSON object containing stable keys `state`,
+`labtasker_root`, `database`, `database_filesystem`, `connection`, `host`,
+`port`, `socket`, `log`, `pid` and `version`. Values unavailable from verified
+runtime metadata are null. It reports only managed-daemon state; a foreground
+Server is outside this command even if it happens to use the root-derived socket.
 
-`status` never starts, stops, repairs or deletes anything. It writes one
-two-space-indented JSON object to stdout with stable keys `state`, `directory`,
-`database`, `socket`, `log`, `pid`, `version` and `retry_after_seconds`;
-unavailable values are null, the retry delay is non-null only for `backoff`, and
-`state` is one of the six values in the table above. `logs` never follows or
-pages: it writes the current UTF-8 `server.log` contents to stdout and exits. A
-missing log is an empty successful result. Server logs are diagnostic rather than
-a durable audit contract and may be rotated internally.
+`stop` is idempotent for an already stopped root. It acquires the free root lock
+before removing verified stale metadata and additionally acquires the socket-path
+lock before removing a stale socket. For a verified daemon it sends
+graceful termination and waits up to 30 seconds for the verified process and root
+lock to end. The daemon's database/socket descriptors close with that process;
+`stop` does not require their sidecar locks to remain globally free because a
+different valid process may acquire them immediately afterward. Without
+`--force` it never sends SIGKILL. With `--force`, failure to
+stop during that period causes one final re-verification of PID, process-start
+marker, generation and root identity before SIGKILL, followed by at most five
+seconds for cleanup. It never signals an unverified PID, writes no persistent
+disable marker and does not prevent a later explicitly authorized start. After
+the verified generation exits, it removes that generation's socket/metadata so
+an intentional stop does not leave stale runtime artifacts behind. Cleanup first
+rechecks that metadata still names the stopped generation and acquires the
+socket-path lock before unlinking its socket. A newer generation, a live listener
+or an unreacquirable socket lock is left untouched.
 
+`logs` writes the current UTF-8 `<labtasker_root>/server.log` contents to stdout
+without following or paging. A missing log is an empty successful result.
+Foreground Server output is not redirected there.
+
+Successful launch/stop actions are quiet on stdout and described on stderr.
+Server management failures use readable stderr and exit status 1; they do not
+pretend to be application HTTP error envelopes. Internal Typer commands remain
+hidden at command level with leading-underscore names, but their options remain
+visible when their direct `--help` is requested.
 ### 5.6 Schema initialization and migration
 
 The Server uses Alembic revisions from the first v2 schema. On startup, before
@@ -1579,23 +1737,15 @@ not an implicit startup migration.
 
 ### 5.7 SQLite runtime configuration
 
-The Server fixes and verifies these SQLite settings rather than exposing tuning
-options:
+The filesystem strategy, PRAGMA matrix, journal transition, connection-pool
+limit, shared connection serialization and observability contract are defined in section
+5.5.3. They are fixed Server safety behavior rather than public SQLite tuning
+options. A future change to those constants requires measured workload evidence.
 
-```text
-PRAGMA journal_mode = WAL
-PRAGMA foreign_keys = ON
-PRAGMA busy_timeout = 5000
-PRAGMA synchronous = FULL
-```
-
-Connection-local settings are installed on every SQLAlchemy connection; the
-persistent journal mode is established during startup. Failure to apply or read
-back any required value aborts startup. `FULL` deliberately favors durability of
-an acknowledged Task transition over speculative write throughput. A future
-change to these constants requires measured workload evidence and is not a public
-per-deployment compatibility contract.
-
+The profile does not weaken the service transaction contract. Every mutating
+service command still begins one explicit `BEGIN IMMEDIATE`; read-only commands
+still use one ordinary read transaction. In shared mode checkout of the single
+pooled connection serializes both kinds.
 ### 5.8 Server shutdown and lease recovery
 
 Server shutdown never rewrites running Tasks. Workers retain their local
@@ -1627,9 +1777,10 @@ Each service command owns one explicit Session/transaction.
 
 V2 adds no async database stack, `aiosqlite`, SQLModel, repository interface,
 generic Unit of Work or shared client/server model package. FastAPI runs the
-synchronous application operations in its normal worker threads. Background lease
-recovery opens the same short-lived synchronous Sessions rather than maintaining a
-second persistence implementation.
+synchronous application operations in its normal worker threads. Background
+lease recovery opens the same synchronous transaction boundary and, in shared
+mode, uses the same single-connection engine rather than maintaining a second
+persistence path.
 
 Task identity is scoped by its Queue:
 
@@ -1785,43 +1936,96 @@ Server rolls back and returns `503 Service Unavailable` with code
 logical request, terminal reporting already retries idempotently, and ordinary
 updates/requeue remain explicit caller retry decisions.
 
-### 5.10 Required persistence concurrency tests
+### 5.10 Required storage, daemon and concurrency tests
 
-Tests use real temporary SQLite files and independent connections, not a mocked
-database. At minimum they prove:
+Tests use real temporary SQLite files, independent connections and real
+subprocesses where process ownership matters. At minimum they prove:
 
-- explicit HTTP and local Unix-socket Server processes cannot simultaneously lock
-  the same actual database inode, and daemon death releases its inherited
-  ownership descriptor;
-- many independent Clients racing the first local operation create one daemon,
-  all observe one endpoint, and no second process wins ownership during FD
-  handoff;
-- a launching Client can exit after spawn without releasing the daemon's inherited
-  database ownership, while process-creation failure releases ownership;
-- repeated fast daemon failure permits at most one automatic launch per 10-second
-  interval across independent Clients, while explicit `start` bypasses the fixed
-  throttle and malformed metadata cannot suppress launch;
-- a live daemon or coordinator hung before readiness retains database ownership,
-  causes no duplicate start and remains a visible manual-recovery case rather
-  than an automatically broken lock;
-- the daemon remains reachable after its launching Client process exits and is
-  removed only by verified explicit stop in the ordinary lifecycle test; plain
-  `stop` never sends SIGKILL, `stop --force` only kills the reverified daemon
-  instance, and a later local operation may start a replacement;
-- stale owned socket/metadata is recoverable while a live but unhealthy database
-  owner is never removed or replaced;
-- local recovery after a pre-send connect failure proceeds, while a mutation
-  with an uncertain response is not replayed merely because the daemon restarts;
+- filesystem detection maps known local and representative NFS/WekaFS/Lustre
+  identities correctly, maps unknown to shared with one deterministic warning,
+  and honors explicit overrides;
+- local startup establishes and reads back WAL/FULL, shared startup establishes
+  and reads back DELETE/EXTRA, and a failed WAL-to-DELETE transition aborts
+  before listening;
+- shared mode uses exactly one pooled connection, serializes read/read,
+  read/write, health and expiry transactions, records wait/hold metrics, and
+  returns `503 database_busy` after a five-second pool-checkout timeout without
+  interrupting the holder; commit, rollback, cancellation and exception paths
+  always return the connection, and no database path bypasses that engine;
+- mandatory startup recovery aborts before listening on a pool/SQLite-busy
+  timeout, while a background expiry timeout rolls back, records one warning and
+  metric, skips that scan and successfully retries at the next ordinary interval;
+- local mode retains concurrent WAL reads while every mutation still begins
+  `BEGIN IMMEDIATE`;
+- two roots targeting one canonical database as the same effective user contend
+  on the database lock, two socket Servers targeting one canonical socket contend
+  on the socket lock, and two daemon launches targeting one root contend on the root lock;
+  process death releases every applicable lock and persistent lock sidecar paths are never
+  deleted or TTL-stolen;
+- a daemon launcher passes only its root lock; its child acquires socket then
+  database locks before cleanup, SQLite access or listening, and a child losing
+  either contention exits without touching the protected resource;
+- during the bounded ownership transition, local startup also holds the v2.5
+  database-inode lock and rejects a live legacy owner with the deprecation warning and
+  stop-before-upgrade diagnostic; shared-storage upgrade tests require the old
+  Server to be stopped rather than relying on the legacy remote lock;
+- socket startup rejects symlinks, wrong-owner/non-socket entries and unsafe
+  non-sticky writable parents, and stale-socket cleanup cannot race a new listener;
+- the shared-storage documentation and tests never claim cross-host exclusion;
+  a deliberately separate-host/simulated lock namespace demonstrates that
+  external single ownership remains required;
+- `serve --daemon` is a no-op only for a healthy matching effective
+  configuration, waits for a matching startup, and reports every non-secret
+  mismatch with the stop-then-rerun remedy; version mismatch conflicts, but token
+  contents are never probed and token rotation requires stop then rerun;
+- daemon readiness requires a matching private child bind-confirmation before
+  health succeeds, and a different healthy Server already occupying the requested
+  HTTP port cannot satisfy a new launcher's readiness check;
+- omitting `--connection` fails as a usage error before creating a root,
+  database, lock, socket, listener or process; HTTP fills only its host/port
+  defaults, socket fills only its derived socket default, and transport-specific
+  flags reject invalid mixtures;
+- foreground `serve` never becomes a detached no-op and `--daemon` never selects
+  or changes a connection;
+- `status`, `stop` and `logs` select by canonical Labtasker root even when
+  the database is elsewhere, while the database lock remains keyed by canonical
+  database path; a foreground Server is outside daemon status and is never
+  signalled by `stop` even if it uses the root-derived socket;
+- normal stop never sends SIGKILL, forced stop signals only a reverified
+  generation, post-exit cleanup cannot remove a newer generation or live socket,
+  and a daemon outlives its launching CLI or Client;
+- state classification exposes only `running`, `starting`, `unhealthy` and
+  `stopped`; stale artifacts create no public state and repeated failed automatic
+  attempts have no persistent throttle;
+- many concurrent `--auto-start-local-server`/Client requests create one
+  known-local daemon, reuse it idempotently and preserve pre-send versus
+  uncertain-send retry boundaries; a Client-only installation fails before
+  creating local state;
+- endpoint resolution, `config show` and finite Client connection attempts do
+  not create a root, database, config or process merely because a daemon is absent;
+  known-shared and unknown storage reject Client auto-start before those side
+  effects; and an already running manually launched shared daemon remains usable;
+- an ancestor `.labtasker` directory and daemon are never selected from a child
+  working directory unless that exact root is explicitly supplied;
+- the complete explicit/environment/root-config/default endpoint, Queue and token
+  precedence matrix resolves deterministically; the Labtasker root remains an
+  independent config/journal location, the first endpoint layer wins, only a
+  conflict in that winning layer fails, and explicit URL/socket Clients never
+  supervise a Server;
+- managed-local and Unix-socket operations reject unsupported platforms before
+  network, root, database, journal or process side effects;
 - different Workers racing for one Task produce exactly one successful claim;
 - concurrent retries of one `run_id` return the same Task, while changing its
   route conflicts;
+- a claim using the latest retained terminal `run_id` returns `stale_run`, while
+  an older overwritten token has no promised recognition and every new logical
+  claim uses a fresh private token;
 - complete racing heartbeat expiry produces exactly one winning transition;
-- after `fail(r1)` commits, `r2` may claim and a duplicate `fail(r1)` cannot
-  alter `r2`;
+- after `fail(r1)` commits, `r2` may claim and a duplicate `fail(r1)`
+  cannot alter `r2`;
 - update racing claim either commits complete new Task data before claim or
   excludes the now-running Task; and
 - cancel racing complete produces exactly one winning lifecycle transition.
-
 ## 6. HTTP API foundation
 
 Status: **Decided**
@@ -1900,8 +2104,8 @@ artifact-sized Task. V2 has no blob, artifact or large-file storage API.
 V2 performs no capability or version-range negotiation. Explicit HTTP Clients
 request `/api/v2` directly and add no `/health` process-management preflight; an
 incompatible deployment fails through the normal HTTP/protocol error path. A
-local Client may call `/health` only for the daemon discovery, startup and status
-state machine in section 5.5. It does not use health as a capability handshake or
+managed-local coordinator and management commands may call `/health` only for the
+daemon discovery, startup and status state machine in section 5.5. They do not use health as a capability handshake or
 replace the ordinary operation response. `/health.api_version` remains useful for
 deployment diagnosis, local ownership checks and Worker startup validation.
 
@@ -2072,8 +2276,15 @@ A successful claim returns the complete public Task plus execution ownership:
 }
 ```
 
-A retry of an already finalized or expired `run_id` returns `409 stale_run`
-rather than assigning new work under that token.
+Claim replay recognition is bounded. A retry whose `run_id` is still active
+returns the same claim. A retry whose `run_id` remains in a Task's single
+`last_terminal_run_id` slot returns `409 stale_run` rather than assigning new
+work. After a later terminal transition overwrites that slot, the Server no
+longer retains evidence that the older token was used and may treat it as a new
+claim token. Reusing such an arbitrarily old token is unsupported: every new
+logical claim must use a fresh private `run_id`. V2 adds no global Run history,
+permanent used-token set or expiring tombstone table merely to recognize retries
+outside this bounded window.
 
 Every active execution sends heartbeat and supports three explicit outcome
 actions:
@@ -2660,8 +2871,7 @@ environment variables:
 ```text
 LABTASKER_URL             # HTTP mode only
 LABTASKER_TOKEN           # HTTP mode only; omitted when authentication is disabled
-LABTASKER_SOCKET          # local mode only
-LABTASKER_LOCAL_DIRECTORY # local mode only; canonical absolute CWD snapshot
+LABTASKER_SOCKET          # Unix-socket mode only
 LABTASKER_QUEUE
 LABTASKER_TASK_ID
 LABTASKER_RUN_ID
@@ -2670,8 +2880,9 @@ LABTASKER_RUN_DIR
 ```
 
 Exactly one endpoint form is present. HTTP mode overwrites `LABTASKER_URL` and
-removes both local variables. Local mode overwrites `LABTASKER_SOCKET` and
-`LABTASKER_LOCAL_DIRECTORY` and removes `LABTASKER_URL` and `LABTASKER_TOKEN`.
+removes `LABTASKER_SOCKET` and `LABTASKER_ROOT`. Unix-socket mode overwrites
+`LABTASKER_SOCKET` and removes `LABTASKER_URL`, `LABTASKER_TOKEN` and
+`LABTASKER_ROOT`.
 If HTTP authentication is disabled, `LABTASKER_TOKEN` is absent even when the
 parent environment happened to contain that name. These variables are
 Worker-provided execution context, not a second user-facing connection or
@@ -2680,8 +2891,8 @@ environment templating system.
 In authenticated HTTP mode the Server token is necessarily available because
 child code that calls `finish()` performs the same authenticated, run-fenced
 completion as the parent. It remains a server-wide trust-domain credential, not a
-per-run authorization mechanism. Local mode instead reconstructs the already
-selected Unix-socket endpoint; it never re-resolves from the child CWD. The opaque
+per-run authorization mechanism. Socket mode instead uses the already selected
+Unix-socket endpoint; it never re-resolves a root or config from the child CWD. The opaque
 `run_id` provides concurrency fencing in both modes.
 
 Importing Labtasker in that child reconstructs the current Task context from the
@@ -2752,11 +2963,12 @@ without the promised `TaskInfo.run_dir`, Task snapshot and log destination. A
 successful unclaim restores pending without charging the incident.
 
 The local journal is deliberately semantic enough for a person or Agent to
-browse without first querying the Server. Its root is relative to the Worker's
-current directory and its stable layout is:
+browse without first querying the Server. Its root is the Client's snapshotted
+Labtasker root, including for HTTP and external-socket Workers, and its stable
+layout is:
 
 ```text
-.labtasker/
+<labtasker_root>/
   .gitignore
   runs/{queue}/
     {task-name-slug}__{task_id}/
@@ -2769,7 +2981,7 @@ current directory and its stable layout is:
 ```
 
 Before creating the first run directory, the Client exclusively creates
-`.labtasker/.gitignore` with `*` and `!.gitignore` rules. This keeps the entire
+`<labtasker_root>/.gitignore` with `*` and `!.gitignore` rules. This keeps the entire
 local state directory ignored while allowing the ignore file itself to be
 committed. An existing file or filesystem entry at that path is never inspected
 or overwritten. Failure to create a required new ignore file is an initial local
@@ -2800,12 +3012,13 @@ Each file has one narrow role:
 
 - `task.json` is the complete immutable Task snapshot returned by the successful
   claim.
-- `run.json` is the local execution journal. It contains a journal schema
-  version, a credential-free Server endpoint object, Queue, Task ID, run ID,
+- `run.json` is the local execution journal. Schema version 2 contains a
+  credential-free Server endpoint object, Queue, Task ID, run ID,
   route, attempt, start and finish timestamps, local phase, terminal action and
-  Server acknowledgement time. The endpoint object always has `mode`, `url`,
-  `socket`, `directory` and `database`: HTTP mode fills only `url`, while local
-  mode fills the other three endpoint paths. This snapshot prevents recovery or
+  Server acknowledgement time. The endpoint object always has `connection`,
+  `managed_local`, `url`, `socket`, `labtasker_root` and `database`: HTTP fills
+  only `url`, an external socket fills only `socket`, and a managed-local endpoint
+  fills the last three paths. This snapshot prevents recovery or
   a command child from silently retargeting after CWD or environment changes.
 - `result.json` is present after a completion outcome is prepared and contains
   the exact JSON payload sent by `complete`.
@@ -3313,7 +3526,9 @@ Status: **Decided**
 
 ### 9.1 CLI surface and configuration
 
-The v2 client executable has this complete command tree:
+The v2 client executable has this complete command tree. The root options
+`--labtasker-root PATH` and `--auto-start-local-server` apply to every Client
+command, including nested Task/Queue/Worker commands:
 
 ```text
 labtasker task submit|get|list|count|update|cancel|requeue|delete
@@ -3325,8 +3540,9 @@ labtasker config show
 ```
 
 The Server remains a separate runtime package and executable with the
-`start|status|stop|logs|serve` commands from section 5.5; there is no `labtasker
-server` command. V2 provides no `event`, `admin`, pager or TUI commands
+`serve|status|stop|logs` commands from section 5.5; there is no `labtasker
+server` command and no separate `start` spelling. V2 provides no `event`,
+`admin`, pager or TUI commands
 and no abbreviated command aliases such as `ls` or `rm`.
 
 CLI output is command-shaped rather than universally JSON. Finite resource and
@@ -3370,33 +3586,27 @@ failures likewise remain ordinary logging because it is a continuing operational
 command, not a finite data request. V2 adds no output-format switch for these
 cases.
 
-Connection selection and automatic local process management are deliberately
-visible. On a Client instance's first successful connection, before returning
-the requested value, the Client writes one concise `[labtasker] connected`
-diagnostic to the then-current stderr. It identifies `server=local` with
-`transport=unix`, the canonical directory, database and socket, plus the verified
-daemon PID and Server package version when available; unavailable runtime values
-are written as `unknown`. An explicit URL identifies `server=remote`, derives
-`transport=http|https` from that URL and writes the complete credential-free
-base URL. It never prints a token.
+Connection selection and any explicitly authorized local process management are
+visible. On a Client instance's first successful connection, before returning the
+requested value, the Client writes one concise `[labtasker] connected`
+diagnostic to the then-current stderr. A managed-local endpoint identifies
+`server=local`, `transport=unix`, canonical `labtasker_root`, database and
+socket, plus verified daemon PID and Server package version when available. An
+explicit socket identifies `server=external`, `transport=unix` and the socket
+path. An HTTP URL identifies `server=remote`, derives
+`transport=http|https` and writes the complete credential-free base URL. No
+diagnostic prints a token.
 
-A local startup additionally writes component-prefixed diagnostics when it
-requests or starts a daemon, waits for another startup, observes readiness or
-declines to start during the fixed launch throttle; a later automatic restart is
-announced in the same way. `labtasker` Client messages use `[labtasker]`, while
-messages emitted by the Server executable use `[labtasker-server]`. Throttle
-diagnostics include the remaining seconds and log path. These finite-operation
-diagnostics have no timestamp and are required even for direct Python API use
-rather than being INFO records hidden by application logging. The successful
-connection line occurs at most once per Client instance, plus a new line after
-actual local reconnection. Every successful CLI invocation therefore makes its
-selected Server and transport visible without contaminating requested stdout.
-When a finite CLI operation later fails, transition diagnostics remain on
-stderr while the structured error envelope is the only stdout document. The
-envelope retains its exact shape, and its details identify a connection target
-that could not be reached. Diagnostics never need to be stripped from the
-machine-readable response before parsing.
-
+When `auto_start_local_server` is true, startup additionally writes
+component-prefixed diagnostics when it requests or starts a daemon, waits for
+another startup or observes readiness. A default managed-local request with no
+running daemon reports the resolved root/socket and remedies but does not create
+or start anything.
+`labtasker` Client messages use `[labtasker]`; messages from the Server
+executable use `[labtasker-server]`. These finite-operation diagnostics have
+no timestamp and are required for direct Python API use as well as CLI use. The
+successful connection line occurs at most once per Client instance, plus a new
+line after an actual reconnection. Requested output remains alone on stdout.
 Local Worker exception logging follows the Client outcome abstraction without
 changing it: `TransientError` logs at WARNING with type/message but no default
 traceback; `TaskError` logs at ERROR with traceback; `FatalWorkerError` logs at
@@ -3410,105 +3620,162 @@ attempt, timing, args, metadata, progress, result and traceback, may be logged w
 v2 imposes no field-by-field redaction system. Ordinary success logs should still
 avoid dumping large payloads without diagnostic value.
 
-Every Task leaf command and `loop` accepts `--queue` at that leaf position, for
-example:
+Every Task leaf command and `loop` accepts `--queue` at that leaf position:
 
 ```text
 labtasker task list --queue experiments
 labtasker loop --queue experiments --route sdxl -- python train.py
 ```
 
-There is no alternate global `labtasker --queue ...` placement and no CLI
-`--url` or `--token` connection override. A one-off URL/token override uses
-`LABTASKER_URL`/`LABTASKER_TOKEN`; `--queue` remains because choosing a Task
-namespace is a routine resource operation rather than connection setup.
-
-V2 does not implement `config init`, `config set` or `config write`. An Agent or
-user may create the three-field `.labtasker/config.toml` directly, or use the
-corresponding environment variables. The sole diagnostic command is read-only:
+There is no alternate global `--queue`. The Client CLI also has no `--url`,
+`--socket` or `--token` options. One-off external endpoints and credentials use
+environment variables; durable values may use config. The two global local
+controls appear before the command:
 
 ```text
-labtasker config show
+labtasker --labtasker-root /work/run/.labtasker task list
+labtasker --auto-start-local-server task submit --args '{"seed":1}'
+labtasker --labtasker-root /work/run/.labtasker \
+  --auto-start-local-server task list
 ```
 
-It performs no network request, creates no local files and writes exactly this
-formatted JSON shape after normal configuration resolution. Unused endpoint
-fields are null:
+`--labtasker-root` selects the exact config, journal and managed-local-default
+root; it does not itself override a configured URL or socket.
+`--auto-start-local-server` grants process-start/recovery authority only for that
+invocation. It does not persist permission and remains invalid when the resolved
+endpoint is HTTP or an explicit socket.
 
-```json
-{
-  "mode": "local",
-  "directory": "/absolute/current/directory",
-  "database": "/absolute/current/directory/.labtasker/server.db",
-  "socket": "/tmp/labtasker-1000/0123456789abcdef.sock",
-  "url": null,
-  "queue": "default",
-  "token_configured": false
-}
+#### Configuration location and precedence
+
+Configuration follows one general rule: an explicit value overrides an implicit
+one. The Client first resolves the config root:
+
+```text
+explicit labtasker_root / --labtasker-root
+> LABTASKER_ROOT
+> <canonical exact CWD>/.labtasker
 ```
 
-For an explicit HTTP configuration, `mode` is `"http"`, `url` contains the
-normalized base URL, and `directory`, `database` and `socket` are null. The socket
-shown above abbreviates the required full SHA-256 filename only for readability;
-the real output contains the exact resolved path.
+Every Client retains this root for config lookup and Worker journals, including
+when its network endpoint is HTTP or an external socket. The root is independent
+of endpoint selection: it locates config and journals, and supplies the managed
+local default only when no URL or socket wins. The Client reads at most
+`<labtasker_root>/config.toml`. It never searches a parent
+directory, infers a VCS/project root, reads a user-global file or merges profiles.
+A later `chdir()` does not retarget an already constructed Client.
 
-The token value is never printed. Invalid configuration fails through the common
-CLI error contract rather than producing a partial result.
+Endpoint selectors are atomic, not independent fields. Their source order is:
 
-The client file format is flat TOML and has exactly these optional keys:
+| Layer | Available endpoint selectors |
+| --- | --- |
+| explicit Python | `Client(url=...)` or `Client(socket=...)` |
+| environment | `LABTASKER_URL` or `LABTASKER_SOCKET` |
+| config | `url` or `socket` |
+| built-in | managed local using the resolved Labtasker root |
+
+The first layer containing an endpoint selector wins. Both selectors in that
+winning layer are `invalid_config`; endpoint conflicts and semantic endpoint
+errors in lower shadowed layers are ignored. The selected root config file must
+still be valid TOML with known keys and string values, even when its endpoint is
+shadowed. Queue and token use their own fallback chains:
+
+```text
+Queue:
+  per-call/CLI value
+  > explicit Client value
+  > LABTASKER_QUEUE
+  > <labtasker_root>/config.toml
+  > default
+
+token:
+  explicit Client value
+  > LABTASKER_TOKEN
+  > <labtasker_root>/config.toml
+  > absent
+```
+
+The config file is strict flat TOML with exactly these optional string keys:
 
 ```toml
 url = "http://127.0.0.1:8000"
+# socket = "/absolute/path/to/server.sock"  # mutually exclusive with url
 queue = "default"
-token = "secret"
+token = "secret"                           # sent only for an HTTP URL
 ```
 
-TOML is read through standard-library `tomllib` on Python 3.11 and newer, with
-the small `tomli` backport used by the Python 3.10 Client; v2 does not add a
-YAML/config-framework dependency. Every key, including `url`
-and `token`, is optional. An absent effective URL selects the CWD-bound local mode;
-an effective URL selects explicitly managed HTTP mode. Omitting `token` means that
-the Client sends no Authorization header; this is ordinary for both local mode and
-a tokenless loopback HTTP Server. An effective token without an effective URL is
-invalid rather than being ignored or sent to the owner-only local socket. A missing
-file or omitted key falls through to the next configured source/default. An
-unreadable file, invalid TOML, unknown or duplicate key, non-string value, or
-present empty string is a `ConfigError`; values are not coerced.
+A persistent external socket therefore needs no CLI flag or repeated environment
+variable. `labtasker_root` is deliberately not a config key because the root must
+be known before locating the file. Automatic-start permission is also not a
+config/environment key.
 
-`ConfigError` has exactly two stable codes. `legacy_config_found` is reserved for
-the presence guard below. Every other configuration read, TOML parse, unknown or
-duplicate key, type, empty-value, URL, Queue or token validation failure uses
-`invalid_config`. Its readable message states the problem; `details.source`
-identifies `constructor`, `environment` or the config-file path, and
-`details.field` is included when one field is responsible. V2 does not create an
-exception class or error code for every TOML/parser/field failure.
+The corresponding environment variables are `LABTASKER_URL`,
+`LABTASKER_SOCKET`, `LABTASKER_ROOT`, `LABTASKER_QUEUE` and
+`LABTASKER_TOKEN`. A present empty root, Queue or token is invalid rather than
+absent. Endpoint values are validated only in the winning endpoint layer. An
+effective token is sent only for an HTTP URL. A socket or managed-local endpoint
+ignores it without treating unrelated HTTP credentials as a configuration
+conflict.
 
-V2 does not parse or migrate v1 `.labtasker/client.toml`. As a narrow safety guard,
-if CWD `.labtasker/config.toml` is absent but CWD `.labtasker/client.toml` exists,
-configuration resolution stops with `ConfigError.code == "legacy_config_found"`
-before using environment variables or built-in defaults. The error tells the user
-to create the new flat file manually, carrying over the URL and Queue name and
-adding `token` only when the v2 Server has authentication enabled. This presence-
-only check prevents a v1 directory from silently creating and connecting to a new
-local Queue `default`; it is not a legacy parser, importer or compatibility layer.
+`url` must be an absolute `http` or `https` base URL without userinfo, query or
+fragment. A trailing slash is removed before appending `/api/v2`; an optional
+path prefix is preserved. `socket` must resolve to an absolute filesystem path.
+`queue` follows the Queue identifier grammar. `token` is a non-empty visible
+ASCII string. Unknown/duplicate keys, unreadable or malformed TOML, wrong types
+and empty values are `invalid_config`; values are never coerced.
 
-When supplied, `url` must be an absolute `http` or `https` base URL without
-userinfo, query or fragment. A trailing slash is removed in the effective value
-before appending `/api/v2`; an optional path prefix is otherwise preserved. Unix
-socket paths are derived only from CWD and are not encoded into `url` or accepted
-through another config key. `queue` follows the Queue/route identifier grammar,
-and `token` is an opaque non-empty string of visible ASCII characters (`U+0021`
-through `U+007E`) so it can be represented unambiguously in an HTTP Bearer
-header. The three matching `LABTASKER_*`
-variables use the same validation, including treating a present empty value as
-invalid rather than absent.
+Configuration is snapshotted when a Client is constructed. Importing the package
+does not read it. Top-level functions construct one lazy default Client on first
+use. Changing CWD, environment or files later does not mutate an existing
+Client; construct another Client/process to re-resolve.
 
-V2 does not inspect or enforce filesystem permission bits on the client config.
-Such checks are inconsistent across POSIX and Windows and do not prevent a token
-from being committed to version control. Remote deployments should prefer
-`LABTASKER_TOKEN`; regardless of source, token values and Authorization headers
-remain prohibited from logs and command output.
+V2 implements no `config init`, `config set` or `config write` and never
+automatically creates `config.toml`. The read-only diagnostic is:
 
+```text
+labtasker [--labtasker-root PATH] config show
+```
+
+It performs no network request, creates no file and starts no Server. It writes
+one formatted JSON object. Examples of its discriminated shape are:
+
+```json
+{
+  "connection": "socket",
+  "managed_local": true,
+  "labtasker_root": "/work/run/.labtasker",
+  "database": "/work/run/.labtasker/server.db",
+  "socket": "/tmp/labtasker-1000/root-012345.sock",
+  "url": null,
+  "queue": "default",
+  "token_configured": false,
+  "auto_start_local_server": false
+}
+```
+
+For an external socket, `connection` remains `"socket"`,
+`managed_local` is false, `socket` and `labtasker_root` are populated, and
+database/url are null. For HTTP, `connection` is `"http"`, `url` and
+`labtasker_root` are populated, and database/socket are null. Here the root is
+the config/journal location, not a claim that the endpoint is locally managed.
+`token_configured` is true only when the resolved endpoint is HTTP and a token
+will be sent; the token value is never printed. Supplying the global auto-start
+flag with a managed-local endpoint reports true while remaining side-effect free.
+Combining it with an effective HTTP or external-socket endpoint is
+`invalid_config`, just as for an operational command.
+
+`ConfigError` retains `legacy_config_found` for the presence guard and
+`invalid_config` for every other configuration failure. Details identify the
+source and responsible field without exposing credentials. If
+`<labtasker_root>/config.toml` is absent but
+`<labtasker_root>/client.toml` exists, resolution stops with
+`legacy_config_found` before endpoint use. V2 does not parse or migrate that v1
+file.
+
+Client config permissions are not enforced because portable permission checks do
+not prevent accidental version-control disclosure. Remote deployments should
+prefer `LABTASKER_TOKEN` or another secret injection mechanism. Tokens and
+Authorization headers never appear in logs, errors, status output or runtime
+metadata.
 ### 9.2 Python Client API
 
 The primary Python surface is function-first:
@@ -3532,7 +3799,7 @@ with labtasker.Client(url=..., token=..., queue=...) as client:
 
 `close()` releases the transport pool and is idempotent. Exiting the context
 manager calls it. It does not stop a local daemon, whose lifecycle is shared by
-every process using that CWD. Any later operation on that explicit instance fails
+every process using that Labtasker root. Any later operation on that explicit instance fails
 locally, before configuration or network access, with exactly
 `RuntimeError("Client is closed.")`; a closed Client never reopens itself. The
 lazy process-wide default Client has no public close/reset hook and is left to
@@ -3545,34 +3812,49 @@ hooks. The default Client is initialized on first use and is left to normal
 process teardown; long-lived programs that require deterministic cleanup use
 explicit `Client`. V2 does not install an `atexit` hook or add an async Client.
 
-The public constructor names are `Client(url=None, token=None, queue=None)`.
-`url` deliberately matches `.labtasker/config.toml`, `LABTASKER_URL` and
-`config show`; v2 does not expose a competing `base_url`, `socket` or `project`
-constructor. For every constructor field, `None` means “not specified here;
-continue through the ordinary fallback chain,” including for `token`. For URL,
-exhausting that chain selects CWD local mode; it does not select a built-in TCP
-address.
+The public constructor is:
+
+```python
+Client(
+    url=None,
+    socket=None,
+    labtasker_root=None,
+    auto_start_local_server=False,
+    token=None,
+    queue=None,
+)
+```
+
+`url` and `socket` are mutually exclusive explicit endpoint selectors.
+`labtasker_root` independently selects config and journal location and may be
+combined with either; when neither endpoint wins, it supplies the managed-local
+default. V2 adds no `base_url` or `project` aliases. `None` means “not specified
+at this source; continue through ordinary resolution.”
+`auto_start_local_server` is a real boolean authority rather than a nullable
+fallback field and is valid only when resolution selects managed local.
 
 Task operations expose `queue: str | None = None`. `None` means "use the next
-configured value", never a Queue literally named `None`. Resolution order is:
+configured value", never a Queue literally named `None`. Queue resolution is:
 
 ```text
 per-call argument
 > explicit Client constructor value
-> LABTASKER_URL / LABTASKER_TOKEN / LABTASKER_QUEUE
-> current-working-directory .labtasker/config.toml
+> LABTASKER_QUEUE
+> <labtasker_root>/config.toml
 > built-in defaults
 ```
 
-The built-ins are CWD local mode, no token and Queue `default`. V2 does not add
-profiles, user-level config merging, parent-directory search, VCS-root inference
-or automatic multi-file discovery. CLI and Python use this same resolver. An
-explicit URL has absolute precedence over local mode; an unavailable HTTP Server
-never falls back to or creates a local Server.
+Endpoint and credential precedence is defined in section 9.1. The built-ins are
+the exact-CWD Labtasker root, no token, no auto-start authority and Queue
+`default`. V2 adds no profiles, user-level config merging, parent search,
+VCS-root inference or automatic multi-file discovery. CLI and Python use the
+same resolver. An unavailable explicit URL or socket never falls back to or
+creates a managed local Server.
 
 Resolution happens once when a `Client` instance is constructed. An explicit
-`Client(...)` snapshots its effective endpoint, token, default Queue and, in local
-mode, canonical CWD in `__init__`, but performs no connection or startup there.
+`Client(...)` snapshots its effective endpoint, token, default Queue, config
+root and auto-start authority in `__init__`, but performs no connection or
+startup there.
 The process-wide lazy default Client is constructed by the first top-level API
 call, so that first call performs the same resolution; importing the package still
 does nothing. Later changes to CWD, environment variables or the TOML file do not
@@ -3644,7 +3926,9 @@ auto-fetching iterator, streaming list API or implicit "all" mode. Callers follo
 `next_cursor` explicitly; server-side batch actions select and process their full
 match set independently of Client pagination.
 
-Ordinary Client requests default to a 10-second per-request timeout. The local
+Ordinary Client requests default to a 15-second per-request timeout. This leaves
+response margin beyond the shared strategy's independent five-second pool wait
+and five-second SQLite busy limits. The local
 daemon's separate 30-second startup wait does not consume or change that request
 timeout; the operation timeout begins when its HTTP request is sent. Read-only
 GET/list/count operations and Task creation by client-selected-ID `PUT` use at
@@ -3688,13 +3972,14 @@ signals `TransientError`, `TaskError` and `FatalWorkerError` are separate and ar
 not subclasses of these Client-operation errors.
 
 `TransportError` means that the Client did not obtain a usable Labtasker protocol
-response. It covers connection failures, local daemon startup/unavailability,
+response. It covers connection failures, explicitly authorized local daemon
+startup/unavailability,
 timeouts, invalid HTTP/JSON, a non-error success response that fails the documented
 response schema, and an error response that lacks the required API error envelope.
 Its stable CLI error code is `transport_error`; structured details may include a
-non-sensitive operation, HTTP URL/status or local `state`, `directory`, `database`,
-`socket`, `log` path and bounded `retry_after_seconds`, but never credentials or
-an unbounded response body. V2 does not add a separate `ProtocolError` or daemon
+non-sensitive operation, HTTP URL/status or local `state`, `labtasker_root`,
+`database`, `socket` and `log` path, but never credentials or an unbounded
+response body. V2 does not add a separate `ProtocolError` or daemon
 exception hierarchy. A valid Server error envelope always becomes `APIError`,
 including for an HTTP 5xx response.
 
@@ -4447,6 +4732,15 @@ and change inspection noisy. Progress reports likewise update only
 
 | Date | Decision |
 |---|---|
+| 2026-09-17 | Add `--database-filesystem auto|local|shared`. Resolve known local storage to WAL/FULL, known shared storage to DELETE/EXTRA plus one `QueuePool` connection whose checkout serializes all transactions, and unknown storage to the shared strategy with a warning. Treat detection as a guard rather than a correctness proof; shared deployments must still guarantee one external Server owner. |
+| 2026-09-17 | Replace database-inode ownership with permanent per-user host-local `/tmp` advisory sidecars keyed separately by canonical Labtasker root, socket path and database path. Hold applicable locks for process lifetime without TTL or stealing; provide no cross-user/cross-node exclusion and treat hard-link/inconsistent-path aliases as unsupported misuse. |
+| 2026-09-17 | Unify public Server launch as `serve`/`serve --daemon` with independent `--connection http|socket`, `--labtasker-root` and `--database`; remove public `start`. Require every public `serve` invocation to select `http` or `socket` explicitly, with no transport default; host/port and socket defaults apply only after that selection, while managed auto-start privately selects socket. Make detached launch idempotent only for matching non-secret effective configuration and require explicit stop before a conflicting relaunch or token rotation. The launcher inherits only the root lock; the child acquires its socket/database locks. |
+| 2026-09-17 | Make Client local Server creation opt-in through invocation-scoped `--auto-start-local-server` or `Client(auto_start_local_server=True)`. Resolve the independent config/journal root from explicit input, `LABTASKER_ROOT` or exact CWD without parent/VCS search; resolve URL/socket from the first explicit, environment or root-config endpoint layer and otherwise use managed local. Default Clients only connect, and shadowed endpoint layers do not conflict. |
+| 2026-09-17 | Keep daemon state to `running`, `starting`, `unhealthy` and `stopped`. Add no persistent automatic-start throttle, retry timestamp, backoff/stale/unmanaged state or authenticated management probe; stale artifacts are internal cleanup and foreground Servers are outside daemon management. |
+| 2026-09-17 | Keep auto-started daemons alive until explicit stop, create operational state but no config, add no config-writing command or managed-instance marker, and require documentation plus the public Agent Skill to carry the same precedence and behavior matrices. |
+| 2026-09-17 | Bound the v2.5 ownership migration: the first sidecar-owning release also retains the legacy database-inode lock for effective local storage and emits a deterministic deprecation diagnostic when a legacy owner is detected; shared and undiscoverable custom legacy Servers require stop-before-upgrade. Bind daemon readiness to a private child/generation confirmation emitted only after Uvicorn establishes the listener, then verify public health, so another Server on the requested address cannot satisfy readiness. |
+| 2026-09-17 | Make claim replay recognition explicitly bounded to an active run or the one retained latest-terminal slot. Require a fresh private `run_id` for every new logical claim, permit an overwritten arbitrarily old token to be treated as new, and add no permanent Run history or used-token tombstone table. |
+| 2026-09-17 | Keep platform-specific filesystem classification in the short-lived hidden Server coordinator rather than duplicating it into the Client distribution. Permit that coordinator process after an explicitly authorized managed-local connection failure, but reject shared or unknown storage before creating the root, database, runtime metadata or daemon child. |
 | 2026-09-16 | Add strict invocation-scoped Worker metadata and a synchronous replace-only latest telemetry snapshot for observing resource placement and load distribution. Support Worker filtering over fixed fields plus `metadata.*` and `telemetry.*`, while keeping grouping fixed to `route`/`status` and adding no automatic collection, merge, history, retry, throttling or scheduling effect. Command descendants and distributed ranks share one Worker ID and use last-committed replacement semantics. This supersedes the historical exclusion of Worker metadata and resource observations. |
 | 2026-09-13 | Add one run-fenced latest `progress` object for dashboard visibility and external early-stop decisions. Reports replace rather than merge, do not renew leases or change Task lifecycle/`updated_at`, retain the last accepted snapshot after run finalization, clear it on the next claim, and carry Server-owned report time and attempt. Expose best-effort Python/Command helpers and dynamic `progress.*` filtering without adding history, automatic throttling or a Server-side early-stop policy. |
 | 2026-09-12 | Support all three distributions on Python 3.10+; define runtime lower bounds as release-tested compatibility floors, keep automated Python updates lockfile-only, derive and verify exact direct minima without a second lock across Python 3.10 through 3.14, test the Python 3.10 Client against a fresh latest-allowed resolution, and smoke-test independent and full wheel installations across the same Python matrix. |
@@ -4454,12 +4748,12 @@ and change inspection noisy. Progress reports likewise update only
 | 2026-08-28 | Make stdout the single machine-readable response channel for finite Client commands: successful data or a handled `LabtaskerError` envelope is written there, diagnostics remain on stderr, and exit status distinguishes success from failure. Keep usage errors and continuing `loop` failures as natural-language stderr, with no output-mode flag or response wrapper. |
 | 2026-09-09 | Add supplementary loop-scoped Worker observations with independent best-effort reporting, 60-second renewal and 300-second expiry; preserve Task authority and the phase-specific network-resilience boundary in section 3.0. Extend existing Task counts and new Worker counts with restricted ordered grouping through HTTP, Python and CLI (section 8.6). This supersedes historical decisions excluding Worker observations and grouping; routes remain labels and no remote process control is added. |
 | 2026-08-24 | Standardize finite diagnostics as `[labtasker]` or `[labtasker-server]`, emit one explicit successful Client connection line with local/remote Server kind and Unix/HTTP(S) transport, and give default long-running Worker and Server logs millisecond UTC timestamps, levels and component prefixes. |
-| 2026-08-21 | Make CWD-bound local mode the default endpoint when no URL is configured: store the durable SQLite database under that exact canonical CWD, derive an owner-only tmux-style `/tmp/labtasker-UID` Unix socket without parent/VCS discovery, and let every explicit HTTP URL disable all local process management. |
+| 2026-08-21 | Make CWD-bound local mode the default endpoint when no URL is configured: store the durable SQLite database under that exact canonical CWD, derive an owner-only tmux-style `/tmp/labtasker-UID` Unix socket without parent/VCS discovery, and let every explicit HTTP URL disable all local process management. Superseded on 2026-09-17 by independent Labtasker-root resolution and opt-in startup. |
 | 2026-08-21 | Make local endpoint selection and daemon transitions unconditionally visible on stderr for CLI and direct Python use, while preserving requested data on stdout and never printing credentials. |
-| 2026-08-21 | Use the actual database inode's inherited ownership FD as both local startup election and lifetime ownership, with no separate startup lock or readiness pipe; poll socket health for at most 30 seconds and never break or automatically kill a live owner. |
-| 2026-08-21 | Reuse ephemeral per-CWD runtime metadata for a fixed one-automatic-launch-per-10-seconds throttle; add no durable startup-state file, failure counter, exponential backoff, probation/stability phases or delayed reset task. |
-| 2026-08-21 | Detach the local daemon from its launching terminal and SSH connection, give it no idle shutdown, and stop it only explicitly or through ordinary process/machine failure; expose CWD-addressed `start`, `status`, `stop [--force]` and `logs` commands, make stop one-shot, and keep explicit HTTP `serve` foreground and user-managed. |
-| 2026-08-21 | Permit automatic recovery only for the default Unix-socket transport and preserve every operation's existing uncertain-outcome/retry rules; an explicit HTTP URL never causes Client-owned Server startup, restart or shutdown. |
+| 2026-08-21 | Use the actual database inode's inherited ownership FD as both local startup election and lifetime ownership, with no separate startup lock or readiness pipe; poll socket health for at most 30 seconds and never break or automatically kill a live owner. Superseded on 2026-09-17 by separate host-local root, socket-path and canonical database-path sidecars. |
+| 2026-08-21 | Reuse ephemeral per-CWD runtime metadata for a fixed one-automatic-launch-per-10-seconds throttle; add no durable startup-state file, failure counter, exponential backoff, probation/stability phases or delayed reset task. Superseded on 2026-09-17 by explicit auto-start authority with one attempt per invocation and root-lock concurrency, without a persistent throttle. |
+| 2026-08-21 | Detach the local daemon from its launching terminal and SSH connection, give it no idle shutdown, and stop it only explicitly or through ordinary process/machine failure; expose CWD-addressed `start`, `status`, `stop [--force]` and `logs` commands, make stop one-shot, and keep explicit HTTP `serve` foreground and user-managed. Superseded on 2026-09-17 by unified `serve [--daemon]` and root-addressed management. |
+| 2026-08-21 | Permit automatic recovery only for the default Unix-socket transport and preserve every operation's existing uncertain-outcome/retry rules; an explicit HTTP URL never causes Client-owned Server startup, restart or shutdown. Superseded on 2026-09-17 by invocation-scoped opt-in local auto-start; the retry boundary remains unchanged. |
 | 2026-08-21 | Publish `labtasker` as the full-install metapackage over independent `labtasker-client` and `labtasker-server` runtime distributions; use direct `labtasker-client` installation for the slim/remote case because extras cannot subtract default dependencies. |
 | 2026-08-21 | Reject the Command Worker with built-in `NotImplementedError` on Windows before Client construction because the current executor cannot uphold whole-process-group cancellation; keep the CLI diagnostic readable without adding a public platform-error type, retain Client, Server and Python Worker as Windows best effort, and retain Command Worker as macOS best effort. |
 | 2026-08-21 | Distinguish best-effort platforms from explicitly unsupported platform features: allow the former to run, but reject the latter deterministically before network, claim, journal, database or process side effects, while permitting documented behavior-preserving fallbacks such as noninteractive POSIX pipe mode. |
@@ -4480,7 +4774,7 @@ and change inspection noisy. Progress reports likewise update only
 | 2026-08-20 | Keep cancel, requeue and delete ID-addressed; only listing, counting and non-running Task update consume filters initially. Require a filter for batch update. |
 | 2026-08-20 | Add an explicit `count_tasks`/`task count`/HTTP count vertical slice using the list selectors, while keeping `TaskPage` free of an implicit total and adding no grouping. |
 | 2026-08-20 | Fix the package-root `__all__` to the explicitly listed ordinary APIs, models, types, Worker helpers and exceptions; keep claim/heartbeat/terminal Worker transport calls out of the public Python API. |
-| 2026-08-20 | Name the explicit Client constructor `Client(url=None, token=None, queue=None)` so connection vocabulary matches config/env; add no `base_url` alias. |
+| 2026-08-20 | Name the explicit Client constructor `Client(url=None, token=None, queue=None)` so connection vocabulary matches config/env; add no `base_url` alias. Superseded on 2026-09-17 by adding `socket`, `labtasker_root` and `auto_start_local_server`; `base_url` remains absent. |
 | 2026-08-20 | Let `None` on every Client constructor field, including token, continue through env/CWD config/built-in fallbacks; snapshot resolution at Client construction and never hot-reload it. |
 | 2026-08-20 | Construct the lazy default Client on the first top-level API call, not import; later environment/CWD/config changes do not retarget it, and switching configuration uses a new Client/process. |
 | 2026-08-20 | Name the frozen `Task.last_error` model `LastError`, keeping it distinct from the Worker outcome exception `TaskError`. |
@@ -4519,7 +4813,7 @@ and change inspection noisy. Progress reports likewise update only
 | 2026-08-20 | Return client-owned frozen Pydantic `Task`/`TaskPage` models with `task.id`; keep nested JSON dicts ordinary and provide `model_dump(mode="json")`. |
 | 2026-08-20 | Fetch exactly one explicit cursor page from `list_tasks`; add no auto iterator, stream or implicit-all mode, and keep server-side batch selection independent of pagination. |
 | 2026-08-20 | Resolve `queue=None` through per-call, Client, environment, current-project config and finally `default`; treat Queue as a configurable default rather than auth identity. |
-| 2026-08-20 | Use only `LABTASKER_URL`, `LABTASKER_TOKEN` and `LABTASKER_QUEUE` as user-facing Client configuration variables; read only CWD `.labtasker/config.toml`, with no profiles, parent search, user config or multi-file merge. The 2026-08-21 local endpoint adds reserved Worker execution-context variables, not new user configuration sources. |
+| 2026-08-20 | Use only `LABTASKER_URL`, `LABTASKER_TOKEN` and `LABTASKER_QUEUE` as user-facing Client configuration variables; read only CWD `.labtasker/config.toml`, with no profiles, parent search, user config or multi-file merge. Superseded on 2026-09-17 by `LABTASKER_SOCKET`, `LABTASKER_ROOT` and root-selected config while retaining single-file/no-parent discovery. |
 | 2026-08-20 | Restrict the client CLI tree to full-name Task/Queue actions, `loop` and read-only `config show`; keep `labtasker-server serve` separate and add no aliases, Worker/Event/Admin commands or config mutation commands. Superseded on 2026-08-21 only for the Server executable's local-daemon management commands. |
 | 2026-08-20 | Put `--queue` only on each relevant Task leaf command and `loop`; add no global option placement or CLI URL/token flags, using environment variables for one-off connection overrides. |
 | 2026-08-20 | Give Queue only a public `name`; expose create/list/delete without item get or pagination, and return one object, an array and no content respectively. |
@@ -4533,13 +4827,13 @@ and change inspection noisy. Progress reports likewise update only
 | 2026-08-20 | Fix CLI-owned Worker and Server logging at INFO with no verbosity/log-level flags; log transient, task and fatal outcomes at WARNING/ERROR/CRITICAL respectively, omitting only the transient traceback by default and never duplicating full command output. |
 | 2026-08-20 | Preserve Python Worker terminal-and-run-file tee only during an actual Worker invocation: use one locked process-level active destination, restore streams afterward, disable it after fork, preserve ANSI, and leave native fd/child capture to their own mechanisms; perform no stream or logging mutation at import. |
 | 2026-08-20 | Respect existing `labtasker` logging configuration at Worker startup and otherwise install only a named INFO stderr fallback handler; never configure root logging or remove user/Loguru handlers. |
-| 2026-08-20 | Define `.labtasker/config.toml` as a flat strict three-string TOML file (`url`, `queue`, `token`) read by stdlib `tomllib`; reject unknown/duplicate/empty/ill-typed values and add no YAML/config framework. |
+| 2026-08-20 | Define `.labtasker/config.toml` as a flat strict three-string TOML file (`url`, `queue`, `token`) read by stdlib `tomllib`; reject unknown/duplicate/empty/ill-typed values and add no YAML/config framework. Superseded on 2026-09-17 only to add mutually exclusive `socket`; strict flat TOML remains. |
 | 2026-08-20 | Make every client config key optional, including `token`; an omitted token sends no Authorization header, while a present empty token remains invalid. |
 | 2026-08-20 | If the new CWD config is absent but v1 `.labtasker/client.toml` exists, fail with `legacy_config_found` before all other resolution; do not parse or migrate the legacy file. |
 | 2026-08-20 | Give Queue and route one case-preserving, case-sensitive 1 to 128 character ASCII identifier grammar, `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`, with no normalization. |
-| 2026-08-20 | Limit `labtasker-server serve` to host, port and SQLite path flags with defaults `127.0.0.1:8000` and `.labtasker/server.db`; read the token only from `LABTASKER_SERVER_TOKEN` and leave process supervision external. Superseded on 2026-08-21 only for the new CWD local daemon; explicit HTTP `serve` retains this user-owned foreground contract. |
+| 2026-08-20 | Limit `labtasker-server serve` to host, port and SQLite path flags with defaults `127.0.0.1:8000` and `.labtasker/server.db`; read the token only from `LABTASKER_SERVER_TOKEN` and leave process supervision external. Fully superseded on 2026-09-17 by unified `serve [--daemon]`, independent connection selection and root-addressed management. |
 | 2026-08-20 | Automatically initialize or forward-migrate known v2 Alembic revisions before listening; reject newer/unknown/failed schemas, add no migration CLI or automatic backup, and do not treat v1 MongoDB as an implicit startup migration. |
-| 2026-08-20 | Fix SQLite to WAL, foreign keys, 5000 ms busy timeout and FULL synchronous durability; apply per-connection settings and fail startup if required values cannot be verified. |
+| 2026-08-20 | Fix SQLite to WAL, foreign keys, 5000 ms busy timeout and FULL synchronous durability; apply per-connection settings and fail startup if required values cannot be verified. Superseded on 2026-09-17 for shared storage by DELETE/EXTRA and one pooled connection whose checkout serializes all transactions; the local settings remain. |
 | 2026-08-20 | Leave running Tasks unchanged on Server shutdown; before listening after restart, recover already expired leases through the ordinary heartbeat-loss transition while preserving non-expired leases without a special grace state. |
 | 2026-08-20 | Expose unauthenticated exact-shape `/health` with a real DB check and `/openapi.json`; add no capabilities list and disable FastAPI Swagger/ReDoc pages while keeping every `/api/v2` endpoint authenticated. |
 | 2026-08-20 | Permit only additive endpoints, optional response fields and error codes within `/api/v2`; require a new API prefix for removed/renamed/retyped/redefined fields or Task states, independent of package version. |

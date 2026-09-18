@@ -26,11 +26,21 @@ with Client(url="https://labtasker.example", token=token, queue="paper") as clie
     task = client.submit_task({"seed": 7}, routes=["sdxl"])
 ```
 
-`Client(url=None, token=None, queue=None)` resolves each omitted field through
-environment, the current directory's `.labtasker/config.toml`, then defaults.
-Resolution happens once when the Client is constructed. Later `chdir()`, config,
-or environment changes do not retarget it. A non-null `queue=` on a Task method
-overrides only that operation's Queue; changing Servers requires a new Client.
+`Client(url=None, socket=None, labtasker_root=None,
+auto_start_local_server=False, token=None, queue=None)` resolves the root from
+its explicit argument, `LABTASKER_ROOT`, then exact `CWD/.labtasker`. It resolves
+one endpoint from the first explicit, environment, or root-config URL/socket
+layer and otherwise selects managed local. Labtasker does not search parents or
+VCS roots.
+
+The default managed-local Client only connects to its derived Unix socket. Set
+`auto_start_local_server=True` to authorize that Client to create or recover the
+standard local daemon when the first connection fails. This option is invalid
+with an HTTP URL or explicit socket. Repeated and concurrent authorized calls
+reuse one matching daemon. Resolution happens once when the Client is
+constructed; later `chdir()`, config, or environment changes do not retarget it.
+A non-null `queue=` on a Task method overrides only that operation's Queue;
+changing Servers requires a new Client.
 
 `close()` is idempotent and never stops a local Server. Operations on a closed
 Client raise `RuntimeError("Client is closed.")`. The package-level default

@@ -33,8 +33,9 @@ uv run labtasker task list --status succeeded
 uv run labtasker-server stop
 ```
 
-On POSIX systems this needs no configuration: the first submission starts the
-local Server for `demo/basic`. To use several Workers, run `worker.py` in several
+On POSIX systems this needs no configuration file: `submit.py` constructs
+`Client(auto_start_local_server=True)`, which explicitly authorizes the local
+daemon for `demo/basic`. To use several Workers, run `worker.py` in several
 terminals after submission. Each process claims the next available Task instead
 of requiring you to split the six cases manually.
 

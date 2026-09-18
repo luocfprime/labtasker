@@ -102,11 +102,15 @@ python evaluate.py \
 Submit each evaluation case as a Labtasker Task:
 
 ```bash
-labtasker task submit \
+labtasker --auto-start-local-server task submit \
   --name pick-cube-seed-0 \
   --args '{"checkpoint":"checkpoints/model.pt","task":"pick-cube","seed":0}' \
   --route robotwin
 ```
+
+The explicit startup flag is needed only when this local Server is not already
+running. Later commands connect to the same root-derived Unix socket without
+starting a process.
 
 Then run the existing program through a command Worker:
 

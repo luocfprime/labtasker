@@ -3,295 +3,285 @@ from __future__ import annotations
 import json
 import os
 import socket
-import time
-from dataclasses import asdict
+import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
 
-from labtasker_server import __version__, local
-from labtasker_server.cli import app
-from labtasker_server.local import LocalPaths, RuntimeMetadata, read_metadata
+from labtasker_server import __version__
+from labtasker_server.cli import app, daemon_command
+from labtasker_server.local import (
+    DaemonConfig,
+    _remove_verified_stale_socket,
+    http_health,
+)
 
 runner = CliRunner()
 
 
-@pytest.mark.parametrize("generation", [None, "old"])
-def test_stopped_artifact_cleanup_holds_database_ownership(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, generation: str | None
-) -> None:
-    paths = local.local_paths(tmp_path)
-    fd = local.try_acquire_database(paths)
-    assert fd is not None
-    metadata = local.make_metadata(
-        paths,
-        generation="old",
-        role="daemon",
-        pid=os.getpid(),
-        automatic_attempt_at=time.time(),
-        database_fd=fd,
-        server_version=__version__,
-    )
-    local.write_metadata(paths, metadata)
-    os.close(fd)
-    with socket.socket(socket.AF_UNIX) as bound:
-        bound.bind(str(paths.socket))
-        original = local.remove_stale_artifacts
-
-        def concurrent_start_is_blocked(actual: LocalPaths) -> None:
-            competing_fd = local.try_acquire_database(actual)
-            if competing_fd is not None:
-                os.close(competing_fd)
-            assert competing_fd is None
-            original(actual)
-
-        monkeypatch.setattr(local, "remove_stale_artifacts", concurrent_start_is_blocked)
-        local.remove_stopped_artifacts(paths, generation=generation)
-    assert not paths.socket.exists()
-    assert not paths.metadata.exists()
-
-
-def test_stopped_cleanup_preserves_new_owner_and_missing_database(tmp_path: Path) -> None:
-    paths = local.local_paths(tmp_path)
-    fd = local.try_acquire_database(paths)
-    assert fd is not None
-    metadata = local.make_metadata(
-        paths,
-        generation="new",
-        role="daemon",
-        pid=os.getpid(),
-        automatic_attempt_at=time.time(),
-        database_fd=fd,
-        server_version=__version__,
-    )
-    local.write_metadata(paths, metadata)
-    try:
-        local.remove_stopped_artifacts(paths, generation="old")
-        assert local.read_metadata(paths) == metadata
-    finally:
-        os.close(fd)
-    local.remove_stopped_artifacts(paths, generation="old")
-    assert local.read_metadata(paths) == metadata
-    paths.database.unlink()
-    local.remove_stopped_artifacts(paths)
-    assert not paths.database.exists()
-    assert local.read_metadata(paths) == metadata
-    paths.metadata.unlink()
-
-
-def test_daemon_socket_cleanup_holds_ownership_and_preserves_throttle(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    paths = local.local_paths(tmp_path)
-    fd = local.try_acquire_database(paths)
-    assert fd is not None
-    metadata = local.make_metadata(
-        paths,
-        generation="old",
-        role="daemon",
-        pid=os.getpid(),
-        automatic_attempt_at=time.time(),
-        database_fd=fd,
-        server_version=__version__,
-    )
-    local.write_metadata(paths, metadata)
-    with socket.socket(socket.AF_UNIX) as bound:
-        bound.bind(str(paths.socket))
-        # Initialization may fail while ownership is still held. Cleanup must
-        # leave the socket untouched until the next coordinator owns the file.
-        local.remove_stopped_artifacts(paths, generation="old", preserve_metadata=True)
-        assert paths.socket.exists()
-        os.close(fd)
-        original = local.read_metadata
-
-        def competing_start_after_generation_read(actual: LocalPaths) -> RuntimeMetadata | None:
-            result = original(actual)
-            competing_fd = local.try_acquire_database(actual)
-            if competing_fd is not None:
-                os.close(competing_fd)
-            assert competing_fd is None
-            return result
-
-        monkeypatch.setattr(local, "read_metadata", competing_start_after_generation_read)
-        local.remove_stopped_artifacts(paths, generation="old", preserve_metadata=True)
-        assert not paths.socket.exists()
-        assert original(paths) == metadata
-    paths.metadata.unlink()
-
-
-def test_version_reports_server_distribution(
+def test_version_and_missing_connection_have_no_state_side_effects(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    result = runner.invoke(app, ["--version"])
-    help_result = runner.invoke(app, ["--help"])
+    version = runner.invoke(app, ["--version"])
+    missing = runner.invoke(app, ["serve"])
 
-    assert result.exit_code == 0
-    assert result.stdout == f"labtasker-server {__version__}\n"
-    assert result.stderr == ""
-    assert "--version" in help_result.stdout
-    assert __version__ not in help_result.stdout
+    assert version.exit_code == 0
+    assert version.stdout == f"labtasker-server {__version__}\n"
+    assert missing.exit_code == 2
+    assert "Missing option '--connection'" in missing.stderr
     assert not (tmp_path / ".labtasker").exists()
 
 
-def test_malformed_runtime_metadata_is_ignored(tmp_path: Path) -> None:
-    paths = LocalPaths(
-        directory=tmp_path,
-        database=tmp_path / ".labtasker/server.db",
-        log=tmp_path / ".labtasker/server.log",
-        runtime_directory=tmp_path / "runtime",
-        socket=tmp_path / "runtime/server.sock",
-        metadata=tmp_path / "runtime/server.json",
-    )
-    paths.runtime_directory.mkdir()
-    valid = asdict(
-        RuntimeMetadata(
-            metadata_version=1,
-            generation="generation",
-            role="daemon",
-            pid=123,
-            process_start_marker="proc:1",
-            directory=str(paths.directory),
-            database=str(paths.database),
-            database_device=1,
-            database_inode=2,
-            automatic_attempt_at=123.0,
-            server_version="2.0.0",
-        )
-    )
-    paths.metadata.write_text(json.dumps(valid), encoding="utf-8")
-    assert read_metadata(paths) == RuntimeMetadata(**valid)
-
-    malformed_values = {
-        "metadata_version": True,
-        "generation": 1,
-        "role": 1,
-        "pid": "123",
-        "process_start_marker": None,
-        "directory": 1,
-        "database": 1,
-        "database_device": "1",
-        "database_inode": "2",
-        "automatic_attempt_at": float("nan"),
-        "server_version": 2,
-    }
-    for field, value in malformed_values.items():
-        payload = {**valid, field: value}
-        paths.metadata.write_text(json.dumps(payload), encoding="utf-8")
-        assert read_metadata(paths) is None, field
-
-
-@pytest.mark.parametrize("malformation", ["deep_json", "huge_timestamp", "wrong_timestamp_type"])
-def test_malformed_metadata_allows_status_and_stopped_cleanup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, malformation: str
-) -> None:
-    paths = LocalPaths(
-        directory=tmp_path,
-        database=tmp_path / ".labtasker/server.db",
-        log=tmp_path / ".labtasker/server.log",
-        runtime_directory=tmp_path / "runtime",
-        socket=tmp_path / "runtime/server.sock",
-        metadata=tmp_path / "runtime/server.json",
-    )
-    local.ensure_runtime_directory(paths)
-    descriptor = local.try_acquire_database(paths)
-    assert descriptor is not None
-    try:
-        metadata = local.make_metadata(
-            paths,
-            generation="generation",
-            role="coordinator",
-            pid=os.getpid(),
-            automatic_attempt_at=time.time(),
-            database_fd=descriptor,
-            server_version=__version__,
-        )
-    finally:
-        os.close(descriptor)
-    payload = asdict(metadata)
-    if malformation == "deep_json":
-        encoded = "[" * 1500 + "0" + "]" * 1500
-    else:
-        payload["automatic_attempt_at"] = 10**400 if malformation == "huge_timestamp" else []
-        encoded = json.dumps(payload)
-    paths.metadata.write_text(encoded, encoding="utf-8")
-    assert read_metadata(paths) is None
-    monkeypatch.setattr("labtasker_server.cli.local_paths", lambda *_: paths)
-    status = runner.invoke(app, ["status"])
-    assert status.exit_code == 0, status.output
-    result = json.loads(status.stdout)
-    assert result["state"] == "stale"
-    assert result["pid"] is None
-    assert result["retry_after_seconds"] is None
-    stopped = runner.invoke(app, ["stop"])
-    assert stopped.exit_code == 0, stopped.output
-    assert not paths.metadata.exists()
-    assert json.loads(runner.invoke(app, ["status"]).stdout)["state"] == "stopped"
-
-
-def test_server_cli_has_explicit_serve_and_local_management_commands() -> None:
+def test_server_help_exposes_one_serve_and_root_management() -> None:
     root = runner.invoke(app, ["--help"])
     serve = runner.invoke(app, ["serve", "--help"])
-    assert root.exit_code == serve.exit_code == 0
-    assert "Commands:" in root.stdout
+    coordinator = runner.invoke(app, ["_ensure-daemon", "--help"])
+    child = runner.invoke(app, ["_daemon", "--help"])
+
+    assert root.exit_code == serve.exit_code == coordinator.exit_code == child.exit_code == 0
     assert "serve" in root.stdout
-    for command in ("start", "status", "stop", "logs"):
+    assert "start" not in root.stdout
+    for command in ("status", "stop", "logs"):
         assert command in root.stdout
-    assert "Usage: root serve [OPTIONS]" in serve.stdout
-    assert "Initialize the database and run one Labtasker v2 Server process." in serve.stdout
-    assert "LABTASKER_SERVER_TOKEN" in serve.stdout
-    assert "Run only one Server process for each SQLite file." in serve.stdout
-    assert "non-loopback address requires a token" in " ".join(serve.stdout.split())
-    assert "labtasker-server serve" in serve.stdout
-    assert "╭" not in root.stdout + serve.stdout
+    assert "_ensure-daemon" not in root.stdout
+    assert "_daemon" not in root.stdout
+    assert "--connection <http|socket>" in serve.stdout
+    assert "[required]" in serve.stdout
+    assert "--labtasker-root" in coordinator.stdout
+    for option in ("--root-lock-fd", "--readiness-fd", "--generation"):
+        assert option in child.stdout
     for removed in ("--token", "--workers", "--reload", "--log-level"):
         assert removed not in serve.stdout
 
 
-def test_serve_uses_documented_defaults_and_environment_token(
+def test_http_serve_uses_transport_specific_defaults(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     observed: dict[str, object] = {}
-
-    def run(app: object, **kwargs: object) -> None:
-        observed.update(kwargs)
-        observed["app"] = app
+    application = object()
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("LABTASKER_SERVER_TOKEN", "secret")
+    monkeypatch.setattr("labtasker_server.cli.create_app", lambda settings: application)
+
+    def run(app: object, **kwargs: object) -> None:
+        observed["app"] = app
+        observed.update(kwargs)
+
     monkeypatch.setattr("labtasker_server.cli.uvicorn.run", run)
-    result = runner.invoke(app, ["serve"])
-    assert result.exit_code == 0
-    assert observed == {
-        "app": observed["app"],
-        "host": "127.0.0.1",
-        "port": 8000,
-        "log_level": "info",
-        "log_config": observed["log_config"],
-    }
-    log_config = observed["log_config"]
-    assert isinstance(log_config, dict)
-    formatter = log_config["formatters"]["labtasker-server"]
-    assert formatter["format"] == (
-        "%(asctime)s.%(msecs)03dZ %(levelname)s [labtasker-server] %(message)s"
-    )
-    assert formatter["datefmt"] == "%Y-%m-%dT%H:%M:%S"
-    assert (tmp_path / ".labtasker/server.db").exists()
-    assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
+    result = runner.invoke(app, ["serve", "--connection", "http"])
+
+    assert result.exit_code == 0, result.output
+    assert observed["app"] is application
+    assert observed["host"] == "127.0.0.1"
+    assert observed["port"] == 8000
+    assert "fd" not in observed
+    assert not (tmp_path / ".labtasker").exists()
 
 
-def test_serve_rejects_nonloopback_without_token(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["serve", "--connection", "http", "--socket", "/tmp/server.sock"],
+        ["serve", "--connection", "socket", "--host", "127.0.0.1"],
+        ["serve", "--connection", "socket", "--port", "8000"],
+    ],
+)
+def test_serve_rejects_transport_option_mixtures(arguments: list[str]) -> None:
+    result = runner.invoke(app, arguments)
+    assert result.exit_code == 2
+    assert "valid only with --connection" in result.stderr
+
+
+def test_socket_serve_uses_explicit_database_and_cleans_socket(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed: dict[str, object] = {}
+    socket_path = Path("/tmp") / f"labtasker-cli-test-{os.getpid()}.sock"
+    database_path = tmp_path / "data/server.db"
+
+    def create(settings: object) -> object:
+        observed["settings"] = settings
+        return object()
+
+    def run(application: object, **kwargs: object) -> None:
+        observed["application"] = application
+        observed.update(kwargs)
+
+    monkeypatch.setattr("labtasker_server.cli.create_app", create)
+    monkeypatch.setattr("labtasker_server.cli.uvicorn.run", run)
     result = runner.invoke(
         app,
-        ["serve", "--host", "0.0.0.0", "--database", str(tmp_path / "db")],
+        [
+            "serve",
+            "--connection",
+            "socket",
+            "--socket",
+            str(socket_path),
+            "--database",
+            str(database_path),
+            "--database-filesystem",
+            "shared",
+        ],
     )
-    assert result.exit_code == 1
-    assert result.stdout == ""
-    assert result.stderr == (
-        "[labtasker-server] Server configuration error: "
-        "A token is required when binding to a non-loopback host.\n"
+
+    assert result.exit_code == 0, result.output
+    settings = observed["settings"]
+    assert settings.database == database_path.resolve()  # type: ignore[attr-defined]
+    assert settings.database_filesystem == "shared"  # type: ignore[attr-defined]
+    assert settings.token is None  # type: ignore[attr-defined]
+    assert "fd" in observed
+    assert not socket_path.exists()
+
+
+def test_status_is_read_only_and_has_stable_shape(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    monkeypatch.setattr("labtasker_server.local.runtime_directory", lambda: tmp_path / "runtime")
+    monkeypatch.setattr(
+        "labtasker_server.ownership.runtime_directory", lambda: tmp_path / "runtime"
     )
-    assert "Traceback" not in result.stderr
+    result = runner.invoke(app, ["status", "--labtasker-root", str(root)])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "state": "stopped",
+        "labtasker_root": str(root.resolve()),
+        "database": None,
+        "database_filesystem": None,
+        "connection": None,
+        "host": None,
+        "port": None,
+        "socket": None,
+        "log": str(root.resolve() / "server.log"),
+        "pid": None,
+        "version": None,
+    }
+    assert not root.exists()
+    assert not (tmp_path / "runtime").exists()
+
+
+def test_daemon_publishes_identity_only_after_binding(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    root = tmp_path / "root"
+    config = DaemonConfig(
+        labtasker_root=root,
+        database=root / "server.db",
+        database_filesystem="local",
+        connection="http",
+        host="127.0.0.1",
+        port=8000,
+        socket=None,
+        authentication_enabled=False,
+        server_version=__version__,
+    )
+
+    class Listener:
+        def fileno(self) -> int:
+            return 1
+
+        def close(self) -> None:
+            events.append("listener-close")
+
+    lock = SimpleNamespace(close=lambda: events.append("lock-close"))
+    monkeypatch.setattr(
+        "labtasker_server.cli._resolve_serve_config", lambda **_: (config, object())
+    )
+    monkeypatch.setattr("labtasker_server.cli._inherited_root_lock", lambda *_: lock)
+    monkeypatch.setattr(
+        "labtasker_server.cli.create_app", lambda _: events.append("app") or object()
+    )
+    monkeypatch.setattr(
+        "labtasker_server.cli._bind_listener",
+        lambda _: events.append("bind") or Listener(),
+    )
+    monkeypatch.setattr(
+        "labtasker_server.cli.make_metadata",
+        lambda *_args, **kwargs: SimpleNamespace(listener_bound=kwargs["listener_bound"]),
+    )
+    monkeypatch.setattr(
+        "labtasker_server.cli.write_metadata",
+        lambda _paths, metadata: events.append(f"metadata-{metadata.listener_bound}"),
+    )
+    monkeypatch.setattr(
+        "labtasker_server.cli.uvicorn.run", lambda *_args, **_kwargs: events.append("run")
+    )
+    monkeypatch.setattr("labtasker_server.cli._dispose_application", lambda _: None)
+    monkeypatch.setattr("labtasker_server.cli.remove_stopped_artifacts", lambda *_a, **_k: None)
+    read_fd, write_fd = os.pipe()
+    try:
+        daemon_command(
+            labtasker_root=root,
+            database=config.database,
+            database_filesystem="local",
+            connection="http",
+            root_lock_fd=123,
+            readiness_fd=write_fd,
+            generation="generation",
+            started_at=1.0,
+            host="127.0.0.1",
+            port=8000,
+            socket_path=None,
+        )
+        assert os.read(read_fd, 64) == b"generation"
+    finally:
+        os.close(read_fd)
+
+    assert events.index("metadata-False") < events.index("app") < events.index("bind")
+    assert events.index("bind") < events.index("metadata-True") < events.index("run")
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="requires Unix sockets")
+def test_stale_cleanup_refuses_any_live_socket_listener() -> None:
+    with tempfile.TemporaryDirectory(prefix="lt-", dir="/tmp") as directory:
+        path = Path(directory) / "external.sock"
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+            listener.bind(str(path))
+            listener.listen()
+            with pytest.raises(RuntimeError, match="live listener"):
+                _remove_verified_stale_socket(path)
+            assert path.exists()
+        path.unlink()
+
+
+def test_http_health_uses_normal_address_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    response = iter(
+        (
+            b'HTTP/1.1 200 OK\r\n\r\n{"status":"ok","api_version":"2","database":"ok"}',
+            b"",
+        )
+    )
+    observed: dict[str, object] = {}
+
+    class Connection:
+        def __enter__(self) -> Connection:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def sendall(self, request: bytes) -> None:
+            observed["request"] = request
+
+        def recv(self, _: int) -> bytes:
+            return next(response)
+
+    def connect(address: tuple[str, int], *, timeout: float) -> Connection:
+        observed["address"] = address
+        observed["timeout"] = timeout
+        return Connection()
+
+    monkeypatch.setattr("labtasker_server.local.socket.create_connection", connect)
+
+    assert http_health("localhost", 8123)
+    assert observed["address"] == ("localhost", 8123)

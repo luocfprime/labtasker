@@ -33,12 +33,9 @@ def services(
 ) -> tuple[Database, Database, TaskService, TaskService]:
     first_database = Database(database_path)
     first_database.initialize()
-    # Both connections model concurrent commands inside the one owning Server process.
-    assert first_database._ownership_fd is not None
-    second_database = Database(
-        database_path,
-        ownership_fd=first_database._ownership_fd,
-    )
+    # Both services share the owning Server's engine. Its pool still supplies
+    # distinct connections for concurrent local-disk commands.
+    second_database = first_database
     first = TaskService(first_database, now_us=clock)
     second = TaskService(second_database, now_us=clock)
     first.create("default", TASK_ID, TaskCreate())

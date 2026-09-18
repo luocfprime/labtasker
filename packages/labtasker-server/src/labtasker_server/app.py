@@ -69,14 +69,17 @@ def create_app(
     *,
     now_us: Callable[[], int] = system_now_us,
 ) -> FastAPI:
-    database = Database(settings.database, ownership_fd=settings.database_fd)
+    database = Database(
+        settings.database,
+        filesystem=settings.database_filesystem,
+    )
     try:
         database.initialize()
         queue_service = QueueService(database)
         task_service = TaskService(database, now_us=now_us)
-        task_service.expire_leases()
+        task_service.expire_leases(operation="startup")
         worker_service = WorkerService(database, now_us=now_us)
-        worker_service.expire()
+        worker_service.expire(operation="startup")
     except BaseException:
         database.dispose()
         raise
@@ -194,7 +197,7 @@ def create_app(
     )
     def health() -> JSONResponse:
         try:
-            with database.read_session() as session:
+            with database.read_session(operation="health") as session:
                 session.execute(text("SELECT 1"))
         except Exception:
             return JSONResponse(
@@ -526,8 +529,9 @@ async def _expiry_scanner(task_service: TaskService, worker_service: WorkerServi
 
 
 def _expire_records(task_service: TaskService, worker_service: WorkerService) -> None:
-    task_service.expire_leases()
-    worker_service.expire()
+    task_service.expire_leases(operation="expiry")
+    worker_service.expire(operation="expiry")
+    logger.info("database metrics %s", task_service.database.metrics.snapshot())
 
 
 def _unauthorized() -> DomainError:

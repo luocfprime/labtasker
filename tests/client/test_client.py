@@ -531,11 +531,11 @@ def test_query_surrogates_fail_before_local_endpoint_preparation(
     options: dict[str, object],
     value: str,
 ) -> None:
-    def unexpected_prepare() -> None:
-        pytest.fail("Invalid query must not prepare or start the local Server")
+    def unexpected_request(*_: object, **__: object) -> None:
+        pytest.fail("Invalid query must not contact or start the local Server")
 
-    with Client._from_local_directory(tmp_path, queue="default") as client:
-        monkeypatch.setattr(client, "_prepare_endpoint", unexpected_prepare)
+    with Client(socket=tmp_path / "server.sock", queue="default") as client:
+        monkeypatch.setattr(client._http, "request", unexpected_request)
         with pytest.raises(RequestValidationError, match=field):
             getattr(client, operation)(**options, **{field: value})
     assert not (tmp_path / ".labtasker").exists()

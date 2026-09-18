@@ -10,7 +10,7 @@ from typing import Any, Literal, cast, overload
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
-from labtasker_server.database import Database
+from labtasker_server.database import Database, OperationKind
 from labtasker_server.errors import conflict, invalid, not_found
 from labtasker_server.filtering import compile_filter
 from labtasker_server.grouping import grouped_page, grouping_fields
@@ -644,9 +644,9 @@ class TaskService:
                 )
             session.delete(row)
 
-    def expire_leases(self) -> int:
+    def expire_leases(self, *, operation: OperationKind = "write") -> int:
         now = self.now_us()
-        with self.database.write_session() as session:
+        with self.database.write_session(operation=operation) as session:
             rows = session.scalars(
                 select(TaskRow).where(
                     TaskRow.status == "running",

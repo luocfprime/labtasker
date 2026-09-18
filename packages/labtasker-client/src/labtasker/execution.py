@@ -317,17 +317,14 @@ def _load_environment_context() -> ExecutionContext | None:
             )
         url = os.environ.get("LABTASKER_URL")
         socket = os.environ.get("LABTASKER_SOCKET")
-        local_directory = os.environ.get("LABTASKER_LOCAL_DIRECTORY")
         token = os.environ.get("LABTASKER_TOKEN")
-        http_endpoint = url is not None and socket is None and local_directory is None
-        local_endpoint = (
-            url is None and socket is not None and local_directory is not None and token is None
-        )
-        if not (http_endpoint or local_endpoint):
+        http_endpoint = url is not None and socket is None
+        socket_endpoint = url is None and socket is not None and token is None
+        if not (http_endpoint or socket_endpoint):
             raise ConfigError(
                 "invalid_config",
                 "Inherited Labtasker execution endpoint is incomplete or ambiguous.",
-                {"expected": ("LABTASKER_URL, or LABTASKER_SOCKET and LABTASKER_LOCAL_DIRECTORY")},
+                {"expected": "exactly one of LABTASKER_URL or LABTASKER_SOCKET"},
             )
         run_dir = Path(values["run_dir"] or "")
         if not run_dir.is_absolute():
@@ -343,26 +340,24 @@ def _load_environment_context() -> ExecutionContext | None:
             expected_endpoint: EndpointRecord
             if http_endpoint:
                 expected_endpoint = {
-                    "mode": "http",
+                    "connection": "http",
+                    "managed_local": False,
                     "url": url,
                     "socket": None,
-                    "directory": None,
+                    "labtasker_root": None,
                     "database": None,
                 }
                 client = Client(url=url, token=token, queue=values["queue"])
             else:
-                directory = Path(local_directory or "")
-                if not directory.is_absolute() or directory.resolve() != directory:
-                    raise ValueError("LABTASKER_LOCAL_DIRECTORY must be a canonical absolute path")
-                client = Client._from_local_directory(
-                    directory,
-                    queue=values["queue"] or "",
-                )
-                local = client.configuration.local
-                assert local is not None
-                if str(local.socket) != socket:
-                    raise ValueError("local execution socket does not match its directory")
-                expected_endpoint = client.configuration.endpoint_dict()
+                socket_path = Path(socket or "")
+                if not socket_path.is_absolute() or socket_path.resolve() != socket_path:
+                    raise ValueError("LABTASKER_SOCKET must be a canonical absolute path")
+                client = Client._from_socket(socket_path, queue=values["queue"] or "")
+                expected_endpoint = journal.endpoint
+                if expected_endpoint["connection"] != "socket" or expected_endpoint[
+                    "socket"
+                ] != str(socket_path):
+                    raise ValueError("execution socket does not match the local journal")
             if (
                 task.id != values["task_id"]
                 or task.queue != values["queue"]

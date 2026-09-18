@@ -20,7 +20,7 @@ COORDINATOR_TIMEOUT_SECONDS = 35.0
 
 @dataclass(frozen=True, slots=True)
 class LocalPaths:
-    directory: Path
+    labtasker_root: Path
     database: Path
     log: Path
     runtime_directory: Path
@@ -38,37 +38,42 @@ def require_local_capabilities() -> None:
     if os.name != "posix" or not hasattr(socket, "AF_UNIX"):
         raise ConfigError(
             "invalid_config",
-            "Local mode requires POSIX Unix-domain sockets; configure a URL.",
-            {"source": "default", "field": "url"},
+            "Managed local mode requires POSIX Unix-domain sockets; configure a URL.",
+            {"source": "managed_local", "field": "socket"},
         )
 
 
-def local_paths(directory: Path | None = None) -> LocalPaths:
-    canonical = (Path.cwd() if directory is None else directory).resolve()
-    digest = hashlib.sha256(os.fsencode(canonical)).hexdigest()
-    runtime_directory = Path("/tmp") / f"labtasker-{os.geteuid()}"
-    local_directory = canonical / ".labtasker"
+def local_paths(labtasker_root: Path) -> LocalPaths:
+    require_local_capabilities()
+    root = labtasker_root.expanduser().resolve()
+    digest = hashlib.sha256(os.fsencode(root)).hexdigest()
+    effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+    runtime_directory = (Path("/tmp") / f"labtasker-{effective_uid}").resolve()
     return LocalPaths(
-        directory=canonical,
-        database=local_directory / "server.db",
-        log=local_directory / "server.log",
+        labtasker_root=root,
+        database=root / "server.db",
+        log=root / "server.log",
         runtime_directory=runtime_directory,
-        socket=runtime_directory / f"{digest}.sock",
+        socket=runtime_directory / f"root-{digest}.sock",
     )
 
 
 def ensure_local_server(paths: LocalPaths, *, emit: Callable[[str], None]) -> LocalEnsureResult:
     require_local_capabilities()
-    if socket_health(paths):
+    if socket_health(paths.socket):
         return LocalEnsureResult(started=False, pid=None, server_version=None)
     if importlib.util.find_spec("labtasker_server") is None:
         raise ConfigError(
             "invalid_config",
-            "Local mode requires labtasker-server; install labtasker or configure a URL.",
-            {"source": "default", "field": "url"},
+            "Automatic local startup requires labtasker-server; install labtasker or "
+            "configure an existing URL/socket.",
+            {"source": "managed_local", "field": "auto_start_local_server"},
         )
 
-    emit(f"requesting local daemon ensure directory={paths.directory} socket={paths.socket}")
+    emit(
+        f"requesting local daemon ensure labtasker_root={paths.labtasker_root} "
+        f"socket={paths.socket}"
+    )
     try:
         result = subprocess.run(
             [
@@ -76,10 +81,9 @@ def ensure_local_server(paths: LocalPaths, *, emit: Callable[[str], None]) -> Lo
                 "-m",
                 "labtasker_server",
                 "_ensure-daemon",
-                "--directory",
-                str(paths.directory),
+                "--labtasker-root",
+                str(paths.labtasker_root),
             ],
-            cwd=paths.directory,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=None,
@@ -112,9 +116,8 @@ def ensure_local_server(paths: LocalPaths, *, emit: Callable[[str], None]) -> Lo
                 if isinstance(message, str)
                 else "The local Server coordinator failed without a valid result."
             ),
-            retry_after_seconds=_optional_number(payload, "retry_after_seconds"),
         )
-    if not socket_health(paths):
+    if not socket_health(paths.socket):
         raise _local_transport_error(
             paths,
             state="unhealthy",
@@ -123,22 +126,21 @@ def ensure_local_server(paths: LocalPaths, *, emit: Callable[[str], None]) -> Lo
 
     pid = payload.get("pid")
     version = payload.get("version")
-    started = payload.get("started")
     return LocalEnsureResult(
-        started=started is True,
+        started=payload.get("started") is True,
         pid=pid if isinstance(pid, int) and not isinstance(pid, bool) and pid > 0 else None,
         server_version=version if isinstance(version, str) else None,
     )
 
 
-def socket_transport(paths: LocalPaths) -> httpx.HTTPTransport:
-    return httpx.HTTPTransport(uds=str(paths.socket))
+def socket_transport(path: Path) -> httpx.HTTPTransport:
+    return httpx.HTTPTransport(uds=str(path))
 
 
-def socket_health(paths: LocalPaths, *, timeout: float = 0.2) -> bool:
+def socket_health(path: Path, *, timeout: float = 0.2) -> bool:
     try:
         with httpx.Client(
-            transport=socket_transport(paths),
+            transport=socket_transport(path),
             base_url="http://labtasker",
             timeout=timeout,
         ) as client:
@@ -154,7 +156,7 @@ def socket_health(paths: LocalPaths, *, timeout: float = 0.2) -> bool:
 
 def _parse_coordinator_result(output: str) -> dict[str, object] | None:
     try:
-        payload = json.loads(output)
+        payload: object = json.loads(output)
     except (json.JSONDecodeError, TypeError):
         return None
     if not isinstance(payload, dict):
@@ -162,29 +164,19 @@ def _parse_coordinator_result(output: str) -> dict[str, object] | None:
     return {str(key): value for key, value in payload.items()}
 
 
-def _optional_number(payload: dict[str, object] | None, field: str) -> float | None:
-    if payload is None:
-        return None
-    value = payload.get(field)
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
-    return None
-
-
 def _local_transport_error(
     paths: LocalPaths,
     *,
     state: str,
     message: str,
-    retry_after_seconds: float | None = None,
 ) -> TransportError:
-    details: dict[str, object] = {
-        "state": state,
-        "directory": str(paths.directory),
-        "database": str(paths.database),
-        "socket": str(paths.socket),
-        "log": str(paths.log),
-    }
-    if retry_after_seconds is not None:
-        details["retry_after_seconds"] = retry_after_seconds
-    return TransportError(message, details)
+    return TransportError(
+        message,
+        {
+            "state": state,
+            "labtasker_root": str(paths.labtasker_root),
+            "database": str(paths.database),
+            "socket": str(paths.socket),
+            "log": str(paths.log),
+        },
+    )

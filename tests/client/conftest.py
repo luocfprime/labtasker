@@ -17,7 +17,14 @@ def isolated_client_environment(
         "LABTASKER_TOKEN",
         "LABTASKER_SOCKET",
         "LABTASKER_LOCAL_DIRECTORY",
+        "LABTASKER_ROOT",
         "LABTASKER_QUEUE",
+        "ALL_PROXY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "all_proxy",
+        "http_proxy",
+        "https_proxy",
     ):
         monkeypatch.delenv(name, raising=False)
     yield

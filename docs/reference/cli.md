@@ -8,6 +8,7 @@ long-running Worker.
 
 ```text
 labtasker --version
+labtasker [--labtasker-root PATH] [--auto-start-local-server] COMMAND
 labtasker config show
 
 labtasker queue create NAME
@@ -30,14 +31,20 @@ labtasker worker telemetry --data JSON
 labtasker progress --data JSON
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
 labtasker-server --version
-labtasker-server start
-labtasker-server status
-labtasker-server stop [--force]
-labtasker-server logs
-labtasker-server serve [OPTIONS]
+labtasker-server serve --connection http [OPTIONS]
+labtasker-server serve --connection socket [OPTIONS]
+labtasker-server status [--labtasker-root PATH]
+labtasker-server stop [--labtasker-root PATH] [--force]
+labtasker-server logs [--labtasker-root PATH]
 ```
 
 Run `--help` on any command for its exact options and accepted values.
+
+`--labtasker-root` and `--auto-start-local-server` are global Client options and
+must appear before the subcommand. The root defaults to exact
+`CWD/.labtasker`; it selects config, journals, and the managed-local endpoint
+without searching parents. Auto-start authority is false by default and applies
+only when no URL or external socket is configured.
 
 Both executables expose their runtime distribution version without reading
 configuration, contacting a Server, or starting the local daemon. `labtasker
@@ -99,11 +106,18 @@ Server commands have a separate ownership boundary:
 
 | Command | Contract |
 | --- | --- |
-| `labtasker-server start` | Starts or confirms the automatic Server for the exact current directory. Ordinary local Client use starts it automatically. |
-| `status` | Read-only JSON describing the current directory's local daemon state. |
-| `stop [--force]` | Stops only the reverified local daemon; normal stop never sends SIGKILL. |
-| `logs` | Prints the complete current local Server log; it does not follow. |
-| `serve` | Runs one foreground HTTP Server. One process owns one SQLite file; non-loopback binds require `LABTASKER_SERVER_TOKEN`. |
+| `serve --connection http\|socket` | Runs one foreground Server, or a detached one with `--daemon`. Transport selection is required. `--database-filesystem` defaults to `auto`; one process owns one SQLite file. |
+| `status [--labtasker-root PATH]` | Read-only JSON describing the daemon selected by exact root; it creates and cleans nothing. |
+| `stop [--labtasker-root PATH] [--force]` | Stops only the reverified daemon for that root; normal stop never sends SIGKILL. |
+| `logs [--labtasker-root PATH]` | Prints that daemon's complete log; it does not follow. |
+
+`serve` defaults the root to exact `CWD/.labtasker`, its database to
+`<root>/server.db`, and detached mode to false. HTTP defaults to
+`127.0.0.1:8000`; socket mode derives an owner-only socket from the root.
+`--host`/`--port` and `--socket` are mutually transport-specific. `--daemon`
+changes lifecycle only. A matching detached launch is idempotent; a conflicting
+launch fails and asks the operator to stop the existing daemon first. There is
+no public `start` command.
 
 ## Inspect route demand and Worker activity
 
@@ -156,16 +170,16 @@ successful value from an error envelope with the exit status and the top-level
 `error` key. CLI argument or usage errors remain natural-language stderr and
 exit `2`; an interrupted Worker retains exit `130`.
 
-Every finite Client operation identifies its selected local or HTTP Server on
-stderr after connecting. The single `[labtasker] connected` line explicitly
-names a local or remote Server and its Unix, HTTP, or HTTPS transport; local
-connections also identify the project directory, database and socket. Starting,
-waiting for, or reconnecting to a local daemon is likewise visible. Requested
+Every finite Client operation identifies its selected managed-local, external
+socket, or HTTP Server on stderr after connecting. The single `[labtasker]
+connected` line explicitly names the endpoint and its Unix, HTTP, or HTTPS
+transport; managed-local connections also identify the root, database and
+socket. Authorized startup transitions are likewise visible. Requested
 data or a handled error envelope remains alone on stdout. Finite Client
 diagnostics use `[labtasker]`, while
-Server CLI diagnostics use `[labtasker-server]`. `labtasker-server start` and
-`stop` report actions on stderr, `status` prints stable JSON on stdout, and
-`logs` writes log content to stdout.
+Server CLI diagnostics use `[labtasker-server]`. Detached `serve` and `stop`
+report actions on stderr, `status` prints stable JSON on stdout, and `logs`
+writes log content to stdout.
 
 `labtasker loop` is different: it is a supervised long-running process, so it
 uses ordinary logs whose default format includes a millisecond UTC timestamp,

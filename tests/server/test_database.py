@@ -5,6 +5,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,7 @@ from sqlalchemy import event, inspect, text
 from labtasker_server.config import ServerSettings
 from labtasker_server.database import Database, DatabaseOwnershipError
 from labtasker_server.errors import DomainError
-from labtasker_server.local import local_paths, try_acquire_database
+from labtasker_server.ownership import lock_database
 from labtasker_server.services.queues import QueueService
 
 
@@ -41,53 +42,61 @@ def test_database_has_one_process_owner_and_releases_on_dispose(tmp_path: Path) 
     replacement.dispose()
 
 
-@pytest.mark.skipif(os.name != "posix", reason="Requires descriptor inheritance")
+@pytest.mark.skipif(os.name != "posix", reason="Requires POSIX advisory locks")
+def test_legacy_inode_owner_blocks_local_start_with_deprecation_warning(tmp_path: Path) -> None:
+    path = tmp_path / "server.db"
+    descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    lock_database(descriptor)
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(DatabaseOwnershipError, match=r"legacy v2\.5 or current"):
+                Database(path, filesystem="local")
+        assert [item.category for item in caught] == [DeprecationWarning]
+    finally:
+        os.close(descriptor)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Requires POSIX advisory locks")
 @pytest.mark.parametrize("crash", [False, True])
-def test_database_ownership_survives_exec_and_sqlite_connection_close(
+def test_database_sidecar_ownership_survives_exec_and_sqlite_connection_close(
     tmp_path: Path, crash: bool
 ) -> None:
-    paths = local_paths(tmp_path)
-    fd = try_acquire_database(paths)
-    assert fd is not None
+    path = tmp_path / "server.db"
     process = subprocess.Popen(
         [
             sys.executable,
             "-c",
             """
-import os, sys
+import sys
 from pathlib import Path
 from labtasker_server.database import Database
-fd = int(sys.argv[2])
-database = Database(Path(sys.argv[1]), ownership_fd=fd)
-os.close(fd)
+database = Database(Path(sys.argv[1]))
 database.initialize()
 print('ready', flush=True)
 sys.stdin.readline()
 database.dispose()
 """,
-            str(paths.database),
-            str(fd),
+            str(path),
         ],
-        pass_fds=(fd,),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    os.close(fd)
     try:
         assert process.stdout is not None
         assert process.stdout.readline().strip() == "ready"
         # Ordinary SQLite handles may open/close without releasing ownership.
-        connection = sqlite3.connect(paths.database)
+        connection = sqlite3.connect(path)
         assert connection.execute("SELECT name FROM queues").fetchall() == [("default",)]
         connection.close()
-        alias = tmp_path / "alias.db"
-        os.link(paths.database, alias)
-        for path in (paths.database, alias):
-            with pytest.raises(DatabaseOwnershipError):
-                Database(path)
-        assert try_acquire_database(paths) is None
+        with pytest.raises(DatabaseOwnershipError):
+            Database(path)
+        symlink = tmp_path / "alias.db"
+        symlink.symlink_to(path)
+        with pytest.raises(DatabaseOwnershipError):
+            Database(symlink)
         if crash:
             process.kill()
         else:
@@ -95,7 +104,7 @@ database.dispose()
             process.stdin.write("exit\n")
             process.stdin.flush()
         process.communicate(timeout=5)
-        replacement = Database(paths.database)
+        replacement = Database(path)
         replacement.dispose()
     finally:
         if process.poll() is None:
@@ -109,7 +118,7 @@ def test_failed_startup_scan_releases_database_ownership(
 ) -> None:
     from labtasker_server.app import create_app
 
-    def fail(*_: object) -> None:
+    def fail(*_: object, **__: object) -> None:
         raise RuntimeError("injected scan failure")
 
     method = "expire_leases" if service == "TaskService" else "expire"
@@ -281,6 +290,42 @@ def test_fresh_database_has_migrated_schema_default_queue_and_pragmas(
             assert session.scalar(text("PRAGMA synchronous")) == 2
             assert session.scalar(text("PRAGMA busy_timeout")) == 5000
     finally:
+        database.dispose()
+
+
+def test_shared_database_uses_rollback_journal_extra_and_one_connection(
+    database_path: Path,
+) -> None:
+    database = Database(database_path, filesystem="shared")
+    database.initialize()
+    try:
+        with database.read_session() as session:
+            assert session.scalar(text("PRAGMA journal_mode")) == "delete"
+            assert session.scalar(text("PRAGMA synchronous")) == 3
+            assert session.scalar(text("PRAGMA foreign_keys")) == 1
+            assert session.scalar(text("PRAGMA busy_timeout")) == 5000
+        assert database.engine.pool.size() == 1  # type: ignore[attr-defined]
+        assert database.engine.pool._max_overflow == 0  # type: ignore[attr-defined]
+        snapshot = database.metrics.snapshot()
+        assert snapshot["db_connection_wait_seconds"]
+        assert snapshot["db_transaction_seconds"]
+    finally:
+        database.dispose()
+
+
+def test_shared_connection_wait_is_bounded_and_reported(database_path: Path) -> None:
+    database = Database(database_path, filesystem="shared")
+    database.initialize()
+    database.engine.pool._timeout = 0.01  # type: ignore[attr-defined]
+    held = database.engine.connect()
+    try:
+        with pytest.raises(DomainError) as raised, database.read_session():
+            pass
+        assert raised.value.status_code == 503
+        assert raised.value.code == "database_busy"
+        assert database.metrics.snapshot()["db_pool_timeouts"] == {"read": 1}
+    finally:
+        held.close()
         database.dispose()
 
 

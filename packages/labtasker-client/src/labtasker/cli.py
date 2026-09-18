@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable
+from contextvars import ContextVar
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Any, TypeVar, cast
 
 import typer
@@ -59,6 +62,15 @@ app.add_typer(config_app, name="config")
 logger = logging.getLogger("labtasker.cli")
 
 
+@dataclass(frozen=True, slots=True)
+class CLIState:
+    labtasker_root: Path | None
+    auto_start_local_server: bool
+
+
+_CLI_STATE: ContextVar[CLIState | None] = ContextVar("labtasker_cli_state", default=None)
+
+
 def _version_callback(value: bool) -> None:
     if value:
         typer.echo(f"labtasker-client {__version__}")
@@ -76,8 +88,17 @@ def main(
             help="Show the Client package version and exit.",
         ),
     ] = False,
+    labtasker_root: Annotated[
+        Path | None,
+        typer.Option(help="Exact configuration, journal, and managed-local root."),
+    ] = None,
+    auto_start_local_server: Annotated[
+        bool,
+        typer.Option(help="Allow this invocation to start a managed-local daemon."),
+    ] = False,
 ) -> None:
     """Submit, inspect, and execute Labtasker v2 Tasks."""
+    _CLI_STATE.set(CLIState(labtasker_root, auto_start_local_server))
 
 
 class _SeparatedCommand(TyperCommand):
@@ -161,6 +182,8 @@ def worker_loop(
             max_consecutive_failures=max_consecutive_failures,
             force_stop_timeout=force_stop_timeout,
             metadata=worker_metadata,
+            labtasker_root=_cli_state().labtasker_root,
+            auto_start_local_server=_cli_state().auto_start_local_server,
         )
     except (TemplateSyntaxError, RequestValidationError) as error:
         raise typer.BadParameter(str(error)) from error
@@ -647,12 +670,28 @@ def config_show() -> None:
     .labtasker/config.toml, then built-in defaults. The token value is never
     printed.
     """
-    _write_json(_invoke(lambda: resolve_config().public_dict()))
+    state = _cli_state()
+    _write_json(
+        _invoke(
+            lambda: resolve_config(
+                labtasker_root=state.labtasker_root,
+                auto_start_local_server=state.auto_start_local_server,
+            ).public_dict()
+        )
+    )
 
 
 def _with_client(operation: Callable[[Client], T]) -> T:
-    with Client() as client:
+    state = _cli_state()
+    with Client(
+        labtasker_root=state.labtasker_root,
+        auto_start_local_server=state.auto_start_local_server,
+    ) as client:
         return operation(client)
+
+
+def _cli_state() -> CLIState:
+    return _CLI_STATE.get() or CLIState(None, False)
 
 
 def _invoke(operation: Callable[[], T]) -> T:

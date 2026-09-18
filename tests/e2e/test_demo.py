@@ -16,6 +16,7 @@ LOCAL_ENVIRONMENT_NAMES = (
     "LABTASKER_TOKEN",
     "LABTASKER_SOCKET",
     "LABTASKER_LOCAL_DIRECTORY",
+    "LABTASKER_ROOT",
     "LABTASKER_QUEUE",
 )
 EXPECTED = {
@@ -59,7 +60,7 @@ def _stop_server(directory: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-@pytest.mark.skipif(os.name != "posix", reason="the demo uses automatic local mode")
+@pytest.mark.skipif(os.name != "posix", reason="the demo uses managed local mode")
 def test_basic_demo_runs_exact_documented_sources(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
