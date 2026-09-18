@@ -1835,6 +1835,12 @@ does not renew Worker presence or affect Task execution. Labtasker performs no
 automatic resource detection, sampling, retry, throttling, or history storage;
 callers own those choices. The helper also works inside a Python program launched
 by <code>labtasker loop</code>.</p>
+<p><code>idle_timeout</code> measures only confirmed empty-Queue time. Temporary claim
+transport failures, <code>database_busy</code>, and Server 5xx responses pause it and share
+an independent fixed 300-second recovery budget. Worker claim polling uses an
+internal jittered backoff capped at an actual 8 through 12 seconds; neither policy
+has a public tuning parameter. A claim recovered after an uncertain response is
+heartbeat-confirmed before the decorated function begins.</p>
 <p>See <a href="../../workers/python/">Python Workers</a> for binding, cancellation, failure,
 and Worker-lifetime semantics.</p>
 <h2 id="errors-and-retries">Errors and retries</h2>

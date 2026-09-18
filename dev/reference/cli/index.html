@@ -1578,6 +1578,11 @@ invocation. Labtasker does not automatically populate hostname, scheduler, GPU,
 or other resource fields.
 The Worker exits <code>1</code> after reporting that many consecutive execution failures;
 see <a href="../../guides/failure-recovery/#consecutive-failure-protection">failure protection</a>.</p>
+<p><code>--idle-timeout</code> measures confirmed empty-Queue time. Claim communication
+failures pause it and use an independent fixed five-minute recovery window.
+Empty and temporarily unavailable claim paths share internal jittered backoff,
+with no CLI tuning option. A recovered claim is lease-confirmed before the child
+process starts.</p>
 <p>Server commands have a separate ownership boundary:</p>
 <p>The Server requires POSIX advisory file locking in every transport and lifecycle
 mode. On Windows, help and version inspection remain available, while every
