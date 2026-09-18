@@ -78,6 +78,8 @@ def run_gate(version: str) -> None:
                     "-m",
                     "labtasker_server",
                     "serve",
+                    "--connection",
+                    "http",
                     "--port",
                     str(port),
                     "--database",

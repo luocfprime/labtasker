@@ -18,7 +18,7 @@ dependencies = [
   "sqlalchemy>=2.0,<3; python_version < '3.13'",
   "sqlalchemy>=2.0.31,<3; python_version >= '3.13' and python_version < '3.14'",
   "sqlalchemy>=2.0.41,<3; python_version >= '3.14'",
-  "typer>=0.16,<1",
+  "typer>=0.19,<1",
   "uvicorn>=0.34,<1",
 ]
 

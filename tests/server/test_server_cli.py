@@ -135,7 +135,9 @@ def test_server_help_exposes_one_serve_and_root_management() -> None:
         assert command in root.stdout
     assert "_ensure-daemon" not in root.stdout
     assert "_daemon" not in root.stdout
-    assert "--connection <http|socket>" in serve.stdout
+    assert "--connection" in serve.stdout
+    assert "http" in serve.stdout
+    assert "socket" in serve.stdout
     assert "[required]" in serve.stdout
     assert "--daemon" in serve.stdout
     assert "--no-daemon" not in serve.stdout

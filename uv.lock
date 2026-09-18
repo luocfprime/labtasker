@@ -682,7 +682,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "python_full_version < '3.13'", specifier = ">=2.0,<3" },
     { name = "sqlalchemy", marker = "python_full_version == '3.13.*'", specifier = ">=2.0.31,<3" },
     { name = "sqlalchemy", marker = "python_full_version >= '3.14'", specifier = ">=2.0.41,<3" },
-    { name = "typer", specifier = ">=0.16,<1" },
+    { name = "typer", specifier = ">=0.19,<1" },
     { name = "uvicorn", specifier = ">=0.34,<1" },
 ]
 
