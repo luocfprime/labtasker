@@ -18,8 +18,6 @@ from labtasker.command_template import TemplateSyntaxError
 from labtasker.command_worker import run_command_worker
 from labtasker.config import resolve_config
 from labtasker.errors import LabtaskerError
-from labtasker.execution import report_progress as report_current_progress
-from labtasker.execution import report_worker_telemetry as report_current_worker_telemetry
 from labtasker.types import TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.validation import RequestValidationError, validate_grouping, validate_json_object
 
@@ -94,7 +92,10 @@ def main(
     ] = None,
     auto_start_local_server: Annotated[
         bool,
-        typer.Option(help="Allow this invocation to start a managed-local daemon."),
+        typer.Option(
+            "--auto-start-local-server",
+            help="Allow this invocation to start a managed-local daemon.",
+        ),
     ] = False,
 ) -> None:
     """Submit, inspect, and execute Labtasker v2 Tasks."""
@@ -198,29 +199,6 @@ def worker_loop(
     except Exception as error:
         logger.error("Worker stopped: %s", error)
         raise typer.Exit(1) from error
-
-
-@app.command("progress")
-def progress_report(
-    data: Annotated[
-        str,
-        typer.Option(help="Latest progress as one strict JSON object."),
-    ],
-) -> None:
-    """Replace the current Task run's progress snapshot.
-
-    This command is available inside a command launched by ``labtasker loop``.
-    It prints whether the best-effort report was accepted; transport failures
-    and confirmed revocation return ``reported: false`` without failing the
-    command workload.
-    """
-    try:
-        progress = _json_object(data, option="--data")
-        reported = _invoke(lambda: report_current_progress(progress))
-    except RuntimeError as error:
-        typer.echo(str(error), err=True)
-        raise typer.Exit(1) from error
-    _write_json({"reported": reported})
 
 
 @task_app.command("submit")
@@ -495,28 +473,6 @@ def worker_count(
     _write_json({"count": result} if isinstance(result, int) else result)
 
 
-@worker_app.command("telemetry")
-def worker_telemetry_report(
-    data: Annotated[
-        str,
-        typer.Option(help="Latest Worker telemetry as one strict JSON object."),
-    ],
-) -> None:
-    """Replace telemetry for the current Worker invocation.
-
-    This command is available inside a command launched by ``labtasker loop``.
-    It performs one best-effort synchronous report and prints whether the Server
-    accepted it.
-    """
-    try:
-        telemetry = _json_object(data, option="--data")
-        reported = _invoke(lambda: report_current_worker_telemetry(telemetry))
-    except RuntimeError as error:
-        typer.echo(str(error), err=True)
-        raise typer.Exit(1) from error
-    _write_json({"reported": reported})
-
-
 def _count_options(
     group_by: list[str] | None, allowed: set[str], limit: int | None, cursor: str | None
 ) -> dict[str, Any]:
@@ -651,7 +607,10 @@ def queue_delete(
     name: Annotated[str, typer.Argument(help="Queue name to delete.")],
     cascade: Annotated[
         bool,
-        typer.Option(help="Also permanently delete every non-running Task in the Queue."),
+        typer.Option(
+            "--cascade",
+            help="Also permanently delete every non-running Task in the Queue.",
+        ),
     ] = False,
 ) -> None:
     """Permanently delete one Queue.

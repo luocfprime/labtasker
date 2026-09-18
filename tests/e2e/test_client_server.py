@@ -166,9 +166,6 @@ def test_real_python_and_command_workers(
     ]
 
     command_script = """
-import json
-import pathlib
-import subprocess
 import sys
 import time
 
@@ -181,16 +178,9 @@ with labtasker.Client() as client:
         if time.monotonic() >= deadline:
             raise AssertionError("Command Worker observation was not registered")
         time.sleep(0.01)
-cli = pathlib.Path(sys.executable).with_name("labtasker")
-reported = subprocess.run(
-    [str(cli), "worker", "telemetry", "--data", '{"source":"cli"}'],
-    capture_output=True,
-    text=True,
-)
-assert reported.returncode == 0, reported.stderr
-assert json.loads(reported.stdout) == {"reported": True}
+assert labtasker.report_worker_telemetry({"source": "command-python"})
 with labtasker.Client() as client:
-    observation = client.list_workers(filter='telemetry.source == "cli"').items[0]
+    observation = client.list_workers(filter='telemetry.source == "command-python"').items[0]
 assert labtasker.report_progress(
     {"step": 1, "metrics": {"length": len(sys.argv[1])}}
 )
@@ -223,7 +213,7 @@ labtasker.finish({"echo": sys.argv[1], "worker_telemetry": observation.telemetry
     assert command_task.status == "succeeded"
     assert command_task.result == {
         "echo": "hello world",
-        "worker_telemetry": {"source": "cli"},
+        "worker_telemetry": {"source": "command-python"},
     }
     assert command_task.progress == {"step": 1, "metrics": {"length": 11}}
     assert failed_task.status == "failed"
@@ -237,7 +227,7 @@ labtasker.finish({"echo": sys.argv[1], "worker_telemetry": observation.telemetry
     assert len(command_runs) == 1
     assert json.loads((command_runs[0] / "result.json").read_text()) == {
         "echo": "hello world",
-        "worker_telemetry": {"source": "cli"},
+        "worker_telemetry": {"source": "command-python"},
     }
 
 

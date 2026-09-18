@@ -5,6 +5,10 @@ operation is available both as a package-level function and as a method with the
 same name on `Client`. Methods return Labtasker domain models, not HTTP response
 wrappers.
 
+The `labtasker-server` distribution has no supported embedding API. Operate it
+through `labtasker-server` or the documented HTTP API; importing
+`labtasker_server.app.create_app` or other Server modules is internal use.
+
 ## Choose the Client form
 
 Package-level functions share one lazily created process-wide Client:
@@ -26,8 +30,10 @@ with Client(url="https://labtasker.example", token=token, queue="paper") as clie
     task = client.submit_task({"seed": 7}, routes=["sdxl"])
 ```
 
-`Client(url=None, socket=None, labtasker_root=None,
-auto_start_local_server=False, token=None, queue=None)` resolves the root from
+`Client(url: str | None = None, socket: str | Path | None = None,
+labtasker_root: str | Path | None = None,
+auto_start_local_server: bool = False, token: str | None = None,
+queue: str | None = None)` resolves the root from
 its explicit argument, `LABTASKER_ROOT`, then exact `CWD/.labtasker`. It resolves
 one endpoint from the first explicit, environment, or root-config URL/socket
 layer and otherwise selects managed local. Labtasker does not search parents or
@@ -51,6 +57,11 @@ package version from the latest business response. It is `None` before a
 response or when that response has no usable version header. Reading it never
 makes a request. Older Servers may not advertise their version.
 
+Resolved endpoint, credential, Queue, root, and auto-start configuration is
+private implementation state, not a supported `Client` property. Pass those
+values explicitly when constructing a Client; use `labtasker config show` for a
+non-secret diagnostic view of current CLI resolution.
+
 When a response reports a Server older than the Client, the Client writes an
 advisory `warning` to stderr recommending an upgrade. Each Client instance warns
 once per distinct older Server version, including patch and prerelease
@@ -58,6 +69,32 @@ differences. Results, exceptions, and retries are unchanged; the warning does
 not mean the current operation is incompatible. There is no version preflight or
 automatic fallback. Applications needing feature-specific compatibility checks
 must account for `server_version` being unknown and still handle operation errors.
+
+## Public package imports
+
+The supported package-root import surface is `labtasker.__all__`:
+
+```text
+Client
+
+submit_task  get_task  list_tasks  count_tasks
+update_task  update_tasks  cancel_task  requeue_task  delete_task
+create_queue  list_queues  delete_queue
+list_workers  count_workers
+
+loop  TaskArg  TaskInfo  task_info  finish  report_progress
+report_worker_telemetry  cancellation_requested  set_force_stop_timeout
+
+Task  TaskPage  Queue  BulkUpdateResult  LastError
+WorkerObservation  WorkerPage  CountGroup  GroupCountPage
+JSONValue  TaskStatus  TaskOrderField  TaskUpdate
+
+LabtaskerError  ConfigError  TransportError  APIError
+TransientError  TaskError  FatalWorkerError
+```
+
+Imports from private modules and Worker wire operations such as claim,
+heartbeat, complete, fail, and unclaim are not supported Python interfaces.
 
 ## Task operations
 
@@ -68,7 +105,7 @@ get_task(task_id, *, queue=None) -> Task
 list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -> TaskPage
 count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None,
-            group_by=None, limit=None, cursor=None, queue=None) -> int | GroupCountPage
+            queue=None, group_by=None, limit=None, cursor=None) -> int | GroupCountPage
 update_task(task_id, changes, *, queue=None) -> Task
 update_tasks(*, filter, changes, queue=None) -> BulkUpdateResult
 cancel_task(task_id, *, queue=None) -> Task
@@ -259,9 +296,20 @@ Server.
 | `LastError` | `type`, `message`, `traceback`, `occurred_at`, `attempt`, `run_id` |
 | `TaskInfo` | Every `Task` field plus the active `run_id` and absolute local `run_dir` |
 | `WorkerObservation` | `id`, `queue`, `route`, `status`, nullable `task_id`, `metadata`, nullable `telemetry`, `telemetry_updated_at`, `last_seen_at`, `expires_at` |
+| `WorkerPage` | `items: list[WorkerObservation]`, `next_cursor: str | None` |
+| `CountGroup` | `key: dict[str, str]`, `count: int` |
+| `GroupCountPage` | ordered `group_by: list[str]`, complete `count: int`, paginated `items: list[CountGroup]`, `next_cursor: str | None` |
 
 Task states are exactly `pending`, `running`, `succeeded`, `failed`, and
 `cancelled`. Timestamps are timezone-aware UTC `datetime` values.
+
+`TaskStatus` is the exact Task-state literal union. `TaskOrderField` is the
+literal union of `id`, `name`, `status`, `priority`, `attempt`, `max_attempts`,
+`last_route`, `created_at`, `updated_at`, `started_at`, and `finished_at`.
+`TaskUpdate` is a `total=False` `TypedDict` with optional `name`, `args`,
+`metadata`, `priority`, `max_attempts`, `routes`, and `result` keys; runtime
+validation still requires at least one supplied field. `JSONValue` is the
+recursive strict JSON-compatible value type.
 
 ## Worker API
 
@@ -322,6 +370,7 @@ helper outside its valid context raises `RuntimeError`. Operational failures use
 Reads, list/count, and idempotent Task creation use bounded transport retries.
 Ordinary lifecycle, update, and deletion mutations are not automatically retried
 after an uncertain response; inspect current state and decide explicitly.
+Every ordinary Client request has a 15-second timeout.
 
 `TransientError`, `TaskError`, and `FatalWorkerError` are Worker outcome signals,
 not Client-operation errors and not subclasses of `LabtaskerError`.

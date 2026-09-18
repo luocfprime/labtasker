@@ -48,7 +48,7 @@ def local_paths(labtasker_root: Path) -> LocalPaths:
     root = labtasker_root.expanduser().resolve()
     digest = hashlib.sha256(os.fsencode(root)).hexdigest()
     effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
-    runtime_directory = (Path("/tmp") / f"labtasker-{effective_uid}").resolve()
+    runtime_directory = Path("/tmp").resolve() / f"labtasker-{effective_uid}"
     return LocalPaths(
         labtasker_root=root,
         database=root / "server.db",

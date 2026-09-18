@@ -185,9 +185,9 @@ def _run_python_worker(
     _guard_worker_topology()
     with Client(queue=queue) as client, WorkerTee() as tee:
         configure_worker_logger()
-        queue_name = client.configuration.queue
+        queue_name = client._configuration.queue
         _preflight(client, queue_name)
-        with ObservationReporter(client.configuration, route, metadata) as observer:
+        with ObservationReporter(client._configuration, route, metadata) as observer:
             idle_deadline: float | None = None
             while True:
                 claim = client._claim(route=route, run_id=_generate_run_id(), queue=queue_name)
@@ -242,10 +242,10 @@ def _run_python_claim(
     try:
         journal = LocalRunJournal.create(
             claim=claim,
-            endpoint=client.configuration.endpoint_dict(),
+            endpoint=client._configuration.endpoint_dict(),
             queue=queue,
             route=route,
-            labtasker_root=client.configuration.labtasker_root,
+            labtasker_root=client._configuration.labtasker_root,
         )
     except Exception:
         try:

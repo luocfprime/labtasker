@@ -30,7 +30,6 @@ from labtasker_server.models import QueueRow
 from labtasker_server.name_search import name_matches_fuzzy
 from labtasker_server.ownership import OwnershipLock, acquire_sidecar_lock, lock_database
 
-LOCAL_GITIGNORE = "*\n!.gitignore\n"
 logger = logging.getLogger(__name__)
 OperationKind = Literal["read", "write", "health", "startup", "expiry"]
 
@@ -117,12 +116,6 @@ class Database:
             ) from error
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            labtasker_dir = next(
-                (parent for parent in self.path.parents if parent.name == ".labtasker"),
-                None,
-            )
-            if labtasker_dir is not None:
-                _ensure_local_gitignore(labtasker_dir)
             if self.filesystem.effective == "local":
                 self._legacy_ownership_fd = _acquire_legacy_database_ownership(self.path)
             self.engine = _create_sqlite_engine(self.path, self.filesystem.effective)
@@ -301,14 +294,6 @@ def _create_sqlite_engine(path: Path, filesystem: EffectiveDatabaseFilesystem) -
             cursor.close()
 
     return engine
-
-
-def _ensure_local_gitignore(labtasker_dir: Path) -> None:
-    try:
-        with (labtasker_dir / ".gitignore").open("x", encoding="utf-8", newline="\n") as stream:
-            stream.write(LOCAL_GITIGNORE)
-    except FileExistsError:
-        pass
 
 
 def _is_sqlite_busy(error: OperationalError) -> bool:

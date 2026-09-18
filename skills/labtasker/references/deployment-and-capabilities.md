@@ -10,7 +10,7 @@ possible with custom code does not make it a Labtasker interface.
 | One POSIX project on one machine | Install `labtasker`; explicitly authorize the managed-local daemon once, then use its root-derived socket. |
 | Several machines or users share work | Run one explicit HTTP Server and point every Client and Worker at it. |
 | SQLite database on NFS, WekaFS, Lustre, or uncertain storage | Run one explicit Server with `--database-filesystem shared`; externally guarantee one owner across nodes. |
-| Windows Client or Python Worker | Use an explicit HTTP Server; managed local mode is unsupported. |
+| Windows Client or Python Worker | Use an explicit HTTP Server running on a POSIX host; the Windows Client path is best effort. |
 | Client-only environment | Install `labtasker-client`. |
 | Dedicated Server environment | Install `labtasker-server`. |
 | One same-user host needs an explicitly operated Unix endpoint | Run `serve --connection socket`; use its root-derived default or an explicit `--socket`. |
@@ -43,7 +43,7 @@ There is no public `start`. To launch directly, use
 .labtasker`. Repeating an identical detached launch is idempotent. A conflicting
 launch fails and requires an explicit stop first.
 
-## Run a shared HTTP Server
+## Run a multi-host HTTP Server
 
 Run the Server in the foreground under a process supervisor owned by the user:
 
@@ -54,7 +54,7 @@ labtasker-server serve \
   --host 0.0.0.0 \
   --port 8000 \
   --database /data/labtasker.db \
-  --database-filesystem shared
+  --database-filesystem auto
 ```
 
 A non-loopback bind requires `LABTASKER_SERVER_TOKEN`; there is no token CLI
@@ -102,6 +102,22 @@ supervises the Server. Every public `serve` requires `--connection http|socket`;
 `--daemon` changes only lifecycle. Run exactly one Server process for each
 SQLite database file and do not use multiple Uvicorn workers.
 
+Transport, lifecycle, and database filesystem are independent choices. For
+example, one cluster node may own a database on NFS while same-host Clients use
+an explicitly managed socket daemon:
+
+```bash
+labtasker-server serve \
+  --connection socket \
+  --daemon \
+  --labtasker-root /var/tmp/my-run/labtasker \
+  --database /shared/project/server.db \
+  --database-filesystem shared
+```
+
+Use HTTP instead when Clients run on other nodes. In both forms, an external
+policy must prevent another node from starting a Server for the same database.
+
 `--database-filesystem auto|local|shared` selects the SQLite strategy. Local
 uses WAL/FULL. Shared uses DELETE/EXTRA, one pooled connection, and serializes
 all read and write transactions. Auto maps recognized local filesystems to
@@ -126,10 +142,13 @@ not evidence of incompatibility.
 ## Respect platform boundaries
 
 - Linux is the fully supported and release-gated platform.
-- Ordinary HTTP Client, foreground Server, and Python Worker behavior is best
-  effort on macOS and Windows.
-- Managed local mode and Unix-socket Servers require POSIX and are unsupported
-  on Windows.
+- Ordinary HTTP Client and Python Worker behavior is best effort on macOS and
+  Windows.
+- Every Server mode requires POSIX advisory file locking. Server operation is
+  best effort on macOS and unsupported on Windows, including foreground HTTP.
+  Run the Server on a POSIX host and connect Windows Clients over HTTP.
+- Managed local mode and external Unix-socket Clients require POSIX and are
+  unsupported on Windows.
 - Command Workers are unsupported on Windows because Labtasker cannot guarantee
   whole-process-tree cancellation there. They fail before Server access, Task
   claim, journal creation, or child startup.

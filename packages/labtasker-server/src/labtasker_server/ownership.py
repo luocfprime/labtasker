@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - validated before supported startup pat
     fcntl = None  # type: ignore[assignment]
 
 LockKind = Literal["root", "socket", "db"]
+RUNTIME_PARENT = Path("/tmp")
 
 
 @dataclass(slots=True)
@@ -34,7 +35,7 @@ class OwnershipLock:
 
 def runtime_directory() -> Path:
     effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
-    return (Path("/tmp") / f"labtasker-{effective_uid}").resolve(strict=False)
+    return RUNTIME_PARENT.resolve(strict=False) / f"labtasker-{effective_uid}"
 
 
 def ensure_runtime_directory() -> Path:
@@ -42,6 +43,11 @@ def ensure_runtime_directory() -> Path:
     directory = runtime_directory()
     with suppress(FileExistsError):
         directory.mkdir(mode=0o700)
+    _validate_runtime_directory(directory)
+    return directory
+
+
+def _validate_runtime_directory(directory: Path) -> None:
     info = directory.lstat()
     effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
     if (
@@ -51,11 +57,16 @@ def ensure_runtime_directory() -> Path:
         or stat.S_IMODE(info.st_mode) & 0o077
     ):
         raise RuntimeError(f"Runtime directory must be owner-only: {directory}")
-    return directory
 
 
 def canonical_path(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
+
+
+def canonical_socket_path(path: Path) -> Path:
+    """Canonicalize the parent while preserving the socket entry for lstat checks."""
+    absolute = path.expanduser().absolute()
+    return absolute.parent.resolve(strict=False) / absolute.name
 
 
 def sidecar_path(kind: LockKind, target: Path) -> Path:
@@ -87,7 +98,12 @@ def acquire_sidecar_lock(kind: LockKind, target: Path) -> OwnershipLock:
 def sidecar_is_locked(kind: LockKind, target: Path) -> bool:
     """Inspect an existing sidecar without creating runtime state."""
     require_lock_capability()
-    path = sidecar_path(kind, target)
+    directory = runtime_directory()
+    try:
+        _validate_runtime_directory(directory)
+    except FileNotFoundError:
+        return False
+    path = directory / sidecar_path(kind, target).name
     try:
         fd = os.open(path, os.O_RDWR)
     except FileNotFoundError:
@@ -105,7 +121,7 @@ def sidecar_is_locked(kind: LockKind, target: Path) -> bool:
 
 def require_lock_capability() -> None:
     if os.name != "posix" or fcntl is None:
-        raise RuntimeError("Server ownership requires POSIX advisory file locking.")
+        raise RuntimeError("Labtasker Server requires POSIX advisory file locking.")
 
 
 def require_socket_capability() -> None:

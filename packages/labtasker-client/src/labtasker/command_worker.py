@@ -77,10 +77,10 @@ def run_command_worker(
         labtasker_root=labtasker_root,
         auto_start_local_server=auto_start_local_server,
     ) as client:
-        queue_name = client.configuration.queue
+        queue_name = client._configuration.queue
         _preflight(client, queue_name)
         with ObservationReporter(
-            client.configuration, normalized_route, normalized_metadata
+            client._configuration, normalized_route, normalized_metadata
         ) as observer:
             idle_deadline: float | None = None
             while True:
@@ -142,10 +142,10 @@ def _run_command_claim(
     try:
         journal = LocalRunJournal.create(
             claim=claim,
-            endpoint=client.configuration.endpoint_dict(),
+            endpoint=client._configuration.endpoint_dict(),
             queue=queue,
             route=route,
-            labtasker_root=client.configuration.labtasker_root,
+            labtasker_root=client._configuration.labtasker_root,
         )
     except Exception:
         _best_effort_unclaim(client, claim, queue)
@@ -517,7 +517,7 @@ def _command_environment(
             "LABTASKER_WORKER_ID": worker_id,
         }
     )
-    configuration = client.configuration
+    configuration = client._configuration
     if configuration.url is not None:
         assert configuration.url is not None
         environment["LABTASKER_URL"] = configuration.url

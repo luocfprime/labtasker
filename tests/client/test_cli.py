@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from labtasker import __version__
@@ -16,43 +17,52 @@ from labtasker.models import Queue, Task
 runner = CliRunner()
 
 
-def test_progress_command_reports_strict_json_from_command_context(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    reports: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        "labtasker.cli.report_current_progress",
-        lambda progress: not reports.append(progress),
-    )
-    result = runner.invoke(app, ["progress", "--data", '{"step":7,"loss":0.5}'])
-    assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"reported": True}
-    assert reports == [{"step": 7, "loss": 0.5}]
+def test_public_cli_command_tree_is_exact() -> None:
+    root = get_command(app)
+    assert set(root.commands) == {"loop", "worker", "task", "queue", "config"}
+    assert set(root.commands["worker"].commands) == {"list", "count"}
+    assert set(root.commands["task"].commands) == {
+        "submit",
+        "get",
+        "list",
+        "count",
+        "update",
+        "cancel",
+        "requeue",
+        "delete",
+    }
+    assert set(root.commands["queue"].commands) == {"create", "list", "delete"}
+    assert set(root.commands["config"].commands) == {"show"}
 
 
-def test_worker_telemetry_command_reports_strict_json_from_command_context(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    reports: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        "labtasker.cli.report_current_worker_telemetry",
-        lambda telemetry: not reports.append(telemetry),
-    )
-    result = runner.invoke(app, ["worker", "telemetry", "--data", '{"gpu_utilization":0.75}'])
-    assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"reported": True}
-    assert reports == [{"gpu_utilization": 0.75}]
+def test_false_default_cli_authority_flags_have_no_negative_aliases() -> None:
+    root_help = runner.invoke(app, ["--help"])
+    queue_delete_help = runner.invoke(app, ["queue", "delete", "--help"])
+
+    assert root_help.exit_code == queue_delete_help.exit_code == 0
+    assert "--auto-start-local-server" in root_help.stdout
+    assert "--no-auto-start-local-server" not in root_help.stdout
+    assert "--cascade" in queue_delete_help.stdout
+    assert "--no-cascade" not in queue_delete_help.stdout
 
 
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["worker", "telemetry", "--data", "[]"],
-        ["loop", "--metadata", "[]", "--", "echo"],
-    ],
-)
-def test_worker_observability_json_inputs_are_strict_usage_errors(argv: list[str]) -> None:
-    result = runner.invoke(app, argv)
+def test_runtime_reporting_helpers_are_not_cli_commands() -> None:
+    root_help = runner.invoke(app, ["--help"])
+    worker_help = runner.invoke(app, ["worker", "--help"])
+
+    assert root_help.exit_code == 0
+    assert worker_help.exit_code == 0
+    assert "progress" not in root_help.stdout
+    assert "telemetry" not in worker_help.stdout
+
+    for argv in (["progress", "--help"], ["worker", "telemetry", "--help"]):
+        result = runner.invoke(app, argv)
+        assert result.exit_code == 2
+        assert "No such command" in result.stderr
+
+
+def test_worker_metadata_json_input_is_strict_usage_error() -> None:
+    result = runner.invoke(app, ["loop", "--metadata", "[]", "--", "echo"])
     assert result.exit_code == 2
     assert result.stdout == ""
     assert "must be one strict JSON object" in result.stderr
@@ -235,7 +245,6 @@ def test_invalid_json_is_a_usage_error_without_network(fake_client: None, value:
         ["task", "submit", "--args"],
         ["task", "submit", "--metadata"],
         ["task", "update", "t_ABCDEFGHIJKL", "--changes"],
-        ["worker", "telemetry", "--data"],
     ],
 )
 def test_deep_json_is_a_usage_error(fake_client: None, argv: list[str], depth: int) -> None:

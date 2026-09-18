@@ -25,6 +25,7 @@ from labtasker_server.local import (
     acquire_socket_lock,
     daemon_state,
     ensure_daemon,
+    ensure_labtasker_root,
     local_paths,
     make_metadata,
     metadata_owner_is_verified,
@@ -37,6 +38,8 @@ from labtasker_server.ownership import (
     OwnershipLock,
     acquire_sidecar_lock,
     canonical_path,
+    canonical_socket_path,
+    require_lock_capability,
     sidecar_path,
 )
 
@@ -54,6 +57,14 @@ def _version_callback(value: bool) -> None:
     if value:
         typer.echo(f"labtasker-server {__version__}")
         raise typer.Exit()
+
+
+def _require_server_platform() -> None:
+    try:
+        require_lock_capability()
+    except RuntimeError as error:
+        typer.echo(f"[labtasker-server] Server platform error: {error}", err=True)
+        raise typer.Exit(1) from error
 
 
 @app.callback()
@@ -103,10 +114,14 @@ def serve(
     ] = None,
     daemon: Annotated[
         bool,
-        typer.Option(help="Run detached and manage the process by Labtasker root."),
+        typer.Option(
+            "--daemon",
+            help="Run detached and manage the process by Labtasker root.",
+        ),
     ] = False,
 ) -> None:
     """Initialize SQLite and run one foreground or detached Server."""
+    _require_server_platform()
     config, settings = _resolve_serve_config(
         connection=connection,
         labtasker_root=labtasker_root,
@@ -136,6 +151,7 @@ def ensure_daemon_command(
     labtasker_root: Annotated[Path, typer.Option()],
 ) -> None:
     """Ensure one healthy managed-local daemon for an authorized Client request."""
+    _require_server_platform()
     try:
         paths = local_paths(labtasker_root)
         resolved = resolve_database_filesystem(paths.database, "auto")
@@ -197,6 +213,7 @@ def daemon_command(
     socket_path: Annotated[Path | None, typer.Option("--socket")] = None,
 ) -> None:
     """Run one private detached Server child."""
+    _require_server_platform()
     config, settings = _resolve_serve_config(
         connection=connection,
         labtasker_root=labtasker_root,
@@ -270,6 +287,7 @@ def status(
     labtasker_root: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """Print managed-daemon status as JSON without creating or cleaning state."""
+    _require_server_platform()
     paths = local_paths(labtasker_root)
     typer.echo(json.dumps(_status_payload(paths), indent=2, ensure_ascii=False) + "\n", nl=False)
 
@@ -279,10 +297,14 @@ def stop(
     labtasker_root: Annotated[Path | None, typer.Option()] = None,
     force: Annotated[
         bool,
-        typer.Option(help="Send SIGKILL after the 30-second graceful deadline."),
+        typer.Option(
+            "--force",
+            help="Send SIGKILL after the 30-second graceful deadline.",
+        ),
     ] = False,
 ) -> None:
     """Stop the verified daemon selected by exact Labtasker root."""
+    _require_server_platform()
     paths = local_paths(labtasker_root)
     state = daemon_state(paths)
     if state == "stopped":
@@ -336,6 +358,7 @@ def logs(
     labtasker_root: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """Print the selected daemon's complete UTF-8 log."""
+    _require_server_platform()
     path = local_paths(labtasker_root).log
     try:
         typer.echo(path.read_text(encoding="utf-8"), nl=False)
@@ -380,7 +403,9 @@ def _resolve_serve_config(
         if host is not None or port is not None:
             raise typer.BadParameter("--host and --port are valid only with --connection http")
         paths = local_paths(root)
-        effective_socket = canonical_path(paths.socket if socket_path is None else socket_path)
+        effective_socket = canonical_socket_path(
+            paths.socket if socket_path is None else socket_path
+        )
         effective_host = None
         effective_port = None
         settings = ServerSettings(
@@ -407,6 +432,8 @@ def _run_foreground(config: DaemonConfig, settings: ServerSettings) -> None:
     listener: socket.socket | None = None
     application: object | None = None
     try:
+        if config.database == config.labtasker_root / "server.db":
+            ensure_labtasker_root(config.labtasker_root)
         if config.connection == "socket":
             assert config.socket is not None
             socket_lock = acquire_socket_lock(config.socket)

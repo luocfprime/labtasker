@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from labtasker_server import __version__
@@ -19,6 +20,20 @@ from labtasker_server.local import (
 )
 
 runner = CliRunner()
+
+
+def test_public_and_private_server_command_trees_are_exact() -> None:
+    root = get_command(app)
+    assert {name for name, command in root.commands.items() if not command.hidden} == {
+        "serve",
+        "status",
+        "stop",
+        "logs",
+    }
+    assert {name for name, command in root.commands.items() if command.hidden} == {
+        "_ensure-daemon",
+        "_daemon",
+    }
 
 
 def test_version_and_missing_connection_have_no_state_side_effects(
@@ -36,13 +51,84 @@ def test_version_and_missing_connection_have_no_state_side_effects(
     assert not (tmp_path / ".labtasker").exists()
 
 
+def test_unsupported_server_platform_fails_before_state_but_keeps_help_and_version(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    def unsupported() -> None:
+        raise RuntimeError("Labtasker Server requires POSIX advisory file locking.")
+
+    monkeypatch.setattr("labtasker_server.cli.require_lock_capability", unsupported)
+
+    for arguments in (
+        ["--version"],
+        ["--help"],
+        ["serve", "--help"],
+        ["status", "--help"],
+        ["stop", "--help"],
+        ["logs", "--help"],
+    ):
+        result = runner.invoke(app, arguments)
+        assert result.exit_code == 0, result.output
+
+    for arguments in (
+        ["serve", "--connection", "http"],
+        ["status"],
+        ["stop"],
+        ["logs"],
+        ["_ensure-daemon", "--labtasker-root", str(tmp_path / "root")],
+        [
+            "_daemon",
+            "--labtasker-root",
+            str(tmp_path / "root"),
+            "--database",
+            str(tmp_path / "server.db"),
+            "--database-filesystem",
+            "local",
+            "--connection",
+            "http",
+            "--root-lock-fd",
+            "1",
+            "--readiness-fd",
+            "1",
+            "--generation",
+            "generation",
+            "--started-at",
+            "1",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8000",
+        ],
+    ):
+        result = runner.invoke(app, arguments)
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert result.stderr == (
+            "[labtasker-server] Server platform error: "
+            "Labtasker Server requires POSIX advisory file locking.\n"
+        )
+
+    assert not (tmp_path / ".labtasker").exists()
+
+
 def test_server_help_exposes_one_serve_and_root_management() -> None:
     root = runner.invoke(app, ["--help"])
     serve = runner.invoke(app, ["serve", "--help"])
+    stop = runner.invoke(app, ["stop", "--help"])
     coordinator = runner.invoke(app, ["_ensure-daemon", "--help"])
     child = runner.invoke(app, ["_daemon", "--help"])
 
-    assert root.exit_code == serve.exit_code == coordinator.exit_code == child.exit_code == 0
+    assert (
+        root.exit_code
+        == serve.exit_code
+        == stop.exit_code
+        == coordinator.exit_code
+        == child.exit_code
+        == 0
+    )
     assert "serve" in root.stdout
     assert "start" not in root.stdout
     for command in ("status", "stop", "logs"):
@@ -51,6 +137,10 @@ def test_server_help_exposes_one_serve_and_root_management() -> None:
     assert "_daemon" not in root.stdout
     assert "--connection <http|socket>" in serve.stdout
     assert "[required]" in serve.stdout
+    assert "--daemon" in serve.stdout
+    assert "--no-daemon" not in serve.stdout
+    assert "--force" in stop.stdout
+    assert "--no-force" not in stop.stdout
     assert "--labtasker-root" in coordinator.stdout
     for option in ("--root-lock-fd", "--readiness-fd", "--generation"):
         assert option in child.stdout
@@ -80,7 +170,59 @@ def test_http_serve_uses_transport_specific_defaults(
     assert observed["host"] == "127.0.0.1"
     assert observed["port"] == 8000
     assert "fd" not in observed
-    assert not (tmp_path / ".labtasker").exists()
+    assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
+
+
+@pytest.mark.parametrize("existing", [None, "server.db*\n"])
+def test_foreground_default_database_initializes_exact_custom_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    existing: str | None,
+) -> None:
+    root = tmp_path / "custom-root"
+    if existing is not None:
+        root.mkdir()
+        (root / ".gitignore").write_text(existing)
+    monkeypatch.setattr("labtasker_server.cli.create_app", lambda _: object())
+    monkeypatch.setattr("labtasker_server.cli.uvicorn.run", lambda *_args, **_kwargs: None)
+
+    result = runner.invoke(
+        app,
+        ["serve", "--connection", "http", "--labtasker-root", str(root)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (root / ".gitignore").read_text() == (
+        "*\n!.gitignore\n" if existing is None else existing
+    )
+
+
+def test_foreground_external_database_does_not_create_unused_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "unused-root"
+    database = tmp_path / "data/server.db"
+    monkeypatch.setattr("labtasker_server.cli.create_app", lambda _: object())
+    monkeypatch.setattr("labtasker_server.cli.uvicorn.run", lambda *_args, **_kwargs: None)
+
+    result = runner.invoke(
+        app,
+        [
+            "serve",
+            "--connection",
+            "http",
+            "--labtasker-root",
+            str(root),
+            "--database",
+            str(database),
+            "--database-filesystem",
+            "shared",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not root.exists()
 
 
 @pytest.mark.parametrize(
@@ -137,6 +279,53 @@ def test_socket_serve_uses_explicit_database_and_cleans_socket(
     assert settings.token is None  # type: ignore[attr-defined]
     assert "fd" in observed
     assert not socket_path.exists()
+    assert not (tmp_path / ".labtasker").exists()
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="requires Unix sockets")
+@pytest.mark.parametrize("live_target", [False, True])
+def test_socket_serve_rejects_symlink_without_touching_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    live_target: bool,
+) -> None:
+    database = tmp_path / "server.db"
+    with tempfile.TemporaryDirectory(prefix="lt-", dir="/tmp") as directory:
+        target = Path(directory) / "target.sock"
+        alias = Path(directory) / "alias.sock"
+        listener: socket.socket | None = None
+        if live_target:
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            listener.bind(str(target))
+            listener.listen()
+        alias.symlink_to(target)
+        monkeypatch.setattr(
+            "labtasker_server.cli.create_app",
+            lambda _: pytest.fail("database application must not be created"),
+        )
+        try:
+            result = runner.invoke(
+                app,
+                [
+                    "serve",
+                    "--connection",
+                    "socket",
+                    "--socket",
+                    str(alias),
+                    "--database",
+                    str(database),
+                    "--database-filesystem",
+                    "shared",
+                ],
+            )
+        finally:
+            if listener is not None:
+                listener.close()
+
+        assert result.exit_code == 1
+        assert "Refusing to replace unverified socket path" in result.stderr
+        assert alias.is_symlink()
+    assert not database.exists()
 
 
 def test_status_is_read_only_and_has_stable_shape(

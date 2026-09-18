@@ -19,16 +19,14 @@ labtasker task submit [OPTIONS]
 labtasker task get TASK_ID
 labtasker task list [OPTIONS]
 labtasker task count [OPTIONS]
-labtasker task update [TASK_ID] (--filter FILTER) --changes JSON
+labtasker task update [TASK_ID | --filter FILTER] --changes JSON
 labtasker task cancel TASK_ID
 labtasker task requeue TASK_ID
 labtasker task delete TASK_ID
 
 labtasker worker list [OPTIONS]
 labtasker worker count [OPTIONS]
-labtasker worker telemetry --data JSON
 
-labtasker progress --data JSON
 labtasker loop [OPTIONS] -- COMMAND [ARG...]
 labtasker-server --version
 labtasker-server serve --connection http [OPTIONS]
@@ -52,6 +50,48 @@ configuration, contacting a Server, or starting the local daemon. `labtasker
 owns that executable. `labtasker-server --version` prints
 `labtasker-server VERSION`. Each result is one line on stdout with exit status
 0. Root `--help` lists the option but does not print the current version.
+
+### Client options
+
+The root options apply before the selected subcommand:
+
+| Option | Default | Contract |
+| --- | --- | --- |
+| `--version` | false | Print `labtasker-client VERSION` and exit without resolving configuration. |
+| `--labtasker-root PATH` | exact `CWD/.labtasker` | Select the exact config, journal, and managed-local root. No parent or VCS search occurs. |
+| `--auto-start-local-server` | false | Give only this invocation authority to start or recover the standard managed-local daemon. Invalid for an HTTP or explicit-socket endpoint. |
+
+Task command arguments and options are:
+
+| Command | Arguments and options |
+| --- | --- |
+| `task submit` | `--args JSON` `{}`, `--name TEXT` null, `--metadata JSON` `{}`, `--priority INT` `0`, `--max-attempts INT` `3`, repeatable `--route TEXT` (omission means `default`), optional `--id TASK_ID`, optional `--queue QUEUE` |
+| `task get` | required `TASK_ID`, optional `--queue QUEUE` |
+| `task list` | optional `--status`, `--name`, `--name-fuzzy`, `--filter`, `--order-by` (`created_at`), `--descending` / `--ascending` (descending), `--limit` (`100`, range 1–1000), `--cursor`, and `--queue` |
+| `task count` | optional `--status`, `--name`, `--name-fuzzy`, `--filter`, one comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
+| `task update` | exactly one of positional `TASK_ID` or `--filter FILTER`, required `--changes JSON`, optional `--queue QUEUE` |
+| `task cancel`, `task requeue`, `task delete` | required `TASK_ID`, optional `--queue QUEUE` |
+
+Queue, Worker, and execution options are:
+
+| Command | Arguments and options |
+| --- | --- |
+| `queue create` | required `NAME` |
+| `queue list` | no command options |
+| `queue delete` | required `NAME`; `--cascade` defaults to false |
+| `worker list` | optional `--filter`, `--limit` (`100`, range 1–1000), `--cursor`, and `--queue` |
+| `worker count` | optional `--filter`, one comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
+| `loop` | `--route` (`default`), `--queue`, `--max-consecutive-failures` (`5`), `--idle-timeout` (`300` seconds), nullable `--force-stop-timeout`, `--metadata JSON` (`{}`), then required direct child argv after `--` |
+
+Task progress, Worker telemetry, and early completion are Python execution-context
+helpers. The CLI does not expose `progress`, `worker telemetry`, or `finish`
+commands.
+
+`--status` accepts exactly `pending`, `running`, `succeeded`, `failed`, or
+`cancelled`. `--order-by` accepts `id`, `name`, `status`, `priority`, `attempt`,
+`max_attempts`, `last_route`, `created_at`, `updated_at`, `started_at`, or
+`finished_at`. Page limits accept 1–1000. Positive counters reject zero;
+`--force-stop-timeout` accepts a finite non-negative number.
 
 ## Command contracts
 
@@ -80,8 +120,6 @@ do not advertise a usable version do not trigger this warning.
 | `task delete` | Nothing | Permanently deletes one non-running Task; absent is idempotent. |
 | `worker list` | `{"items":[...],"next_cursor":...}` | Lists unexpired observations by ID ascending; accepts `--filter`, `--limit`, `--cursor`, and `--queue`. |
 | `worker count` | `{"count":N}` or a grouped page | Counts unexpired observations; accepts `--filter`, `--group-by`, `--limit`, `--cursor`, and `--queue`. |
-| `worker telemetry` | `{"reported":true|false}` | Inside a Command Worker child, synchronously replaces the current Worker invocation's latest strict JSON-object telemetry snapshot. |
-| `progress` | `{"reported":true|false}` | Inside a Command Worker child, replaces the current run's latest strict JSON-object snapshot. A best-effort transport/revocation failure reports false without failing the command. |
 | `queue create` | One Queue object | Idempotent create-by-name. |
 | `queue list` | Complete Queue array | Not paginated. |
 | `queue delete` | Nothing | Non-empty requires `--cascade`; running Tasks still block deletion. |
@@ -104,12 +142,36 @@ see [failure protection](../guides/failure-recovery.md#consecutive-failure-prote
 
 Server commands have a separate ownership boundary:
 
+The Server requires POSIX advisory file locking in every transport and lifecycle
+mode. On Windows, help and version inspection remain available, while every
+operational Server command exits 1 before creating state, opening SQLite,
+binding a listener, or starting a process.
+
 | Command | Contract |
 | --- | --- |
 | `serve --connection http\|socket` | Runs one foreground Server, or a detached one with `--daemon`. Transport selection is required. `--database-filesystem` defaults to `auto`; one process owns one SQLite file. |
 | `status [--labtasker-root PATH]` | Read-only JSON describing the daemon selected by exact root; it creates and cleans nothing. |
 | `stop [--labtasker-root PATH] [--force]` | Stops only the reverified daemon for that root; normal stop never sends SIGKILL. |
 | `logs [--labtasker-root PATH]` | Prints that daemon's complete log; it does not follow. |
+
+`serve` has this exact public option surface:
+
+| Option | Requirement or default |
+| --- | --- |
+| `--connection http\|socket` | Required; there is no transport default. |
+| `--labtasker-root PATH` | Exact `CWD/.labtasker`. |
+| `--database PATH` | `<labtasker-root>/server.db`; it may be elsewhere. |
+| `--database-filesystem auto\|local\|shared` | `auto`. |
+| `--host HOST` | HTTP-only; `127.0.0.1`. |
+| `--port PORT` | HTTP-only; `8000`, range 1–65535. |
+| `--socket PATH` | Socket-only; otherwise derive the owner-only runtime socket from the canonical root. |
+| `--daemon` | false; lifecycle only. |
+
+`status`, `stop`, and `logs` each accept only `--labtasker-root`, defaulting to
+exact `CWD/.labtasker`; `stop` additionally accepts `--force`,
+default false.
+Private `_ensure-daemon` and `_daemon` coordinator commands are hidden
+implementation details, not public CLI contracts.
 
 `serve` defaults the root to exact `CWD/.labtasker`, its database to
 `<root>/server.db`, and detached mode to false. HTTP defaults to
@@ -118,6 +180,31 @@ Server commands have a separate ownership boundary:
 changes lifecycle only. A matching detached launch is idempotent; a conflicting
 launch fails and asks the operator to stop the existing daemon first. There is
 no public `start` command.
+
+`status` writes this stable shape; fields that require verified live metadata
+are null when it is unavailable:
+
+```json
+{
+  "state": "running",
+  "labtasker_root": "/absolute/root",
+  "database": "/absolute/server.db",
+  "database_filesystem": "shared",
+  "connection": "socket",
+  "host": null,
+  "port": null,
+  "socket": "/absolute/server.sock",
+  "log": "/absolute/root/server.log",
+  "pid": 1234,
+  "version": "2.5.0"
+}
+```
+
+`state` is exactly `running`, `starting`, `unhealthy`, or `stopped`.
+`database`, `database_filesystem`, `connection`, `host`, `port`, `socket`,
+`pid`, and `version` are null when not applicable or when live metadata cannot
+be verified. Runtime metadata is diagnostic state, not configuration or
+authority.
 
 ## Inspect route demand and Worker activity
 

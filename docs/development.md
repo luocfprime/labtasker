@@ -26,6 +26,10 @@ GitHub Pages. A `vVERSION` tag publishes `VERSION`, moves the `latest` alias, an
 updates the site's default redirect. Versioning uses Zensical's temporary Mike
 integration until native Zensical versioning is available.
 
+Use Conventional Commits for repository history: `type: summary` or
+`type(scope): summary`. Choose the narrowest semantic type, such as `feat`,
+`fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`, or `perf`.
+
 Configure GitHub Pages to deploy from the root of the `gh-pages` branch. The
 documentation workflow retains older versions on that branch, so it deliberately
 does not use the single-artifact Pages deployment flow.
@@ -78,6 +82,21 @@ skill, its bundled references, and task-facing public interfaces. The examiner
 provisions temporary Servers and databases, checks observable results, and keeps
 holdout questions and rubrics hidden from the reviser. Revisions are bounded;
 failed or unexecuted cases remain visible in the report.
+
+### Public interface approval
+
+Before implementing any addition, removal, or observable change to a public
+Python API, HTTP endpoint, CLI command or option, configuration field, or
+persisted contract, present the exact proposed interface separately for the
+maintainer to review. Include its name or signature, inputs, defaults, outputs,
+errors, and compatibility effect as applicable. Obtain explicit approval for
+that interface before implementing it.
+
+Do not treat approval of a long specification, implementation plan, or broader
+feature as approval for public interfaces embedded inside it. The review must
+make the changed public surface easy to identify without rediscovering it in a
+large document. After approval, update the specification, implementation,
+tests, and user documentation together.
 
 The [agent regression suite](https://github.com/luocfprime/labtasker/tree/main/tests/skill)
 lives in `tests/skill/`, outside the installed skill and ordinary pytest discovery.

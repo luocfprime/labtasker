@@ -52,7 +52,9 @@ remain useful after the change ships.
   one-second observation shutdown wait applies only after an independent exit
   decision. See specification section 3.0 for these distinctions.
 - Minimalism is a product requirement. Add a public concept only for a concrete
-  experiment workflow and implement its complete HTTP/Python/CLI slice.
+  experiment workflow, and update only the necessary, explicitly approved
+  public surfaces. A Python or execution-context helper does not require a
+  parallel CLI command.
 - Queue is the only server-side namespace and scheduling pool. Routes are exact,
   case-sensitive compatibility labels, not resource records.
 - The Server stores authoritative Tasks and supplementary expiring Worker
@@ -98,6 +100,9 @@ remain useful after the change ships.
   user changes in a dirty worktree.
 - Use `uv` from the repository root. Do not introduce another environment,
   package manager, build frontend, formatter, or test runner.
+- Use Conventional Commits for every repository commit: `type: summary` or
+  `type(scope): summary`, with a semantic type such as `feat`, `fix`,
+  `refactor`, `test`, `docs`, `chore`, `build`, `ci`, or `perf`.
 - Prefer the smallest change that satisfies the contract. Do not leave aliases,
   compatibility switches, unused abstractions, or speculative extension points.
 - Keep public documentation and code terminology as `Task`, `Queue`, `Worker`,
@@ -105,6 +110,11 @@ remain useful after the change ships.
 - A public contract change normally requires checking Server schema/service/app,
   Client model/transport/API/CLI, OpenAPI, docs, and tests. Use the
   `public-contract-change` skill for that workflow.
+- Before implementing an addition, removal, or observable change to a public
+  Python, HTTP, CLI, configuration, or persisted interface, present the exact
+  changed surface separately and obtain the user's explicit approval. Approval
+  of a broad plan or specification does not authorize public interfaces that
+  were not individually made clear for review.
 - Do not add or update production dependencies without explaining the concrete
   need and verifying the Client/Server package boundary.
 - Never hand-edit generated `site/`, `dist/`, caches, local `.labtasker/` data, or

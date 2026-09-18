@@ -84,7 +84,7 @@ class FakeClient:
         token: str | None = None,
         heartbeat_error: APIError | None = None,
     ) -> None:
-        self.configuration = ResolvedConfig(
+        self._configuration = ResolvedConfig(
             url="http://server",
             socket=None,
             managed_local=False,

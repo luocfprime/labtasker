@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from labtasker.client import Client
+from labtasker.client import REQUEST_TIMEOUT_SECONDS, Client
 from labtasker.errors import APIError, TransportError
 from labtasker.validation import RequestValidationError
 
@@ -327,14 +327,26 @@ def test_close_is_idempotent_and_closed_client_never_reopens() -> None:
         client.get_task("not-even-validated")
 
 
-def test_configuration_is_snapshotted_at_construction(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_configuration_is_private_and_snapshotted_at_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("LABTASKER_QUEUE", "first")
     client = Client(url="http://server.test")
     monkeypatch.setenv("LABTASKER_QUEUE", "second")
     try:
-        assert client.configuration.queue == "first"
+        assert not hasattr(client, "configuration")
+        assert client._configuration.queue == "first"
     finally:
         client.close()
+
+
+def test_ordinary_request_timeout_is_fifteen_seconds() -> None:
+    assert REQUEST_TIMEOUT_SECONDS == 15.0
+    with Client(url="http://server.test") as client:
+        assert client._http.timeout.connect == 15.0
+        assert client._http.timeout.read == 15.0
+        assert client._http.timeout.write == 15.0
+        assert client._http.timeout.pool == 15.0
 
 
 def test_claim_replays_same_run_id_and_parses_empty_claim(

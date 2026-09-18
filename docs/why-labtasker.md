@@ -170,9 +170,9 @@ On POSIX systems one explicit `--auto-start-local-server` flag or
 SQLite; later calls simply connect. There is no database service, TCP port, or
 configuration file to prepare for that local path.
 
-The managed local Server is not available on Windows. Windows Clients connect
-to an explicitly operated HTTP Server instead; ordinary Client, Server, and
-Python Worker use remains best effort there.
+The Server requires POSIX advisory file locking and is not available on Windows.
+Windows HTTP Clients and Python Workers remain best effort and connect to an
+explicitly operated Server on a POSIX host.
 
 An explicitly managed HTTP Server remains available when several machines need
 to share a Queue. This is a separate deployment choice, not setup that every new

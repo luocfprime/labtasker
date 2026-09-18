@@ -201,6 +201,11 @@ installs `labtasker-client` or `labtasker-server` directly. An extra such as
 `labtasker[slim]` is not used because Python extras add dependencies and cannot
 subtract the Server from the default installation.
 
+Only the Client distribution exposes a supported public Python API. The Server
+distribution is operated through its executable and HTTP contract; importing
+`labtasker_server.app`, persistence, migration, CLI, or ownership modules is an
+internal implementation dependency rather than a supported embedding surface.
+
 All three distributions support Python 3.10 or newer. Client-only installations
 remain useful in established ML environments because they avoid the Server
 dependency tree, not because they have a different Python requirement.
@@ -233,9 +238,10 @@ operator action justified by a real migration need.
 
 Linux is the fully supported and release-gated 2.0.0 platform, including Worker
 process cancellation and the real single-node torchrun/Accelerate suite. The
-ordinary Client, Server and Python Worker are kept portable on macOS and Windows,
-and the Command Worker is kept portable on macOS; those paths are best effort in
-the initial release, so a platform-specific failure does not block 2.0.0.
+ordinary HTTP Client and Python Worker are kept portable on macOS and Windows;
+the Server and Command Worker require POSIX and remain best effort on macOS.
+Those non-Linux paths are outside the release gate, so a platform-specific
+failure does not block 2.0.0.
 
 The Command Worker is unsupported on Windows. Its execution contract requires
 the Worker to create and later terminate or kill the child's entire local process
@@ -249,23 +255,25 @@ CLI catches that exception, writes its message to stderr and exits 1. Windows
 ConPTY and Windows distributed-launcher support are outside the v2 contract
 because both depend on this unsupported executor.
 
-The managed local Server is likewise a POSIX feature in the initial release. It
-requires an owner-only Unix-domain socket, advisory file locking and a daemon
-process detached from its launching terminal. A platform without those required
-capabilities rejects managed-local operation before creating `.labtasker`,
-starting a process or opening a database, and tells the user to configure an
-explicit HTTP URL. Ordinary HTTP Client and foreground HTTP Server operation
-remain best effort on Windows as stated above; v2 does not silently substitute a
-loopback TCP daemon for the Unix-socket contract.
+Every Server mode is a POSIX feature. Foreground HTTP still requires the same
+host-local advisory ownership lock as socket and daemon modes; v2 provides no
+weaker Windows ownership substitute. On Windows, every operational
+`labtasker-server` command fails deterministically with exit status 1 before
+creating a Labtasker root, opening or mutating SQLite, binding a listener or
+starting a process. Help and version inspection remain available. Windows
+Clients and Python Workers may connect to an explicit HTTP Server running on a
+POSIX host on a best-effort basis. V2 never silently starts a loopback TCP Server
+as a substitute for managed local.
 
 “Best effort” and “unsupported” are distinct platform classifications. Best
 effort permits an ordinary documented path to run even though that platform is
 not in the release gate. It does not permit a feature that this specification
 explicitly marks unsupported on the detected platform to run speculatively. A
 public Client, Worker or Server entry point for such a feature must perform a
-deterministic platform or required-capability check and raise
-`NotImplementedError` before network access, Task claim, journal creation,
-database mutation or child-process startup. It must not silently substitute
+deterministic platform or required-capability check before network access, Task
+claim, journal creation, database mutation or child-process startup. A Python
+entry point raises its documented error; an executable writes a readable
+diagnostic to stderr and exits nonzero. It must not silently substitute
 semantically weaker behavior or rely on a later import, spawn, signal or system
 call failure. The message identifies both the feature and detected platform.
 
@@ -1326,6 +1334,12 @@ its durable log; the database path identifies the SQLite file being owned.
 Management commands therefore select a daemon by root, while database ownership
 is enforced independently by database path.
 
+Root and database paths resolve their complete symlink aliases. A socket path
+canonicalizes its parent but deliberately preserves the final directory entry:
+that entry must be absent or an owned Unix socket and is rejected when it is a
+symlink. This keeps normal parent aliases stable without allowing socket-target
+validation to be bypassed.
+
 `--connection http` accepts `--host` and `--port`, fills their HTTP-specific
 defaults only after selecting that transport, and rejects an explicitly supplied
 `--socket`. `--connection socket` accepts `--socket`, derives its default only
@@ -1384,11 +1398,11 @@ Every lock file is an ordinary permanent sidecar path in this runtime directory.
 Labtasker never unlinks it, gives it a TTL or steals it. The kernel releases an
 advisory `flock` when every process holding its open descriptor exits.
 
-Managed daemons and Unix sockets remain unsupported on Windows. Best-effort
-foreground HTTP Server operation may use an equivalent owner-scoped platform
-temporary directory and advisory-lock primitive; it must preserve the same
-single-host exclusion or fail before opening SQLite rather than silently run
-without an ownership lock.
+All Server transports and lifecycle modes require POSIX advisory file locking.
+Windows Server operation is unsupported; the executable rejects `serve`,
+`status`, `stop`, `logs`, and private coordinator/daemon execution before root,
+database, listener or process side effects. Root and command help plus
+`--version` remain side-effect-free and available for diagnosis.
 
 Every Server, foreground or daemon, holds the database-path lock for its complete
 lifetime. Every Unix-socket Server also holds the socket-path lock, preventing a
@@ -1465,6 +1479,22 @@ maintains explicit known-local and known-shared type sets. A type not in either
 set is unknown; v2 never guesses that an unknown filesystem is local. Explicit
 `local` or `shared` is the operator's override and bypasses classification.
 
+The current normalized type sets are exact:
+
+```text
+known local:
+  apfs btrfs ext2 ext3 ext4 f2fs hfs hfsplus jfs overlay tmpfs ufs xfs zfs
+
+known shared:
+  beegfs ceph cifs fuse.sshfs gpfs lustre nfs nfs4 smbfs wekafs
+```
+
+Linux selects the longest matching mount point from `/proc/self/mountinfo`.
+macOS selects the longest matching mount from `mount` output. Failure to obtain a
+type is the same conservative unknown result. Additive recognition of another
+filesystem requires evidence for its classification and tests; a new name is
+never inferred from a substring such as `nfs` or `lustre`.
+
 The strategies fix and verify these settings:
 
 | Setting | `local` | `shared` |
@@ -1475,6 +1505,15 @@ The strategies fix and verify these settings:
 | `busy_timeout` | `5000` ms | `5000` ms |
 | SQLAlchemy pool | SQLAlchemy's ordinary file-SQLite pool; not forced to one connection | `QueuePool(pool_size=1, max_overflow=0, pool_timeout=5)` |
 | transactions | concurrent reads, SQLite-serialized writes | every read and write serialized by checkout of the one connection |
+
+`DELETE` means SQLite uses a rollback journal and removes it at commit instead
+of retaining WAL and shared-memory coordination files. `EXTRA` includes the
+directory durability step associated with deleting that journal. This is the
+conservative shared-storage strategy, not a claim that SQLite can survive a
+filesystem with incorrect advisory locking, cache coherence, or `fsync`
+semantics. `foreign_keys=ON` enforces relational invariants on every connection;
+`busy_timeout=5000` bounds SQLite lock waits independently of the shared pool's
+five-second checkout wait.
 
 Before listening, the Server obtains its host-local database ownership lock,
 changes WAL/rollback-journal mode when necessary, installs connection-local
@@ -1680,14 +1719,28 @@ labtasker-server logs [--labtasker-root PATH]
 
 The root defaults and canonicalization match `serve`. These commands never infer
 a database path, search parent directories or select a daemon by CWD ancestry.
+`stop` exposes `--force`, defaulting to false.
 
 `status` is read-only. It performs no cleanup, launch, stop, database access or
 lock-file creation; an absent root lock path is treated as unlocked.
-It writes one two-space-indented JSON object containing stable keys `state`,
-`labtasker_root`, `database`, `database_filesystem`, `connection`, `host`,
-`port`, `socket`, `log`, `pid` and `version`. Values unavailable from verified
-runtime metadata are null. It reports only managed-daemon state; a foreground
-Server is outside this command even if it happens to use the root-derived socket.
+It writes one two-space-indented JSON object:
+
+| Field | Value |
+| --- | --- |
+| `state` | `running`, `starting`, `unhealthy`, or `stopped` |
+| `labtasker_root` | canonical absolute root |
+| `database` | canonical absolute database path or null |
+| `database_filesystem` | effective `local` or `shared`, or null |
+| `connection` | `http` or `socket`, or null |
+| `host`, `port` | HTTP bind values or null |
+| `socket` | canonical Unix-socket path or null |
+| `log` | canonical daemon log path |
+| `pid` | verified daemon PID or null |
+| `version` | verified Server package version or null |
+
+Only `state`, `labtasker_root`, and `log` are populated without verified runtime
+metadata. It reports only managed-daemon state; a foreground Server is outside
+this command even if it happens to use the root-derived socket.
 
 `stop` is idempotent for an already stopped root. It acquires the free root lock
 before removing verified stale metadata and additionally acquires the socket-path
@@ -3533,11 +3586,38 @@ command, including nested Task/Queue/Worker commands:
 ```text
 labtasker task submit|get|list|count|update|cancel|requeue|delete
 labtasker queue create|list|delete
-labtasker worker list|count|telemetry
-labtasker progress --data JSON
+labtasker worker list|count
 labtasker loop
 labtasker config show
 ```
+
+The execution-context helpers `finish()`, `report_progress()` and
+`report_worker_telemetry()` are Python APIs, not CLI commands. Command Workers
+use their process exit status for ordinary completion; Labtasker does not add a
+parallel CLI command for every Python runtime helper.
+
+The exact Client CLI option inventory is:
+
+| Scope | Public arguments and options |
+| --- | --- |
+| root | `--version`; `--labtasker-root PATH`; `--auto-start-local-server` (false) |
+| `task submit` | `--args {}`, nullable `--name`, `--metadata {}`, `--priority 0`, `--max-attempts 3`, repeatable `--route`, nullable `--id`, nullable `--queue` |
+| `task get` | required Task ID; nullable `--queue` |
+| `task list` | nullable `--status`, `--name`, `--name-fuzzy`, `--filter`, `--order-by created_at`, `--descending` / `--ascending` (descending), `--limit 100`, nullable `--cursor`, nullable `--queue` |
+| `task count` | the four list selectors, nullable comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
+| `task update` | exactly one of a positional Task ID or `--filter`; required `--changes`; nullable `--queue` |
+| `task cancel`, `task requeue`, `task delete` | required Task ID; nullable `--queue` |
+| `queue create`, `queue list`, `queue delete` | required name for create/delete; delete has `--cascade` (false) |
+| `worker list` | nullable `--filter`, `--limit 100`, `--cursor`, and `--queue` |
+| `worker count` | nullable `--filter`, comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
+| `loop` | `--route default`, nullable `--queue`, `--max-consecutive-failures 5`, `--idle-timeout 300`, nullable `--force-stop-timeout`, `--metadata {}`, then required direct argv after `--` |
+| `config show` | no leaf options |
+
+Page limits accept 1 through 1000. `--max-attempts` and
+`--max-consecutive-failures` are positive integers. `--force-stop-timeout` is a
+finite non-negative number or null. Strict JSON-object options reject arrays,
+scalars, non-finite values, out-of-range integers, excessive nesting, and
+trailing JSON data before any request.
 
 The Server remains a separate runtime package and executable with the
 `serve|status|stop|logs` commands from section 5.5; there is no `labtasker
@@ -3855,6 +3935,8 @@ Resolution happens once when a `Client` instance is constructed. An explicit
 `Client(...)` snapshots its effective endpoint, token, default Queue, config
 root and auto-start authority in `__init__`, but performs no connection or
 startup there.
+The resolved snapshot is private implementation state, not a supported Client
+property. `server_version` is the only public non-resource Client property.
 The process-wide lazy default Client is constructed by the first top-level API
 call, so that first call performs the same resolution; importing the package still
 does nothing. Later changes to CWD, environment variables or the TOML file do not
@@ -4647,10 +4729,10 @@ count_tasks(
     name: str | None = None,
     name_fuzzy: str | None = None,
     filter: str | None = None,
+    queue: str | None = None,
     group_by: Sequence[str] | None = None,
     limit: int | None = None,
     cursor: str | None = None,
-    queue: str | None = None,
 ) -> int | GroupCountPage
 ```
 
@@ -4732,6 +4814,9 @@ and change inspection noisy. Progress reports likewise update only
 
 | Date | Decision |
 |---|---|
+| 2026-09-18 | Require POSIX advisory file locking for every Server transport and lifecycle mode, including foreground HTTP. Reject all operational `labtasker-server` commands on Windows before root, database, listener or process side effects while keeping help and version inspection available. Keep the ordinary HTTP Client and Python Worker best effort on Windows; they connect to a Server running on a POSIX host. This supersedes the earlier Windows best-effort Server classification. |
+| 2026-09-18 | Keep ordinary Client request timeout at 15 seconds, including response margin beyond the shared strategy's separate five-second pool and busy waits. Keep resolved Client configuration private, with `server_version` as the only public non-resource property. For false-default authority, destructive and lifecycle booleans, expose only positive `--auto-start-local-server`, `--cascade`, `--daemon` and `--force` flags; retain the meaningful `--descending` / `--ascending` ordering pair. |
+| 2026-09-18 | Keep `finish()`, `report_progress()` and `report_worker_telemetry()` as Python execution-context helpers without parallel CLI commands. Remove `labtasker progress` and `labtasker worker telemetry`; Command Workers continue to use process exit status for ordinary completion, while Python launched by a Command Worker may import the helpers when runtime reporting is needed. |
 | 2026-09-17 | Add `--database-filesystem auto|local|shared`. Resolve known local storage to WAL/FULL, known shared storage to DELETE/EXTRA plus one `QueuePool` connection whose checkout serializes all transactions, and unknown storage to the shared strategy with a warning. Treat detection as a guard rather than a correctness proof; shared deployments must still guarantee one external Server owner. |
 | 2026-09-17 | Replace database-inode ownership with permanent per-user host-local `/tmp` advisory sidecars keyed separately by canonical Labtasker root, socket path and database path. Hold applicable locks for process lifetime without TTL or stealing; provide no cross-user/cross-node exclusion and treat hard-link/inconsistent-path aliases as unsupported misuse. |
 | 2026-09-17 | Unify public Server launch as `serve`/`serve --daemon` with independent `--connection http|socket`, `--labtasker-root` and `--database`; remove public `start`. Require every public `serve` invocation to select `http` or `socket` explicitly, with no transport default; host/port and socket defaults apply only after that selection, while managed auto-start privately selects socket. Make detached launch idempotent only for matching non-secret effective configuration and require explicit stop before a conflicting relaunch or token rotation. The launcher inherits only the root lock; the child acquires its socket/database locks. |
@@ -4755,7 +4840,7 @@ and change inspection noisy. Progress reports likewise update only
 | 2026-08-21 | Detach the local daemon from its launching terminal and SSH connection, give it no idle shutdown, and stop it only explicitly or through ordinary process/machine failure; expose CWD-addressed `start`, `status`, `stop [--force]` and `logs` commands, make stop one-shot, and keep explicit HTTP `serve` foreground and user-managed. Superseded on 2026-09-17 by unified `serve [--daemon]` and root-addressed management. |
 | 2026-08-21 | Permit automatic recovery only for the default Unix-socket transport and preserve every operation's existing uncertain-outcome/retry rules; an explicit HTTP URL never causes Client-owned Server startup, restart or shutdown. Superseded on 2026-09-17 by invocation-scoped opt-in local auto-start; the retry boundary remains unchanged. |
 | 2026-08-21 | Publish `labtasker` as the full-install metapackage over independent `labtasker-client` and `labtasker-server` runtime distributions; use direct `labtasker-client` installation for the slim/remote case because extras cannot subtract default dependencies. |
-| 2026-08-21 | Reject the Command Worker with built-in `NotImplementedError` on Windows before Client construction because the current executor cannot uphold whole-process-group cancellation; keep the CLI diagnostic readable without adding a public platform-error type, retain Client, Server and Python Worker as Windows best effort, and retain Command Worker as macOS best effort. |
+| 2026-08-21 | Reject the Command Worker with built-in `NotImplementedError` on Windows before Client construction because the current executor cannot uphold whole-process-group cancellation; keep the CLI diagnostic readable without adding a public platform-error type, retain Client, Server and Python Worker as Windows best effort, and retain Command Worker as macOS best effort. The Server portion is superseded by the 2026-09-18 POSIX-only Server decision. |
 | 2026-08-21 | Distinguish best-effort platforms from explicitly unsupported platform features: allow the former to run, but reject the latter deterministically before network, claim, journal, database or process side effects, while permitting documented behavior-preserving fallbacks such as noninteractive POSIX pipe mode. |
 | 2026-08-21 | Protect local state by exclusively creating `.labtasker/.gitignore` with `*` and `!.gitignore` from both the default Server storage path and Worker journal setup; preserve any existing entry and do not modify custom database parents outside `.labtasker`. |
 | 2026-08-21 | Restore one canonical v2 Labtasker Agent Skill with both Claude Code marketplace and open `npx skills add` installation paths; use a repository-local symlink rather than maintaining a third copy. |

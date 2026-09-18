@@ -21,14 +21,6 @@ from labtasker_server.ownership import lock_database
 from labtasker_server.services.queues import QueueService
 
 
-def test_database_creates_gitignore_for_labtasker_state_directory(tmp_path: Path) -> None:
-    database = Database(tmp_path / ".labtasker/data/server.db")
-    try:
-        assert (tmp_path / ".labtasker/.gitignore").read_text() == "*\n!.gitignore\n"
-    finally:
-        database.dispose()
-
-
 def test_database_has_one_process_owner_and_releases_on_dispose(tmp_path: Path) -> None:
     path = tmp_path / "server.db"
     first = Database(path)
@@ -223,7 +215,7 @@ finally:
         assert result.returncode == 0, result.stderr
 
 
-def test_database_preserves_existing_gitignore_and_ignores_other_parents(
+def test_database_does_not_manage_parent_gitignore(
     tmp_path: Path,
 ) -> None:
     labtasker_dir = tmp_path / ".labtasker"

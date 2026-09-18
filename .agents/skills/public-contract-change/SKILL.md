@@ -10,6 +10,14 @@ State the current contract, the requested change, and any unresolved behavioral
 choice. If the request intentionally changes a decided behavior, update the
 specification rather than treating the old text as an implementation obstacle.
 
+Before implementation, present every added, removed, or observably changed
+public interface as a compact, separate review item. Give its exact signature,
+command or endpoint, inputs, defaults, output, errors and compatibility effect
+as applicable, then obtain the user's explicit approval. Do not infer approval
+for an interface because it appeared inside a long specification or broader
+implementation plan. A direct user request naming the exact interface change is
+explicit approval for that change.
+
 Trace the complete affected slice before editing:
 
 - persistence model and Alembic migration, when stored data changes;

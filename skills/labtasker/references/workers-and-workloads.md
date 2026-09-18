@@ -349,12 +349,7 @@ labtasker.report_progress(
 ```
 
 This works inside a Python Worker and inside Python launched by a Command
-Worker. A non-Python child can use the inherited execution context:
-
-```bash
-labtasker progress \
-  --data '{"completed":42,"total":100,"metrics":{"validation_loss":0.82}}'
-```
+Worker.
 
 Each report replaces the complete previous `progress` object. It does not merge,
 complete the Task, renew the lease, or create a history series. Keep the final
@@ -388,9 +383,8 @@ The synchronous call completely replaces the previous Worker telemetry object
 and returns whether the Server accepted it. It does not renew Worker presence or
 affect the Task. Labtasker does not detect resource fields, sample periodically,
 retry, merge, or keep history. If periodic sampling is needed, user code owns
-the thread or schedule. A Command child can run `labtasker worker telemetry
---data JSON`; all distributed ranks inherit one Worker ID and replace the same
-snapshot.
+the thread or schedule. All distributed ranks inherit one Worker ID and replace
+the same snapshot.
 
 ## Use single-node distributed launchers
 

@@ -48,7 +48,7 @@ from labtasker.validation import (
 
 T = TypeVar("T")
 ModelT = TypeVar("ModelT", bound=ResponseModel)
-REQUEST_TIMEOUT_SECONDS = 10.0
+REQUEST_TIMEOUT_SECONDS = 15.0
 MAX_RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = (0.05, 0.1)
 QUEUE_LIST_ADAPTER = TypeAdapter(list[Queue])
@@ -158,7 +158,7 @@ class Client:
             )
 
     @property
-    def configuration(self) -> ResolvedConfig:
+    def _configuration(self) -> ResolvedConfig:
         return self._config
 
     def submit_task(

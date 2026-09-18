@@ -9,7 +9,7 @@ can complete the workflow before adapting it to your own model or benchmark.
 This local tutorial needs Python 3.10 or newer and a POSIX system such as Linux
 or macOS. The managed local Server and command Worker used in this tutorial are
 not supported on Windows. Windows Clients must connect to an HTTP Server and use
-a Python Worker. See
+a Python Worker; that Server must run on a POSIX host. See
 [Configuration](reference/configuration.md) for details.
 
 To use checked-in source files instead, follow the [tested demo](demo.md). Its

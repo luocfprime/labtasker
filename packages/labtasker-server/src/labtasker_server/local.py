@@ -121,12 +121,10 @@ def local_paths(labtasker_root: Path | None = None) -> LocalPaths:
     )
 
 
-def ensure_labtasker_root(paths: LocalPaths) -> None:
-    paths.labtasker_root.mkdir(parents=True, exist_ok=True)
+def ensure_labtasker_root(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
     try:
-        with (paths.labtasker_root / ".gitignore").open(
-            "x", encoding="utf-8", newline="\n"
-        ) as stream:
+        with (root / ".gitignore").open("x", encoding="utf-8", newline="\n") as stream:
             stream.write(LOCAL_GITIGNORE)
     except FileExistsError:
         pass
@@ -309,7 +307,7 @@ def ensure_daemon(
         return _observe_existing_daemon(config, paths, deadline=deadline, emit=emit)
 
     try:
-        ensure_labtasker_root(paths)
+        ensure_labtasker_root(paths.labtasker_root)
         _cleanup_stale_runtime(paths)
         generation = secrets.token_urlsafe(18)
         started_at = time.time()

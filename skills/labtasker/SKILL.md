@@ -33,8 +33,14 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
   online Workers, route presence, busy/idle activity, Worker metadata/latest
   telemetry, grouped counts, and paginated monitoring queries.
 
-Read every reference relevant to the request before proposing commands. If an
-installed version may differ, confirm exact options with `labtasker ... --help`.
+Read every reference relevant to the request before proposing commands. Before
+the first Labtasker CLI operation in an environment, run the selected
+executable's `--version`. Before the first use of each distinct command path,
+run its exact `--help` (or the narrowest command-group help that exposes the
+needed subcommand). Use the same launcher and environment for these checks as
+for the real operation (for example, `uv run labtasker`). Treat the installed
+help as authoritative when it differs from this Skill; do not guess an option,
+subcommand, default, or output shape from memory.
 
 ## Adapt an existing pipeline on the user's terms
 

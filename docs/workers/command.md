@@ -19,8 +19,9 @@ GPU, or other resource fields automatically.
 
 Command Workers require POSIX process-group support. Linux is release-gated and
 macOS is best effort; Windows raises `NotImplementedError` before connecting to
-the Server or claiming a Task. Client operations, the Server, and Python Workers
-remain available on Windows on a best-effort basis.
+the Server or claiming a Task. HTTP Client operations and Python Workers remain
+available on Windows on a best-effort basis, but the Server itself requires a
+POSIX host.
 
 ## Template syntax
 
@@ -90,17 +91,10 @@ labtasker.report_progress(
 )
 ```
 
-Non-Python commands can use the inherited execution context through the CLI:
-
-```bash
-labtasker progress \
-  --data '{"completed":1200,"total":5000,"metrics":{"val_loss":0.8}}'
-```
-
-The CLI prints `{"reported": true}` when accepted and false for an isolated
-best-effort failure. Progress never completes the Task or renews its lease. The
-object is otherwise unrestricted; `completed` and `total` are the optional
-Labtasker WebUI convention for a determinate progress indicator.
+The helper returns true when accepted and false for an isolated best-effort
+failure. Progress never completes the Task or renews its lease. The object is
+otherwise unrestricted; `completed` and `total` are the optional Labtasker
+WebUI convention for a determinate progress indicator.
 
 Report Worker-level resource measurements independently of Task progress:
 
@@ -108,17 +102,11 @@ Report Worker-level resource measurements independently of Task progress:
 labtasker.report_worker_telemetry({"gpu": {"utilization": 0.82}})
 ```
 
-Non-Python children use the parallel CLI command:
-
-```bash
-labtasker worker telemetry --data '{"gpu":{"utilization":0.82}}'
-```
-
 Each synchronous call performs one request and replaces the latest Worker
-telemetry object. A reporting failure returns or prints false without changing
-the command's Task outcome. Telemetry does not renew Worker presence, and
-Labtasker does not sample, retry, throttle, merge, or keep history. If periodic
-sampling is useful, the child owns its scheduling or background thread.
+telemetry object. A reporting failure returns false without changing the
+command's Task outcome. Telemetry does not renew Worker presence, and Labtasker
+does not sample, retry, throttle, merge, or keep history. If periodic sampling
+is useful, the child owns its scheduling or background thread.
 All descendants and distributed ranks inherit the same loop-scoped Worker ID.
 Their reports replace the same snapshot, so the last report committed by the
 Server is visible; Labtasker does not merge fields or select one rank.

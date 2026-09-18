@@ -99,6 +99,13 @@ with Client(url="https://example.com", queue="paper", token=token) as client:
 
 ## Server operation
 
+The Server requires a POSIX platform with advisory file locking. All Server
+transports and lifecycle modes, including foreground HTTP, are unsupported on
+Windows. `labtasker-server --help`, command help, and `--version` remain
+available there, but operational commands fail before creating a root, opening
+SQLite, binding a listener, or starting a process. Windows Clients and Python
+Workers connect to an HTTP Server running on a POSIX host.
+
 Every public Server launch explicitly selects its transport:
 
 ```bash
@@ -168,17 +175,73 @@ controls SQLite safety settings, not the Client transport:
 | `shared` | DELETE | EXTRA | one connection; every read and write transaction serialized |
 | `auto` | detected | detected | known local uses `local`; known shared and unknown use `shared` |
 
-Unknown auto-detection emits a warning. Explicit `local` or `shared` is the
-operator override. Linux and macOS detection recognizes common local filesystems
-and shared families including NFS, WekaFS, and Lustre, but detection is only a
-guard. In a shared deployment the operator must still ensure one Server owner
-across all nodes and reliable filesystem locking and durability semantics.
+For `auto`, the Server inspects the database path or its nearest existing parent.
+Linux reads the longest matching mount from `/proc/self/mountinfo`; macOS reads
+the longest matching entry from `mount` output. The current conservative type
+sets are:
+
+| Classification | Recognized filesystem types |
+| --- | --- |
+| known local | `apfs`, `btrfs`, `ext2`, `ext3`, `ext4`, `f2fs`, `hfs`, `hfsplus`, `jfs`, `overlay`, `tmpfs`, `ufs`, `xfs`, `zfs` |
+| known shared | `beegfs`, `ceph`, `cifs`, `fuse.sshfs`, `gpfs`, `lustre`, `nfs`, `nfs4`, `smbfs`, `wekafs` |
+
+An unavailable or unlisted type is unknown. Unknown auto-detection emits a
+warning and selects `shared`; it never guesses local. Explicit `local` or
+`shared` bypasses detection and is the operator override. Detection is only a
+guard: mount aliases, vendor-specific clients, containers, and filesystem
+configuration can hide the real durability or locking behavior.
+
+`local` uses WAL for ordinary local concurrency and `synchronous=FULL`.
+`shared` uses the rollback journal in `DELETE` mode, avoiding WAL's long-lived
+shared-memory coordination files, and `synchronous=EXTRA`, which adds the
+directory durability step associated with deleting the rollback journal. These
+settings reduce assumptions about shared storage; they cannot repair broken
+remote locking, `fsync`, network partitions, or split brain.
+
+The shared SQLAlchemy pool is exactly `pool_size=1`, `max_overflow=0`, and
+`pool_timeout=5`. Checkout of that single connection serializes read, write,
+health, startup-recovery, and expiry transactions. A request that cannot check
+out the connection within five seconds receives retryable `503 database_busy`;
+after checkout, SQLite has a separate 5000 ms lock wait. This protects
+correctness but does not increase SQLite write throughput. FastAPI endpoints and
+SQLAlchemy remain synchronous; async HTTP is a later profiling decision, not a
+shared-storage safety requirement.
 
 Every connection enables foreign keys and a 5000 ms SQLite busy timeout. One
 host-local sidecar lock owns the canonical database path for the Server process;
 detached daemons additionally own their exact root, and Unix Servers own their
 socket path. These locks prevent ordinary same-user duplicates on one host, not
 cross-host split brain.
+
+Sidecar locks live in the owner-only per-user runtime directory under `/tmp`, are
+keyed by hashes of canonical paths, have no TTL, and are never stolen or deleted
+as part of normal cleanup. The kernel releases the advisory lock when the owning
+process exits. During the bounded v2.5 transition, effective `local` mode also
+retains the legacy database-inode lock; shared mode deliberately does not depend
+on that remote-file lock. Stop an old Server cleanly before upgrading a shared
+database.
+
+Root and database symlink aliases resolve to their canonical targets before
+locking. For a Unix socket, only the parent is canonicalized; the final entry is
+kept for validation and a symlink there is rejected. The per-user runtime
+directory itself must also be an owner-only real directory, not a symlink.
+
+For one cluster node using a shared database and same-host Clients, the root and
+database remain independent and a detached socket Server is valid:
+
+```bash
+labtasker-server serve \
+  --connection socket \
+  --daemon \
+  --labtasker-root /var/tmp/my-run/labtasker \
+  --database /shared/project/server.db \
+  --database-filesystem shared
+```
+
+For Clients on other nodes, run the same single owner with `--connection http`
+instead. In both cases an external supervisor or operational policy must ensure
+that no other node starts a Server for the same database. Labtasker provides no
+distributed owner lease or split-brain recovery.
 
 Labtasker initializes a fresh database and applies known v2 migrations before
 listening. Unknown or newer schemas fail clearly. Store large artifacts outside

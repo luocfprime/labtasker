@@ -92,7 +92,7 @@ def make_claim(
 
 class FakeClient:
     def __init__(self, claims: list[ClaimResponse | None]) -> None:
-        self.configuration = ResolvedConfig(
+        self._configuration = ResolvedConfig(
             url="http://server",
             socket=None,
             managed_local=False,
@@ -286,7 +286,7 @@ def report(**kwargs):
     execution._ACTIVE_CONTEXT.control.revoke('cancel')
     raise TransportError('terminal response lost')
 client = SimpleNamespace(
-    configuration=ResolvedConfig(
+    _configuration=ResolvedConfig(
         url='http://server',
         socket=None,
         managed_local=False,

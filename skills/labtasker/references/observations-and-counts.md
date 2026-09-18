@@ -94,18 +94,11 @@ Python code in an active Worker execution can call:
 labtasker.report_worker_telemetry({"gpu_util_pct": 92, "memory_used_gb": 38})
 ```
 
-A non-Python Command Worker child can use:
-
-```bash
-labtasker worker telemetry \
-  --data '{"gpu_util_pct":92,"memory_used_gb":38}'
-```
-
-Both forms perform one best-effort synchronous report and return or print
-whether it was accepted. Labtasker does not sample, retry, throttle, merge, or
-store history; callers own periodic scheduling. Static placement belongs in
-Worker metadata, supplied through Python `loop(metadata={...})` or Command
-Worker `labtasker loop --metadata JSON -- COMMAND`.
+The helper performs one best-effort synchronous report and returns whether it
+was accepted. Labtasker does not sample, retry, throttle, merge, or store
+history; callers own periodic scheduling. Static placement belongs in Worker
+metadata, supplied through Python `loop(metadata={...})` or Command Worker
+`labtasker loop --metadata JSON -- COMMAND`.
 
 ## Count selected Tasks and Workers
 

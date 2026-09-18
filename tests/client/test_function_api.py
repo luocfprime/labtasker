@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+import labtasker
 import labtasker.api as api
 
 
@@ -51,6 +52,55 @@ class RecordingClient:
 
     def delete_queue(self, *args: object, **kwargs: object) -> Any:
         return self._record("delete_queue", args, kwargs)
+
+
+def test_public_package_root_exports_are_exact() -> None:
+    assert set(labtasker.__all__) == {
+        "APIError",
+        "BulkUpdateResult",
+        "Client",
+        "ConfigError",
+        "CountGroup",
+        "FatalWorkerError",
+        "GroupCountPage",
+        "JSONValue",
+        "LabtaskerError",
+        "LastError",
+        "Queue",
+        "Task",
+        "TaskArg",
+        "TaskError",
+        "TaskInfo",
+        "TaskOrderField",
+        "TaskPage",
+        "TaskStatus",
+        "TaskUpdate",
+        "TransientError",
+        "TransportError",
+        "WorkerObservation",
+        "WorkerPage",
+        "cancel_task",
+        "cancellation_requested",
+        "count_tasks",
+        "count_workers",
+        "create_queue",
+        "delete_queue",
+        "delete_task",
+        "finish",
+        "get_task",
+        "list_queues",
+        "list_tasks",
+        "list_workers",
+        "loop",
+        "report_progress",
+        "report_worker_telemetry",
+        "requeue_task",
+        "set_force_stop_timeout",
+        "submit_task",
+        "task_info",
+        "update_task",
+        "update_tasks",
+    }
 
 
 @pytest.fixture

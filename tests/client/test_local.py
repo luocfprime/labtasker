@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -7,6 +8,14 @@ import pytest
 
 from labtasker.errors import ConfigError
 from labtasker.local import ensure_local_server, local_paths
+
+
+def test_managed_runtime_path_canonicalizes_tmp_but_not_user_leaf(tmp_path: Path) -> None:
+    paths = local_paths(tmp_path)
+    effective_uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+
+    assert paths.runtime_directory == Path("/tmp").resolve() / f"labtasker-{effective_uid}"
+    assert paths.socket.parent == paths.runtime_directory
 
 
 def test_missing_server_fails_before_creating_local_state(
