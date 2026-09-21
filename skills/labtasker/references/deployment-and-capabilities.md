@@ -165,7 +165,7 @@ supported POSIX host.
 | --- | --- |
 | Allocate, reserve, or discover a free GPU | No. The user, shell, or cluster scheduler starts Workers on allocated resources. |
 | See online Workers, route presence, or user-reported latest resource details | Yes. Bundled Workers automatically report expiring observations and may include static metadata plus latest telemetry; use `list_workers` / `count_workers` or `worker list` / `worker count`. Read [observations-and-counts.md](observations-and-counts.md). This is approximate observation, not discovered capacity, allocation, or process control. |
-| Schedule machines, pods, or multi-node rendezvous | No. Use SLURM, Kubernetes, Koala, or another external scheduler. |
+| Schedule machines, pods, or multi-node rendezvous | No. Use SLURM, Kubernetes, or another external scheduler. |
 | Express Task dependencies or a workflow DAG | No. Use a workflow engine and submit independent leaves to Labtasker. |
 | Store checkpoints, images, videos, or datasets | No. Use project or artifact storage and record references in Task data. |
 | Run one Task with single-node `torchrun` or Accelerate | Yes, through one outer Command Worker on supported POSIX platforms. |
