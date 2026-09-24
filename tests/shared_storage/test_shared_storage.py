@@ -172,8 +172,11 @@ def _stress_task_count() -> int:
 
 def _assert_database_integrity(database: Path) -> None:
     uri = f"{database.resolve().as_uri()}?mode=ro"
-    with sqlite3.connect(uri, uri=True, timeout=5.0) as connection:
+    connection = sqlite3.connect(uri, uri=True, timeout=5.0)
+    try:
         assert connection.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
+    finally:
+        connection.close()
 
 
 def test_auto_profile_pragmas_transactions_and_reopen(shared_storage_case: Path) -> None:
