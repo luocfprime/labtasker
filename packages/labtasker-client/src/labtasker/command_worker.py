@@ -422,8 +422,10 @@ def _terminate_process_group(
         # cooperative signal handler writes cleanup output before exiting.
         if drain_output is not None:
             drain_output()
-        process.poll()
-        if not _process_group_alive(process.pid):
+        # The launcher itself proves that its process group is still alive.
+        # Avoid the more expensive group scan until it exits; on Darwin that
+        # scan starts /bin/ps and can otherwise starve PTY drainage.
+        if process.poll() is not None and not _process_group_alive(process.pid):
             break
         if deadline is not None and time.monotonic() >= deadline:
             _signal_process_group(process.pid, signal.SIGKILL)

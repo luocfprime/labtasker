@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+import labtasker.command_worker as command_worker_module
 import labtasker.execution as execution_module
 from labtasker.command_template import TemplateSyntaxError
 from labtasker.command_worker import (
@@ -447,6 +448,15 @@ def test_pty_cancellation_drains_cleanup_output_while_waiting(
     control = RunControl(force_stop_timeout=None, force_stop=lambda: None)
     finished = threading.Event()
     rescued = threading.Event()
+    group_checks = 0
+    check_process_group = command_worker_module._process_group_alive
+
+    def track_process_group(group_id: int) -> bool:
+        nonlocal group_checks
+        group_checks += 1
+        return check_process_group(group_id)
+
+    monkeypatch.setattr(command_worker_module, "_process_group_alive", track_process_group)
     script = """
 import os, signal, sys, time
 from pathlib import Path
@@ -497,6 +507,7 @@ while True:
         assert not rescued.is_set(), "PTY cleanup blocked behind undrained output"
         if force_stop_timeout is None:
             assert process.returncode == 0
+            assert group_checks == 1
             assert log_path.read_bytes() == b"x" * (256 * 1024)
             if not relay_fails:
                 assert stdout_bytes.getvalue() == log_path.read_bytes()
