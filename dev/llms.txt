@@ -2,7 +2,7 @@
 
 > Labtasker is a small, Python-native task queue for running independent machine-learning inference, evaluation, and experiment jobs in parallel.
 
-These documents describe Labtasker v2. Labtasker schedules Tasks across Worker processes; it does not allocate GPUs, manage a cluster, build workflow DAGs, or store large artifacts. The specification is the authoritative product and protocol contract.
+These documents describe Labtasker v2. Labtasker schedules Tasks across Worker processes, with experimental dependency lists for waiting on predecessor success. Users own graph correctness, data transfer, Worker lifetime, and pending diagnosis. Labtasker does not allocate GPUs, manage a cluster, orchestrate workflow runs, or store large artifacts. The specification is the authoritative product and protocol contract.
 
 ## Start here
 
@@ -20,7 +20,7 @@ These documents describe Labtasker v2. Labtasker schedules Tasks across Worker p
 
 ## Workflows
 
-- [Manage Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/tasks.md): Submit, inspect, prioritize, cancel, retry, and delete Tasks.
+- [Manage Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/tasks.md): Submit, inspect, prioritize, cancel, retry, and delete Tasks; set experimental dependencies and understand user-owned graph and waiting diagnosis.
 - [Query Tasks](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/query.md): Filter, search names, paginate, and group Task counts; compare demand with Worker observations.
 - [Failure and recovery](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/guides/failure-recovery.md): Retries, leases, interruption, and protection from results reported by old runs.
 - [Python Workers](https://raw.githubusercontent.com/luocfprime/labtasker/refs/heads/main/docs/workers/python.md): Reuse loaded Python state while processing Tasks.

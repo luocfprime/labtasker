@@ -1059,6 +1059,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#experimental-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Experimental dependencies
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#list-and-count-queries" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1310,6 +1321,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Creation body
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#experimental-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Experimental dependencies
       </span>
     </span>
   </a>
@@ -1580,13 +1602,29 @@ Python API:</p>
 <span class="w">  </span><span class="nt">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
 <span class="w">  </span><span class="nt">"priority"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">"max_attempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">"routes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"default"</span><span class="p">]</span>
+<span class="w">  </span><span class="nt">"routes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"default"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>The Task ID is the resource identity and must match
 <code>t_[A-Za-z0-9_-]{12}</code>. Replaying the same normalized definition returns the
 Task's current representation. JSON object-key order, route input order, and an
 omitted default versus the same explicit default do not change that identity.</p>
+<h3 id="experimental-dependencies">Experimental dependencies</h3>
+<p>Creation and both update endpoints accept <code>dependencies</code>, an array of Task IDs
+matching <code>t_[A-Za-z0-9_-]{12}</code>; JSON null is invalid. All Task responses include
+the list. Order and duplicates are preserved and count toward creation identity;
+omitted and empty creation lists are equivalent, including after migration.
+Nonempty lists count toward the stored-Task size limit. Older Servers reject the
+new request field; Clients must not silently drop requested dependencies.</p>
+<p>All direct IDs must exist in the same Queue and be <code>succeeded</code> at new claim time.
+Otherwise the Task stays pending. Missing IDs, self references and cycles are
+accepted, with no graph validation or pending-reason diagnostic. Users own graph
+correctness, recovery, Worker lifetime and data transfer. Updates replace the list
+under normal non-running rules; <code>[]</code> clears it. Deletion has no dependency order
+or incoming-reference check and leaves other Tasks' lists intact. References to
+reused IDs resolve to the new Task. A claimed run is unaffected by later changes
+to predecessors. Existing run fencing applies.</p>
 <h3 id="list-and-count-queries">List and count queries</h3>
 <p>Task listing accepts:</p>
 <div class="highlight"><pre><span></span><code>status, name, name_fuzzy, filter, order_by, descending, limit, cursor
@@ -1637,6 +1675,7 @@ an old Server's scalar response rather than treating it as grouped data.</p>
 <span class="w">  </span><span class="nt">"priority"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">"max_attempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">"routes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"robotwin"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"dependencies"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
 <span class="w">  </span><span class="nt">"result"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
 <span class="p">}</span>
 </code></pre></div>

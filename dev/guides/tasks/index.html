@@ -667,6 +667,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#experimental-task-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Experimental Task dependencies
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inspect" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1189,6 +1200,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#experimental-task-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Experimental Task dependencies
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inspect" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1288,6 +1310,44 @@ actions make cancellation, requeue, and deletion explicit.</p>
 <p>Routes default to <code>default</code>. Supplying a Task ID makes creation idempotent only
 when every submitted field is the same. Reusing the ID with different data is
 an error.</p>
+<h2 id="experimental-task-dependencies">Experimental Task dependencies</h2>
+<p>To run an evaluation after preparation succeeds, list the preparation Task ID:</p>
+<div class="highlight"><pre><span></span><code><span class="k">with</span> <span class="n">labtasker</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+    <span class="n">prepared</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">submit_task</span><span class="p">({</span><span class="s2">"dataset"</span><span class="p">:</span> <span class="s2">"samples"</span><span class="p">},</span> <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="s2">"prepare"</span><span class="p">])</span>
+    <span class="n">evaluation</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">submit_task</span><span class="p">(</span>
+        <span class="p">{</span><span class="s2">"input_task_id"</span><span class="p">:</span> <span class="n">prepared</span><span class="o">.</span><span class="n">id</span><span class="p">},</span>
+        <span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="s2">"evaluate"</span><span class="p">],</span>
+        <span class="n">dependencies</span><span class="o">=</span><span class="p">[</span><span class="n">prepared</span><span class="o">.</span><span class="n">id</span><span class="p">],</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>The CLI uses repeatable <code>--dependency TASK_ID</code>:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>submit<span class="w"> </span>--route<span class="w"> </span>evaluate<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dependency<span class="w"> </span>t_ABCDEFGHIJKL<span class="w"> </span>--dependency<span class="w"> </span>t_MNOPQRSTUVWX
+labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>t_0123456789-_<span class="w"> </span>--changes<span class="w"> </span><span class="s1">'{"dependencies":[]}'</span>
+</code></pre></div>
+<p>The default is <code>[]</code>. Every ID resolves in the Task's own Queue and must exist
+with status <code>succeeded</code> before a Worker can claim the Task. Lists preserve order
+and duplicates, but neither controls execution order. You may submit predecessors
+later. Replace or clear the list through ordinary non-running Task updates;
+requeue retains it. This feature is experimental and its interface may evolve.</p>
+<p>The Server accepts missing IDs, self references, and cycles. Unsatisfied
+dependencies simply keep a Task pending without consuming attempts. Failed or
+cancelled predecessors do not automatically fail or cancel dependent Tasks.
+Users own graph correctness, recovery, Worker startup/lifetime, and diagnosis of
+waiting work. Existing Worker idle timeouts still apply. The Server does not
+validate graphs, diagnose pending reasons, or transfer results.</p>
+<p>Read IDs from the Task's <code>dependencies</code> or Python <code>task_info().dependencies</code>.
+Fetch predecessor results yourself with <code>client.get_task(id, queue=task.queue)</code>;
+use your files or artifact store for large outputs. The example's <code>input_task_id</code>
+is an ordinary application argument, not automatic result injection. To inspect
+waiting work, query each predecessor's current state; a missing record is an
+unsatisfied reference. If your script traverses the graph, track visited IDs to
+handle cycles. A network error does not establish that a predecessor is absent.</p>
+<p>Dependencies are checked only when a new run is claimed. Later predecessor
+deletion or result edits do not interrupt that run or guarantee a result snapshot.
+Deleting a non-running Task requires no dependency order and does not alter other
+Tasks' lists. Those references wait if the ID disappears and refer to the new Task
+if that ID is reused. Users are responsible for retaining data they still need.</p>
 <h2 id="inspect">Inspect</h2>
 <p>For a browser view of Queue progress, Task details, and result columns, use
 <a href="../webui/">Labtasker WebUI</a>. To inspect Tasks from the CLI:</p>
@@ -1360,6 +1420,8 @@ labtasker<span class="w"> </span>queue<span class="w"> </span>delete<span class=
 created when a fresh database is initialized, not recreated after an explicit
 deletion.</p>
 <h2 id="diagnose-pending-routes">Diagnose pending routes</h2>
+<p>Pending counts include Tasks waiting for dependencies. Inspect their dependency
+IDs yourself when needed; route presence alone does not establish claimability.</p>
 <p>Inspect all routes referenced by pending Tasks, then compare observed Workers:</p>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>count<span class="w"> </span>--status<span class="w"> </span>pending<span class="w"> </span>--group-by<span class="w"> </span>routes
 labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--group-by<span class="w"> </span>route,status

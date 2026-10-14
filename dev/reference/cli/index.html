@@ -1495,7 +1495,7 @@ do not advertise a usable version do not trigger this warning.</p>
 <tr>
 <td><code>task submit</code></td>
 <td>One Task object</td>
-<td><code>--args</code>/<code>--metadata</code> default to <code>{}</code>, <code>--priority</code> to <code>0</code>, <code>--max-attempts</code> to <code>3</code>, and omitted routes to <code>default</code>. Repeat <code>--route</code> for several exact routes; use <code>--id</code> for a caller-chosen idempotent Task ID.</td>
+<td><code>--args</code>/<code>--metadata</code> default to <code>{}</code>, <code>--priority</code> to <code>0</code>, <code>--max-attempts</code> to <code>3</code>, and omitted routes to <code>default</code>. Repeat <code>--route</code> for several exact routes; use <code>--id</code> for a caller-chosen idempotent Task ID. Experimental <code>--dependency TASK_ID</code> is repeatable and defaults to an empty list.</td>
 </tr>
 <tr>
 <td><code>task get</code></td>
@@ -1565,7 +1565,7 @@ do not advertise a usable version do not trigger this warning.</p>
 </tbody>
 </table>
 <p><code>task update --changes</code> accepts only <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>,
-<code>max_attempts</code>, <code>routes</code>, and <code>result</code>. Supplied objects and lists are complete
+<code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, and <code>result</code>. Supplied objects and lists are complete
 replacements, not merges. Status changes use <code>cancel</code> and <code>requeue</code>; <code>status</code> is
 not writable.</p>
 <p><code>labtasker loop</code> is a continuing Command Worker, not a finite resource command.
@@ -1697,10 +1697,11 @@ labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="
 labtasker<span class="w"> </span>worker<span class="w"> </span>list<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'metadata.hostname == "node-7"'</span>
 labtasker<span class="w"> </span>worker<span class="w"> </span>count<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'telemetry.gpu_utilization &lt; 0.1'</span>
 </code></pre></div>
-<p><code>--group-by</code> is one comma-separated argument with no spaces. Task fields are
+<p><code>--group-by</code> is one comma-separated argument with no spaces. Task grouping fields are
 <code>routes</code> and <code>status</code>; Worker fields are <code>route</code> and <code>status</code>. Either order is
 valid. Empty fields, duplicates, unsupported fields and repeated <code>--group-by</code>
-options are usage errors. Without grouping, count output remains <code>{"count":N}</code>.</p>
+options are usage errors. Without grouping, count output remains <code>{"count":N}</code>.
+Experimental <code>dependencies</code> is returned on Tasks but is not a filter or grouping field.</p>
 <p>Grouped output contains <code>group_by</code>, the complete matching <code>count</code>, one page of
 <code>items</code> with <code>key</code>/<code>count</code>, and <code>next_cursor</code>. <code>--limit</code> (default 100, maximum
 1000) and <code>--cursor</code> require grouping on count commands. Fetch later pages

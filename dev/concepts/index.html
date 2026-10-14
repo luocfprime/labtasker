@@ -1356,7 +1356,12 @@ allocate GPUs, track machine capacity, or store large model outputs.</p>
 <h2 id="tasks-record-work-and-outcomes">Tasks record work and outcomes</h2>
 <p>A <strong>Task</strong> contains the inputs for one job and the state Labtasker records for
 it. This includes JSON arguments, optional metadata, priority, compatible
-routes, retry settings, result data, timestamps, and the latest error.</p>
+routes, experimental dependencies, retry settings, result data, timestamps, and the latest error.</p>
+<p><code>dependencies</code> defaults to an empty list. A Task with dependencies can be claimed
+only when every listed ID exists in its own Queue and has succeeded. Missing
+IDs and cycles are accepted and may leave work pending indefinitely. Users own
+the graph, data transfer, and diagnosis; the Server only checks direct predecessor
+success during claim. See <a href="../guides/tasks/#experimental-task-dependencies">Task dependencies</a>.</p>
 <p>The usual path is:</p>
 <pre class="mermaid"><code>stateDiagram-v2
   [*] --&gt; pending: submit

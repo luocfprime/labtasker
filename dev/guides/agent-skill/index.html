@@ -1246,7 +1246,11 @@ Labtasker's <code>labtasker</code> skill supplies those operating rules, so a re
 as “run these cases in parallel across 8 GPUs with Labtasker” is enough to start
 the standard Labtasker workflow.</p>
 <p>The skill covers v2 Task submission, Worker design, routing, inspection,
-updates, recovery, and adapting an existing experiment pipeline. It also explains
+updates, recovery, and adapting an existing experiment pipeline. It covers
+experimental dependencies, their full-replacement updates, and user-side waiting
+diagnosis through ordinary Task reads. It makes graph correctness, data transfer,
+Worker lifetime, and recovery the user's responsibility; missing references and
+cycles are accepted, and deletion has no dependency protection. It also explains
 how to compare pending Task demand with observed Worker activity through
 Python or CLI grouped counts, including pagination and delayed observations.
 It teaches Workers to publish replace-only progress snapshots, the optional

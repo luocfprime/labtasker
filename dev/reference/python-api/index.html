@@ -1079,6 +1079,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Response models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#experimental-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Experimental dependencies
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1397,6 +1414,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Response models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#experimental-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Experimental dependencies
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1518,7 +1552,7 @@ TransientError  TaskError  FatalWorkerError
 heartbeat, complete, fail, and unclaim are not supported Python interfaces.</p>
 <h2 id="task-operations">Task operations</h2>
 <div class="highlight"><pre><span></span><code>submit_task(args=None, *, name=None, metadata=None, priority=0,
-            max_attempts=3, routes=None, task_id=None, queue=None) -&gt; Task
+            max_attempts=3, routes=None, dependencies=None, task_id=None, queue=None) -&gt; Task
 get_task(task_id, *, queue=None) -&gt; Task
 list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -&gt; TaskPage
@@ -1540,7 +1574,7 @@ delete_task(task_id, *, queue=None) -&gt; None
 <tbody>
 <tr>
 <td><code>submit_task</code></td>
-<td>Creates one pending Task and returns it. <code>args</code> and <code>metadata</code> default to <code>{}</code>, <code>routes</code> to <code>["default"]</code>, and <code>max_attempts</code> to <code>3</code>.</td>
+<td>Creates one pending Task and returns it. <code>args</code> and <code>metadata</code> default to <code>{}</code>, <code>routes</code> to <code>["default"]</code>, experimental <code>dependencies</code> to <code>[]</code>, and <code>max_attempts</code> to <code>3</code>.</td>
 </tr>
 <tr>
 <td><code>get_task</code></td>
@@ -1663,7 +1697,7 @@ direction:</p>
 opaque and is not a Task ID or offset.</p>
 <h3 id="updates-and-lifecycle">Updates and lifecycle</h3>
 <p><code>changes</code> is a <code>TaskUpdate</code> dictionary containing at least one of <code>name</code>,
-<code>args</code>, <code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, or <code>result</code>. Every
+<code>args</code>, <code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, or <code>result</code>. Every
 supplied object or list is a complete replacement; there is no merge, dot-path
 patch, or add/remove operator. Unspecified fields remain unchanged.</p>
 <p>Bulk update is one Server transaction. <code>matched</code> counts filter matches that are
@@ -1750,7 +1784,7 @@ Server.</p>
 <tbody>
 <tr>
 <td><code>Task</code></td>
-<td><code>id</code>, <code>queue</code>, <code>status</code>, <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, <code>result</code>, nullable <code>progress</code>, <code>progress_updated_at</code>, <code>progress_attempt</code>, <code>last_error</code>, <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, <code>finished_at</code></td>
+<td><code>id</code>, <code>queue</code>, <code>status</code>, <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, experimental <code>dependencies</code>, <code>result</code>, nullable <code>progress</code>, <code>progress_updated_at</code>, <code>progress_attempt</code>, <code>last_error</code>, <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, <code>finished_at</code></td>
 </tr>
 <tr>
 <td><code>TaskPage</code></td>
@@ -1796,9 +1830,22 @@ Server.</p>
 literal union of <code>id</code>, <code>name</code>, <code>status</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>,
 <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, and <code>finished_at</code>.
 <code>TaskUpdate</code> is a <code>total=False</code> <code>TypedDict</code> with optional <code>name</code>, <code>args</code>,
-<code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, and <code>result</code> keys; runtime
+<code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, and <code>result</code> keys; runtime
 validation still requires at least one supplied field. <code>JSONValue</code> is the
 recursive strict JSON-compatible value type.</p>
+<h3 id="experimental-dependencies">Experimental dependencies</h3>
+<p><code>dependencies: list[str]</code> preserves order and duplicates. Submit accepts <code>None</code>
+or omission for <code>[]</code>; updates require a list, and <code>[]</code> clears it. Every ID must
+match the ordinary Task ID grammar. Each resolves in the Task's own Queue, and
+all must exist and be <code>succeeded</code> at claim. Missing references, self references,
+and cycles are accepted; they may leave a Task pending indefinitely. Users own
+graph correctness, data transfer, Worker lifetime, and waiting diagnosis.</p>
+<p><code>TaskInfo.dependencies</code> exposes the same IDs to Python Worker code. Fetch results
+with ordinary Client reads yourself. Deletion does not check incoming references
+or clear other Tasks' lists. Reused IDs resolve to the new Task. Dependency edits
+use the existing non-running update rules; requeue retains them. Dependencies
+are not rechecked for an already claimed run. See the
+<a href="../../guides/tasks/#experimental-task-dependencies">guide</a> for examples.</p>
 <h2 id="worker-api">Worker API</h2>
 <div class="highlight"><pre><span></span><code>@loop(route="default", queue=None, idle_timeout=300,
       force_stop_timeout=None, max_consecutive_failures=5, metadata=None)
