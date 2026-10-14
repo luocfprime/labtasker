@@ -32,7 +32,13 @@ allocate GPUs, track machine capacity, or store large model outputs.
 
 A **Task** contains the inputs for one job and the state Labtasker records for
 it. This includes JSON arguments, optional metadata, priority, compatible
-routes, retry settings, result data, timestamps, and the latest error.
+routes, experimental dependencies, retry settings, result data, timestamps, and the latest error.
+
+`dependencies` defaults to an empty list. A Task with dependencies can be claimed
+only when every listed ID exists in its own Queue and has succeeded. Missing
+IDs and cycles are accepted and may leave work pending indefinitely. Users own
+the graph, data transfer, and diagnosis; the Server only checks direct predecessor
+success during claim. See [Task dependencies](guides/tasks.md#experimental-task-dependencies).
 
 The usual path is:
 

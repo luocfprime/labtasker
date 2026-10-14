@@ -28,4 +28,5 @@ class TaskUpdate(TypedDict, total=False):
     priority: int
     max_attempts: int
     routes: list[str]
+    dependencies: list[str]
     result: dict[str, JSONValue]

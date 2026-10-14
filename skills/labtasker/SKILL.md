@@ -1,6 +1,6 @@
 ---
 name: labtasker
-description: Use Labtasker v2 to queue and run independent ML inference, evaluation, or experiment Tasks; migrate pipelines; design routes and Workers; inspect Task demand and Worker activity; and recover Tasks. Do not use it as a GPU allocator, cluster scheduler, workflow DAG, or artifact store.
+description: Use Labtasker v2 to queue and run ML inference, evaluation, or experiment Tasks; set experimental Task dependencies; migrate pipelines; design routes and Workers; inspect Task demand and Worker activity; and recover Tasks. GPU allocation, cluster management, and artifact storage remain external.
 ---
 
 # Labtasker
@@ -8,7 +8,9 @@ description: Use Labtasker v2 to queue and run independent ML inference, evaluat
 Use Labtasker when many independent ML jobs should be distributed across
 processes the user already controls, with progress, retries, and small structured
 results kept in one place. Keep GPU allocation, process launching, cluster
-management, dependent workflows, and artifact storage outside Labtasker.
+management, workflow orchestration, and artifact storage outside Labtasker.
+Experimental `dependencies` can gate a Task on successful predecessor IDs;
+users own dependency correctness, data transfer, and diagnosis of waiting Tasks.
 
 Prefer the documented public path even when a custom workaround is technically
 possible. Do not add a Server, shell wrapper, Queue, or compatibility mechanism
@@ -28,7 +30,8 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
   distributed launcher.
 - Read [operations-and-recovery.md](references/operations-and-recovery.md) for
   idempotent submission, priority, filtering, fuzzy name search, pagination, updates, cancellation,
-  external early-stop decisions, retries, interruption, and rerunning work.
+  experimental dependencies, user-side waiting diagnosis, external early-stop decisions,
+  retries, interruption, and rerunning work.
 - Read [observations-and-counts.md](references/observations-and-counts.md) for
   online Workers, route presence, busy/idle activity, Worker metadata/latest
   telemetry, grouped counts, and paginated monitoring queries.

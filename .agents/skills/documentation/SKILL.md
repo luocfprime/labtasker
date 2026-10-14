@@ -158,11 +158,13 @@ few short jobs that can be rerun in full.
 
 State the boundaries through alternatives:
 
-- use a workflow or DAG system when jobs depend on earlier outputs;
+- describe experimental Task dependencies for waiting on predecessor success;
+  users own graph correctness, pending diagnosis, data transfer, and Worker lifetime;
+- use a workflow system for conditional branches, workflow runs, or automatic data flow;
 - use a cluster or resource scheduler to allocate GPUs or machines;
 - use an artifact store for checkpoints, media, and other large outputs.
 
-Labtasker schedules independent Tasks. Users provide and start the processes
+Labtasker schedules Tasks, optionally gated by direct predecessor success. Users start the processes
 that run them. Keep this boundary visible without interrupting the opening with
 implementation responsibility.
 

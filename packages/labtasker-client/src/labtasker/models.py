@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from labtasker.types import JSONValue, TaskStatus
 from labtasker.validation import (
+    validate_dependencies,
     validate_identifier,
     validate_int64,
     validate_json_object,
@@ -67,6 +68,7 @@ class Task(ResponseModel):
     attempt: int
     max_attempts: int
     routes: list[str]
+    dependencies: list[str] = Field(default_factory=list)
     result: dict[str, JSONValue]
     progress: dict[str, JSONValue] | None = None
     progress_updated_at: datetime | None = None
@@ -77,6 +79,11 @@ class Task(ResponseModel):
     updated_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+
+    @field_validator("dependencies")
+    @classmethod
+    def validate_task_dependencies(cls, value: list[str]) -> list[str]:
+        return validate_dependencies(value)
 
     @field_validator("id")
     @classmethod

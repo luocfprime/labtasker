@@ -100,13 +100,15 @@ processes that execute them. It does not:
 
 - allocate GPUs or decide which machine should run a Worker;
 - replace SLURM, Kubernetes, or another cluster scheduler;
-- express dependencies between Tasks as a workflow DAG;
+- orchestrate workflow runs, conditional branches, or automatic data flow;
 - act as an artifact store;
 - keep an AI agent in the execution loop.
 
-Use a cluster scheduler for resource allocation, a workflow system for dependent
-pipelines, and an artifact store for large outputs. Use Labtasker when the jobs
-are independent and need distribution, inspection, and recovery.
+Use a cluster scheduler for resource allocation, a workflow system for orchestration,
+and an artifact store for large outputs. Experimental
+[Task dependencies](guides/tasks.md#experimental-task-dependencies) allow waiting
+for named predecessors to succeed. Users own graph correctness, data transfer,
+Worker lifetime, and diagnosis of pending Tasks.
 
 ## From v1 to v2
 

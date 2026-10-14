@@ -231,6 +231,13 @@ def task_submit(
         str | None,
         typer.Option("--id", help="Caller-chosen idempotent Task ID."),
     ] = None,
+    dependencies: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--dependency",
+            help="Experimental: same-Queue Task ID required to succeed; repeat as needed.",
+        ),
+    ] = None,
     queue: Annotated[
         str | None,
         typer.Option(help="Target Queue; otherwise use Client configuration."),
@@ -257,6 +264,7 @@ def task_submit(
                 priority=priority,
                 max_attempts=max_attempts,
                 routes=routes,
+                dependencies=dependencies,
                 task_id=task_id,
                 queue=queue,
             )

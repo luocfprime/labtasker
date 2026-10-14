@@ -360,6 +360,7 @@ A task is eligible for a worker only when:
 ```text
 task.status == pending
 AND worker.route IN task.routes
+AND every dependency exists in the same Queue and has status succeeded
 ```
 
 Queue membership, state and claim ordering still apply. Argument keys and values
@@ -464,6 +465,76 @@ The successful claim records the route used for that run alongside `run_id`.
 - Argument-shape matching no longer acts as implicit routing.
 - No Route/Provider registry is introduced. Worker observations are defined in section 8.6.
 - Routes do not express CPU/GPU requests, capacity or resource reservation.
+
+### 1.7 Experimental Task dependencies
+
+Status: **Decided, experimental feature**
+
+`Task.dependencies` is a list of Task IDs resolved in that Task's own Queue.
+It defaults to `[]`. Creation and ordinary updates accept the list; all Task
+responses and Python `TaskInfo` expose it. Inputs must be JSON arrays of strings
+matching `t_[A-Za-z0-9_-]{12}`. Order and duplicates are preserved, with no
+meaning for execution order; they remain part of the submitted data and creation
+identity. JSON null is invalid. Python submit accepts `None` for the empty default.
+
+The Server checks only direct dependencies during a new claim, in the same
+transaction that selects and marks the Task running. Every referenced Task must
+exist in the same Queue and have status `succeeded`. An empty list adds no gate.
+Missing, pending, running, failed or cancelled predecessors make the Task
+ineligible. Such a Task stays pending without changing its attempt, pending
+position or timestamps. Eligible Tasks still follow the existing route,
+priority and pending-order rules; an ineligible Task never prevents selection
+of a lower-priority eligible Task. No eligible Tasks means the usual empty claim
+response and existing Worker idle-timeout behavior.
+
+Submission and updates do not check predecessor existence, self references or
+cycles. These are accepted inputs, including references to Tasks submitted later.
+The Server neither traverses the graph nor diagnoses why work remains pending.
+Users own graph correctness, waiting-work diagnosis, failure recovery, Worker
+startup/lifetime, and all data transfer and retention. These inputs must not
+crash the Server, recurse indefinitely, or bypass the dependency gate. There is
+no successor field, Workflow resource, graph API, failure propagation, result
+injection, dependency filter/grouping field, or experimental enablement switch.
+Experimental denotes that this feature's public interface may evolve.
+
+`update_task(id, {"dependencies": [...]})` and filtered `update_tasks` replace
+the entire list under the ordinary non-running update rules in section 11.
+`[]` clears the gate. Running Tasks reject ID-addressed updates; bulk updates
+exclude them. Updates do not requeue a terminal Task or refresh pending order.
+Cancel, requeue and retry retain the list. Each new claim checks the current
+list; an existing active run and its idempotent claim replay are not revoked or
+rechecked because a predecessor was deleted or edited. Existing run fencing
+continues to apply.
+
+Deleting a non-running Task performs no incoming-reference check, graph ordering
+or dependent-Task mutation. Its ID remains in other Tasks' lists. Those lists
+resolve the current record at the ID, so deleting then recreating that ID binds
+the reference to the new Task. Queue deletion retains its ordinary rules and
+does not gain cross-Queue dependency semantics. No bulk-delete endpoint is added.
+
+The Python submit surfaces add `dependencies: list[str] | None = None`; CLI
+submit adds repeatable `--dependency TASK_ID`. HTTP creation accepts
+`"dependencies": []` on the existing PUT endpoint; PATCH accepts the same field
+on both ordinary update endpoints. CLI updates use the existing JSON `--changes`.
+Malformed create inputs use `422 invalid_task`; malformed updates use
+`422 invalid_update`. Client-side malformed inputs raise `ValueError` before
+network access. No new graph-related conflict or error code is introduced.
+
+Nonempty dependency lists count toward the existing stored-Task size limit and
+creation hash. Empty lists are omitted from these canonical objects, preserving
+pre-feature size accounting and creation hashes across migration. Omitted and
+explicitly empty creation lists are equivalent. A changed nonempty list at an
+existing Task ID returns the ordinary `409 task_id_conflict`, even if the stored
+Task's dependencies were later edited. Older Clients may ignore the response
+field; older Servers reject nonempty dependency submissions as unknown input.
+The new Client treats missing dependencies in an older Server's response as `[]`
+and omits empty dependencies on submit. It does not silently discard nonempty
+dependency requests for older Servers.
+
+For example, submit B with `dependencies=[A]` before A exists. B waits. Submit
+and successfully execute A in the same Queue, and B becomes eligible. If A is
+deleted before B is claimed, B waits again. A self-reference or A/B cycle also
+waits until the user changes the data; it is not a Server error.
 
 ## 2. Argument handling
 
@@ -1875,6 +1946,13 @@ token is different: a global partial unique index on non-null `active_run_id`
 prevents one live run token from owning two Tasks at once. Terminal dedupe values
 are historical bounded slots and do not use that active uniqueness rule.
 
+`dependencies_json` stores the Task's dependency list as JSON text with default
+`[]` and a valid-JSON-array CHECK, introduced by migration `0005_task_dependencies`.
+It has no foreign key to predecessor Tasks. Claim uses `json_each` to inspect
+direct IDs and the existing `(queue_name, task_id)` primary key to find successful
+predecessors. Missing IDs remain unsatisfied. There is no recursive query,
+successor index, dependency counter or background graph scheduler.
+
 `args`, `metadata` and `result` are stored as compact canonical UTF-8 JSON text;
 nullable `progress` uses the same representation when populated. Stored objects
 have sorted keys and database checks for valid JSON. The Server
@@ -1895,7 +1973,7 @@ The private `tasks` row contains these logical fields:
 ```text
 queue_name, task_id
 status, name
-args_json, metadata_json, result_json
+args_json, metadata_json, result_json, dependencies_json
 progress_json, progress_updated_at_us, progress_attempt
 priority, attempt, max_attempts
 created_at_us, updated_at_us
@@ -1965,7 +2043,8 @@ association rows and inserts the complete replacement in the same transaction;
 Task/Queue deletion cascades them. API assembly sorts the rows lexicographically.
 
 Claim and route-membership filters use indexed `EXISTS`/join predicates against
-`task_routes`, avoiding a `json_each` scan across every pending Task. Page reads
+`task_routes`, avoiding a route-array scan across every pending Task. Dependency
+checks separately use `json_each` as defined in section 1.7. Page reads
 load all route rows for the selected Task IDs in one secondary query or equivalent
 aggregate, never one query per Task. A successful claim may load its routes after
 the atomic state mutation in the same transaction because running Tasks cannot
@@ -2173,9 +2252,10 @@ database.
 
 The same 1 MiB constant also bounds the complete stored user-owned Task data.
 After applying creation defaults or any mutation that changes `name`, `args`,
-`metadata`, `priority`, `max_attempts`, `routes`, `result` or `progress`, including
+`metadata`, `priority`, `max_attempts`, `routes`, `dependencies`, `result` or `progress`, including
 `complete(result)` and a progress report, the Server canonically serializes an
-object containing all eight resulting fields as compact UTF-8 JSON. If it exceeds
+object containing the resulting user-owned fields as compact UTF-8 JSON, omitting
+absent progress and empty dependencies. If it exceeds
 1,048,576 bytes, the mutation is rejected with `422`,
 `code="task_data_too_large"` and `details.max_bytes=1048576`. Batch update
 validates every resulting Task and rolls back the whole batch if one exceeds the
@@ -2254,7 +2334,8 @@ V2 does not add an `Idempotency-Key` header or idempotency-record table. Because
 Task input may later be edited, the server needs a small internal
 `creation_hash` (not a public Task field) to recognize the original creation
 request. The server expands submit defaults, serializes the normalized creation
-body as canonical JSON, and stores its SHA-256 hash. This is request-equality
+body as canonical JSON (omitting empty dependencies as defined in section 1.7),
+and stores its SHA-256 hash. This is request-equality
 metadata, not a credential or content-addressed Task ID. Storing a request hash
 alongside an idempotency identity is a standard implementation pattern; it rejects
 accidental key reuse without duplicating the full original payload.
@@ -4312,6 +4393,7 @@ metadata
 priority
 max_attempts
 routes
+dependencies
 result
 ```
 
@@ -4327,6 +4409,7 @@ class TaskUpdate(TypedDict, total=False):
     priority: int
     max_attempts: int
     routes: list[str]
+    dependencies: list[str]
     result: dict[str, JSONValue]
 ```
 
@@ -4386,6 +4469,7 @@ ignored. `name` alone may be JSON null. `args`, `metadata` and `result` must be
 JSON objects; `routes` must be a non-empty array of strings; `priority` and
 `max_attempts` must be integers, with booleans rejected as integers.
 Non-null `name` follows the same 256-code-point rule as submission.
+`dependencies` must be an array of Task IDs, possibly empty, under section 1.7.
 An otherwise valid change whose complete resulting user-owned Task data exceeds
 1 MiB is `422 task_data_too_large` under section 6.2.
 
@@ -4484,6 +4568,7 @@ metadata      {}
 priority      0
 max_attempts  3
 routes        ["default"]
+dependencies  []
 ```
 
 `result` starts as `{}`, `attempt` starts as `0`, status starts as `pending`, and
@@ -4503,12 +4588,13 @@ submit_task(
     priority: int = 0,
     max_attempts: int = 3,
     routes: list[str] | None = None,
+    dependencies: list[str] | None = None,
     task_id: str | None = None,
     queue: str | None = None,
 ) -> Task
 ```
 
-Python `None` for `args`, `metadata` or `routes` means “use the documented
+Python `None` for `args`, `metadata`, `routes` or `dependencies` means “use the documented
 default”; the Client sends the normalized object rather than JSON null. Callers
 may therefore submit a no-argument Task with `submit_task()`.
 
@@ -4551,13 +4637,14 @@ Content-Type: application/json
   "metadata": {},
   "priority": 0,
   "max_attempts": 3,
-  "routes": ["default"]
+  "routes": ["default"],
+  "dependencies": []
 }
 ```
 
 Every body field is optional. The server expands omitted fields to the defaults
 above before validation and creation-hash calculation. Explicit JSON null is
-valid only for `name`; `args`, `metadata` and `routes` must be their declared JSON
+valid only for `name`; `args`, `metadata`, `routes` and `dependencies` must be their declared JSON
 types when present. Unknown fields and server-owned fields such as `result`,
 `status` or `attempt` are `422 invalid_task`; they are never ignored.
 
@@ -4594,6 +4681,8 @@ labtasker task submit \
 `--args` and `--metadata` accept strict JSON objects only; the CLI does not infer
 types through `literal_eval` or trailing `--key=value` arguments. `--route` is
 repeatable and the collected list follows the same non-empty/duplicate rules.
+`--dependency TASK_ID` is repeatable, defaults to an empty list, and preserves
+order and duplicates under the experimental contract in section 1.7.
 All flags are optional and use the canonical defaults; omitted `--id` is generated
 by the Client. Success writes exactly one Task JSON object to stdout. Handled
 errors write the common error envelope to stdout with exit `1`; diagnostics go
@@ -4603,7 +4692,7 @@ to stderr.
 
 Status: **Decided**
 
-The public Task representation in 2.0.0 contains exactly:
+The public Task representation contains:
 
 ```text
 id
@@ -4616,7 +4705,11 @@ priority
 attempt
 max_attempts
 routes
+dependencies
 result
+progress
+progress_updated_at
+progress_attempt
 last_error
 last_route
 created_at
@@ -4625,7 +4718,7 @@ started_at
 finished_at
 ```
 
-This is the complete initial model, not a prompt for implementations to invent
+This is the complete current model, not a prompt for implementations to invent
 additional fields. A later additive `/api/v2` Server release may append optional
 response fields under section 6.2; older clients ignore them, and they become
 public only when that later contract documents them.
@@ -4852,6 +4945,7 @@ and change inspection noisy. Progress reports likewise update only
 
 | Date | Decision |
 |---|---|
+| 2026-10-14 | Add experimental `Task.dependencies` with same-Queue direct-success gating at claim, JSON-list persistence, ordinary full-replacement updates, and Python/HTTP/CLI support. Preserve list order/duplicates. Accept missing IDs, self references and cycles; deletion has no dependency protection. Users own graph correctness, pending diagnosis, data transfer and Worker lifetime. The Server guarantees direct gating and existing transaction/run-fencing rules without graph traversal or diagnostic machinery (section 1.7). |
 | 2026-09-18 | Give an already-started Worker one fixed 300-second claim recovery budget distinct from `idle_timeout`. Retry transport failures, `database_busy` and Server 5xx with the same Queue, route and `run_id`; pause healthy-idle accounting; and confirm a recovered claim with heartbeat before execution. Use one jittered `1, 2, 4, 8, 10` second cadence for empty and unavailable claim paths, reset only after an executable claim, and expose no tuning option. Confirmed stale/finalized candidates are discarded without charging workload failure. Keep startup retries short, ordinary Client retries unchanged and Server replay recognition bounded. This supersedes the three-attempt Worker claim policy. |
 | 2026-09-18 | Require POSIX advisory file locking for every Server transport and lifecycle mode, including foreground HTTP. Reject all operational `labtasker-server` commands on Windows before root, database, listener or process side effects while keeping help and version inspection available. Keep the ordinary HTTP Client and Python Worker best effort on Windows; they connect to a Server running on a POSIX host. This supersedes the earlier Windows best-effort Server classification. |
 | 2026-09-18 | Keep ordinary Client request timeout at 15 seconds, including response margin beyond the shared strategy's separate five-second pool and busy waits. Keep resolved Client configuration private, with `server_version` as the only public non-resource property. For false-default authority, destructive and lifecycle booleans, expose only positive `--auto-start-local-server`, `--cascade`, `--daemon` and `--force` flags; retain the meaningful `--descending` / `--ascending` ordering pair. |

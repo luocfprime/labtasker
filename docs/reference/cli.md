@@ -109,7 +109,7 @@ do not advertise a usable version do not trigger this warning.
 | Command | Successful stdout | Contract |
 | --- | --- | --- |
 | `config show` | One resolved configuration object | Resolves current sources without network access, file creation, or local Server startup; never prints a token. |
-| `task submit` | One Task object | `--args`/`--metadata` default to `{}`, `--priority` to `0`, `--max-attempts` to `3`, and omitted routes to `default`. Repeat `--route` for several exact routes; use `--id` for a caller-chosen idempotent Task ID. |
+| `task submit` | One Task object | `--args`/`--metadata` default to `{}`, `--priority` to `0`, `--max-attempts` to `3`, and omitted routes to `default`. Repeat `--route` for several exact routes; use `--id` for a caller-chosen idempotent Task ID. Experimental `--dependency TASK_ID` is repeatable and defaults to an empty list. |
 | `task get` | One Task object | ID-addressed; an unknown Task is an error, not `null`. |
 | `task list` | `{"items":[...],"next_cursor":...}` | Returns one page. `--status`, exact `--name`, `--name-fuzzy`, and `--filter` combine with AND. |
 | `task count` | `{"count":N}` or a grouped page | Counts the complete selection; `--group-by` opts into grouped counts. |
@@ -125,7 +125,7 @@ do not advertise a usable version do not trigger this warning.
 | `queue delete` | Nothing | Non-empty requires `--cascade`; running Tasks still block deletion. |
 
 `task update --changes` accepts only `name`, `args`, `metadata`, `priority`,
-`max_attempts`, `routes`, and `result`. Supplied objects and lists are complete
+`max_attempts`, `routes`, `dependencies`, and `result`. Supplied objects and lists are complete
 replacements, not merges. Status changes use `cancel` and `requeue`; `status` is
 not writable.
 
@@ -222,10 +222,11 @@ labtasker worker list --filter 'metadata.hostname == "node-7"'
 labtasker worker count --filter 'telemetry.gpu_utilization < 0.1'
 ```
 
-`--group-by` is one comma-separated argument with no spaces. Task fields are
+`--group-by` is one comma-separated argument with no spaces. Task grouping fields are
 `routes` and `status`; Worker fields are `route` and `status`. Either order is
 valid. Empty fields, duplicates, unsupported fields and repeated `--group-by`
 options are usage errors. Without grouping, count output remains `{"count":N}`.
+Experimental `dependencies` is returned on Tasks but is not a filter or grouping field.
 
 Grouped output contains `group_by`, the complete matching `count`, one page of
 `items` with `key`/`count`, and `next_cursor`. `--limit` (default 100, maximum

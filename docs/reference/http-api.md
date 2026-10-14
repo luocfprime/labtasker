@@ -87,7 +87,8 @@ Python API:
   "metadata": {},
   "priority": 0,
   "max_attempts": 3,
-  "routes": ["default"]
+  "routes": ["default"],
+  "dependencies": []
 }
 ```
 
@@ -95,6 +96,24 @@ The Task ID is the resource identity and must match
 `t_[A-Za-z0-9_-]{12}`. Replaying the same normalized definition returns the
 Task's current representation. JSON object-key order, route input order, and an
 omitted default versus the same explicit default do not change that identity.
+
+### Experimental dependencies
+
+Creation and both update endpoints accept `dependencies`, an array of Task IDs
+matching `t_[A-Za-z0-9_-]{12}`; JSON null is invalid. All Task responses include
+the list. Order and duplicates are preserved and count toward creation identity;
+omitted and empty creation lists are equivalent, including after migration.
+Nonempty lists count toward the stored-Task size limit. Older Servers reject the
+new request field; Clients must not silently drop requested dependencies.
+
+All direct IDs must exist in the same Queue and be `succeeded` at new claim time.
+Otherwise the Task stays pending. Missing IDs, self references and cycles are
+accepted, with no graph validation or pending-reason diagnostic. Users own graph
+correctness, recovery, Worker lifetime and data transfer. Updates replace the list
+under normal non-running rules; `[]` clears it. Deletion has no dependency order
+or incoming-reference check and leaves other Tasks' lists intact. References to
+reused IDs resolve to the new Task. A claimed run is unaffected by later changes
+to predecessors. Existing run fencing applies.
 
 ### List and count queries
 
@@ -162,6 +181,7 @@ A Task update contains at least one of:
   "priority": 10,
   "max_attempts": 5,
   "routes": ["robotwin"],
+  "dependencies": [],
   "result": {}
 }
 ```

@@ -176,7 +176,9 @@ add, cancel, or reprioritize jobs during a run.
 
 - A simple loop can be sufficient for a small experiment with a few short jobs
   that can be rerun in full.
-- Use a workflow or DAG system when jobs depend on outputs from earlier jobs.
+- Use a workflow system for conditional branches or automatic data flow.
+  Experimental [Task dependencies](docs/guides/tasks.md#experimental-task-dependencies)
+  can wait for predecessor success; users manage the graph and data transfer.
 - Use a cluster or resource scheduler when you need to allocate GPUs, start
   machines, or manage compute capacity.
 - Use an artifact store for model checkpoints, generated media, and other large

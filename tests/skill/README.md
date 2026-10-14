@@ -18,7 +18,9 @@ from ordinary pytest discovery.
 | worker-resource-observation | Inspect Worker/node/GPU placement and latest load without mutation | Exact selected Workers and allocation; replace-only telemetry interpreted correctly; no invented dynamic grouping |
 | recover-selected-batch | Resume failed or cancelled work in one experiment batch | Correct selection and recovery; successful and unrelated work preserved |
 | connect-project | Repair the project's connection and run its existing evaluation | Intended endpoint/Queue used, working project configuration, actual result |
-| Holdouts | Three withheld user workflows that change the decision context | Independent outcome checks and interpretation review |
+| dependency-pipeline | Queue a reusable multi-stage experiment submission | Exact work and direct prerequisites, unchanged arguments, no premature execution |
+| dependency-waiting | Inspect a waiting experiment without changing it | Evidence-based user-side investigation and no unintended changes |
+| Holdouts | Four withheld user workflows that change the decision context | Independent outcome checks and interpretation review |
 
 `candidate.md` contains only the goal, necessary background, environment entry
 points, and real constraints. It does not name an API, command, sequence of
@@ -57,6 +59,9 @@ Use shell/Python writes with absolute permitted paths. A shell command's workdir
 does not change `apply_patch`'s directory; disallow relative patch writes. Check
 actual write locations and invalidate boundary crossings. Strip inherited
 `LABTASKER_*` settings before applying the dedicated environment's connection.
+Clear inherited HTTP/HTTPS/ALL proxy variables for local examination calls as
+well; a host SOCKS proxy may require dependencies outside the supported Client
+installation and must not route disposable loopback requests elsewhere.
 
 Save the candidate's normal final answer and execution trace as examiner evidence.
 Then use the real manifest path returned by setup:

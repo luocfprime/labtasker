@@ -166,7 +166,8 @@ supported POSIX host.
 | Allocate, reserve, or discover a free GPU | No. The user, shell, or cluster scheduler starts Workers on allocated resources. |
 | See online Workers, route presence, or user-reported latest resource details | Yes. Bundled Workers automatically report expiring observations and may include static metadata plus latest telemetry; use `list_workers` / `count_workers` or `worker list` / `worker count`. Read [observations-and-counts.md](observations-and-counts.md). This is approximate observation, not discovered capacity, allocation, or process control. |
 | Schedule machines, pods, or multi-node rendezvous | No. Use SLURM, Kubernetes, or another external scheduler. |
-| Express Task dependencies or a workflow DAG | No. Use a workflow engine and submit independent leaves to Labtasker. |
+| Wait for predecessor Tasks | Experimental `dependencies` lists same-Queue Task IDs; all must exist and succeed before claim. Users own graph correctness, data transfer, and waiting diagnosis. Read [operations-and-recovery.md](operations-and-recovery.md#experimental-task-dependencies). |
+| Orchestrate workflow runs, conditional branches, or automatic data flow | Use a workflow engine or user code. |
 | Store checkpoints, images, videos, or datasets | No. Use project or artifact storage and record references in Task data. |
 | Run one Task with single-node `torchrun` or Accelerate | Yes, through one outer Command Worker on supported POSIX platforms. |
 | Provide an asynchronous Python Client | No. The public Python API is synchronous. |
@@ -174,6 +175,6 @@ supported POSIX host.
 | Keep an AI agent in the runtime loop | No. Agents may configure and operate Labtasker, but Worker execution is autonomous. |
 
 Labtasker coordinates independent work after processes exist. If the main
-problem is resource allocation, dependent pipelines, or artifact management,
+problem is resource allocation, workflow orchestration, or artifact management,
 select another primary tool rather than building those concepts around
 Labtasker.

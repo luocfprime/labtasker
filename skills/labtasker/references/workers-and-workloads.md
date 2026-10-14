@@ -35,7 +35,8 @@ facts into a recommendation:
 | Equivalent executors for the same work | One shared route |
 | A separately managed body of work | One Queue |
 | GPU, node, Pod, or process allocation | Existing launcher or scheduler |
-| Stage dependencies and barriers | Existing workflow controller |
+| Wait for all named predecessor Tasks to succeed | Experimental Task `dependencies`; see [operations-and-recovery.md](operations-and-recovery.md#experimental-task-dependencies) |
+| Conditional stages, data transfer, and workflow recovery | User code or existing workflow controller |
 | Large or durable outputs | Existing shared or object storage |
 
 When a fact leaves a real trade-off, ask about the consequence rather than the

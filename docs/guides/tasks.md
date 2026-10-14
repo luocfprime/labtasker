@@ -34,6 +34,55 @@ Routes default to `default`. Supplying a Task ID makes creation idempotent only
 when every submitted field is the same. Reusing the ID with different data is
 an error.
 
+## Experimental Task dependencies
+
+To run an evaluation after preparation succeeds, list the preparation Task ID:
+
+```python
+with labtasker.Client() as client:
+    prepared = client.submit_task({"dataset": "samples"}, routes=["prepare"])
+    evaluation = client.submit_task(
+        {"input_task_id": prepared.id},
+        routes=["evaluate"],
+        dependencies=[prepared.id],
+    )
+```
+
+The CLI uses repeatable `--dependency TASK_ID`:
+
+```bash
+labtasker task submit --route evaluate \
+  --dependency t_ABCDEFGHIJKL --dependency t_MNOPQRSTUVWX
+labtasker task update t_0123456789-_ --changes '{"dependencies":[]}'
+```
+
+The default is `[]`. Every ID resolves in the Task's own Queue and must exist
+with status `succeeded` before a Worker can claim the Task. Lists preserve order
+and duplicates, but neither controls execution order. You may submit predecessors
+later. Replace or clear the list through ordinary non-running Task updates;
+requeue retains it. This feature is experimental and its interface may evolve.
+
+The Server accepts missing IDs, self references, and cycles. Unsatisfied
+dependencies simply keep a Task pending without consuming attempts. Failed or
+cancelled predecessors do not automatically fail or cancel dependent Tasks.
+Users own graph correctness, recovery, Worker startup/lifetime, and diagnosis of
+waiting work. Existing Worker idle timeouts still apply. The Server does not
+validate graphs, diagnose pending reasons, or transfer results.
+
+Read IDs from the Task's `dependencies` or Python `task_info().dependencies`.
+Fetch predecessor results yourself with `client.get_task(id, queue=task.queue)`;
+use your files or artifact store for large outputs. The example's `input_task_id`
+is an ordinary application argument, not automatic result injection. To inspect
+waiting work, query each predecessor's current state; a missing record is an
+unsatisfied reference. If your script traverses the graph, track visited IDs to
+handle cycles. A network error does not establish that a predecessor is absent.
+
+Dependencies are checked only when a new run is claimed. Later predecessor
+deletion or result edits do not interrupt that run or guarantee a result snapshot.
+Deleting a non-running Task requires no dependency order and does not alter other
+Tasks' lists. Those references wait if the ID disappears and refer to the new Task
+if that ID is reused. Users are responsible for retaining data they still need.
+
 ## Inspect
 
 For a browser view of Queue progress, Task details, and result columns, use
@@ -131,6 +180,9 @@ created when a fresh database is initialized, not recreated after an explicit
 deletion.
 
 ## Diagnose pending routes
+
+Pending counts include Tasks waiting for dependencies. Inspect their dependency
+IDs yourself when needed; route presence alone does not establish claimability.
 
 Inspect all routes referenced by pending Tasks, then compare observed Workers:
 

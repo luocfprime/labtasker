@@ -6,7 +6,10 @@ Labtasker is a deliberately small task queue for parallel model inference,
 evaluation, and other independent machine-learning experiments. Its main use
 case is a long-lived Worker that loads expensive process state once and executes
 many parameterized Tasks. Labtasker schedules work; it does not allocate GPUs,
-manage a cluster, build workflow DAGs, or store artifacts.
+manage a cluster, orchestrate workflow runs, or store artifacts. Experimental
+Task dependencies only gate claim on direct predecessor success; users own graph
+correctness, pending diagnosis, data transfer, and Worker lifetime. Missing IDs,
+self references and cycles are accepted; deletion has no dependency protection.
 
 The repository contains two independent runtime distributions and one code-free
 convenience metapackage:

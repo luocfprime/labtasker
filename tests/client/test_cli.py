@@ -216,6 +216,7 @@ def test_submit_parses_one_strict_json_object_and_repeated_routes(fake_client: N
         "priority": 0,
         "max_attempts": 3,
         "routes": ["old", "new"],
+        "dependencies": None,
         "task_id": None,
         "queue": "experiments",
     }

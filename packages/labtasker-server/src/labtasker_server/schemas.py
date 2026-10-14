@@ -69,6 +69,11 @@ class Task(StrictModel):
     attempt: int
     max_attempts: int
     routes: list[str]
+    dependencies: list[str] = Field(
+        description=(
+            "Experimental: direct same-Queue Task IDs required to exist and succeed at claim."
+        )
+    )
     result: dict[str, JSONValue]
     progress: dict[str, JSONValue] | None
     progress_updated_at: datetime | None
@@ -88,6 +93,17 @@ class TaskCreate(StrictModel):
     priority: Int64 = 0
     max_attempts: PositiveInt64 = 3
     routes: list[str] = Field(default_factory=lambda: ["default"])
+    dependencies: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Experimental: direct same-Queue predecessors; missing IDs and cycles are accepted."
+        ),
+    )
+
+    @field_validator("dependencies")
+    @classmethod
+    def validate_dependencies(cls, value: list[str]) -> list[str]:
+        return _validated(lambda: [validate_task_id(task_id) for task_id in value])
 
     @field_validator("name")
     @classmethod
@@ -122,7 +138,16 @@ class TaskUpdate(StrictModel):
     priority: Int64 = OMITTED
     max_attempts: PositiveInt64 = OMITTED
     routes: list[str] = OMITTED
+    dependencies: list[str] = Field(
+        default=OMITTED,
+        description="Experimental: replace the complete dependency list; [] clears it.",
+    )
     result: dict[str, JSONValue] = OMITTED
+
+    @field_validator("dependencies")
+    @classmethod
+    def validate_dependencies(cls, value: list[str]) -> list[str]:
+        return _validated(lambda: [validate_task_id(task_id) for task_id in value])
 
     @model_validator(mode="after")
     def validate_nonempty(self) -> TaskUpdate:

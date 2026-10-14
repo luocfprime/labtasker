@@ -59,6 +59,55 @@ explicit context-managed Client is the canonical choice for a large loop,
 deterministic cleanup, tests, or more than one endpoint. Do not invent a
 `submit_tasks` API.
 
+## Experimental Task dependencies
+
+Use `submit_task(..., dependencies=[task_id, ...])` or repeated CLI
+`--dependency TASK_ID` flags when every named predecessor must succeed before
+execution. The default is `[]` (Python submit also accepts `None` for this
+default). IDs resolve in the Task's own Queue. The Server preserves list order
+and duplicates; each ID follows the ordinary Task ID grammar. Dependency order
+and duplicates are part of an explicit-ID creation request's identity, so keep
+the original list when retrying submission.
+
+```python
+with Client() as client:
+    prepared = client.submit_task({"dataset": "samples"}, routes=["prepare"])
+    client.submit_task(
+        {"input_task_id": prepared.id},
+        routes=["evaluate"],
+        dependencies=[prepared.id],
+    )
+```
+
+The Server only checks direct predecessors at claim: all must exist and have
+status `succeeded`. Missing IDs, self references, cycles, failed or cancelled
+predecessors are accepted and simply keep the Task pending. They do not consume
+attempts or block unrelated eligible Tasks. A predecessor may be submitted later.
+There is no graph validation, failure propagation, successor field, pending-reason
+endpoint, automatic result injection, or dependency filter/grouping extension.
+
+Users own the dependency graph, Worker startup/lifetime, data availability, and
+diagnosis. When asked to investigate waiting work, read the Task's `dependencies`
+and use ordinary `get_task(id, queue=task.queue)` or `task get ID --queue QUEUE`
+to inspect them; a 404 means an unresolved predecessor. Transport failures do
+not prove absence. If traversing further in your own script, use a visited set
+because cycles are valid input. Inspect without changing anything unless asked.
+Do not automatically clear dependencies, reject the user's graph, or promise
+that all pending work can eventually run. Existing Worker idle timeouts apply.
+
+Replace dependencies through ordinary `update_task(id, {"dependencies": [...]})`
+or filtered `update_tasks`; `[]` removes the gate. CLI uses
+`task update ID --changes '{"dependencies":[]}'`. Ordinary running-Task update
+rules apply. Requeue retains dependencies. A claimed run is not revoked when a
+predecessor is later deleted or edited. Users fetch results themselves using
+`task_info().dependencies` or IDs in args and ordinary Client reads.
+
+Deleting a non-running Task has no reference check or ordering requirement and
+does not erase IDs stored in other Tasks. Such references then wait; reusing an
+ID binds them to the new Task at that ID. A user-requested multi-Task cleanup uses
+ordinary deletes in any order; there is no new bulk-delete API. For repeats of a
+successful experiment, submit new Tasks and explicitly wire their intended IDs.
+
 ## Inspect all selected Tasks
 
 ```bash
@@ -190,7 +239,7 @@ labtasker task update \
   --changes '{"routes":["clip-openai","clip-openclip"]}'
 ```
 
-`args`, `metadata`, `result`, and `routes` are complete replacements, not
+`args`, `metadata`, `result`, `routes`, and `dependencies` are complete replacements, not
 merges. Unspecified fields remain unchanged. Running Tasks cannot be updated.
 Do not implement a bulk change as a client-side list/update loop when the
 filtered bulk operation expresses it directly.

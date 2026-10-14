@@ -30,6 +30,7 @@ from labtasker.models import (
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.validation import (
     RequestValidationError,
+    validate_dependencies,
     validate_filter,
     validate_grouping,
     validate_identifier,
@@ -170,6 +171,7 @@ class Client:
         priority: int = 0,
         max_attempts: int = 3,
         routes: list[str] | None = None,
+        dependencies: list[str] | None = None,
         task_id: str | None = None,
         queue: str | None = None,
     ) -> Task:
@@ -180,6 +182,9 @@ class Client:
             field="metadata",
         )
         normalized_routes = validate_routes(["default"] if routes is None else routes)
+        normalized_dependencies = validate_dependencies(
+            [] if dependencies is None else dependencies
+        )
         body: dict[str, object] = {
             "name": validate_task_name(name),
             "args": normalized_args,
@@ -192,6 +197,8 @@ class Client:
             ),
             "routes": normalized_routes,
         }
+        if normalized_dependencies:
+            body["dependencies"] = normalized_dependencies
         queue_name = self._queue(queue)
         if task_id is not None:
             selected_id = validate_task_id(task_id)

@@ -120,6 +120,12 @@ def validate_run_id(value: object) -> str:
     return value
 
 
+def validate_dependencies(value: object) -> list[str]:
+    if not isinstance(value, list):
+        raise RequestValidationError("dependencies must be a list of Task IDs.")
+    return [validate_task_id(task_id) for task_id in value]
+
+
 def validate_task_name(value: object) -> str | None:
     if value is None:
         return None
@@ -181,7 +187,16 @@ def validate_order_field(value: object) -> TaskOrderField:
 def validate_task_update(changes: object) -> TaskUpdate:
     if not isinstance(changes, dict) or not changes:
         raise RequestValidationError("changes must be a non-empty object.")
-    allowed = {"name", "args", "metadata", "priority", "max_attempts", "routes", "result"}
+    allowed = {
+        "name",
+        "args",
+        "metadata",
+        "priority",
+        "max_attempts",
+        "routes",
+        "dependencies",
+        "result",
+    }
     unknown = set(changes) - allowed
     if unknown:
         raise RequestValidationError(f"changes contains unsupported fields: {sorted(unknown)!r}.")
@@ -197,6 +212,8 @@ def validate_task_update(changes: object) -> TaskUpdate:
             normalized[field] = validate_int64(value, field=field, positive=True)
         elif field == "routes":
             normalized[field] = validate_routes(value)
+        elif field == "dependencies":
+            normalized[field] = validate_dependencies(value)
     return cast(TaskUpdate, normalized)
 
 

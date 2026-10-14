@@ -100,7 +100,7 @@ heartbeat, complete, fail, and unclaim are not supported Python interfaces.
 
 ```text
 submit_task(args=None, *, name=None, metadata=None, priority=0,
-            max_attempts=3, routes=None, task_id=None, queue=None) -> Task
+            max_attempts=3, routes=None, dependencies=None, task_id=None, queue=None) -> Task
 get_task(task_id, *, queue=None) -> Task
 list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -> TaskPage
@@ -115,7 +115,7 @@ delete_task(task_id, *, queue=None) -> None
 
 | Operation | Contract |
 | --- | --- |
-| `submit_task` | Creates one pending Task and returns it. `args` and `metadata` default to `{}`, `routes` to `["default"]`, and `max_attempts` to `3`. |
+| `submit_task` | Creates one pending Task and returns it. `args` and `metadata` default to `{}`, `routes` to `["default"]`, experimental `dependencies` to `[]`, and `max_attempts` to `3`. |
 | `get_task` | Returns one Task or raises `APIError` with code `task_not_found`. |
 | `list_tasks` | Returns exactly one `TaskPage`; it never auto-fetches or streams every match. Selectors are combined with logical AND. |
 | `count_tasks` | Returns an `int` for the complete selection, or a `GroupCountPage` when `group_by` is supplied. |
@@ -240,7 +240,7 @@ opaque and is not a Task ID or offset.
 ### Updates and lifecycle
 
 `changes` is a `TaskUpdate` dictionary containing at least one of `name`,
-`args`, `metadata`, `priority`, `max_attempts`, `routes`, or `result`. Every
+`args`, `metadata`, `priority`, `max_attempts`, `routes`, `dependencies`, or `result`. Every
 supplied object or list is a complete replacement; there is no merge, dot-path
 patch, or add/remove operator. Unspecified fields remain unchanged.
 
@@ -289,7 +289,7 @@ Server.
 
 | Model | Public fields |
 | --- | --- |
-| `Task` | `id`, `queue`, `status`, `name`, `args`, `metadata`, `priority`, `attempt`, `max_attempts`, `routes`, `result`, nullable `progress`, `progress_updated_at`, `progress_attempt`, `last_error`, `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at` |
+| `Task` | `id`, `queue`, `status`, `name`, `args`, `metadata`, `priority`, `attempt`, `max_attempts`, `routes`, experimental `dependencies`, `result`, nullable `progress`, `progress_updated_at`, `progress_attempt`, `last_error`, `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at` |
 | `TaskPage` | `items: list[Task]`, `next_cursor: str | None` |
 | `BulkUpdateResult` | `matched: int`, `updated: int` |
 | `Queue` | `name: str` |
@@ -307,9 +307,25 @@ Task states are exactly `pending`, `running`, `succeeded`, `failed`, and
 literal union of `id`, `name`, `status`, `priority`, `attempt`, `max_attempts`,
 `last_route`, `created_at`, `updated_at`, `started_at`, and `finished_at`.
 `TaskUpdate` is a `total=False` `TypedDict` with optional `name`, `args`,
-`metadata`, `priority`, `max_attempts`, `routes`, and `result` keys; runtime
+`metadata`, `priority`, `max_attempts`, `routes`, `dependencies`, and `result` keys; runtime
 validation still requires at least one supplied field. `JSONValue` is the
 recursive strict JSON-compatible value type.
+
+### Experimental dependencies
+
+`dependencies: list[str]` preserves order and duplicates. Submit accepts `None`
+or omission for `[]`; updates require a list, and `[]` clears it. Every ID must
+match the ordinary Task ID grammar. Each resolves in the Task's own Queue, and
+all must exist and be `succeeded` at claim. Missing references, self references,
+and cycles are accepted; they may leave a Task pending indefinitely. Users own
+graph correctness, data transfer, Worker lifetime, and waiting diagnosis.
+
+`TaskInfo.dependencies` exposes the same IDs to Python Worker code. Fetch results
+with ordinary Client reads yourself. Deletion does not check incoming references
+or clear other Tasks' lists. Reused IDs resolve to the new Task. Dependency edits
+use the existing non-running update rules; requeue retains them. Dependencies
+are not rechecked for an already claimed run. See the
+[guide](../guides/tasks.md#experimental-task-dependencies) for examples.
 
 ## Worker API
 

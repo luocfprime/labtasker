@@ -20,6 +20,7 @@ def submit_task(
     priority: int = 0,
     max_attempts: int = 3,
     routes: list[str] | None = None,
+    dependencies: list[str] | None = None,
     task_id: str | None = None,
     queue: str | None = None,
 ) -> Task:
@@ -30,6 +31,7 @@ def submit_task(
         priority=priority,
         max_attempts=max_attempts,
         routes=routes,
+        dependencies=dependencies,
         task_id=task_id,
         queue=queue,
     )

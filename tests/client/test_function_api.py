@@ -121,6 +121,7 @@ def test_function_first_surface_is_only_a_thin_client_facade(
             priority=2,
             max_attempts=4,
             routes=["gpu"],
+            dependencies=["t_MNOPQRSTUVWX"],
             task_id="t_ABCDEFGHIJKL",
             queue="experiments",
         )
@@ -180,6 +181,7 @@ def test_function_first_surface_is_only_a_thin_client_facade(
             "priority": 2,
             "max_attempts": 4,
             "routes": ["gpu"],
+            "dependencies": ["t_MNOPQRSTUVWX"],
             "task_id": "t_ABCDEFGHIJKL",
             "queue": "experiments",
         },

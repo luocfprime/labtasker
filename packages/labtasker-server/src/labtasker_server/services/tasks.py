@@ -71,6 +71,7 @@ class PreparedUpdate:
     priority: int
     max_attempts: int
     routes: tuple[str, ...]
+    dependencies_json: str
     result_json: str
     changed: bool
 
@@ -113,7 +114,11 @@ class TaskService:
         task_id = validate_task_id(task_id)
         normalized = request.model_dump(mode="json")
         normalized["routes"] = sorted(request.routes)
-        creation_hash = hashlib.sha256(canonical_json(normalized).encode()).hexdigest()
+        # Empty dependencies retain pre-feature creation hashes, including after migration.
+        creation_data = dict(normalized)
+        if not request.dependencies:
+            creation_data.pop("dependencies")
+        creation_hash = hashlib.sha256(canonical_json(creation_data).encode()).hexdigest()
 
         with self.database.write_session() as session:
             if session.get(QueueRow, queue) is None:
@@ -144,6 +149,7 @@ class TaskService:
                 args_json=canonical_json(request.args),
                 metadata_json=canonical_json(request.metadata),
                 result_json="{}",
+                dependencies_json=canonical_json(request.dependencies),
                 progress_json=None,
                 progress_updated_at_us=None,
                 progress_attempt=None,
@@ -402,6 +408,23 @@ class TaskService:
             if finalized is not None:
                 raise conflict("stale_run", "This run is no longer active.", run_id=run_id)
 
+            dependencies = func.json_each(TaskRow.dependencies_json).table_valued("value")
+            predecessor = TaskRow.__table__.alias("predecessor")
+            satisfied = (
+                select(1)
+                .select_from(predecessor)
+                .where(
+                    predecessor.c.queue_name == TaskRow.queue_name,
+                    predecessor.c.task_id == dependencies.c.value,
+                    predecessor.c.status == "succeeded",
+                )
+                .correlate(TaskRow, dependencies)
+                .exists()
+            )
+            # Missing IDs also fail this check. No graph traversal or recursive query.
+            unsatisfied = (
+                select(1).select_from(dependencies).where(~satisfied).correlate(TaskRow).exists()
+            )
             candidate = (
                 select(TaskRow.task_id)
                 .join(
@@ -414,6 +437,7 @@ class TaskService:
                     TaskRow.status == "pending",
                     TaskRow.attempt < TaskRow.max_attempts,
                     TaskRouteRow.route == route,
+                    ~unsatisfied,
                 )
                 .order_by(TaskRow.priority.desc(), TaskRow.pending_at_us, TaskRow.task_id)
                 .limit(1)
@@ -676,6 +700,7 @@ def task_from_row(row: TaskRow) -> Task:
         attempt=row.attempt,
         max_attempts=row.max_attempts,
         routes=sorted(route.route for route in row.routes),
+        dependencies=json.loads(row.dependencies_json),
         result=json.loads(row.result_json),
         progress=(None if row.progress_json is None else json.loads(row.progress_json)),
         progress_updated_at=datetime_from_us(row.progress_updated_at_us),
@@ -789,6 +814,7 @@ def _prepare_update(row: TaskRow, changes: TaskUpdate) -> PreparedUpdate:
         "priority": row.priority,
         "max_attempts": row.max_attempts,
         "routes": sorted(route.route for route in row.routes),
+        "dependencies": json.loads(row.dependencies_json),
         "result": json.loads(row.result_json),
     }
     resulting = {**current, **supplied}
@@ -801,7 +827,11 @@ def _prepare_update(row: TaskRow, changes: TaskUpdate) -> PreparedUpdate:
             field="max_attempts",
             attempt=row.attempt,
         )
-    _validate_stored_size(resulting, result=resulting["result"])
+    _validate_stored_size(
+        resulting,
+        result=resulting["result"],
+        progress=None if row.progress_json is None else json.loads(row.progress_json),
+    )
     return PreparedUpdate(
         name=cast(str | None, resulting["name"]),
         args_json=canonical_json(resulting["args"]),
@@ -809,6 +839,7 @@ def _prepare_update(row: TaskRow, changes: TaskUpdate) -> PreparedUpdate:
         priority=cast(int, resulting["priority"]),
         max_attempts=max_attempts,
         routes=tuple(cast(list[str], resulting["routes"])),
+        dependencies_json=canonical_json(resulting["dependencies"]),
         result_json=canonical_json(resulting["result"]),
         changed=canonical_json(current) != canonical_json(resulting),
     )
@@ -821,6 +852,7 @@ def _apply_prepared_update(row: TaskRow, prepared: PreparedUpdate) -> None:
     row.priority = prepared.priority
     row.max_attempts = prepared.max_attempts
     row.result_json = prepared.result_json
+    row.dependencies_json = prepared.dependencies_json
     existing_routes = {route.route: route for route in row.routes}
     current_routes = tuple(sorted(existing_routes))
     if current_routes != prepared.routes:
@@ -928,6 +960,7 @@ def _validate_row_stored_size(
             "priority": row.priority,
             "max_attempts": row.max_attempts,
             "routes": sorted(route.route for route in row.routes),
+            "dependencies": json.loads(row.dependencies_json),
         },
         result=json.loads(row.result_json) if result is None else result,
         progress=stored_progress if progress is None else progress,
@@ -948,6 +981,8 @@ def _validate_stored_size(
     }
     if progress is not None:
         stored["progress"] = progress
+    if normalized.get("dependencies"):
+        stored["dependencies"] = normalized["dependencies"]
     if len(canonical_json(stored).encode("utf-8")) > MAX_TASK_DATA_BYTES:
         raise invalid(
             "task_data_too_large",

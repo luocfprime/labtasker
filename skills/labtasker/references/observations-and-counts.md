@@ -114,7 +114,9 @@ with Client() as client:
     presence = client.count_workers(group_by=["route", "status"])
 ```
 
-To diagnose waiting work, fully read pending Task groups by `routes` and
+Pending counts include Tasks waiting for dependencies, not just claimable work.
+For dependency inspection, read [operations-and-recovery.md](operations-and-recovery.md#experimental-task-dependencies).
+To inspect route coverage for waiting work, fully read pending Task groups by `routes` and
 independently read Worker groups by `route`, then align those results locally.
 There is no joined summary or Route registry. Worker-only routes may also be
 shown. Worker presence and Task demand can change between these reads.
