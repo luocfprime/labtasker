@@ -1,6 +1,6 @@
 ---
 name: labtasker
-description: Use Labtasker v2 to queue and run ML inference, evaluation, or experiment Tasks; set experimental Task dependencies; migrate pipelines; design routes and Workers; inspect Task demand and Worker activity; and recover Tasks. GPU allocation, cluster management, and artifact storage remain external.
+description: Use Labtasker v2 to queue and run ML inference, evaluation, or experiment Tasks; set experimental Task dependencies; migrate pipelines; design routes and Workers; inspect Task demand and Worker activity; and archive or recover Tasks. GPU allocation, cluster management, and artifact storage remain external.
 ---
 
 # Labtasker
@@ -31,7 +31,7 @@ Documentation map: <https://raw.githubusercontent.com/luocfprime/labtasker/refs/
 - Read [operations-and-recovery.md](references/operations-and-recovery.md) for
   idempotent submission, priority, filtering, fuzzy name search, pagination, updates, cancellation,
   experimental dependencies, user-side waiting diagnosis, external early-stop decisions,
-  retries, interruption, and rerunning work.
+  archival and restoration, retries, interruption, and rerunning work.
 - Read [observations-and-counts.md](references/observations-and-counts.md) for
   online Workers, route presence, busy/idle activity, Worker metadata/latest
   telemetry, grouped counts, and paginated monitoring queries.

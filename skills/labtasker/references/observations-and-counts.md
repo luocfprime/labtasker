@@ -116,6 +116,11 @@ with Client() as client:
 
 Pending counts include Tasks waiting for dependencies, not just claimable work.
 For dependency inspection, read [operations-and-recovery.md](operations-and-recovery.md#experimental-task-dependencies).
+Task counts, including route/status groups, exclude archives by default. For
+historical totals use `include_archived=True` or `--include-archived`, consistently
+across pages and related Task queries; see
+[archive scope](operations-and-recovery.md#archive-and-restore-finished-work).
+Worker queries do not accept a Task archive selector; observations are independent.
 To inspect route coverage for waiting work, fully read pending Task groups by `routes` and
 independently read Worker groups by `route`, then align those results locally.
 There is no joined summary or Route registry. Worker-only routes may also be
@@ -185,7 +190,7 @@ with Client() as client:
             break
 ```
 
-Use the same operation, Queue, exact filter/Task selectors, and ordered grouping
+Use the same operation, Queue, exact filter/Task selectors, archive scope, and ordered grouping
 fields for continuation. Page size may change. Do not reuse list cursors for
 counts, Task cursors for Workers, or cursors with reordered dimensions or a
 rewritten filter. Cursors are opaque. Invalid/mismatched cursors are errors.

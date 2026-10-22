@@ -30,7 +30,8 @@ that must retry after its own restart should persist and reuse its chosen ID.
 JSON object-key order, Task route input order, and explicitly spelling a
 submission default do not change the normalized definition. Later lifecycle or
 user-field updates also do not change the original creation definition used to
-recognize a retry. Changing a real submitted value such as `max_attempts` is a
+recognize a retry. Repeating creation of an archived Task returns that record
+without restoring visibility. Changing a real submitted value such as `max_attempts` is a
 conflict.
 
 The synchronous Python counterparts are `submit_task`, `get_task`, `list_tasks`,
@@ -119,7 +120,7 @@ labtasker task get t_ABCDEFGHIJKL
 ```
 
 `task list` returns one page. If `next_cursor` is non-null, request the next page
-with the same Queue, filter, selectors, and ordering:
+with the same Queue, filter, selectors, archive scope, and ordering:
 
 ```bash
 labtasker task list \
@@ -169,6 +170,9 @@ supported filter for subsequent changes.
 
 For online Worker queries and Server-side Task grouping by routes/status, read
 [observations-and-counts.md](observations-and-counts.md).
+For old experiment history or missing archived work, read
+[Archive and restore finished work](#archive-and-restore-finished-work) before
+interpreting an empty selection or changing Tasks.
 
 ## Apply an external early-stop policy from progress
 
@@ -246,7 +250,7 @@ filtered bulk operation expresses it directly.
 
 Bulk update is one Server transaction. A concurrent claim either sees the
 complete new values, or wins first and excludes that now-running Task. The
-result's `matched` count includes rows that satisfied the filter and remained
+result's `matched` count includes rows that satisfied the archive scope and filter and remained
 non-running at execution time; `updated` counts only rows whose stored values
 actually changed. All matching non-running rows are validated before any write,
 so one state-dependent conflict rolls back the complete batch rather than
@@ -257,6 +261,57 @@ each Task. When preserving those differences is required, read each Task,
 construct its complete replacement, and use ID-addressed `update_task`. This
 read-modify-write path accepts last-write-wins if another caller updates the same
 Task concurrently; v2 has no revision or compare-and-swap field.
+
+## Archive and restore finished work
+
+Use archival when the user wants to hide old Tasks while keeping their results.
+It changes the Boolean `archived` field through an ordinary Task update, not
+the Task's status. Only `succeeded`, `failed`, and `cancelled` Tasks may be
+archived. Restoration sets `archived` to false without rerunning anything.
+Do not substitute deletion, cancellation, or requeue for a request to hide work.
+
+Task list, scalar/grouped count, and filtered bulk update exclude archived Tasks
+by default. Include them with Python `include_archived=True` or CLI
+`--include-archived`; the flag expands the candidate scope and other filters
+still apply. An `archived == True` filter alone does not include archives.
+Use the same scope when inspecting a selection, counting it, updating it, or
+following its cursors. Include archives explicitly for complete history exports
+or recovery of archived failures.
+
+Inspect the intended batch before applying a scoped update:
+
+```bash
+labtasker task update \
+  --filter 'metadata.batch == "pilot" and status in ["succeeded", "failed", "cancelled"]' \
+  --changes '{"archived":true}'
+labtasker task list --include-archived \
+  --filter 'metadata.batch == "pilot" and archived == True'
+labtasker task update --include-archived \
+  --filter 'metadata.batch == "pilot" and archived == True' \
+  --changes '{"archived":false}'
+```
+
+Python uses `update_task(task_id, {"archived": True})` for an exact ID and
+`update_tasks(filter=..., changes={"archived": False}, include_archived=True)`
+for a filtered restoration. JSON changes use `true`/`false`; filter expressions
+use `True`/`False`. The field supports Boolean equality and membership, not
+numbers, null, or ordering comparisons. There is no separate archive command.
+Including a pending Task in a bulk archive rolls back the whole batch; running
+Tasks are excluded from bulk updates. Select terminal statuses explicitly.
+
+ID-based get, update, delete, and lifecycle actions still address archived
+records without an inclusion flag. CLI `--include-archived` is valid on list,
+count, and filter-based update, not ID-based update. Archival preserves results,
+progress, dependencies, and creation identity. An archived successful predecessor
+still satisfies a dependency; it need not be restored for downstream work.
+Ordinary edits do not unarchive a Task. Accepted requeue clears archival under
+the lifecycle rules below.
+
+Archival requires Server v2.8.0; Client v2.8.0 adds the selectors above. Existing
+v2 Clients and Workers remain compatible, but the new Server's default hiding
+also applies to older Clients. On older Servers, unsupported archive requests
+can fail; inspect the API error rather than reporting no matches or falling
+back to destructive cleanup.
 
 ## Use explicit lifecycle actions
 
@@ -269,7 +324,8 @@ labtasker task delete TASK_ID
 - Cancel accepts pending or running Tasks. Server cancellation is immediate and
   fences an active run even if local cleanup continues.
 - Requeue accepts pending, failed, or cancelled Tasks, returns them to pending,
-  resets `attempt` to zero, and clears the last error.
+  resets `attempt` to zero, clears the last error, and restores default visibility
+  if the Task was archived.
 - A succeeded Task cannot be requeued. Submit a new Task to rerun successful
   work.
 - A running Task cannot be updated, requeued, or deleted. Cancel it first, then
@@ -277,7 +333,8 @@ labtasker task delete TASK_ID
 - Delete permanently removes one non-running Task. Do not delete unless the
   user's intent is explicit.
 
-Queue deletion is separate. A non-empty Queue requires explicit cascade
+Queue deletion is separate. A Queue containing only archived Tasks is still
+non-empty. A non-empty Queue requires explicit cascade
 deletion, and even cascade is rejected while any Task in the Queue is running.
 Cancel running Tasks first. A successful cascade atomically deletes the Queue
 and all of its Tasks. If Queue `default` is explicitly deleted, later requests

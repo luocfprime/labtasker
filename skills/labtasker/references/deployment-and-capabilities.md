@@ -167,6 +167,7 @@ supported POSIX host.
 | See online Workers, route presence, or user-reported latest resource details | Yes. Bundled Workers automatically report expiring observations and may include static metadata plus latest telemetry; use `list_workers` / `count_workers` or `worker list` / `worker count`. Read [observations-and-counts.md](observations-and-counts.md). This is approximate observation, not discovered capacity, allocation, or process control. |
 | Schedule machines, pods, or multi-node rendezvous | No. Use SLURM, Kubernetes, or another external scheduler. |
 | Wait for predecessor Tasks | Experimental `dependencies` lists same-Queue Task IDs; all must exist and succeed before claim. Users own graph correctness, data transfer, and waiting diagnosis. Read [operations-and-recovery.md](operations-and-recovery.md#experimental-task-dependencies). |
+| Hide finished experiments while preserving their results | Use reversible Task archival; see [archive and restore](operations-and-recovery.md#archive-and-restore-finished-work) for version requirements and query scope. |
 | Orchestrate workflow runs, conditional branches, or automatic data flow | Use a workflow engine or user code. |
 | Store checkpoints, images, videos, or datasets | No. Use project or artifact storage and record references in Task data. |
 | Run one Task with single-node `torchrun` or Accelerate | Yes, through one outer Command Worker on supported POSIX platforms. |
