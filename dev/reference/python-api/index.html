@@ -1554,12 +1554,12 @@ heartbeat, complete, fail, and unclaim are not supported Python interfaces.</p>
 <div class="highlight"><pre><span></span><code>submit_task(args=None, *, name=None, metadata=None, priority=0,
             max_attempts=3, routes=None, dependencies=None, task_id=None, queue=None) -&gt; Task
 get_task(task_id, *, queue=None) -&gt; Task
-list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
+list_tasks(*, include_archived=False, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -&gt; TaskPage
-count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None,
+count_tasks(*, include_archived=False, status=None, name=None, name_fuzzy=None, filter=None,
             queue=None, group_by=None, limit=None, cursor=None) -&gt; int | GroupCountPage
 update_task(task_id, changes, *, queue=None) -&gt; Task
-update_tasks(*, filter, changes, queue=None) -&gt; BulkUpdateResult
+update_tasks(*, filter, changes, include_archived=False, queue=None) -&gt; BulkUpdateResult
 cancel_task(task_id, *, queue=None) -&gt; Task
 requeue_task(task_id, *, queue=None) -&gt; Task
 delete_task(task_id, *, queue=None) -&gt; None
@@ -1610,6 +1610,13 @@ delete_task(task_id, *, queue=None) -&gt; None
 </tr>
 </tbody>
 </table>
+<p>Task list, count (including grouping) and batch update exclude archived Tasks
+unless <code>include_archived=True</code>. To select only archives, also use
+<code>filter="archived == True"</code>. ID operations see archived records directly.
+<code>update_task(id, {"archived": True})</code> archives a succeeded, failed or cancelled
+Task; false restores it. Pending archival conflicts, and a batch with any invalid
+non-running match rolls back. Requeue clears archival. Setting the existing
+archive value is a no-op; other field updates preserve archival.</p>
 <h3 id="grouped-counts">Grouped counts</h3>
 <p>Use an ordered sequence of dimensions, not a comma-separated Python string:</p>
 <div class="highlight"><pre><span></span><code><span class="n">page</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">count_tasks</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"pending"</span><span class="p">,</span> <span class="n">group_by</span><span class="o">=</span><span class="p">[</span><span class="s2">"routes"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">])</span>
@@ -1697,7 +1704,7 @@ direction:</p>
 opaque and is not a Task ID or offset.</p>
 <h3 id="updates-and-lifecycle">Updates and lifecycle</h3>
 <p><code>changes</code> is a <code>TaskUpdate</code> dictionary containing at least one of <code>name</code>,
-<code>args</code>, <code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, or <code>result</code>. Every
+<code>archived</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, or <code>result</code>. Every
 supplied object or list is a complete replacement; there is no merge, dot-path
 patch, or add/remove operator. Unspecified fields remain unchanged.</p>
 <p>Bulk update is one Server transaction. <code>matched</code> counts filter matches that are
@@ -1784,7 +1791,7 @@ Server.</p>
 <tbody>
 <tr>
 <td><code>Task</code></td>
-<td><code>id</code>, <code>queue</code>, <code>status</code>, <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, experimental <code>dependencies</code>, <code>result</code>, nullable <code>progress</code>, <code>progress_updated_at</code>, <code>progress_attempt</code>, <code>last_error</code>, <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, <code>finished_at</code></td>
+<td><code>id</code>, <code>queue</code>, <code>status</code>, <code>archived</code>, <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, experimental <code>dependencies</code>, <code>result</code>, nullable <code>progress</code>, <code>progress_updated_at</code>, <code>progress_attempt</code>, <code>last_error</code>, <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, <code>finished_at</code></td>
 </tr>
 <tr>
 <td><code>TaskPage</code></td>
@@ -1830,7 +1837,7 @@ Server.</p>
 literal union of <code>id</code>, <code>name</code>, <code>status</code>, <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>,
 <code>last_route</code>, <code>created_at</code>, <code>updated_at</code>, <code>started_at</code>, and <code>finished_at</code>.
 <code>TaskUpdate</code> is a <code>total=False</code> <code>TypedDict</code> with optional <code>name</code>, <code>args</code>,
-<code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, and <code>result</code> keys; runtime
+<code>metadata</code>, <code>priority</code>, <code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, <code>archived</code>, and <code>result</code> keys; runtime
 validation still requires at least one supplied field. <code>JSONValue</code> is the
 recursive strict JSON-compatible value type.</p>
 <h3 id="experimental-dependencies">Experimental dependencies</h3>

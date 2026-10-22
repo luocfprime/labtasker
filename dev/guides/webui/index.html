@@ -796,6 +796,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#archive-old-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Archive old experiments
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1177,6 +1188,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#archive-old-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Archive old experiments
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1233,6 +1255,12 @@ use <code>name == "train_model_eval"</code> in Advanced filter.</p>
 After <a href="../../getting-started/">the first experiment tutorial</a>, add
 <code>result.score</code> to compare its three recorded scores. Click a Task to inspect
 its arguments, metadata, execution timeline, errors, and results.</p>
+<p>The Task drawer shows experimental <strong>Dependencies</strong> as same-Queue Task links.
+Open a predecessor to inspect its status and results, including archived records.
+Order and duplicate IDs are preserved; they do not define execution order. The
+WebUI loads a predecessor only when opened and does not diagnose why a Task is
+pending. Use the custom column <code>dependencies</code> for IDs or <code>dependencies.length</code>
+for their count. Older Servers without the field show an empty list.</p>
 <p>Save filters, sorting, and column layouts as a view to reuse for that connection
 and Queue.</p>
 <h2 id="manage-selected-tasks">Manage selected Tasks</h2>
@@ -1242,6 +1270,15 @@ Client and CLI. Continue using the Client or CLI to submit Tasks and change
 their fields, and Workers to execute them.</p>
 <p>See the <a href="https://github.com/luocfprime/labtasker-webui#readme">WebUI README</a> for
 installation alternatives, saved connection settings, and deployment options.</p>
+<h2 id="archive-old-experiments">Archive old experiments</h2>
+<p>With a Server and WebUI supporting Task archival, use <strong>Archive selected</strong> for
+finished Tasks, or <strong>Archive</strong> in a Task drawer. Enable <strong>Include archived</strong> to
+browse old records and use <strong>Restore</strong> to return them to daily lists. Requeue
+also restores visibility. Save that scope with the view; for archives only, add
+<code>archived == True</code> to Advanced filter. Route summaries follow the same archive
+scope. <strong>Inactive routes</strong> independently includes routes with only terminal Tasks;
+it does not include archives by itself. Active Workers can keep a route visible
+after its Tasks are archived.</p>
 
 
 

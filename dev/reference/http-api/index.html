@@ -1627,9 +1627,9 @@ reused IDs resolve to the new Task. A claimed run is unaffected by later changes
 to predecessors. Existing run fencing applies.</p>
 <h3 id="list-and-count-queries">List and count queries</h3>
 <p>Task listing accepts:</p>
-<div class="highlight"><pre><span></span><code>status, name, name_fuzzy, filter, order_by, descending, limit, cursor
+<div class="highlight"><pre><span></span><code>status, name, name_fuzzy, filter, include_archived, order_by, descending, limit, cursor
 </code></pre></div>
-<p>Count accepts <code>status</code>, <code>name</code>, <code>name_fuzzy</code>, <code>filter</code>, and optional <code>group_by</code>
+<p>Count accepts <code>status</code>, <code>name</code>, <code>name_fuzzy</code>, <code>filter</code>, <code>include_archived</code>, and optional <code>group_by</code>
 with grouped <code>limit</code>/<code>cursor</code>. Selectors are combined with AND.
 <code>limit</code> is 1 to 1000 and defaults to 100. A non-null <code>next_cursor</code> must be reused
 with the same Queue, selectors, filter, order field, and direction. The cursor is
@@ -1639,6 +1639,19 @@ whitespace-separated word must match; words may occur in any order. Empty or
 whitespace-only search adds no restriction. Non-empty search excludes unnamed
 Tasks. Matching happens on the Server before pagination, uses literal punctuation,
 and preserves ordering. Exact <code>name</code> and <code>filter</code> equality remain available.</p>
+<p>List and count default <code>include_archived</code> to false, including grouped counts.
+True includes both archived and unarchived Tasks. Add <code>filter=archived == True</code>
+for archives only. Cursors bind this scope. Collection PATCH accepts the same
+Boolean selector in its body alongside <code>filter</code> and <code>changes</code>; it defaults to
+false. Single PATCH accepts <code>{"archived":true}</code> for terminal Tasks and false to
+restore. Invalid types return <code>422 invalid_update</code>; pending archival returns
+<code>409 update_conflict</code>, and running updates remain <code>409 task_running</code>. Any invalid
+non-running batch match rolls back the complete operation.</p>
+<p>Every Task response includes Boolean <code>archived</code>, initially false. Create requests
+do not accept it. ID operations, dependency checks and Queue cascade deletion see
+archived records. Requeue clears archival. Existing <code>/api/v2</code> collection requests,
+including those from older Clients, now exclude archives; upgrade the Client to
+request their inclusion.</p>
 <h3 id="grouped-counts">Grouped counts</h3>
 <p><code>GET /api/v2/queues/{queue}/tasks/count?status=pending&amp;group_by=routes,status</code>
 returns, for example:</p>
@@ -1810,7 +1823,7 @@ no <code>/runs</code> collection or execution-history API.</p>
 <h2 id="task-representation">Task representation</h2>
 <p>Ordinary get/list/action responses contain exactly these required v2 fields:</p>
 <div class="highlight"><pre><span></span><code>id, queue, status, name, args, metadata, priority, attempt, max_attempts,
-routes, result, progress, progress_updated_at, progress_attempt, last_error,
+routes, archived, result, progress, progress_updated_at, progress_attempt, last_error,
 last_route, created_at, updated_at, started_at, finished_at
 </code></pre></div>
 <p><code>progress</code> is null until the current attempt reports a strict JSON object.

@@ -1272,11 +1272,15 @@ only through routes.</p>
 status == "failed" and last_error.type == "ValueError"
 missing(result.score) or result.score &lt; 0.9
 </code></pre></div>
+<p>Task list, count and batch update exclude archives unless <code>include_archived=True</code>
+(Python) or <code>--include-archived</code> (CLI). The flag expands the candidate scope;
+<code>filter="archived == True"</code> alone does not override it. <code>archived</code> accepts Boolean
+equality and membership tests, not numeric/null values or ordering comparisons.</p>
 <h2 id="values-and-paths">Values and paths</h2>
 <p>Literals use Python spelling: strings, integers, floats, <code>True</code>, <code>False</code>, and
 <code>None</code>. A path starts at the Task representation and traverses JSON objects with
 dots, such as <code>metadata.benchmark</code> or <code>result.metrics.f1</code>.</p>
-<p>Supported top-level fields include <code>id</code>, <code>name</code>, <code>status</code>, <code>args</code>, <code>metadata</code>,
+<p>Supported top-level fields include <code>id</code>, <code>name</code>, <code>status</code>, <code>archived</code>, <code>args</code>, <code>metadata</code>,
 <code>priority</code>, <code>attempt</code>, <code>max_attempts</code>, <code>routes</code>, <code>result</code>, <code>last_error</code>,
 nullable <code>progress</code>, <code>last_route</code>, and Task timestamps. Dynamic paths such as
 <code>progress.metrics.val_loss</code> select Tasks whose latest reported snapshot contains

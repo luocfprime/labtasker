@@ -1409,15 +1409,15 @@ owns that executable. <code>labtasker-server --version</code> prints
 </tr>
 <tr>
 <td><code>task list</code></td>
-<td>optional <code>--status</code>, <code>--name</code>, <code>--name-fuzzy</code>, <code>--filter</code>, <code>--order-by</code> (<code>created_at</code>), <code>--descending</code> / <code>--ascending</code> (descending), <code>--limit</code> (<code>100</code>, range 1–1000), <code>--cursor</code>, and <code>--queue</code></td>
+<td>optional <code>--include-archived</code>, <code>--status</code>, <code>--name</code>, <code>--name-fuzzy</code>, <code>--filter</code>, <code>--order-by</code> (<code>created_at</code>), <code>--descending</code> / <code>--ascending</code> (descending), <code>--limit</code> (<code>100</code>, range 1–1000), <code>--cursor</code>, and <code>--queue</code></td>
 </tr>
 <tr>
 <td><code>task count</code></td>
-<td>optional <code>--status</code>, <code>--name</code>, <code>--name-fuzzy</code>, <code>--filter</code>, one comma-separated <code>--group-by</code>, <code>--limit</code>, <code>--cursor</code>, and <code>--queue</code>; limit/cursor require grouping</td>
+<td>optional <code>--include-archived</code>, <code>--status</code>, <code>--name</code>, <code>--name-fuzzy</code>, <code>--filter</code>, one comma-separated <code>--group-by</code>, <code>--limit</code>, <code>--cursor</code>, and <code>--queue</code>; limit/cursor require grouping</td>
 </tr>
 <tr>
 <td><code>task update</code></td>
-<td>exactly one of positional <code>TASK_ID</code> or <code>--filter FILTER</code>, required <code>--changes JSON</code>, optional <code>--queue QUEUE</code></td>
+<td>exactly one of positional <code>TASK_ID</code> or <code>--filter FILTER</code>, required <code>--changes JSON</code>, optional <code>--queue QUEUE</code>; <code>--include-archived</code> only with <code>--filter</code></td>
 </tr>
 <tr>
 <td><code>task cancel</code>, <code>task requeue</code>, <code>task delete</code></td>
@@ -1564,7 +1564,13 @@ do not advertise a usable version do not trigger this warning.</p>
 </tr>
 </tbody>
 </table>
-<p><code>task update --changes</code> accepts only <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>,
+<p>Task list, count and filter-based update exclude archived Tasks by default.
+Use <code>--include-archived</code> to include them, plus <code>--filter 'archived == True'</code> to
+select only archives. Archive a terminal Task with
+<code>task update TASK_ID --changes '{"archived":true}'</code>; false restores it.
+ID-based operations do not require this flag; ID update rejects it. Requeue
+clears archival. Queue cascade deletion includes archived Tasks.</p>
+<p><code>task update --changes</code> accepts only <code>archived</code>, <code>name</code>, <code>args</code>, <code>metadata</code>, <code>priority</code>,
 <code>max_attempts</code>, <code>routes</code>, <code>dependencies</code>, and <code>result</code>. Supplied objects and lists are complete
 replacements, not merges. Status changes use <code>cancel</code> and <code>requeue</code>; <code>status</code> is
 not writable.</p>

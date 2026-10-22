@@ -711,6 +711,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#archive-finished-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Archive finished Tasks
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#queues" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1244,6 +1255,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#archive-finished-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Archive finished Tasks
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#queues" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1410,6 +1432,20 @@ the Server immediately rejects further updates from that run, while local code
 follows the Worker's configured cooperative or forced-stop behavior. Succeeded
 and failed Tasks cannot be cancelled, and a succeeded Task cannot be requeued;
 submit a new Task to rerun a successful experiment.</p>
+<h2 id="archive-finished-tasks">Archive finished Tasks</h2>
+<p>Keep old results without including them in daily lists, counts or batch updates:</p>
+<div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'status in ["succeeded", "failed", "cancelled"]'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--changes<span class="w"> </span><span class="s1">'{"archived":true}'</span>
+labtasker<span class="w"> </span>task<span class="w"> </span>list<span class="w"> </span>--include-archived<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'archived == True'</span>
+labtasker<span class="w"> </span>task<span class="w"> </span>update<span class="w"> </span>--include-archived<span class="w"> </span>--filter<span class="w"> </span><span class="s1">'archived == True'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--changes<span class="w"> </span><span class="s1">'{"archived":false}'</span>
+</code></pre></div>
+<p>Archival preserves status and results. Only terminal Tasks can be archived;
+including a pending Task in a batch archive causes the entire batch to fail.
+ID-based get, update and delete still work. Requeue restores visibility, and
+archived successful predecessors continue to satisfy dependencies. To export all
+history, include archives explicitly. A Queue containing only archived Tasks is
+still non-empty and requires <code>--cascade</code> for deletion.</p>
 <h2 id="queues">Queues</h2>
 <div class="highlight"><pre><span></span><code>labtasker<span class="w"> </span>queue<span class="w"> </span>create<span class="w"> </span>experiments
 labtasker<span class="w"> </span>queue<span class="w"> </span>list
