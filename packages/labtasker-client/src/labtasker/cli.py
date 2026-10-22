@@ -319,6 +319,9 @@ def task_list(
         str | None,
         typer.Option(help="Opaque next_cursor from the same query and ordering."),
     ] = None,
+    include_archived: Annotated[
+        bool, typer.Option("--include-archived", help="Include archived Tasks in the filter range.")
+    ] = False,
     queue: Annotated[
         str | None,
         typer.Option(help="Task Queue; otherwise use Client configuration."),
@@ -340,6 +343,7 @@ def task_list(
         lambda: _with_client(
             lambda client: client.list_tasks(
                 status=status,
+                include_archived=include_archived,
                 name=name,
                 name_fuzzy=name_fuzzy,
                 filter=filter,
@@ -391,6 +395,9 @@ def task_count(
     cursor: Annotated[
         str | None, typer.Option(help="Next group page cursor; requires --group-by.")
     ] = None,
+    include_archived: Annotated[
+        bool, typer.Option("--include-archived", help="Include archived Tasks in the filter range.")
+    ] = False,
     queue: Annotated[
         str | None,
         typer.Option(help="Task Queue; otherwise use Client configuration."),
@@ -409,6 +416,7 @@ def task_count(
         lambda: _with_client(
             lambda client: client.count_tasks(
                 status=status,
+                include_archived=include_archived,
                 name=name,
                 name_fuzzy=name_fuzzy,
                 filter=filter,
@@ -507,6 +515,9 @@ def task_update(
         str,
         typer.Option(help="Fields to replace as one strict JSON object."),
     ] = "",
+    include_archived: Annotated[
+        bool, typer.Option("--include-archived", help="Include archived Tasks in the filter range.")
+    ] = False,
     queue: Annotated[
         str | None,
         typer.Option(help="Task Queue; otherwise use Client configuration."),
@@ -528,6 +539,8 @@ def task_update(
     """
     if (task_id is None) == (filter is None):
         raise typer.BadParameter("provide exactly one of TASK_ID or --filter")
+    if task_id is not None and include_archived:
+        raise typer.BadParameter("--include-archived requires --filter")
     if not changes:
         raise typer.BadParameter("--changes is required")
     normalized = cast(TaskUpdate, _json_object(changes, option="--changes"))
@@ -543,6 +556,7 @@ def task_update(
             lambda: _with_client(
                 lambda client: client.update_tasks(
                     filter=filter or "",
+                    include_archived=include_archived,
                     changes=normalized,
                     queue=queue,
                 )

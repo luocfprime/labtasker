@@ -274,7 +274,7 @@ def test_fresh_database_has_migrated_schema_default_queue_and_pragmas(
         with database.read_session() as session:
             assert (
                 session.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0005_task_dependencies"
+                == "0006_task_archive"
             )
             assert session.scalars(text("SELECT name FROM queues")).all() == ["default"]
             assert session.scalar(text("PRAGMA foreign_keys")) == 1
@@ -473,7 +473,7 @@ def test_failed_forward_migration_preserves_revision_and_task_data(database_path
         assert TaskService(replacement).get("default", original.id) == original
         with replacement.read_session() as session:
             assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0005_task_dependencies"
+                "0006_task_archive"
             )
     finally:
         replacement.dispose()

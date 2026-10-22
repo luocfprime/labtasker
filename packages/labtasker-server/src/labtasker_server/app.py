@@ -258,6 +258,7 @@ def create_app(
     )
     def list_tasks(
         queue: str,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -269,6 +270,7 @@ def create_app(
     ) -> TaskPage:
         return task_service.list_tasks(
             queue,
+            include_archived=include_archived,
             status=status,
             name=name,
             name_fuzzy=name_fuzzy,
@@ -288,6 +290,7 @@ def create_app(
     def count_tasks(
         request: Request,
         queue: str,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -299,6 +302,7 @@ def create_app(
         _single_grouping(request)
         result = task_service.count_tasks(
             queue,
+            include_archived=include_archived,
             status=status,
             name=name,
             name_fuzzy=name_fuzzy,
@@ -408,6 +412,7 @@ def create_app(
             queue,
             filter_expression=request.filter,
             changes=request.changes,
+            include_archived=request.include_archived,
         )
 
     @app.post(

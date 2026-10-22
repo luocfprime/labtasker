@@ -188,6 +188,7 @@ def validate_task_update(changes: object) -> TaskUpdate:
     if not isinstance(changes, dict) or not changes:
         raise RequestValidationError("changes must be a non-empty object.")
     allowed = {
+        "archived",
         "name",
         "args",
         "metadata",
@@ -202,7 +203,11 @@ def validate_task_update(changes: object) -> TaskUpdate:
         raise RequestValidationError(f"changes contains unsupported fields: {sorted(unknown)!r}.")
     normalized: dict[str, object] = {}
     for field, value in changes.items():
-        if field == "name":
+        if field == "archived":
+            if not isinstance(value, bool):
+                raise RequestValidationError("archived must be a Boolean.")
+            normalized[field] = value
+        elif field == "name":
             normalized[field] = validate_task_name(value)
         elif field in {"args", "metadata", "result"}:
             normalized[field] = validate_json_object(value, field=field)

@@ -73,6 +73,7 @@ class PreparedUpdate:
     routes: tuple[str, ...]
     dependencies_json: str
     result_json: str
+    archived: bool
     changed: bool
 
 
@@ -199,6 +200,7 @@ class TaskService:
         self,
         queue: str,
         *,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -212,6 +214,7 @@ class TaskService:
         _validate_list_inputs(status, order_by, descending, limit)
         selection = TaskSelection(
             queue=queue,
+            include_archived=include_archived,
             status=status,
             name=name,
             name_fuzzy=name_fuzzy,
@@ -222,6 +225,7 @@ class TaskService:
         position = decode_cursor(cursor, selection) if cursor is not None else None
         conditions = _selection_conditions(
             queue,
+            include_archived=include_archived,
             status=status,
             name=name,
             name_fuzzy=name_fuzzy,
@@ -270,6 +274,7 @@ class TaskService:
         self,
         queue: str,
         *,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -282,6 +287,7 @@ class TaskService:
         fields = grouping_fields(group_by, {"routes", "status"}, limit, cursor)
         conditions = _selection_conditions(
             queue,
+            include_archived=include_archived,
             status=status,
             name=name,
             name_fuzzy=name_fuzzy,
@@ -307,6 +313,7 @@ class TaskService:
             selection = {
                 "operation": "tasks.count",
                 "queue": queue,
+                "include_archived": include_archived,
                 "status": status,
                 "name": name,
                 "name_fuzzy": name_fuzzy,
@@ -346,24 +353,27 @@ class TaskService:
         self,
         queue: str,
         *,
+        include_archived: bool = False,
         filter_expression: str,
         changes: TaskUpdate,
     ) -> BulkUpdateResult:
         queue = validate_identifier(queue, kind="Queue")
         if not filter_expression.strip():
             raise invalid("invalid_filter", "Batch update filter must not be empty.")
-        predicate = compile_filter(filter_expression)
+        conditions = _selection_conditions(
+            queue,
+            include_archived=include_archived,
+            status=None,
+            name=None,
+            name_fuzzy=None,
+            filter_expression=filter_expression,
+        )
+        conditions.append(TaskRow.status != "running")
         with self.database.write_session() as session:
             if session.get(QueueRow, queue) is None:
                 raise not_found("queue_not_found", "Queue does not exist.", queue=queue)
             rows = session.scalars(
-                select(TaskRow)
-                .options(selectinload(TaskRow.routes))
-                .where(
-                    TaskRow.queue_name == queue,
-                    TaskRow.status != "running",
-                    predicate,
-                )
+                select(TaskRow).options(selectinload(TaskRow.routes)).where(*conditions)
             ).all()
             prepared = [(row, _prepare_update(row, changes)) for row in rows]
             now = self.now_us()
@@ -644,6 +654,7 @@ class TaskService:
                 )
             now = self.now_us()
             row.status = "pending"
+            row.archived = False
             row.attempt = 0
             row.last_error_json = None
             row.updated_at_us = now
@@ -693,6 +704,7 @@ def task_from_row(row: TaskRow) -> Task:
         id=row.task_id,
         queue=row.queue_name,
         status=cast(TaskStatus, row.status),
+        archived=row.archived,
         name=row.name,
         args=json.loads(row.args_json),
         metadata=json.loads(row.metadata_json),
@@ -727,12 +739,15 @@ def _claim_response(row: TaskRow, run_id: str) -> ClaimResponse:
 def _selection_conditions(
     queue: str,
     *,
+    include_archived: bool,
     status: TaskStatus | None,
     name: str | None,
     name_fuzzy: str | None,
     filter_expression: str | None,
 ) -> list[Any]:
     conditions: list[Any] = [TaskRow.queue_name == queue]
+    if not include_archived:
+        conditions.append(TaskRow.archived.is_(False))
     if status is not None:
         conditions.append(TaskRow.status == status)
     if name is not None:
@@ -807,6 +822,15 @@ def _order_value(row: TaskRow, order_by: TaskOrderField) -> str | int | None:
 
 def _prepare_update(row: TaskRow, changes: TaskUpdate) -> PreparedUpdate:
     supplied = changes.model_dump(mode="python", exclude_unset=True)
+    archived = supplied.pop("archived", row.archived)
+    if archived and row.status not in {"succeeded", "failed", "cancelled"}:
+        raise conflict(
+            "update_conflict",
+            "Only succeeded, failed or cancelled Tasks can be archived.",
+            task_id=row.task_id,
+            field="archived",
+            status=row.status,
+        )
     current = {
         "name": row.name,
         "args": json.loads(row.args_json),
@@ -841,11 +865,13 @@ def _prepare_update(row: TaskRow, changes: TaskUpdate) -> PreparedUpdate:
         routes=tuple(cast(list[str], resulting["routes"])),
         dependencies_json=canonical_json(resulting["dependencies"]),
         result_json=canonical_json(resulting["result"]),
-        changed=canonical_json(current) != canonical_json(resulting),
+        archived=archived,
+        changed=row.archived != archived or canonical_json(current) != canonical_json(resulting),
     )
 
 
 def _apply_prepared_update(row: TaskRow, prepared: PreparedUpdate) -> None:
+    row.archived = prepared.archived
     row.name = prepared.name
     row.args_json = prepared.args_json
     row.metadata_json = prepared.metadata_json

@@ -24,6 +24,7 @@ class TaskSelection:
     order_by: str
     descending: bool
     name_fuzzy: str | None = None
+    include_archived: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +99,7 @@ def _selection_digest(selection: TaskSelection) -> str:
 def _selection_json(selection: TaskSelection) -> dict[str, object]:
     return {
         "queue": selection.queue,
+        **({"include_archived": True} if selection.include_archived else {}),
         "status": selection.status,
         "name": selection.name,
         **({"name_fuzzy": selection.name_fuzzy} if selection.name_fuzzy is not None else {}),

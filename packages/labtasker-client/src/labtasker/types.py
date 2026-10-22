@@ -22,6 +22,7 @@ TaskOrderField: TypeAlias = Literal[
 
 
 class TaskUpdate(TypedDict, total=False):
+    archived: bool
     name: str | None
     args: dict[str, JSONValue]
     metadata: dict[str, JSONValue]

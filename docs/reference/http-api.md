@@ -120,10 +120,10 @@ to predecessors. Existing run fencing applies.
 Task listing accepts:
 
 ```text
-status, name, name_fuzzy, filter, order_by, descending, limit, cursor
+status, name, name_fuzzy, filter, include_archived, order_by, descending, limit, cursor
 ```
 
-Count accepts `status`, `name`, `name_fuzzy`, `filter`, and optional `group_by`
+Count accepts `status`, `name`, `name_fuzzy`, `filter`, `include_archived`, and optional `group_by`
 with grouped `limit`/`cursor`. Selectors are combined with AND.
 `limit` is 1 to 1000 and defaults to 100. A non-null `next_cursor` must be reused
 with the same Queue, selectors, filter, order field, and direction. The cursor is
@@ -134,6 +134,21 @@ whitespace-separated word must match; words may occur in any order. Empty or
 whitespace-only search adds no restriction. Non-empty search excludes unnamed
 Tasks. Matching happens on the Server before pagination, uses literal punctuation,
 and preserves ordering. Exact `name` and `filter` equality remain available.
+
+List and count default `include_archived` to false, including grouped counts.
+True includes both archived and unarchived Tasks. Add `filter=archived == True`
+for archives only. Cursors bind this scope. Collection PATCH accepts the same
+Boolean selector in its body alongside `filter` and `changes`; it defaults to
+false. Single PATCH accepts `{"archived":true}` for terminal Tasks and false to
+restore. Invalid types return `422 invalid_update`; pending archival returns
+`409 update_conflict`, and running updates remain `409 task_running`. Any invalid
+non-running batch match rolls back the complete operation.
+
+Every Task response includes Boolean `archived`, initially false. Create requests
+do not accept it. ID operations, dependency checks and Queue cascade deletion see
+archived records. Requeue clears archival. Existing `/api/v2` collection requests,
+including those from older Clients, now exclude archives; upgrade the Client to
+request their inclusion.
 
 ### Grouped counts
 
@@ -273,7 +288,7 @@ Ordinary get/list/action responses contain exactly these required v2 fields:
 
 ```text
 id, queue, status, name, args, metadata, priority, attempt, max_attempts,
-routes, result, progress, progress_updated_at, progress_attempt, last_error,
+routes, archived, result, progress, progress_updated_at, progress_attempt, last_error,
 last_route, created_at, updated_at, started_at, finished_at
 ```
 

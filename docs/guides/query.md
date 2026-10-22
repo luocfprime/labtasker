@@ -14,13 +14,18 @@ status == "failed" and last_error.type == "ValueError"
 missing(result.score) or result.score < 0.9
 ```
 
+Task list, count and batch update exclude archives unless `include_archived=True`
+(Python) or `--include-archived` (CLI). The flag expands the candidate scope;
+`filter="archived == True"` alone does not override it. `archived` accepts Boolean
+equality and membership tests, not numeric/null values or ordering comparisons.
+
 ## Values and paths
 
 Literals use Python spelling: strings, integers, floats, `True`, `False`, and
 `None`. A path starts at the Task representation and traverses JSON objects with
 dots, such as `metadata.benchmark` or `result.metrics.f1`.
 
-Supported top-level fields include `id`, `name`, `status`, `args`, `metadata`,
+Supported top-level fields include `id`, `name`, `status`, `archived`, `args`, `metadata`,
 `priority`, `attempt`, `max_attempts`, `routes`, `result`, `last_error`,
 nullable `progress`, `last_route`, and Task timestamps. Dynamic paths such as
 `progress.metrics.val_loss` select Tasks whose latest reported snapshot contains

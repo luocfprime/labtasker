@@ -61,6 +61,7 @@ class Task(ResponseModel):
     id: str
     queue: str
     status: TaskStatus
+    archived: bool = False
     name: str | None
     args: dict[str, JSONValue]
     metadata: dict[str, JSONValue]

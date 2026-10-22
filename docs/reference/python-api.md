@@ -102,12 +102,12 @@ heartbeat, complete, fail, and unclaim are not supported Python interfaces.
 submit_task(args=None, *, name=None, metadata=None, priority=0,
             max_attempts=3, routes=None, dependencies=None, task_id=None, queue=None) -> Task
 get_task(task_id, *, queue=None) -> Task
-list_tasks(*, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
+list_tasks(*, include_archived=False, status=None, name=None, name_fuzzy=None, filter=None, order_by="created_at",
            descending=True, limit=100, cursor=None, queue=None) -> TaskPage
-count_tasks(*, status=None, name=None, name_fuzzy=None, filter=None,
+count_tasks(*, include_archived=False, status=None, name=None, name_fuzzy=None, filter=None,
             queue=None, group_by=None, limit=None, cursor=None) -> int | GroupCountPage
 update_task(task_id, changes, *, queue=None) -> Task
-update_tasks(*, filter, changes, queue=None) -> BulkUpdateResult
+update_tasks(*, filter, changes, include_archived=False, queue=None) -> BulkUpdateResult
 cancel_task(task_id, *, queue=None) -> Task
 requeue_task(task_id, *, queue=None) -> Task
 delete_task(task_id, *, queue=None) -> None
@@ -124,6 +124,14 @@ delete_task(task_id, *, queue=None) -> None
 | `cancel_task` | Cancels a pending or running Task. Repeating cancel on a cancelled Task is idempotent. |
 | `requeue_task` | Accepts pending, failed, or cancelled; returns it to pending, resets `attempt` to `0`, and clears `last_error`. |
 | `delete_task` | Permanently deletes one non-running Task and returns `None`. Deleting an absent Task is idempotent. |
+
+Task list, count (including grouping) and batch update exclude archived Tasks
+unless `include_archived=True`. To select only archives, also use
+`filter="archived == True"`. ID operations see archived records directly.
+`update_task(id, {"archived": True})` archives a succeeded, failed or cancelled
+Task; false restores it. Pending archival conflicts, and a batch with any invalid
+non-running match rolls back. Requeue clears archival. Setting the existing
+archive value is a no-op; other field updates preserve archival.
 
 ### Grouped counts
 
@@ -240,7 +248,7 @@ opaque and is not a Task ID or offset.
 ### Updates and lifecycle
 
 `changes` is a `TaskUpdate` dictionary containing at least one of `name`,
-`args`, `metadata`, `priority`, `max_attempts`, `routes`, `dependencies`, or `result`. Every
+`archived`, `args`, `metadata`, `priority`, `max_attempts`, `routes`, `dependencies`, or `result`. Every
 supplied object or list is a complete replacement; there is no merge, dot-path
 patch, or add/remove operator. Unspecified fields remain unchanged.
 
@@ -289,7 +297,7 @@ Server.
 
 | Model | Public fields |
 | --- | --- |
-| `Task` | `id`, `queue`, `status`, `name`, `args`, `metadata`, `priority`, `attempt`, `max_attempts`, `routes`, experimental `dependencies`, `result`, nullable `progress`, `progress_updated_at`, `progress_attempt`, `last_error`, `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at` |
+| `Task` | `id`, `queue`, `status`, `archived`, `name`, `args`, `metadata`, `priority`, `attempt`, `max_attempts`, `routes`, experimental `dependencies`, `result`, nullable `progress`, `progress_updated_at`, `progress_attempt`, `last_error`, `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at` |
 | `TaskPage` | `items: list[Task]`, `next_cursor: str | None` |
 | `BulkUpdateResult` | `matched: int`, `updated: int` |
 | `Queue` | `name: str` |
@@ -307,7 +315,7 @@ Task states are exactly `pending`, `running`, `succeeded`, `failed`, and
 literal union of `id`, `name`, `status`, `priority`, `attempt`, `max_attempts`,
 `last_route`, `created_at`, `updated_at`, `started_at`, and `finished_at`.
 `TaskUpdate` is a `total=False` `TypedDict` with optional `name`, `args`,
-`metadata`, `priority`, `max_attempts`, `routes`, `dependencies`, and `result` keys; runtime
+`metadata`, `priority`, `max_attempts`, `routes`, `dependencies`, `archived`, and `result` keys; runtime
 validation still requires at least one supplied field. `JSONValue` is the
 recursive strict JSON-compatible value type.
 

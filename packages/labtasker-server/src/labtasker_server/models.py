@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKeyConstraint,
     Index,
@@ -83,6 +84,10 @@ class TaskRow(Base):
             "OR status NOT IN ('succeeded','failed','cancelled')",
             name="ck_tasks_terminal_state",
         ),
+        CheckConstraint(
+            "archived IN (0,1) AND (archived = 0 OR status IN ('succeeded','failed','cancelled'))",
+            name="ck_tasks_archived_state",
+        ),
         Index(
             "ix_tasks_claim",
             "queue_name",
@@ -110,6 +115,7 @@ class TaskRow(Base):
     queue_name: Mapped[str] = mapped_column(String(128), primary_key=True)
     task_id: Mapped[str] = mapped_column(String(14), primary_key=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
+    archived: Mapped[bool] = mapped_column(Boolean(), nullable=False, server_default=text("0"))
     name: Mapped[str | None] = mapped_column(String(256))
     args_json: Mapped[str] = mapped_column(Text, nullable=False)
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False)

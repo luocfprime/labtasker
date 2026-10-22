@@ -62,6 +62,7 @@ class Task(StrictModel):
     id: str
     queue: str
     status: TaskStatus
+    archived: bool
     name: str | None
     args: dict[str, JSONValue]
     metadata: dict[str, JSONValue]
@@ -132,6 +133,7 @@ class TaskCreate(StrictModel):
 
 
 class TaskUpdate(StrictModel):
+    archived: bool = OMITTED
     name: str | None = None
     args: dict[str, JSONValue] = OMITTED
     metadata: dict[str, JSONValue] = OMITTED
@@ -177,6 +179,7 @@ class TaskUpdate(StrictModel):
 
 
 class BulkUpdateRequest(StrictModel):
+    include_archived: bool = False
     filter: str
     changes: TaskUpdate
 

@@ -43,6 +43,7 @@ def get_task(task_id: str, *, queue: str | None = None) -> Task:
 
 def list_tasks(
     *,
+    include_archived: bool = False,
     status: TaskStatus | None = None,
     name: str | None = None,
     name_fuzzy: str | None = None,
@@ -55,6 +56,7 @@ def list_tasks(
 ) -> TaskPage:
     return _client().list_tasks(
         status=status,
+        include_archived=include_archived,
         name=name,
         name_fuzzy=name_fuzzy,
         filter=filter,
@@ -69,6 +71,7 @@ def list_tasks(
 @overload
 def count_tasks(
     *,
+    include_archived: bool = False,
     status: TaskStatus | None = None,
     name: str | None = None,
     name_fuzzy: str | None = None,
@@ -83,6 +86,7 @@ def count_tasks(
 @overload
 def count_tasks(
     *,
+    include_archived: bool = False,
     status: TaskStatus | None = None,
     name: str | None = None,
     name_fuzzy: str | None = None,
@@ -96,6 +100,7 @@ def count_tasks(
 
 def count_tasks(
     *,
+    include_archived: bool = False,
     status: TaskStatus | None = None,
     name: str | None = None,
     name_fuzzy: str | None = None,
@@ -111,10 +116,16 @@ def count_tasks(
 
             validate_grouping(None, {"routes", "status"}, limit, cursor)
         return _client().count_tasks(
-            status=status, name=name, name_fuzzy=name_fuzzy, filter=filter, queue=queue
+            status=status,
+            name=name,
+            name_fuzzy=name_fuzzy,
+            filter=filter,
+            queue=queue,
+            include_archived=include_archived,
         )
     return _client().count_tasks(
         status=status,
+        include_archived=include_archived,
         name=name,
         name_fuzzy=name_fuzzy,
         filter=filter,
@@ -181,11 +192,14 @@ def update_task(
 
 def update_tasks(
     *,
+    include_archived: bool = False,
     filter: str,
     changes: TaskUpdate,
     queue: str | None = None,
 ) -> BulkUpdateResult:
-    return _client().update_tasks(filter=filter, changes=changes, queue=queue)
+    return _client().update_tasks(
+        filter=filter, changes=changes, queue=queue, include_archived=include_archived
+    )
 
 
 def cancel_task(task_id: str, *, queue: str | None = None) -> Task:

@@ -67,9 +67,9 @@ Task command arguments and options are:
 | --- | --- |
 | `task submit` | `--args JSON` `{}`, `--name TEXT` null, `--metadata JSON` `{}`, `--priority INT` `0`, `--max-attempts INT` `3`, repeatable `--route TEXT` (omission means `default`), optional `--id TASK_ID`, optional `--queue QUEUE` |
 | `task get` | required `TASK_ID`, optional `--queue QUEUE` |
-| `task list` | optional `--status`, `--name`, `--name-fuzzy`, `--filter`, `--order-by` (`created_at`), `--descending` / `--ascending` (descending), `--limit` (`100`, range 1–1000), `--cursor`, and `--queue` |
-| `task count` | optional `--status`, `--name`, `--name-fuzzy`, `--filter`, one comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
-| `task update` | exactly one of positional `TASK_ID` or `--filter FILTER`, required `--changes JSON`, optional `--queue QUEUE` |
+| `task list` | optional `--include-archived`, `--status`, `--name`, `--name-fuzzy`, `--filter`, `--order-by` (`created_at`), `--descending` / `--ascending` (descending), `--limit` (`100`, range 1–1000), `--cursor`, and `--queue` |
+| `task count` | optional `--include-archived`, `--status`, `--name`, `--name-fuzzy`, `--filter`, one comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
+| `task update` | exactly one of positional `TASK_ID` or `--filter FILTER`, required `--changes JSON`, optional `--queue QUEUE`; `--include-archived` only with `--filter` |
 | `task cancel`, `task requeue`, `task delete` | required `TASK_ID`, optional `--queue QUEUE` |
 
 Queue, Worker, and execution options are:
@@ -124,7 +124,14 @@ do not advertise a usable version do not trigger this warning.
 | `queue list` | Complete Queue array | Not paginated. |
 | `queue delete` | Nothing | Non-empty requires `--cascade`; running Tasks still block deletion. |
 
-`task update --changes` accepts only `name`, `args`, `metadata`, `priority`,
+Task list, count and filter-based update exclude archived Tasks by default.
+Use `--include-archived` to include them, plus `--filter 'archived == True'` to
+select only archives. Archive a terminal Task with
+`task update TASK_ID --changes '{"archived":true}'`; false restores it.
+ID-based operations do not require this flag; ID update rejects it. Requeue
+clears archival. Queue cascade deletion includes archived Tasks.
+
+`task update --changes` accepts only `archived`, `name`, `args`, `metadata`, `priority`,
 `max_attempts`, `routes`, `dependencies`, and `result`. Supplied objects and lists are complete
 replacements, not merges. Status changes use `cancel` and `requeue`; `status` is
 not writable.

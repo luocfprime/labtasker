@@ -50,7 +50,7 @@ from labtasker.models import (
 from labtasker.types import JSONValue, TaskOrderField, TaskStatus, TaskUpdate
 from labtasker.worker import loop
 
-__version__ = "2.7.0"
+__version__ = "2.8.0"
 
 __all__ = [
     "APIError",

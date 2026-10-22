@@ -1162,6 +1162,31 @@ whose cost is not justified for the initial small-scale trust-domain workload.
 Generated IDs make accidental reuse negligible, while deliberate explicit reuse
 remains the caller's responsibility.
 
+Task archival is reversible visibility metadata, independent of status. Every
+Task has a non-null Boolean `archived`, initially false. Submission does not
+accept it. Ordinary single and batch updates accept `archived`; only succeeded,
+failed or cancelled Tasks may become archived. Updating a running Task still
+returns `409 task_running`; archiving a pending Task returns `409 update_conflict`
+with its ID, status and `field="archived"`. In a batch, any invalid non-running
+match rolls back the complete update; running matches remain excluded.
+
+An effective archive or restore refreshes `updated_at`; setting the existing
+value is a no-op. Archival preserves status, results, errors, progress, execution
+timestamps, dependencies, creation identity and run fencing. Other ordinary
+updates preserve archival. An accepted requeue clears `archived` atomically with
+returning to pending. Replaying submission for an existing archived ID returns
+that record without restoring it. Archived succeeded predecessors still satisfy
+dependencies; execution report deduplication and ownership checks see all records.
+
+`list_tasks`, `count_tasks` (including every grouping) and `update_tasks` accept
+keyword-only `include_archived: bool = False`. False intersects the selection with
+`archived == False`; true adds no archive restriction. All other selectors and
+filters still apply. An archive filter or update never changes this scope
+implicitly. To select only archives, supply true and `filter="archived == True"`.
+ID-addressed get, update, cancel, requeue and delete do not take this selector.
+Archive is not deletion: Queue non-empty checks and cascade deletion include all
+Tasks. There is no Queue archive state or automatic archival policy.
+
 ### 4.3 Failure diagnostics
 
 V2 does not introduce a persistent run/attempt-history table in the first release.
@@ -1341,7 +1366,8 @@ The 2.0.0 initial release provides atomic hard deletion rather than making Queue
 - deletion is rejected while any Task in the Queue is running, including with
   `cascade`; callers first cancel those Tasks;
 - a successful cascade deletes the Queue and all of its Tasks in one transaction;
-- there is no archive, trash or soft-delete state; and
+- Queue deletion has no trash or soft-delete state; archived Tasks still count as
+  contents and are removed by cascade; and
 - the non-interactive CLI requires `--cascade` for the destructive form and does
   not add a confirmation prompt.
 
@@ -2233,6 +2259,12 @@ existing field's type/default/meaning, or add a Task status that an existing
 `TaskStatus` client cannot parse. Such breaking changes require a new API prefix,
 for example `/api/v3`, rather than relying only on a Python package major version.
 
+The Task archive feature is an explicitly accepted visibility change within
+`/api/v2`: existing collection requests now exclude archived Tasks by default,
+including requests from older Clients. Older Clients can still access a known
+archived ID but must be upgraded to include archives in collection queries. This
+specific change does not relax the compatibility rule for other features.
+
 Validation is intentionally asymmetric. Every Server request schema rejects
 unknown fields. Client-owned response models ignore unknown response fields so an
 older Client can consume a newer additive Server response; missing required
@@ -2261,6 +2293,8 @@ absent progress and empty dependencies. If it exceeds
 validates every resulting Task and rolls back the whole batch if one exceeds the
 bound. Thus several individually small mutations cannot accumulate an
 artifact-sized Task. V2 has no blob, artifact or large-file storage API.
+The fixed `archived` management field is excluded from this data budget and the
+creation hash.
 
 V2 performs no capability or version-range negotiation. Explicit HTTP Clients
 request `/api/v2` directly and add no `/health` process-management preflight; an
@@ -3718,9 +3752,9 @@ The exact Client CLI option inventory is:
 | root | `--version`; `--labtasker-root PATH`; `--auto-start-local-server` (false) |
 | `task submit` | `--args {}`, nullable `--name`, `--metadata {}`, `--priority 0`, `--max-attempts 3`, repeatable `--route`, nullable `--id`, nullable `--queue` |
 | `task get` | required Task ID; nullable `--queue` |
-| `task list` | nullable `--status`, `--name`, `--name-fuzzy`, `--filter`, `--order-by created_at`, `--descending` / `--ascending` (descending), `--limit 100`, nullable `--cursor`, nullable `--queue` |
-| `task count` | the four list selectors, nullable comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
-| `task update` | exactly one of a positional Task ID or `--filter`; required `--changes`; nullable `--queue` |
+| `task list` | `--include-archived` (false), nullable `--status`, `--name`, `--name-fuzzy`, `--filter`, `--order-by created_at`, `--descending` / `--ascending` (descending), `--limit 100`, nullable `--cursor`, nullable `--queue` |
+| `task count` | `--include-archived` (false), the four list selectors, nullable comma-separated `--group-by`, `--limit`, `--cursor`, and `--queue`; limit/cursor require grouping |
+| `task update` | exactly one of a positional Task ID or `--filter`; required `--changes`; nullable `--queue`; `--include-archived` (false) only with `--filter` |
 | `task cancel`, `task requeue`, `task delete` | required Task ID; nullable `--queue` |
 | `queue create`, `queue list`, `queue delete` | required name for create/delete; delete has `--cascade` (false) |
 | `worker list` | nullable `--filter`, `--limit 100`, `--cursor`, and `--queue` |
@@ -4206,6 +4240,16 @@ labtasker task list --status pending \
   --order-by created_at --descending
 ```
 
+HTTP list and count accept `include_archived` as a Boolean query parameter.
+Collection PATCH accepts it alongside `filter` and `changes` in its JSON body,
+defaulting to false. Python and JSON selectors require actual Boolean values.
+CLI list/count and filter-based update expose the positive `--include-archived`
+flag. Client transports omit the selector when false, preserving existing
+requests to older Servers; explicit new inputs use the normal protocol error
+path when unsupported. No capability handshake or silent request downgrade is
+added. List and grouped-count cursors bind the archive scope; changing it requires
+a new cursor. Cursors issued before this feature may be rejected after upgrade.
+
 The HTTP query parameter is also named `filter`. Internally an implementation
 may call it `filter_expr`, but v2 does not expose competing `where` or `query`
 aliases.
@@ -4213,7 +4257,7 @@ aliases.
 The server parses the string with a strict Python-expression AST allowlist; it
 never calls `eval`. The initial language contains only:
 
-- fields `id`, `status`, `name`, `priority`, `attempt`, `max_attempts`,
+- fields `id`, `status`, `archived`, `name`, `priority`, `attempt`, `max_attempts`,
   `last_route`, `created_at`, `updated_at`, `started_at`, `finished_at`, `routes`,
   `args.*`, `metadata.*`, `result.*`, `progress.*` and `last_error.*`;
 - JSON literals, including `None` for JSON null, and list literals used by
@@ -4336,6 +4380,11 @@ the rule directly: “All comparisons require the referenced path to exist. Use
 `missing(path) or ...` to include Tasks where it is absent.” This also makes a
 hallucinated path in a negative predicate fail closed with zero matches.
 
+`archived` is a fixed non-null Boolean filter field. It accepts Boolean literals
+with `==`, `!=`, `in` and `not in`; numeric/string/null literals and ordering
+comparisons are invalid. `exists(archived)` is true and `missing(archived)` is
+false. Bare Boolean paths and general unary `not` remain unsupported.
+
 Filters are not accepted by cancel, requeue or delete operations; those actions
 remain ID-addressed. Listing, counting and the non-running batch Task update
 described below are the only initial filter consumers. V2 does not expose a
@@ -4378,7 +4427,7 @@ duration meaning.
 Status: **Decided**
 
 Task update is an explicit data operation, not a lifecycle transition. The server
-rejects an update only while the Task is `running`, because changing data being
+rejects ordinary updates while the Task is `running`, because changing data being
 consumed by an active run would violate execution consistency. Pending,
 succeeded, failed and cancelled Tasks may be updated. The server does not prohibit
 a clear, local update merely to protect the user from intentionally changing an
@@ -4387,6 +4436,7 @@ old record.
 The writable user-owned fields are exactly:
 
 ```text
+archived
 name
 args
 metadata
@@ -4403,6 +4453,7 @@ model:
 
 ```python
 class TaskUpdate(TypedDict, total=False):
+    archived: bool
     name: str | None
     args: dict[str, JSONValue]
     metadata: dict[str, JSONValue]
@@ -4455,6 +4506,7 @@ update_tasks(
     *,
     filter: str,
     changes: TaskUpdate,
+    include_archived: bool = False,
     queue: str | None = None,
 ) -> BulkUpdateResult
 ```
@@ -4462,6 +4514,8 @@ update_tasks(
 `update_task` is ID-addressed. It returns the updated `Task`, returns
 `404 task_not_found` for an unknown ID, or returns `409 task_running` if a run
 became active before the conditional update committed.
+
+`archived` must be a strict Boolean, not null, a number or a string.
 
 `changes` must contain at least one field. Unknown fields, server-owned fields,
 wrong JSON types and an empty object are `422 invalid_update`; they are never
@@ -4483,11 +4537,12 @@ manual requeue resets `attempt` to zero under the lifecycle rules.
 a non-empty `filter`; omitting it is a validation error. A caller intentionally
 updating every non-running Task writes an explicit filter such as
 `status != "running"`. The server atomically applies the update only to rows that
-both match the filter and remain non-running. A concurrent claim either observes
-the new values or wins first and excludes that Task from the update.
+match the archive scope and filter and remain non-running. A concurrent claim
+either observes the new values or wins first and excludes that Task from the update.
 
 Bulk update returns `BulkUpdateResult(matched, updated)`. `matched` counts rows
-that satisfied both the caller's filter and `status != running` at execution time;
+that satisfied the archive scope, caller's filter and `status != running` at
+execution time;
 `updated` counts those whose stored value actually changed. Running rows are not
 included in either count. The operation does not fail merely because a matching
 Task became running concurrently.
@@ -4553,6 +4608,8 @@ Exactly one selection form is required: a positional Task ID for single update,
 or `--filter` for batch update. Supplying both or neither is a CLI usage error.
 Success writes the same Task or `BulkUpdateResult` JSON used by the Python API;
 diagnostics and structured API errors follow the common CLI rules.
+`--include-archived` is available only with `--filter`; using it with a Task ID
+is a usage error.
 
 ## 12. Task submission
 
@@ -4698,6 +4755,7 @@ The public Task representation contains:
 id
 queue
 status
+archived
 name
 args
 metadata
@@ -4722,6 +4780,11 @@ This is the complete current model, not a prompt for implementations to invent
 additional fields. A later additive `/api/v2` Server release may append optional
 response fields under section 6.2; older clients ignore them, and they become
 public only when that later contract documents them.
+
+New Clients default an absent `archived` response field to false when reading
+older Servers or local run journals. Worker TaskInfo and claim snapshots include
+the field; archived Tasks cannot be running, so new claim snapshots have false.
+Old journal snapshots remain snapshots and are not rewritten by later archival.
 
 The documented additive progress fields are:
 
@@ -4783,6 +4846,7 @@ Listing uses the same selection and ordering contract on every surface:
 ```text
 list_tasks(
     *,
+    include_archived: bool = False,
     status: TaskStatus | None = None,
     name: str | None = None,
     name_fuzzy: str | None = None,
@@ -4856,6 +4920,7 @@ is wasteful:
 ```text
 count_tasks(
     *,
+    include_archived: bool = False,
     status: TaskStatus | None = None,
     name: str | None = None,
     name_fuzzy: str | None = None,
@@ -4945,6 +5010,7 @@ and change inspection noisy. Progress reports likewise update only
 
 | Date | Decision |
 |---|---|
+| 2026-10-22 | Add reversible terminal Task archival through ordinary updates. Default Task list, scalar/grouped count and batch update exclude archives; explicit inclusion expands the candidate scope. Keep ID addressing, dependency success, Queue deletion, creation identity and execution fencing independent of visibility; accepted requeue restores visibility. Accept this explicit default visibility change within `/api/v2`. |
 | 2026-10-14 | Add experimental `Task.dependencies` with same-Queue direct-success gating at claim, JSON-list persistence, ordinary full-replacement updates, and Python/HTTP/CLI support. Preserve list order/duplicates. Accept missing IDs, self references and cycles; deletion has no dependency protection. Users own graph correctness, pending diagnosis, data transfer and Worker lifetime. The Server guarantees direct gating and existing transaction/run-fencing rules without graph traversal or diagnostic machinery (section 1.7). |
 | 2026-09-18 | Give an already-started Worker one fixed 300-second claim recovery budget distinct from `idle_timeout`. Retry transport failures, `database_busy` and Server 5xx with the same Queue, route and `run_id`; pause healthy-idle accounting; and confirm a recovered claim with heartbeat before execution. Use one jittered `1, 2, 4, 8, 10` second cadence for empty and unavailable claim paths, reset only after an executable claim, and expose no tuning option. Confirmed stale/finalized candidates are discarded without charging workload failure. Keep startup retries short, ordinary Client retries unchanged and Server replay recognition bounded. This supersedes the three-attempt Worker claim policy. |
 | 2026-09-18 | Require POSIX advisory file locking for every Server transport and lifecycle mode, including foreground HTTP. Reject all operational `labtasker-server` commands on Windows before root, database, listener or process side effects while keeping help and version inspection available. Keep the ordinary HTTP Client and Python Worker best effort on Windows; they connect to a Server running on a POSIX host. This supersedes the earlier Windows best-effort Server classification. |

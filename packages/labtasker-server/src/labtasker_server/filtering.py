@@ -25,6 +25,7 @@ RFC3339_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z
 BUILTIN_TYPES: dict[str, tuple[str, bool]] = {
     "id": ("string", False),
     "status": ("status", False),
+    "archived": ("boolean", False),
     "name": ("string", True),
     "priority": ("number", False),
     "attempt": ("number", False),
@@ -407,6 +408,7 @@ def _runtime_path(path: FilterPath, *, worker: bool = False) -> RuntimePath:
         columns = {
             "id": TaskRow.task_id,
             "status": TaskRow.status,
+            "archived": TaskRow.archived,
             "name": TaskRow.name,
             "priority": TaskRow.priority,
             "attempt": TaskRow.attempt,
@@ -458,6 +460,10 @@ def _normalize_declared_literal(runtime: RuntimePath, value: Scalar) -> Scalar |
         if runtime.nullable:
             return None
         raise _invalid_filter("A non-nullable field cannot be compared with None.")
+    if declared_type == "boolean":
+        if not isinstance(value, bool):
+            raise _invalid_filter("This field requires a Boolean literal.")
+        return value
     if declared_type == "number":
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise _invalid_filter("This field requires a numeric literal.")
@@ -483,6 +489,8 @@ def _declared_comparison(
     value: Scalar | int,
 ) -> ColumnElement[bool]:
     column = runtime.value
+    if runtime.declared_type == "boolean" and operator not in {"==", "!="}:
+        raise _invalid_filter("Boolean fields support only equality and membership tests.")
     if runtime.kind == "dynamic":
         if operator in {"==", "!="}:
             equal = _json_equal(column, runtime.json_type, value)

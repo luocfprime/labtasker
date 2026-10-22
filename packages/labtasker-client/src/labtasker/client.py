@@ -231,6 +231,7 @@ class Client:
     def list_tasks(
         self,
         *,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -241,6 +242,8 @@ class Client:
         cursor: str | None = None,
         queue: str | None = None,
     ) -> TaskPage:
+        if not isinstance(include_archived, bool):
+            raise RequestValidationError("include_archived must be a Boolean.")
         self._ensure_open()
         queue_name = self._queue(queue)
         status = validate_status(status)
@@ -264,6 +267,7 @@ class Client:
             validate_unicode_scalar(cursor, field="cursor")
         params = _without_none(
             {
+                **({"include_archived": "true"} if include_archived else {}),
                 "status": status,
                 "name": name,
                 "name_fuzzy": name_fuzzy,
@@ -287,6 +291,7 @@ class Client:
     def count_tasks(
         self,
         *,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -301,6 +306,7 @@ class Client:
     def count_tasks(
         self,
         *,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -314,6 +320,7 @@ class Client:
     def count_tasks(
         self,
         *,
+        include_archived: bool = False,
         status: TaskStatus | None = None,
         name: str | None = None,
         name_fuzzy: str | None = None,
@@ -323,6 +330,8 @@ class Client:
         limit: int | None = None,
         cursor: str | None = None,
     ) -> int | GroupCountPage:
+        if not isinstance(include_archived, bool):
+            raise RequestValidationError("include_archived must be a Boolean.")
         self._ensure_open()
         queue_name = self._queue(queue)
         status = validate_status(status)
@@ -342,6 +351,7 @@ class Client:
             groups,
             _without_none(
                 {
+                    **({"include_archived": "true"} if include_archived else {}),
                     "status": status,
                     "name": name,
                     "name_fuzzy": name_fuzzy,
@@ -471,10 +481,13 @@ class Client:
     def update_tasks(
         self,
         *,
+        include_archived: bool = False,
         filter: str,
         changes: TaskUpdate,
         queue: str | None = None,
     ) -> BulkUpdateResult:
+        if not isinstance(include_archived, bool):
+            raise RequestValidationError("include_archived must be a Boolean.")
         self._ensure_open()
         queue_name = self._queue(queue)
         normalized_filter = validate_filter(filter, required=True)
@@ -483,7 +496,11 @@ class Client:
             operation="update_tasks",
             method="PATCH",
             path=f"queues/{queue_name}/tasks",
-            json={"filter": normalized_filter, "changes": normalized_changes},
+            json={
+                "filter": normalized_filter,
+                "changes": normalized_changes,
+                **({"include_archived": True} if include_archived else {}),
+            },
             parser=lambda response: _parse_model(response, BulkUpdateResult, {200}),
         )
 

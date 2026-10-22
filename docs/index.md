@@ -37,7 +37,8 @@ The key features are:
   rerunning completed Tasks. These lifecycle behaviors are covered by unit and
   end-to-end tests.
 - **Structured task records:** Keep each Task's arguments, metadata, status,
-  errors, and structured result in one place for inspection.
+  errors, and structured result in one place for inspection. Archive finished
+  Tasks to keep their results outside daily lists.
 - **Lightweight Worker observability:** Inspect where Workers run and their
   latest user-reported resource telemetry without turning Labtasker into a
   resource scheduler or metrics database.

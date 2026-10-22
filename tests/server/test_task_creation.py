@@ -32,6 +32,7 @@ def test_task_creation_expands_defaults_and_sorts_routes(client: TestClient) -> 
         "id",
         "queue",
         "status",
+        "archived",
         "name",
         "args",
         "metadata",

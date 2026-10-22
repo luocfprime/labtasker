@@ -53,6 +53,13 @@ After [the first experiment tutorial](../getting-started.md), add
 `result.score` to compare its three recorded scores. Click a Task to inspect
 its arguments, metadata, execution timeline, errors, and results.
 
+The Task drawer shows experimental **Dependencies** as same-Queue Task links.
+Open a predecessor to inspect its status and results, including archived records.
+Order and duplicate IDs are preserved; they do not define execution order. The
+WebUI loads a predecessor only when opened and does not diagnose why a Task is
+pending. Use the custom column `dependencies` for IDs or `dependencies.length`
+for their count. Older Servers without the field show an empty list.
+
 Save filters, sorting, and column layouts as a view to reuse for that connection
 and Queue.
 
@@ -65,3 +72,14 @@ their fields, and Workers to execute them.
 
 See the [WebUI README](https://github.com/luocfprime/labtasker-webui#readme) for
 installation alternatives, saved connection settings, and deployment options.
+
+## Archive old experiments
+
+With a Server and WebUI supporting Task archival, use **Archive selected** for
+finished Tasks, or **Archive** in a Task drawer. Enable **Include archived** to
+browse old records and use **Restore** to return them to daily lists. Requeue
+also restores visibility. Save that scope with the view; for archives only, add
+`archived == True` to Advanced filter. Route summaries follow the same archive
+scope. **Inactive routes** independently includes routes with only terminal Tasks;
+it does not include archives by itself. Active Workers can keep a route visible
+after its Tasks are archived.

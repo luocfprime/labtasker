@@ -166,6 +166,25 @@ follows the Worker's configured cooperative or forced-stop behavior. Succeeded
 and failed Tasks cannot be cancelled, and a succeeded Task cannot be requeued;
 submit a new Task to rerun a successful experiment.
 
+## Archive finished Tasks
+
+Keep old results without including them in daily lists, counts or batch updates:
+
+```bash
+labtasker task update --filter 'status in ["succeeded", "failed", "cancelled"]' \
+  --changes '{"archived":true}'
+labtasker task list --include-archived --filter 'archived == True'
+labtasker task update --include-archived --filter 'archived == True' \
+  --changes '{"archived":false}'
+```
+
+Archival preserves status and results. Only terminal Tasks can be archived;
+including a pending Task in a batch archive causes the entire batch to fail.
+ID-based get, update and delete still work. Requeue restores visibility, and
+archived successful predecessors continue to satisfy dependencies. To export all
+history, include archives explicitly. A Queue containing only archived Tasks is
+still non-empty and requires `--cascade` for deletion.
+
 ## Queues
 
 ```bash
