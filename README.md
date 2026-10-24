@@ -54,7 +54,7 @@ This visual overview shows Workers sharing a Queue, failed Tasks returning for
 another attempt, live experiment changes, structured results, and agent-driven
 operation.
 
-<video src="https://github.com/user-attachments/assets/a09d1113-97d1-4e19-b0ce-2a71a12f9a42" width="100%" controls playsinline></video>
+https://github.com/user-attachments/assets/a09d1113-97d1-4e19-b0ce-2a71a12f9a42
 
 > [!TIP]
 > **Hand Labtasker operations over to your coding agent.** Install the bundled
