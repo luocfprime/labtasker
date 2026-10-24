@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use Labtasker in your research, please cite it using this metadata."
+type: software
+title: Labtasker
+abstract: >-
+  A small, Python-native task queue for running independent ML inference,
+  evaluation, and experiment jobs in parallel.
+authors:
+  - family-names: Luo
+    given-names: Chaofan
+    email: luocfprime@gmail.com
+repository-code: "https://github.com/luocfprime/labtasker"
+url: "https://luocfprime.github.io/labtasker/"
+license: Apache-2.0

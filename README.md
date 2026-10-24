@@ -238,6 +238,20 @@ uv run zensical build --clean
 See [Development](docs/development.md) for repository boundaries and the full
 validation commands.
 
+## Citation
+
+If you use Labtasker in your research, please cite it:
+
+```bibtex
+@software{luo_labtasker,
+  author = {Luo, Chaofan},
+  title = {Labtasker},
+  url = {https://github.com/luocfprime/labtasker}
+}
+```
+
+Citation metadata is also available in [CITATION.cff](CITATION.cff).
+
 ## License
 
 Apache-2.0.
